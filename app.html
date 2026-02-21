@@ -1,0 +1,2307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoMonitor - Sistema de Monitoramento Geotécnico</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        window.firebaseModules = { initializeApp, getApps, getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc };
+    </script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        .lucide-icon {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            stroke-width: 2;
+            stroke: currentColor;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.4s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // Ícones simplificados
+        const Activity = () => <svg className="lucide-icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
+        const AlertTriangle = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+        const MapIcon = () => <svg className="lucide-icon" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/></svg>;
+        const ClipboardList = () => <svg className="lucide-icon" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>;
+        const Scale = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M5 12h14"/><path d="M5 9h14"/><path d="M5 15h14"/></svg>;
+        const Plus = () => <svg className="lucide-icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+        const UserPlus = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>;
+        const Mail = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>;
+        const Shield = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
+        const Upload = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+        const Phone = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>;
+        const X = () => <svg className="lucide-icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+        const Save = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
+        const Search = () => <svg className="lucide-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
+        const Edit = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+        const Trash2 = () => <svg className="lucide-icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>;
+        const User = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+        const Users = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+        const Settings = () => <svg className="lucide-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m5.656-15.656l-4.242 4.242m-2.828 2.828l-4.242 4.242m15.314.044l-4.242-4.242m-2.828-2.828l-4.242-4.242"/></svg>;
+        const Menu = () => <svg className="lucide-icon" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>;
+        const ChevronLeft = () => <svg className="lucide-icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>;
+        const Eye = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+        const Navigation = () => <svg className="lucide-icon" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>;
+        const MapPin = () => <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>;
+
+        // Firebase config
+        const firebaseConfig = {
+            apiKey: "AIzaSyCpXON4jDLv08olhQlgMFA6vCyAguYiLvU",
+            authDomain: "geomonitor-fafd6.firebaseapp.com",
+            projectId: "geomonitor-fafd6",
+            storageBucket: "geomonitor-fafd6.firebasestorage.app",
+            messagingSenderId: "475025720665",
+            appId: "1:475025720665:web:b90abf8030e298e052b848",
+            measurementId: "G-W7GVHG0DLE"
+        };
+
+        const APP_ID = "geomonitor-production-v1";
+
+        // Variáveis globais base
+        let app, auth, db;
+        
+        const RULES_DATABASE = {
+            'tipo|sulco': { impacto: 'Baixo', score: 1, frequencia: '24 meses', intervencao: 'Monitoramento visual' },
+            'tipo|ravina': { impacto: 'Médio', score: 2, frequencia: '12 meses', intervencao: 'Reconformação + revegetação' },
+            'tipo|voçoroca': { impacto: 'Alto', score: 3, frequencia: '6 meses', intervencao: 'Obra de contenção' },
+            'tipo|deslizamento': { impacto: 'Muito Alto', score: 4, frequencia: '3 meses', intervencao: 'Obra emergencial' },
+            'estagio|inicial': { impacto: 'Baixo', score: 1, frequencia: '24 meses', intervencao: 'Monitoramento preventivo' },
+            'estagio|intermediario': { impacto: 'Médio', score: 2, frequencia: '12 meses', intervencao: 'Intervenção moderada' },
+            'estagio|avancado': { impacto: 'Alto', score: 3, frequencia: '6 meses', intervencao: 'Obra corretiva' },
+            'estagio|critico': { impacto: 'Muito Alto', score: 4, frequencia: '3 meses', intervencao: 'Intervenção imediata' },
+            'profundidade|<0.5': { impacto: 'Baixo', score: 1, frequencia: '24 meses', intervencao: 'Monitoramento' },
+            'profundidade|0.5-1.5': { impacto: 'Médio', score: 2, frequencia: '12 meses', intervencao: 'Revegetação' },
+            'profundidade|1.5-3.0': { impacto: 'Alto', score: 3, frequencia: '6 meses', intervencao: 'Contenção necessária' },
+            'profundidade|>3.0': { impacto: 'Muito Alto', score: 4, frequencia: '3 meses', intervencao: 'Obra urgente' },
+            'declividade|<15': { impacto: 'Baixo', score: 1, frequencia: '24 meses', intervencao: 'Baixo risco' },
+            'declividade|15-30': { impacto: 'Médio', score: 2, frequencia: '12 meses', intervencao: 'Risco moderado' },
+            'declividade|30-45': { impacto: 'Alto', score: 3, frequencia: '6 meses', intervencao: 'Alto risco' },
+            'declividade|>45': { impacto: 'Muito Alto', score: 4, frequencia: '3 meses', intervencao: 'Risco crítico' },
+            'largura|<1': { impacto: 'Baixo', score: 1, frequencia: '24 meses', intervencao: 'Monitoramento' },
+            'largura|1-3': { impacto: 'Médio', score: 2, frequencia: '12 meses', intervencao: 'Atenção necessária' },
+            'largura|3-5': { impacto: 'Alto', score: 3, frequencia: '6 meses', intervencao: 'Intervenção prioritária' },
+            'largura|>5': { impacto: 'Muito Alto', score: 4, frequencia: '3 meses', intervencao: 'Ação imediata' }
+        };
+
+        function calculateCriticality(dados) {
+            let maxScore = 0;
+            let resultado = { impacto: 'Baixo', score: 1, frequencia: '24 meses', intervencao: 'Monitoramento visual' };
+            
+            const criterios = [
+                { campo: 'tipo', valor: dados.tipo?.toLowerCase() },
+                { campo: 'estagio', valor: dados.estagio?.toLowerCase() },
+                { campo: 'profundidade', valor: dados.profundidade },
+                { campo: 'declividade', valor: dados.declividade },
+                { campo: 'largura', valor: dados.largura }
+            ];
+            
+            criterios.forEach(c => {
+                if (!c.valor) return;
+                const chave = `${c.campo}|${c.valor}`;
+                const regra = RULES_DATABASE[chave];
+                if (regra && regra.score > maxScore) {
+                    maxScore = regra.score;
+                    resultado = regra;
+                }
+            });
+            
+            return resultado;
+        }
+
+        function formatCoordinates(lat, lng) {
+            if (!lat || !lng) return 'Não informado';
+            const latDir = lat >= 0 ? 'N' : 'S';
+            const lngDir = lng >= 0 ? 'E' : 'W';
+            return `${Math.abs(lat).toFixed(6)}° ${latDir}, ${Math.abs(lng).toFixed(6)}° ${lngDir}`;
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Raio da Terra em km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                     Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function formatPhone(value) {
+            const cleaned = value.replace(/\D/g, '');
+            if (cleaned.length <= 10) {
+                return cleaned.replace(/(\d{2})(\d{4})(\d{0,4})/, (match, p1, p2, p3) => {
+                    if (p3) return `(${p1}) ${p2}-${p3}`;
+                    if (p2) return `(${p1}) ${p2}`;
+                    if (p1) return `(${p1}`;
+                    return match;
+                });
+            } else {
+                return cleaned.replace(/(\d{2})(\d{5})(\d{0,4})/, (match, p1, p2, p3) => {
+                    if (p3) return `(${p1}) ${p2}-${p3}`;
+                    if (p2) return `(${p1}) ${p2}`;
+                    if (p1) return `(${p1}`;
+                    return match;
+                });
+            }
+        }
+        
+        function GeoMonitorApp() {
+            const [initialized, setInitialized] = useState(false);
+            const [authUser, setAuthUser] = useState(null);
+            const [authLoading, setAuthLoading] = useState(true);
+            const [projects, setProjects] = useState([]);
+            const [inspections, setInspections] = useState([]);
+            const [erosions, setErosions] = useState([]);
+            const [users, setUsers] = useState([]);
+            const [currentUserProfile, setCurrentUserProfile] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [showProfileModal, setShowProfileModal] = useState(false);
+            const [globalSearchTerm, setGlobalSearchTerm] = useState('');
+            const [toast, setToast] = useState({ kind: '', text: '' });
+            const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+            const showToast = (kind, text) => {
+                setToast({ kind, text });
+                setTimeout(() => setToast({ kind: '', text: '' }), 4000);
+            };
+
+            const saveToFirestore = async (colName, docId, data) => {
+                try {
+                    const { doc, setDoc } = window.firebaseModules;
+                    const dataWithMeta = {
+                        ...data,
+                        ultimaAtualizacao: new Date().toISOString(),
+                        atualizadoPor: authUser.email || authUser.uid
+                    };
+                    await setDoc(doc(db, 'shared', 'geomonitor', colName, docId), dataWithMeta);
+                    showToast('ok', 'Dados salvos com sucesso!');
+                } catch (e) {
+                    showToast('err', 'Erro ao salvar: ' + e.message);
+                }
+            };
+
+            const deleteFromFirestore = async (colName, docId) => {
+                try {
+                    const { doc, deleteDoc } = window.firebaseModules;
+                    await deleteDoc(doc(db, 'shared', 'geomonitor', colName, docId));
+                    showToast('ok', 'Registo excluído!');
+                } catch (e) {
+                    showToast('err', 'Erro ao excluir: ' + e.message);
+                }
+            };
+
+            useEffect(() => {
+                const timer = setInterval(() => {
+                    if (window.firebaseModules) {
+                        try {
+                            const { initializeApp, getApps, getAuth, onAuthStateChanged, getFirestore } = window.firebaseModules;
+                            
+                            const apps = getApps();
+                            if (!apps || apps.length === 0) {
+                                app = initializeApp(firebaseConfig);
+                            } else {
+                                app = apps[0];
+                            }
+                            
+                            auth = getAuth(app);
+                            db = getFirestore(app);
+                            
+                            onAuthStateChanged(auth, (user) => {
+                                setAuthUser(user);
+                                setAuthLoading(false);
+                            });
+                            
+                            setInitialized(true);
+                        } catch (e) {
+                            console.error('Erro ao inicializar Firebase:', e);
+                            setAuthLoading(false);
+                        } finally {
+                            clearInterval(timer);
+                        }
+                    }
+                }, 100);
+                
+                return () => clearInterval(timer);
+            }, []);
+
+            useEffect(() => {
+                if (!authUser || !initialized) return;
+
+                const { collection, onSnapshot } = window.firebaseModules;
+
+                const un1 = onSnapshot(collection(db, 'shared', 'geomonitor', 'projects'), (s) => {
+                    setProjects(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+
+                const un2 = onSnapshot(collection(db, 'shared', 'geomonitor', 'inspections'), (s) => {
+                    setInspections(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => 
+                        new Date(b.dataInicio || b.data) - new Date(a.dataInicio || a.data)
+                    ));
+                });
+
+                const un3 = onSnapshot(collection(db, 'shared', 'geomonitor', 'erosions'), (s) => {
+                    setErosions(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                    setLoading(false);
+                });
+
+                const un4 = onSnapshot(collection(db, 'shared', 'geomonitor', 'users'), (s) => {
+                    const usersList = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                    setUsers(usersList);
+                    const currentProfile = usersList.find(u => u.email === authUser.email);
+                    setCurrentUserProfile(currentProfile);
+                });
+
+                return () => {
+                    un1(); un2(); un3(); un4();
+                };
+            }, [authUser, initialized]);
+
+            if (!initialized || authLoading) {
+                return (
+                    <div className="h-screen w-screen flex items-center justify-center bg-slate-900 text-white">
+                        <Activity /> <span className="ml-2">Inicializando...</span>
+                    </div>
+                );
+            }
+
+            if (!authUser) {
+                return <AuthScreen />;
+            }
+
+            if (loading) {
+                return (
+                    <div className="h-screen w-screen flex items-center justify-center bg-slate-900 text-white">
+                        <Activity /> <span className="ml-2">A carregar dados...</span>
+                    </div>
+                );
+            }
+
+            const menu = [
+                { id: 'dashboard', icon: <Activity />, label: 'Monitorização' },
+                { id: 'projects', icon: <MapIcon />, label: 'Empreendimentos' },
+                { id: 'inspections', icon: <ClipboardList />, label: 'Vistorias' },
+                { id: 'erosions', icon: <AlertTriangle />, label: 'Erosões' },
+                { id: 'users', icon: <Users />, label: 'Utilizadores' },
+                { id: 'rules', icon: <Scale />, label: 'Regras' }
+            ];
+
+            return (
+                <div className="flex h-screen bg-slate-50">
+                    <aside className={`${sidebarCollapsed ? 'w-20' : 'w-72'} bg-slate-900 text-slate-300 flex flex-col shadow-xl transition-all duration-300`}>
+                        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    className="p-2 hover:bg-slate-800 rounded-lg transition-all"
+                                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                                    title={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
+                                >
+                                    {sidebarCollapsed ? <Menu className="text-slate-300" /> : <ChevronLeft className="text-slate-300" />}
+                                </button>
+                                {!sidebarCollapsed && (
+                                    <h1 className="text-xl font-bold text-white flex items-center gap-2">
+                                        <Activity className="text-blue-500" /> GeoMonitor
+                                    </h1>
+                                )}
+                            </div>
+                            {!sidebarCollapsed && (
+                                <button 
+                                    className="text-xs text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded-lg transition-all"
+                                    onClick={async () => {
+                                        const { signOut } = window.firebaseModules;
+                                        await signOut(auth);
+                                    }}
+                                >
+                                    Sair
+                                </button>
+                            )}
+                        </div>
+
+                        {!sidebarCollapsed && (
+                            <div className="px-6 pt-4 pb-2 border-b border-slate-800">
+                                <button 
+                                    onClick={() => setShowProfileModal(true)}
+                                    className="w-full text-left hover:bg-slate-800 rounded-lg p-2 transition-all"
+                                >
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <User className="text-blue-500 w-4 h-4" />
+                                        <div className="text-xs text-slate-400">Meu Perfil</div>
+                                    </div>
+                                    <div className="text-sm text-white font-medium truncate">
+                                        {currentUserProfile?.nome || authUser.email || authUser.uid}
+                                    </div>
+                                    {currentUserProfile && (
+                                        <div className="text-xs text-slate-400 mt-0.5">{currentUserProfile.cargo || 'Sem cargo'}</div>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+
+                        <nav className="flex-1 p-4 space-y-2">
+                            {menu.map(m => (
+                                <button
+                                    key={m.id}
+                                    onClick={() => setActiveTab(m.id)}
+                                    className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'} px-4 py-3 rounded-lg text-left transition-all ${
+                                        activeTab === m.id 
+                                            ? 'bg-blue-600 text-white' 
+                                            : 'hover:bg-slate-800'
+                                    }`}
+                                    title={sidebarCollapsed ? m.label : ''}
+                                >
+                                    {m.icon}
+                                    {!sidebarCollapsed && <span className="font-medium">{m.label}</span>}
+                                </button>
+                            ))}
+                        </nav>
+
+                        {!sidebarCollapsed && (
+                            <div className="p-4 border-t border-slate-800">
+                                <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-3 py-2.5">
+                                    <Search className="text-slate-400" />
+                                    <input 
+                                        className="bg-transparent outline-none text-sm text-slate-100 placeholder:text-slate-400 w-full"
+                                        placeholder="Procurar..."
+                                        value={globalSearchTerm}
+                                        onChange={(e) => setGlobalSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </aside>
+
+                    <main className="flex-1 p-8 overflow-y-auto">
+                        <div className="max-w-7xl mx-auto">
+                            {activeTab === 'dashboard' && (
+                                <DashboardView projects={projects} inspections={inspections} erosions={erosions} searchTerm={globalSearchTerm} />
+                            )}
+                            {activeTab === 'projects' && (
+                                <ProjectsView projects={projects} searchTerm={globalSearchTerm} saveToFirestore={saveToFirestore} deleteFromFirestore={deleteFromFirestore} />
+                            )}
+                            {activeTab === 'inspections' && (
+                                <InspectionsView inspections={inspections} projects={projects} erosions={erosions} searchTerm={globalSearchTerm} saveToFirestore={saveToFirestore} deleteFromFirestore={deleteFromFirestore} />
+                            )}
+                            {activeTab === 'erosions' && (
+                                <ErosionsView erosions={erosions} projects={projects} inspections={inspections} searchTerm={globalSearchTerm} saveToFirestore={saveToFirestore} deleteFromFirestore={deleteFromFirestore} />
+                            )}
+                            {activeTab === 'users' && (
+                                <UsersView users={users} searchTerm={globalSearchTerm} saveToFirestore={saveToFirestore} deleteFromFirestore={deleteFromFirestore} />
+                            )}
+                            {activeTab === 'rules' && <RulesView />}
+                        </div>
+
+                        {showProfileModal && (
+                            <ProfileModal 
+                                authUser={authUser} 
+                                currentUserProfile={currentUserProfile} 
+                                saveToFirestore={saveToFirestore} 
+                                onClose={() => setShowProfileModal(false)} 
+                                showToast={showToast} 
+                            />
+                        )}
+
+                        {toast.text && (
+                            <div className={`fixed bottom-6 right-6 z-50 rounded-xl border shadow-lg px-4 py-3 text-sm flex items-center gap-2 max-w-sm ${
+                                toast.kind === 'ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
+                                toast.kind === 'err' ? 'bg-red-50 border-red-200 text-red-800' :
+                                'bg-slate-50 border-slate-200 text-slate-800'
+                            }`}>
+                                <div className="flex-1">{toast.text}</div>
+                                <button onClick={() => setToast({ kind: '', text: '' })}><X /></button>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        function AuthScreen() {
+            const [mode, setMode] = useState('login');
+            const [email, setEmail] = useState('');
+            const [pass, setPass] = useState('');
+            const [nome, setNome] = useState('');
+            const [busy, setBusy] = useState(false);
+            const [msg, setMsg] = useState({ kind: '', text: '' });
+
+            const submit = async () => {
+                setMsg({ kind: '', text: '' });
+                setBusy(true);
+                try {
+                    const { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } = window.firebaseModules;
+                    
+                    if (!email) throw new Error('Informe o email.');
+                    
+                    if (mode === 'reset') {
+                        await sendPasswordResetEmail(auth, email);
+                        setMode('login');
+                        setMsg({ kind: 'ok', text: 'Email de redefinição enviado. Verifique a sua caixa de entrada.' });
+                    } else if (mode === 'signup') {
+                        if (!nome || nome.trim().length < 3) throw new Error('Nome deve ter pelo menos 3 caracteres.');
+                        if (!pass || pass.length < 6) throw new Error('Senha mínimo 6 caracteres.');
+                        
+                        await createUserWithEmailAndPassword(auth, email, pass);
+                        setMsg({ kind: 'ok', text: 'Conta criada com sucesso! Já tem sessão iniciada.' });
+                    } else {
+                        await signInWithEmailAndPassword(auth, email, pass);
+                    }
+                } catch (e) {
+                    setMsg({ kind: 'err', text: e.message || String(e) });
+                } finally {
+                    setBusy(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6">
+                    <div className="w-full max-w-md bg-white border border-slate-200 rounded-xl shadow-lg p-8">
+                        <div className="flex items-center justify-center mb-6">
+                            <div className="bg-blue-600 p-3 rounded-xl shadow-md">
+                                <Activity className="text-white w-8 h-8" />
+                            </div>
+                        </div>
+                        
+                        <div className="text-center mb-6">
+                            <h1 className="text-2xl font-bold text-slate-800">GeoMonitor</h1>
+                            <p className="text-sm text-slate-500 mt-1">Sistema de Monitorização Geotécnica</p>
+                        </div>
+
+                        <div className="flex gap-2 mb-6">
+                            <button
+                                className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all ${
+                                    mode === 'login' 
+                                        ? 'bg-blue-600 text-white border-blue-600' 
+                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                }`}
+                                onClick={() => setMode('login')}
+                            >
+                                Entrar
+                            </button>
+                            <button
+                                className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-all ${
+                                    mode === 'signup' 
+                                        ? 'bg-blue-600 text-white border-blue-600' 
+                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                }`}
+                                onClick={() => setMode('signup')}
+                            >
+                                Criar conta
+                            </button>
+                            <button
+                                className={`py-2.5 px-3 rounded-lg text-sm font-medium border transition-all ${
+                                    mode === 'reset' 
+                                        ? 'bg-blue-600 text-white border-blue-600' 
+                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                }`}
+                                onClick={() => setMode('reset')}
+                                title="Recuperar senha"
+                            >
+                                ?
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            {mode === 'signup' && (
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                                        <User className="w-3 h-3" /> Nome completo
+                                    </label>
+                                    <input
+                                        className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                        value={nome}
+                                        onChange={(e) => setNome(e.target.value)}
+                                        type="text"
+                                        placeholder="O seu nome"
+                                    />
+                                </div>
+                            )}
+                            
+                            <div>
+                                <label className="text-xs font-semibold text-slate-700">Email</label>
+                                <input
+                                    className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    type="email"
+                                    placeholder="email@dominio.com"
+                                />
+                            </div>
+
+                            {mode !== 'reset' && (
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-700">Senha</label>
+                                    <input
+                                        className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                        value={pass}
+                                        onChange={(e) => setPass(e.target.value)}
+                                        type="password"
+                                        placeholder="••••••"
+                                    />
+                                </div>
+                            )}
+
+                            <button 
+                                onClick={submit} 
+                                disabled={busy}
+                                className="w-full bg-blue-600 text-white rounded-lg py-3 font-semibold hover:bg-blue-700 disabled:bg-slate-300 transition-all"
+                            >
+                                {busy ? 'Aguarde...' : mode === 'reset' ? 'Enviar email' : mode === 'signup' ? 'Criar conta' : 'Entrar'}
+                            </button>
+
+                            {msg.text && (
+                                <div className={`p-3 rounded-lg text-sm border-l-4 ${
+                                    msg.kind === 'ok' ? 'bg-green-50 text-green-800 border-green-500' : 'bg-red-50 text-red-800 border-red-500'
+                                }`}>
+                                    {msg.text}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function DashboardView({ projects, inspections, erosions, searchTerm }) {
+            const filtered = erosions.filter(e => {
+                const t = searchTerm.toLowerCase();
+                if (!t) return true;
+                return String(e.id || '').toLowerCase().includes(t) ||
+                       String(e.projetoId || '').toLowerCase().includes(t);
+            });
+
+            const critical = filtered.filter(e => e.impacto === 'Alto' || e.impacto === 'Muito Alto').length;
+            const porImpacto = {
+                'Muito Alto': filtered.filter(e => e.impacto === 'Muito Alto').length,
+                'Alto': filtered.filter(e => e.impacto === 'Alto').length,
+                'Médio': filtered.filter(e => e.impacto === 'Médio').length,
+                'Baixo': filtered.filter(e => e.impacto === 'Baixo').length
+            };
+
+            return (
+                <div className="space-y-6">
+                    <h2 className="text-2xl font-bold text-slate-800">Dashboard de Monitorização</h2>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                            <p className="text-slate-500 text-sm font-medium flex items-center gap-2">
+                                <MapIcon className="w-4 h-4" /> Empreendimentos
+                            </p>
+                            <p className="text-3xl font-bold text-slate-800 mt-2">{projects.length}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                            <p className="text-slate-500 text-sm font-medium flex items-center gap-2">
+                                <ClipboardList className="w-4 h-4" /> Vistorias
+                            </p>
+                            <p className="text-3xl font-bold text-slate-800 mt-2">{inspections.length}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                            <p className="text-slate-500 text-sm font-medium flex items-center gap-2">
+                                <Activity className="w-4 h-4" /> Erosões
+                            </p>
+                            <p className="text-3xl font-bold text-slate-800 mt-2">{filtered.length}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                            <p className="text-slate-500 text-sm font-medium flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4" /> Críticas
+                            </p>
+                            <p className="text-3xl font-bold text-red-600 mt-2">{critical}</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 p-4 rounded-lg">
+                            <div className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-1">Muito Alto</div>
+                            <div className="text-2xl font-bold text-red-700">{porImpacto['Muito Alto']}</div>
+                        </div>
+                        <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 p-4 rounded-lg">
+                            <div className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-1">Alto</div>
+                            <div className="text-2xl font-bold text-orange-700">{porImpacto['Alto']}</div>
+                        </div>
+                        <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200 p-4 rounded-lg">
+                            <div className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mb-1">Médio</div>
+                            <div className="text-2xl font-bold text-yellow-700">{porImpacto['Médio']}</div>
+                        </div>
+                        <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 p-4 rounded-lg">
+                            <div className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-1">Baixo</div>
+                            <div className="text-2xl font-bold text-green-700">{porImpacto['Baixo']}</div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                        <div className="p-4 border-b">
+                            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                <AlertTriangle className="text-orange-500" /> Erosões Recentes
+                            </h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50 text-slate-500">
+                                    <tr>
+                                        <th className="p-4 text-left">ID</th>
+                                        <th className="p-4 text-left">Projeto</th>
+                                        <th className="p-4 text-left">Torre</th>
+                                        <th className="p-4 text-left">Impacto</th>
+                                        <th className="p-4 text-left">Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                    {filtered.slice(0, 10).map(e => (
+                                        <tr key={e.id} className="hover:bg-slate-50">
+                                            <td className="p-4 font-medium">{e.id}</td>
+                                            <td className="p-4">{e.projetoId}</td>
+                                            <td className="p-4">Torre {e.torreRef}</td>
+                                            <td className="p-4">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                                    e.impacto === 'Muito Alto' ? 'bg-red-100 text-red-700' :
+                                                    e.impacto === 'Alto' ? 'bg-orange-100 text-orange-700' :
+                                                    e.impacto === 'Médio' ? 'bg-yellow-100 text-yellow-700' :
+                                                    'bg-green-100 text-green-700'
+                                                }`}>
+                                                    {e.impacto}
+                                                </span>
+                                            </td>
+                                            <td className="p-4">{e.status}</td>
+                                        </tr>
+                                    ))}
+                                    {filtered.length === 0 && (
+                                        <tr>
+                                            <td colSpan="5" className="p-8 text-center text-slate-400">
+                                                Nenhuma erosão registada.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function ProjectsView({ projects, searchTerm, saveToFirestore, deleteFromFirestore }) {
+            const [isFormOpen, setIsFormOpen] = useState(false);
+            const [formData, setFormData] = useState({ id: '', nome: '', tipo: 'Linha de Transmissão', tensao: '', extensao: '', torres: '' });
+            const [isEditing, setIsEditing] = useState(false);
+            const [confirmDelete, setConfirmDelete] = useState(null);
+
+            const filtered = projects.filter(p => {
+                const t = searchTerm.toLowerCase();
+                if (!t) return true;
+                return String(p.id || '').toLowerCase().includes(t) ||
+                       String(p.nome || '').toLowerCase().includes(t);
+            });
+
+            const openNew = () => {
+                setFormData({ id: '', nome: '', tipo: 'Linha de Transmissão', tensao: '', extensao: '', torres: '', dataCadastro: new Date().toISOString().split('T')[0] });
+                setIsEditing(false);
+                setIsFormOpen(true);
+            };
+
+            const openEdit = (p) => {
+                setFormData(p);
+                setIsEditing(true);
+                setIsFormOpen(true);
+            };
+
+            const handleSave = async () => {
+                if (!formData.id || !formData.nome) {
+                    alert('Preencha ID e Nome');
+                    return;
+                }
+                const dataToSave = {
+                    ...formData,
+                    dataCadastro: formData.dataCadastro || new Date().toISOString().split('T')[0]
+                };
+                await saveToFirestore('projects', formData.id, dataToSave);
+                setIsFormOpen(false);
+            };
+
+            const handleDelete = async (id) => {
+                await deleteFromFirestore('projects', id);
+                setConfirmDelete(null);
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-2xl font-bold text-slate-800">Empreendimentos</h2>
+                        <button onClick={openNew} className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-blue-700">
+                            <Plus /> Novo
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filtered.map(p => (
+                            <div key={p.id} className="bg-white rounded-xl shadow-sm border p-5 hover:shadow-md transition-shadow">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <h3 className="font-bold text-lg text-slate-800">{p.id}</h3>
+                                        <p className="text-xs text-slate-500">{p.dataCadastro || 'S/D'}</p>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <button onClick={() => openEdit(p)} className="p-2 rounded-lg bg-slate-100 hover:bg-blue-50 text-blue-600">
+                                            <Edit />
+                                        </button>
+                                        <button onClick={() => setConfirmDelete(p.id)} className="p-2 rounded-lg bg-slate-100 hover:bg-red-50 text-red-600">
+                                            <Trash2 />
+                                        </button>
+                                    </div>
+                                </div>
+                                <p className="font-medium text-slate-700 mb-3">{p.nome}</p>
+                                <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                                    <span className="px-2 py-1 bg-slate-100 rounded">{p.tipo}</span>
+                                    {p.tensao && <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded">{p.tensao} kV</span>}
+                                    {p.extensao && <span className="px-2 py-1 bg-green-50 text-green-700 rounded">{p.extensao} km</span>}
+                                </div>
+                            </div>
+                        ))}
+                        {filtered.length === 0 && (
+                            <p className="text-slate-400 col-span-3 text-center py-10">
+                                Nenhum empreendimento encontrado.
+                            </p>
+                        )}
+                    </div>
+
+                    {isFormOpen && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white p-6 rounded-xl w-full max-w-2xl shadow-2xl">
+                                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                                    <h3 className="text-lg font-bold">{isEditing ? 'Editar' : 'Novo'} Empreendimento</h3>
+                                    <button onClick={() => setIsFormOpen(false)}><X /></button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">ID (Sigla)</label>
+                                            <input
+                                                className="w-full border p-2 rounded text-sm uppercase"
+                                                value={formData.id}
+                                                onChange={(e) => setFormData({...formData, id: e.target.value.toUpperCase()})}
+                                                disabled={isEditing}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Tipo</label>
+                                            <select
+                                                className="w-full border p-2 rounded text-sm"
+                                                value={formData.tipo}
+                                                onChange={(e) => setFormData({...formData, tipo: e.target.value})}
+                                            >
+                                                <option>Linha de Transmissão</option>
+                                                <option>Reservatório de Represa</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-700 mb-1">Nome</label>
+                                        <input
+                                            className="w-full border p-2 rounded text-sm"
+                                            value={formData.nome}
+                                            onChange={(e) => setFormData({...formData, nome: e.target.value})}
+                                        />
+                                    </div>
+
+                                    {formData.tipo === 'Linha de Transmissão' && (
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-700 mb-1">kV</label>
+                                                <select
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={formData.tensao}
+                                                    onChange={(e) => setFormData({...formData, tensao: e.target.value})}
+                                                >
+                                                    <option value="">-</option>
+                                                    <option value="69">69</option>
+                                                    <option value="138">138</option>
+                                                    <option value="230">230</option>
+                                                    <option value="500">500</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-700 mb-1">Extensão (km)</label>
+                                                <input
+                                                    type="number"
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={formData.extensao}
+                                                    onChange={(e) => setFormData({...formData, extensao: e.target.value})}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-700 mb-1">Torres (qtd)</label>
+                                                <input
+                                                    type="number"
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={formData.torres}
+                                                    onChange={(e) => setFormData({...formData, torres: e.target.value})}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex gap-2 pt-4">
+                                        <button onClick={handleSave} className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 flex items-center justify-center gap-2">
+                                            <Save /> Salvar
+                                        </button>
+                                        <button onClick={() => setIsFormOpen(false)} className="px-4 bg-slate-100 text-slate-700 py-2 rounded hover:bg-slate-200">
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {confirmDelete && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md">
+                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-red-600">
+                                    <AlertTriangle /> Confirmar Exclusão
+                                </h3>
+                                <p className="text-slate-600 mb-6">
+                                    Tem certeza que deseja excluir o empreendimento <strong>{confirmDelete}</strong>?
+                                </p>
+                                <div className="flex gap-2">
+                                    <button onClick={() => handleDelete(confirmDelete)} className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700">
+                                        Excluir
+                                    </button>
+                                    <button onClick={() => setConfirmDelete(null)} className="flex-1 bg-slate-100 text-slate-700 py-2 rounded hover:bg-slate-200">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function InspectionsView({ inspections, projects, erosions, searchTerm, saveToFirestore, deleteFromFirestore }) {
+            const [isFormOpen, setIsFormOpen] = useState(false);
+            const [formData, setFormData] = useState({ id: '', projetoId: '', dataInicio: '', dataFim: '', responsavel: '', obs: '', latitude: '', longitude: '' });
+            const [isEditing, setIsEditing] = useState(false);
+            const [confirmDelete, setConfirmDelete] = useState(null);
+            const [detailsModal, setDetailsModal] = useState(null);
+
+            const filtered = inspections.filter(i => {
+                const t = searchTerm.toLowerCase();
+                if (!t) return true;
+                return String(i.id || '').toLowerCase().includes(t) ||
+                       String(i.projetoId || '').toLowerCase().includes(t) ||
+                       String(i.responsavel || '').toLowerCase().includes(t);
+            });
+
+            const openNew = () => {
+                const newId = `V${Date.now().toString().slice(-8)}`;
+                setFormData({ id: newId, projetoId: '', dataInicio: '', dataFim: '', responsavel: '', obs: '', latitude: '', longitude: '' });
+                setIsEditing(false);
+                setIsFormOpen(true);
+            };
+
+            const openEdit = (i) => {
+                setFormData(i);
+                setIsEditing(true);
+                setIsFormOpen(true);
+            };
+
+            const handleSave = async () => {
+                if (!formData.id || !formData.projetoId || !formData.dataInicio) {
+                    alert('Preencha ID, Projeto e Data Início');
+                    return;
+                }
+                await saveToFirestore('inspections', formData.id, formData);
+                setIsFormOpen(false);
+            };
+
+            const handleDelete = async (id) => {
+                await deleteFromFirestore('inspections', id);
+                setConfirmDelete(null);
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-2xl font-bold text-slate-800">Vistorias</h2>
+                        <button onClick={openNew} className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-blue-700">
+                            <Plus /> Nova Vistoria
+                        </button>
+                    </div>
+
+                    <div className="space-y-4">
+                        {filtered.map(i => {
+                            const projeto = projects.find(p => p.id === i.projetoId);
+                            return (
+                                <div key={i.id} className="bg-white rounded-xl border shadow-sm p-5 hover:shadow-md transition-shadow">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <h3 className="font-bold text-slate-800">{i.id}</h3>
+                                                <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">{i.projetoId}</span>
+                                                {i.dataInicio && <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded">{i.dataInicio}</span>}
+                                            </div>
+                                            <div className="text-sm text-slate-600 space-y-1">
+                                                {i.responsavel && <p><strong>Responsável:</strong> {i.responsavel}</p>}
+                                                {i.dataFim && <p><strong>Data Fim:</strong> {i.dataFim}</p>}
+                                                {projeto && (
+                                                    <p className="text-slate-500 text-xs mt-2">
+                                                        <MapIcon className="w-3 h-3 inline mr-1" />
+                                                        {projeto.nome}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <button onClick={() => setDetailsModal(i)} className="p-2 rounded-lg bg-slate-100 hover:bg-green-50 text-green-600" title="Ver detalhes">
+                                                <Eye />
+                                            </button>
+                                            <button onClick={() => openEdit(i)} className="p-2 rounded-lg bg-slate-100 hover:bg-blue-50 text-blue-600">
+                                                <Edit />
+                                            </button>
+                                            <button onClick={() => setConfirmDelete(i.id)} className="p-2 rounded-lg bg-slate-100 hover:bg-red-50 text-red-600">
+                                                <Trash2 />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {filtered.length === 0 && (
+                            <p className="text-slate-400 text-center py-10">
+                                Nenhuma vistoria encontrada.
+                            </p>
+                        )}
+                    </div>
+
+                    {detailsModal && (
+                        <InspectionDetailsModal 
+                            inspection={detailsModal}
+                            project={projects.find(p => p.id === detailsModal.projetoId)}
+                            erosions={erosions}
+                            inspections={filtered}
+                            onClose={() => setDetailsModal(null)}
+                            onNavigate={(newInspection) => setDetailsModal(newInspection)}
+                        />
+                    )}
+
+                    {isFormOpen && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white p-6 rounded-xl w-full max-w-2xl shadow-2xl">
+                                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                                    <h3 className="text-lg font-bold">{isEditing ? 'Editar' : 'Nova'} Vistoria</h3>
+                                    <button onClick={() => setIsFormOpen(false)}><X /></button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">ID</label>
+                                            <input className="w-full border p-2 rounded text-sm bg-slate-50" value={formData.id} disabled />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Empreendimento *</label>
+                                            <select className="w-full border p-2 rounded text-sm" value={formData.projetoId} onChange={(e) => setFormData({...formData, projetoId: e.target.value})}>
+                                                <option value="">Selecione...</option>
+                                                {projects.map(p => (
+                                                    <option key={p.id} value={p.id}>{p.id} - {p.nome}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Data Início *</label>
+                                            <input type="date" className="w-full border p-2 rounded text-sm" value={formData.dataInicio} onChange={(e) => setFormData({...formData, dataInicio: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Data Fim</label>
+                                            <input type="date" className="w-full border p-2 rounded text-sm" value={formData.dataFim} onChange={(e) => setFormData({...formData, dataFim: e.target.value})} />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-700 mb-1">Responsável</label>
+                                        <input className="w-full border p-2 rounded text-sm" value={formData.responsavel} onChange={(e) => setFormData({...formData, responsavel: e.target.value})} placeholder="Nome do responsável" />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-700 mb-1">Observações</label>
+                                        <textarea className="w-full border p-2 rounded text-sm" rows="3" value={formData.obs || ''} onChange={(e) => setFormData({...formData, obs: e.target.value})} placeholder="Observações sobre a vistoria..." />
+                                    </div>
+
+                                    <div className="flex gap-2 pt-4">
+                                        <button onClick={handleSave} className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 flex items-center justify-center gap-2">
+                                            <Save /> Salvar
+                                        </button>
+                                        <button onClick={() => setIsFormOpen(false)} className="px-4 bg-slate-100 text-slate-700 py-2 rounded hover:bg-slate-200">
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {confirmDelete && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md">
+                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-red-600">
+                                    <AlertTriangle /> Confirmar Exclusão
+                                </h3>
+                                <p className="text-slate-600 mb-6">
+                                    Tem a certeza que deseja excluir a vistoria <strong>{confirmDelete}</strong>?
+                                </p>
+                                <div className="flex gap-2">
+                                    <button onClick={() => handleDelete(confirmDelete)} className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700">
+                                        Excluir
+                                    </button>
+                                    <button onClick={() => setConfirmDelete(null)} className="flex-1 bg-slate-100 text-slate-700 py-2 rounded hover:bg-slate-200">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function InspectionDetailsModal({ inspection, project, erosions, inspections, onClose, onNavigate }) {
+            const relatedErosions = erosions?.filter(e => e.vistoriaId === inspection.id) || [];
+            
+            const currentIndex = inspections.findIndex(i => i.id === inspection.id);
+            const hasPrevious = currentIndex > 0;
+            const hasNext = currentIndex < inspections.length - 1;
+
+            const handlePrevious = () => {
+                if (hasPrevious) {
+                    onNavigate(inspections[currentIndex - 1]);
+                }
+            };
+
+            const handleNext = () => {
+                if (hasNext) {
+                    onNavigate(inspections[currentIndex + 1]);
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl w-full max-w-4xl shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+                            <div className="flex items-center gap-4 flex-1">
+                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                    <ClipboardList className="text-blue-600" />
+                                    Detalhes da Vistoria: {inspection.id}
+                                </h3>
+                                <div className="text-sm text-slate-500">
+                                    ({currentIndex + 1} de {inspections.length})
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={handlePrevious} disabled={!hasPrevious} className={`p-2 rounded-lg transition-colors ${hasPrevious ? 'hover:bg-slate-100 text-slate-700' : 'text-slate-300 cursor-not-allowed'}`} title="Vistoria anterior">
+                                    <ChevronLeft />
+                                </button>
+                                <button onClick={handleNext} disabled={!hasNext} className={`p-2 rounded-lg transition-colors ${hasNext ? 'hover:bg-slate-100 text-slate-700' : 'text-slate-300 cursor-not-allowed'}`} title="Próxima vistoria">
+                                    <svg className="lucide-icon" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                                </button>
+                                <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors ml-2">
+                                    <X />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            <div className="grid grid-cols-2 gap-6">
+                                <div className="bg-slate-50 rounded-lg p-4">
+                                    <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                        <MapIcon className="w-4 h-4" /> Empreendimento
+                                    </h4>
+                                    {project ? (
+                                        <div className="space-y-2 text-sm">
+                                            <div><strong>ID:</strong> {project.id}</div>
+                                            <div><strong>Nome:</strong> {project.nome}</div>
+                                            <div><strong>Tipo:</strong> {project.tipo}</div>
+                                            {project.tensao && <div><strong>Tensão:</strong> {project.tensao} kV</div>}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-slate-500">Projeto não encontrado</p>
+                                    )}
+                                </div>
+
+                                <div className="bg-slate-50 rounded-lg p-4">
+                                    <h4 className="text-sm font-semibold text-slate-700 mb-3">Informações da Vistoria</h4>
+                                    <div className="space-y-2 text-sm">
+                                        <div><strong>ID:</strong> {inspection.id}</div>
+                                        <div><strong>Data Início:</strong> {inspection.dataInicio}</div>
+                                        {inspection.dataFim && <div><strong>Data Fim:</strong> {inspection.dataFim}</div>}
+                                        {inspection.responsavel && <div><strong>Responsável:</strong> {inspection.responsavel}</div>}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {inspection.obs && (
+                                <div className="bg-slate-50 rounded-lg p-4">
+                                    <h4 className="text-sm font-semibold text-slate-700 mb-2">Observações</h4>
+                                    <p className="text-sm text-slate-600 whitespace-pre-wrap">{inspection.obs}</p>
+                                </div>
+                            )}
+
+                            <div className="bg-slate-50 rounded-lg p-4">
+                                <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                    <AlertTriangle className="w-4 h-4" /> Erosões Identificadas ({relatedErosions.length})
+                                </h4>
+                                {relatedErosions.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {relatedErosions.map(e => (
+                                            <div key={e.id} className="flex items-center justify-between bg-white p-3 rounded-lg border">
+                                                <div className="flex-1">
+                                                    <div className="font-medium text-slate-800">{e.id}</div>
+                                                    <div className="text-sm text-slate-600">
+                                                        {e.torreRef && `Torre ${e.torreRef} • `}
+                                                        {e.tipo} • {e.estagio}
+                                                    </div>
+                                                </div>
+                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                                    e.impacto === 'Muito Alto' ? 'bg-red-100 text-red-700' :
+                                                    e.impacto === 'Alto' ? 'bg-orange-100 text-orange-700' :
+                                                    e.impacto === 'Médio' ? 'bg-yellow-100 text-yellow-700' :
+                                                    'bg-green-100 text-green-700'
+                                                }`}>
+                                                    {e.impacto}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-slate-500">Nenhuma erosão vinculada a esta vistoria.</p>
+                                )}
+                            </div>
+
+                            {inspection.ultimaAtualizacao && (
+                                <div className="text-xs text-slate-500 border-t pt-4">
+                                    <div><strong>Última atualização:</strong> {new Date(inspection.ultimaAtualizacao).toLocaleString('pt-BR')}</div>
+                                    {inspection.atualizadoPor && <div><strong>Por:</strong> {inspection.atualizadoPor}</div>}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function ErosionsView({ erosions, projects, inspections, searchTerm, saveToFirestore, deleteFromFirestore }) {
+            const [isFormOpen, setIsFormOpen] = useState(false);
+            const [formData, setFormData] = useState({});
+            const [isEditing, setIsEditing] = useState(false);
+            const [confirmDelete, setConfirmDelete] = useState(null);
+            const [detailsModal, setDetailsModal] = useState(null);
+
+            const filtered = erosions.filter(e => {
+                const t = searchTerm.toLowerCase();
+                if (!t) return true;
+                return String(e.id || '').toLowerCase().includes(t) ||
+                       String(e.projetoId || '').toLowerCase().includes(t) ||
+                       String(e.torreRef || '').toLowerCase().includes(t);
+            });
+
+            const openNew = () => {
+                const newId = `E${Date.now().toString().slice(-8)}`;
+                setFormData({ 
+                    id: newId, 
+                    projetoId: '', 
+                    vistoriaId: '',
+                    torreRef: '',
+                    tipo: '',
+                    estagio: '',
+                    profundidade: '',
+                    declividade: '',
+                    largura: '',
+                    latitude: '',
+                    longitude: '',
+                    status: 'Ativo',
+                    obs: ''
+                });
+                setIsEditing(false);
+                setIsFormOpen(true);
+            };
+
+            const openEdit = (e) => {
+                setFormData(e);
+                setIsEditing(true);
+                setIsFormOpen(true);
+            };
+
+            const handleSave = async () => {
+                if (!formData.id || !formData.projetoId) {
+                    alert('Preencha ID e Projeto');
+                    return;
+                }
+                
+                const criticality = calculateCriticality(formData);
+                const dataToSave = {
+                    ...formData,
+                    impacto: criticality.impacto,
+                    score: criticality.score,
+                    frequencia: criticality.frequencia,
+                    intervencao: criticality.intervencao
+                };
+                
+                await saveToFirestore('erosions', formData.id, dataToSave);
+                setIsFormOpen(false);
+            };
+
+            const handleDelete = async (id) => {
+                await deleteFromFirestore('erosions', id);
+                setConfirmDelete(null);
+            };
+
+            const openGoogleMapsRoute = (lat, lng) => {
+                if (!lat || !lng) {
+                    alert('Coordenadas não informadas');
+                    return;
+                }
+                const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+                window.open(url, '_blank');
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                            <AlertTriangle /> Erosões
+                        </h2>
+                        <button onClick={openNew} className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-blue-700">
+                            <Plus /> Nova Erosão
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filtered.map(e => {
+                            const projeto = projects.find(p => p.id === e.projetoId);
+                            const vistoria = inspections.find(v => v.id === e.vistoriaId);
+                            const hasCoordinates = e.latitude && e.longitude;
+                            return (
+                                <div key={e.id} className="bg-white rounded-xl shadow-sm border p-5 hover:shadow-md transition-shadow">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex-1">
+                                            <h3 className="font-bold text-slate-800 mb-1">{e.id}</h3>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded">{e.projetoId}</span>
+                                                {e.torreRef && (
+                                                    <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded">
+                                                        Torre {e.torreRef}
+                                                    </span>
+                                                )}
+                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                                    e.impacto === 'Muito Alto' ? 'bg-red-100 text-red-700' :
+                                                    e.impacto === 'Alto' ? 'bg-orange-100 text-orange-700' :
+                                                    e.impacto === 'Médio' ? 'bg-yellow-100 text-yellow-700' :
+                                                    'bg-green-100 text-green-700'
+                                                }`}>
+                                                    {e.impacto}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-2 text-sm text-slate-600 mb-4">
+                                        {projeto && (
+                                            <div className="flex items-center gap-2 text-slate-500 text-xs">
+                                                <MapIcon className="w-3 h-3" />
+                                                {projeto.nome}
+                                            </div>
+                                        )}
+                                        {e.tipo && <div><strong>Tipo:</strong> {e.tipo}</div>}
+                                        {e.estagio && <div><strong>Estágio:</strong> {e.estagio}</div>}
+                                        {vistoria && (
+                                            <div className="text-xs text-slate-500 mt-2">
+                                                <ClipboardList className="w-3 h-3 inline mr-1" />
+                                                Vistoria: {vistoria.id}
+                                            </div>
+                                        )}
+                                        {e.status && (
+                                            <div className="mt-2 pt-2 border-t border-slate-200">
+                                                <span className={`text-xs px-2 py-1 rounded ${
+                                                    e.status === 'Ativo' ? 'bg-red-100 text-red-700' :
+                                                    e.status === 'Monitoramento' ? 'bg-yellow-100 text-yellow-700' :
+                                                    'bg-green-100 text-green-700'
+                                                }`}>
+                                                    {e.status}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex gap-1 pt-3 border-t">
+                                        <button onClick={() => setDetailsModal(e)} className="p-2 rounded-lg bg-slate-100 hover:bg-green-50 text-green-600" title="Ver detalhes">
+                                            <Eye />
+                                        </button>
+                                        {hasCoordinates && (
+                                            <button onClick={() => openGoogleMapsRoute(e.latitude, e.longitude)} className="p-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition-colors" title="Navegar no Google Maps">
+                                                <Navigation />
+                                            </button>
+                                        )}
+                                        <button onClick={() => openEdit(e)} className="p-2 rounded-lg bg-slate-100 hover:bg-blue-50 text-blue-600">
+                                            <Edit />
+                                        </button>
+                                        <button onClick={() => setConfirmDelete(e.id)} className="p-2 rounded-lg bg-slate-100 hover:bg-red-50 text-red-600">
+                                            <Trash2 />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {filtered.length === 0 && (
+                            <p className="text-slate-400 col-span-3 text-center py-10">
+                                Nenhuma erosão encontrada.
+                            </p>
+                        )}
+                    </div>
+
+                    {detailsModal && (
+                        <ErosionDetailsModal 
+                            erosion={detailsModal} 
+                            project={projects.find(p => p.id === detailsModal.projetoId)} 
+                            inspection={inspections.find(i => i.id === detailsModal.vistoriaId)} 
+                            onClose={() => setDetailsModal(null)} 
+                            openGoogleMapsRoute={openGoogleMapsRoute} 
+                        />
+                    )}
+
+                    {isFormOpen && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
+                            <div className="bg-white p-6 rounded-xl w-full max-w-3xl shadow-2xl my-8">
+                                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                                    <h3 className="text-lg font-bold">{isEditing ? 'Editar' : 'Nova'} Erosão</h3>
+                                    <button onClick={() => setIsFormOpen(false)}><X /></button>
+                                </div>
+
+                                <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">ID</label>
+                                            <input className="w-full border p-2 rounded text-sm bg-slate-50" value={formData.id} disabled />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Empreendimento *</label>
+                                            <select className="w-full border p-2 rounded text-sm" value={formData.projetoId} onChange={(e) => setFormData({...formData, projetoId: e.target.value})}>
+                                                <option value="">Selecione...</option>
+                                                {projects.map(p => (
+                                                    <option key={p.id} value={p.id}>{p.id}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Vistoria</label>
+                                            <select className="w-full border p-2 rounded text-sm" value={formData.vistoriaId} onChange={(e) => setFormData({...formData, vistoriaId: e.target.value})}>
+                                                <option value="">Selecione...</option>
+                                                {inspections.filter(i => i.projetoId === formData.projetoId).map(i => (
+                                                    <option key={i.id} value={i.id}>{i.id}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Torre Ref.</label>
+                                            <input className="w-full border p-2 rounded text-sm" value={formData.torreRef} onChange={(e) => setFormData({...formData, torreRef: e.target.value})} placeholder="Ex: T-123" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Tipo</label>
+                                            <select className="w-full border p-2 rounded text-sm" value={formData.tipo} onChange={(e) => setFormData({...formData, tipo: e.target.value})}>
+                                                <option value="">Selecione...</option>
+                                                <option value="sulco">Sulco</option>
+                                                <option value="ravina">Ravina</option>
+                                                <option value="voçoroca">Voçoroca</option>
+                                                <option value="deslizamento">Deslizamento</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Estágio</label>
+                                            <select className="w-full border p-2 rounded text-sm" value={formData.estagio} onChange={(e) => setFormData({...formData, estagio: e.target.value})}>
+                                                <option value="">Selecione...</option>
+                                                <option value="inicial">Inicial</option>
+                                                <option value="intermediario">Intermediário</option>
+                                                <option value="avancado">Avançado</option>
+                                                <option value="critico">Crítico</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Profundidade (m)</label>
+                                            <select className="w-full border p-2 rounded text-sm" value={formData.profundidade} onChange={(e) => setFormData({...formData, profundidade: e.target.value})}>
+                                                <option value="">Selecione...</option>
+                                                <option value="<0.5">&lt; 0.5m</option>
+                                                <option value="0.5-1.5">0.5 - 1.5m</option>
+                                                <option value="1.5-3.0">1.5 - 3.0m</option>
+                                                <option value=">3.0">&gt; 3.0m</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Declividade (°)</label>
+                                            <select className="w-full border p-2 rounded text-sm" value={formData.declividade} onChange={(e) => setFormData({...formData, declividade: e.target.value})}>
+                                                <option value="">Selecione...</option>
+                                                <option value="<15">&lt; 15°</option>
+                                                <option value="15-30">15 - 30°</option>
+                                                <option value="30-45">30 - 45°</option>
+                                                <option value=">45">&gt; 45°</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Largura (m)</label>
+                                            <select className="w-full border p-2 rounded text-sm" value={formData.largura} onChange={(e) => setFormData({...formData, largura: e.target.value})}>
+                                                <option value="">Selecione...</option>
+                                                <option value="<1">&lt; 1m</option>
+                                                <option value="1-3">1 - 3m</option>
+                                                <option value="3-5">3 - 5m</option>
+                                                <option value=">5">&gt; 5m</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center gap-1">
+                                                <MapPin className="w-3 h-3" /> Latitude
+                                            </label>
+                                            <input type="number" step="0.000001" className="w-full border p-2 rounded text-sm" value={formData.latitude} onChange={(e) => setFormData({...formData, latitude: e.target.value})} placeholder="-23.550520" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center gap-1">
+                                                <MapPin className="w-3 h-3" /> Longitude
+                                            </label>
+                                            <input type="number" step="0.000001" className="w-full border p-2 rounded text-sm" value={formData.longitude} onChange={(e) => setFormData({...formData, longitude: e.target.value})} placeholder="-46.633308" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Status</label>
+                                            <select className="w-full border p-2 rounded text-sm" value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})}>
+                                                <option value="Ativo">Ativo</option>
+                                                <option value="Monitorado">Monitorado</option>
+                                                <option value="Resolvido">Resolvido</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-700 mb-1">Observações</label>
+                                        <textarea className="w-full border p-2 rounded text-sm" rows="3" value={formData.obs || ''} onChange={(e) => setFormData({...formData, obs: e.target.value})} placeholder="Observações sobre a erosão..." />
+                                    </div>
+
+                                    {(formData.tipo || formData.estagio || formData.profundidade || formData.declividade || formData.largura) && (
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                            <div className="text-xs font-semibold text-blue-900 uppercase mb-2">Cálculo Automático de Criticidade</div>
+                                            <div className="text-sm text-blue-800">
+                                                {(() => {
+                                                    const calc = calculateCriticality(formData);
+                                                    return (
+                                                        <div className="space-y-1">
+                                                            <div><strong>Impacto:</strong> {calc.impacto}</div>
+                                                            <div><strong>Score:</strong> {calc.score}</div>
+                                                            <div><strong>Frequência de Revisita:</strong> {calc.frequencia}</div>
+                                                            <div><strong>Intervenção Sugerida:</strong> {calc.intervencao}</div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex gap-2 pt-4 border-t mt-4">
+                                    <button onClick={handleSave} className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 flex items-center justify-center gap-2">
+                                        <Save /> Salvar
+                                    </button>
+                                    <button onClick={() => setIsFormOpen(false)} className="px-4 bg-slate-100 text-slate-700 py-2 rounded hover:bg-slate-200">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {confirmDelete && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md">
+                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-red-600">
+                                    <AlertTriangle /> Confirmar Exclusão
+                                </h3>
+                                <p className="text-slate-600 mb-6">
+                                    Tem a certeza que deseja excluir a erosão <strong>{confirmDelete}</strong>?
+                                </p>
+                                <div className="flex gap-2">
+                                    <button onClick={() => handleDelete(confirmDelete)} className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700">
+                                        Excluir
+                                    </button>
+                                    <button onClick={() => setConfirmDelete(null)} className="flex-1 bg-slate-100 text-slate-700 py-2 rounded hover:bg-slate-200">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function ErosionDetailsModal({ erosion, project, inspection, onClose, openGoogleMapsRoute }) {
+            const hasCoordinates = erosion.latitude && erosion.longitude;
+            
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl w-full max-w-4xl shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+                            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <Eye /> Detalhes da Erosão
+                            </h3>
+                            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                                <X />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            <div className="grid grid-cols-2 gap-6">
+                                <div className="bg-slate-50 p-4 rounded-lg">
+                                    <div className="text-xs font-semibold text-slate-500 uppercase mb-1">ID Erosão</div>
+                                    <div className="text-lg font-bold text-slate-800">{erosion.id}</div>
+                                </div>
+                                <div className="bg-slate-50 p-4 rounded-lg">
+                                    <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Empreendimento</div>
+                                    <div className="text-lg font-bold text-slate-800">{erosion.projetoId}</div>
+                                    {project && <div className="text-sm text-slate-600 mt-1">{project.nome}</div>}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-6">
+                                <div className="bg-slate-50 p-4 rounded-lg">
+                                    <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Torre</div>
+                                    <div className="text-lg font-bold text-slate-800">{erosion.torreRef || 'Não informado'}</div>
+                                </div>
+                                <div className="bg-slate-50 p-4 rounded-lg">
+                                    <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Nível de Impacto</div>
+                                    <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-bold ${
+                                        erosion.impacto === 'Muito Alto' ? 'bg-red-100 text-red-700' :
+                                        erosion.impacto === 'Alto' ? 'bg-orange-100 text-orange-700' :
+                                        erosion.impacto === 'Médio' ? 'bg-yellow-100 text-yellow-700' :
+                                        'bg-green-100 text-green-700'
+                                    }`}>
+                                        {erosion.impacto}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <h4 className="font-semibold text-blue-900 mb-3">Características Físicas</h4>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <div className="text-blue-700 font-medium">Tipo</div>
+                                        <div className="text-blue-900">{erosion.tipo || 'Não informado'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-blue-700 font-medium">Estágio</div>
+                                        <div className="text-blue-900">{erosion.estagio || 'Não informado'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-blue-700 font-medium">Profundidade</div>
+                                        <div className="text-blue-900">{erosion.profundidade || 'Não informado'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-blue-700 font-medium">Largura</div>
+                                        <div className="text-blue-900">{erosion.largura || 'Não informado'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-blue-700 font-medium">Declividade</div>
+                                        <div className="text-blue-900">{erosion.declividade || 'Não informado'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-blue-700 font-medium">Status</div>
+                                        <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                                            erosion.status === 'Ativo' ? 'bg-green-100 text-green-700' :
+                                            erosion.status === 'Monitorado' ? 'bg-yellow-100 text-yellow-700' :
+                                            'bg-slate-100 text-slate-700'
+                                        }`}>
+                                            {erosion.status}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                                <h4 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
+                                    <AlertTriangle className="w-4 h-4" />
+                                    Análise de Criticidade
+                                </h4>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <div className="text-orange-700 font-medium">Score de Risco</div>
+                                        <div className="text-2xl font-bold text-orange-900">{erosion.score || 'N/A'}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-orange-700 font-medium">Frequência de Revisita</div>
+                                        <div className="text-orange-900">{erosion.frequencia || 'Não definida'}</div>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <div className="text-orange-700 font-medium mb-1">Intervenção Recomendada</div>
+                                        <div className="text-orange-900 font-semibold">{erosion.intervencao || 'Não definida'}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {hasCoordinates && (
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <h4 className="font-semibold text-green-900 mb-3 flex items-center gap-2">
+                                        <MapPin className="w-4 h-4" />
+                                        Localização Geográfica
+                                    </h4>
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-sm">
+                                            <div className="text-green-700 font-medium mb-1">Coordenadas</div>
+                                            <div className="text-green-900 font-mono">{formatCoordinates(erosion.latitude, erosion.longitude)}</div>
+                                            <div className="text-xs text-green-600 mt-1">
+                                                Lat: {erosion.latitude}, Long: {erosion.longitude}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => openGoogleMapsRoute(erosion.latitude, erosion.longitude)}
+                                            className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
+                                        >
+                                            <Navigation className="w-4 h-4" />
+                                            Traçar Rota
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {inspection && (
+                                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                    <h4 className="font-semibold text-purple-900 mb-2 flex items-center gap-2">
+                                        <ClipboardList className="w-4 h-4" />
+                                        Vistoria Associada
+                                    </h4>
+                                    <div className="text-sm text-purple-800">
+                                        <div><strong>ID:</strong> {inspection.id}</div>
+                                        <div><strong>Período:</strong> {inspection.dataInicio} até {inspection.dataFim || 'Em andamento'}</div>
+                                        {inspection.responsavel && <div><strong>Responsável:</strong> {inspection.responsavel}</div>}
+                                    </div>
+                                </div>
+                            )}
+
+                            {erosion.obs && (
+                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                                    <h4 className="font-semibold text-slate-800 mb-2">Observações</h4>
+                                    <p className="text-sm text-slate-600 whitespace-pre-wrap">{erosion.obs}</p>
+                                </div>
+                            )}
+
+                            <div className="text-xs text-slate-500 pt-4 border-t">
+                                <div><strong>Última atualização:</strong> {erosion.ultimaAtualizacao ? new Date(erosion.ultimaAtualizacao).toLocaleString('pt-BR') : 'Não informado'}</div>
+                                {erosion.atualizadoPor && <div><strong>Atualizado por:</strong> {erosion.atualizadoPor}</div>}
+                            </div>
+
+                            <div className="flex gap-3 pt-4 border-t">
+                                <button onClick={onClose} className="flex-1 bg-slate-600 text-white py-3 rounded-lg hover:bg-slate-700 font-semibold transition-colors">
+                                    Fechar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function UsersView({ users, searchTerm, saveToFirestore, deleteFromFirestore }) {
+            const [isFormOpen, setIsFormOpen] = useState(false);
+            const [formData, setFormData] = useState({ id: '', nome: '', email: '', cargo: '', departamento: '', telefone: '', perfil: 'Utilizador', status: 'Ativo' });
+            const [isEditing, setIsEditing] = useState(false);
+            const [confirmDelete, setConfirmDelete] = useState(null);
+
+            const filtered = users.filter(u => {
+                const t = searchTerm.toLowerCase();
+                if (!t) return true;
+                return String(u.nome || '').toLowerCase().includes(t) ||
+                       String(u.email || '').toLowerCase().includes(t) ||
+                       String(u.cargo || '').toLowerCase().includes(t);
+            });
+
+            const openNew = () => {
+                const newId = `USR${Date.now().toString().slice(-6)}`;
+                setFormData({ id: newId, nome: '', email: '', cargo: '', departamento: '', telefone: '', perfil: 'Utilizador', status: 'Ativo', dataCadastro: new Date().toISOString().split('T')[0] });
+                setIsEditing(false);
+                setIsFormOpen(true);
+            };
+
+            const openEdit = (u) => {
+                setFormData(u);
+                setIsEditing(true);
+                setIsFormOpen(true);
+            };
+
+            const handleSave = async () => {
+                if (!formData.nome || !formData.email) {
+                    alert('Preencha Nome e Email');
+                    return;
+                }
+                const dataToSave = {
+                    ...formData,
+                    dataCadastro: formData.dataCadastro || new Date().toISOString().split('T')[0]
+                };
+                await saveToFirestore('users', formData.id || `USR${Date.now().toString().slice(-6)}`, dataToSave);
+                setIsFormOpen(false);
+            };
+
+            const handleDelete = async (id) => {
+                await deleteFromFirestore('users', id);
+                setConfirmDelete(null);
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                            <Users /> Utilizadores
+                        </h2>
+                        <button onClick={openNew} className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-blue-700">
+                            <UserPlus /> Novo Utilizador
+                        </button>
+                    </div>
+
+                    <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider">
+                                    <tr>
+                                        <th className="p-4 text-left font-semibold">Nome</th>
+                                        <th className="p-4 text-left font-semibold">Email</th>
+                                        <th className="p-4 text-left font-semibold">Cargo</th>
+                                        <th className="p-4 text-left font-semibold">Departamento</th>
+                                        <th className="p-4 text-left font-semibold">Perfil</th>
+                                        <th className="p-4 text-left font-semibold">Status</th>
+                                        <th className="p-4 text-center font-semibold">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                    {filtered.map(u => (
+                                        <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
+                                                        {u.nome?.charAt(0)?.toUpperCase() || 'U'}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-semibold text-slate-800">{u.nome}</div>
+                                                        <div className="text-xs text-slate-500">{u.id}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-2 text-slate-700">
+                                                    <Mail className="w-4 h-4 text-slate-400" />
+                                                    {u.email}
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-slate-700">{u.cargo || '-'}</td>
+                                            <td className="p-4 text-slate-700">{u.departamento || '-'}</td>
+                                            <td className="p-4">
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit ${
+                                                    u.perfil === 'Administrador' ? 'bg-purple-100 text-purple-700' :
+                                                    u.perfil === 'Gerente' ? 'bg-blue-100 text-blue-700' :
+                                                    'bg-slate-100 text-slate-700'
+                                                }`}>
+                                                    {u.perfil === 'Administrador' && <Shield className="w-3 h-3" />}
+                                                    {u.perfil}
+                                                </span>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                                    u.status === 'Ativo' ? 'bg-green-100 text-green-700' :
+                                                    'bg-red-100 text-red-700'
+                                                }`}>
+                                                    {u.status}
+                                                </span>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex gap-1 justify-center">
+                                                    <button onClick={() => openEdit(u)} className="p-2 rounded-lg bg-slate-100 hover:bg-blue-50 text-blue-600 transition-colors">
+                                                        <Edit />
+                                                    </button>
+                                                    <button onClick={() => setConfirmDelete(u.id)} className="p-2 rounded-lg bg-slate-100 hover:bg-red-50 text-red-600 transition-colors">
+                                                        <Trash2 />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {filtered.length === 0 && (
+                                        <tr>
+                                            <td colSpan="7" className="p-12 text-center text-slate-400">
+                                                <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                                <div className="text-sm">Nenhum utilizador encontrado.</div>
+                                                <button onClick={openNew} className="mt-4 text-blue-600 hover:text-blue-700 text-sm font-medium">
+                                                    + Adicionar primeiro utilizador
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {isFormOpen && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-xl w-full max-w-3xl shadow-2xl max-h-[90vh] overflow-y-auto">
+                                <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+                                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                        {isEditing ? <Edit /> : <UserPlus />}
+                                        {isEditing ? 'Editar' : 'Novo'} Utilizador
+                                    </h3>
+                                    <button onClick={() => setIsFormOpen(false)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                                        <X />
+                                    </button>
+                                </div>
+
+                                <div className="p-6 space-y-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-2">ID do Utilizador</label>
+                                            <input
+                                                className="w-full border border-slate-300 p-2.5 rounded-lg text-sm bg-slate-50"
+                                                value={formData.id}
+                                                disabled
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-2">Status</label>
+                                            <select
+                                                className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                value={formData.status}
+                                                onChange={(e) => setFormData({...formData, status: e.target.value})}
+                                            >
+                                                <option value="Ativo">Ativo</option>
+                                                <option value="Inativo">Inativo</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-2">Nome Completo *</label>
+                                            <input
+                                                className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                value={formData.nome}
+                                                onChange={(e) => setFormData({...formData, nome: e.target.value})}
+                                                placeholder="Nome completo"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                                                <Mail className="w-3 h-3" /> Email *
+                                            </label>
+                                            <input
+                                                type="email"
+                                                className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                value={formData.email}
+                                                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                                placeholder="usuario@empresa.com"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-2">Cargo</label>
+                                            <input
+                                                className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                value={formData.cargo}
+                                                onChange={(e) => setFormData({...formData, cargo: e.target.value})}
+                                                placeholder="Ex: Engenheiro"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-2">Departamento</label>
+                                            <input
+                                                className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                value={formData.departamento}
+                                                onChange={(e) => setFormData({...formData, departamento: e.target.value})}
+                                                placeholder="Ex: Geotecnia"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                                                <Phone className="w-3 h-3" /> Telefone
+                                            </label>
+                                            <input
+                                                type="tel"
+                                                className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                value={formData.telefone}
+                                                onChange={(e) => {
+                                                    const formatted = formatPhone(e.target.value);
+                                                    setFormData({...formData, telefone: formatted});
+                                                }}
+                                                placeholder="(00) 00000-0000"
+                                                maxLength="15"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                                            <Shield className="w-3 h-3" /> Perfil de Acesso
+                                        </label>
+                                        <select
+                                            className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                            value={formData.perfil}
+                                            onChange={(e) => setFormData({...formData, perfil: e.target.value})}
+                                        >
+                                            <option value="Utilizador">Utilizador - Visualização e criação de registos</option>
+                                            <option value="Gerente">Gerente - Edição e aprovação</option>
+                                            <option value="Administrador">Administrador - Acesso total</option>
+                                        </select>
+                                        <p className="text-xs text-slate-500 mt-2">
+                                            {formData.perfil === 'Administrador' && '✓ Acesso completo ao sistema'}
+                                            {formData.perfil === 'Gerente' && '✓ Pode editar e aprovar alterações'}
+                                            {formData.perfil === 'Utilizador' && '✓ Pode visualizar e criar novos registos'}
+                                        </p>
+                                    </div>
+
+                                    <div className="flex gap-3 pt-4 border-t">
+                                        <button onClick={handleSave} className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold transition-colors">
+                                            <Save /> Salvar Utilizador
+                                        </button>
+                                        <button onClick={() => setIsFormOpen(false)} className="px-6 bg-slate-100 text-slate-700 py-3 rounded-lg hover:bg-slate-200 font-semibold transition-colors">
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {confirmDelete && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full">
+                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-red-600">
+                                    <AlertTriangle /> Confirmar Exclusão
+                                </h3>
+                                <p className="text-slate-600 mb-6">
+                                    Tem a certeza que deseja excluir o utilizador <strong>{users.find(u => u.id === confirmDelete)?.nome}</strong>?
+                                    <br /><span className="text-sm text-slate-500 mt-2 block">Esta ação não pode ser desfeita.</span>
+                                </p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => handleDelete(confirmDelete)} className="flex-1 bg-red-600 text-white py-2.5 rounded-lg hover:bg-red-700 font-semibold transition-colors">
+                                        Excluir
+                                    </button>
+                                    <button onClick={() => setConfirmDelete(null)} className="flex-1 bg-slate-100 text-slate-700 py-2.5 rounded-lg hover:bg-slate-200 font-semibold transition-colors">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function ProfileModal({ authUser, currentUserProfile, saveToFirestore, onClose, showToast }) {
+            const [formData, setFormData] = useState({
+                id: currentUserProfile?.id || `USR${Date.now().toString().slice(-6)}`,
+                nome: currentUserProfile?.nome || '',
+                email: currentUserProfile?.email || authUser.email,
+                cargo: currentUserProfile?.cargo || '',
+                departamento: currentUserProfile?.departamento || '',
+                telefone: currentUserProfile?.telefone || '',
+                perfil: currentUserProfile?.perfil || 'Utilizador',
+                status: currentUserProfile?.status || 'Ativo'
+            });
+
+            const handleSave = async () => {
+                if (!formData.nome || !formData.email) {
+                    alert('Preencha Nome e Email');
+                    return;
+                }
+                await saveToFirestore('users', formData.id, formData);
+                onClose();
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+                            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <User /> Meu Perfil
+                            </h3>
+                            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                                <X />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-lg">
+                                <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-bold">
+                                    {formData.nome?.charAt(0)?.toUpperCase() || 'U'}
+                                </div>
+                                <div>
+                                    <div className="font-semibold text-slate-800">{formData.nome || 'Utilizador'}</div>
+                                    <div className="text-sm text-slate-500">{formData.email}</div>
+                                    <div className="text-xs text-slate-400 mt-1">ID: {formData.id}</div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-2">Nome Completo *</label>
+                                    <input
+                                        className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                        value={formData.nome}
+                                        onChange={(e) => setFormData({...formData, nome: e.target.value})}
+                                        placeholder="Seu nome completo"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                                        <Mail className="w-3 h-3" /> Email
+                                    </label>
+                                    <input
+                                        type="email"
+                                        className="w-full border border-slate-300 p-2.5 rounded-lg text-sm bg-slate-50"
+                                        value={formData.email}
+                                        disabled
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-2">Cargo</label>
+                                    <input
+                                        className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                        value={formData.cargo}
+                                        onChange={(e) => setFormData({...formData, cargo: e.target.value})}
+                                        placeholder="Ex: Engenheiro"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-2">Departamento</label>
+                                    <input
+                                        className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                        value={formData.departamento}
+                                        onChange={(e) => setFormData({...formData, departamento: e.target.value})}
+                                        placeholder="Ex: Geotecnia"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                                        <Phone className="w-3 h-3" /> Telefone
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        className="w-full border border-slate-300 p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                        value={formData.telefone}
+                                        onChange={(e) => {
+                                            const formatted = formatPhone(e.target.value);
+                                            setFormData({...formData, telefone: formatted});
+                                        }}
+                                        placeholder="(00) 00000-0000"
+                                        maxLength="15"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Shield className="w-4 h-4 text-blue-700" />
+                                    <span className="text-sm font-semibold text-blue-900">Perfil de Acesso</span>
+                                </div>
+                                <div className="text-sm text-blue-800">
+                                    <strong>{formData.perfil}</strong>
+                                </div>
+                                <p className="text-xs text-blue-600 mt-2">
+                                    Para alterar o seu perfil de acesso, entre em contacto com um administrador.
+                                </p>
+                            </div>
+
+                            <div className="flex gap-3 pt-4 border-t">
+                                <button onClick={handleSave} className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold transition-colors">
+                                    <Save /> Salvar Alterações
+                                </button>
+                                <button onClick={onClose} className="px-6 bg-slate-100 text-slate-700 py-3 rounded-lg hover:bg-slate-200 font-semibold transition-colors">
+                                    Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function RulesView() {
+            const [selectedCriterio, setSelectedCriterio] = useState('tipo');
+            
+            const criterios = {
+                tipo: ['sulco', 'ravina', 'voçoroca', 'deslizamento'],
+                estagio: ['inicial', 'intermediario', 'avancado', 'critico'],
+                profundidade: ['<0.5', '0.5-1.5', '1.5-3.0', '>3.0'],
+                declividade: ['<15', '15-30', '30-45', '>45'],
+                largura: ['<1', '1-3', '3-5', '>5']
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                <Scale /> Regras de Negócio
+                            </h2>
+                            <p className="text-slate-500 mt-1">
+                                Matriz de mapeamento de critérios para avaliação de erosões (Princípio do Pior Caso).
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-xl border shadow-sm">
+                        <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                            <AlertTriangle className="text-blue-600" />
+                            Sistema de Classificação
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="p-4 rounded-lg bg-green-50 border border-green-200">
+                                <div className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">Baixo</div>
+                                <div className="text-2xl font-bold text-green-700 mb-1">Score 1</div>
+                                <div className="text-sm text-green-600">Revisita: 24 meses</div>
+                            </div>
+                            <div className="p-4 rounded-lg bg-yellow-50 border border-yellow-200">
+                                <div className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mb-2">Médio</div>
+                                <div className="text-2xl font-bold text-yellow-700 mb-1">Score 2</div>
+                                <div className="text-sm text-yellow-600">Revisita: 12 meses</div>
+                            </div>
+                            <div className="p-4 rounded-lg bg-orange-50 border border-orange-200">
+                                <div className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-2">Alto</div>
+                                <div className="text-2xl font-bold text-orange-700 mb-1">Score 3</div>
+                                <div className="text-sm text-orange-600">Revisita: 6 meses</div>
+                            </div>
+                            <div className="p-4 rounded-lg bg-red-50 border border-red-200">
+                                <div className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-2">Muito Alto</div>
+                                <div className="text-2xl font-bold text-red-700 mb-1">Score 4</div>
+                                <div className="text-sm text-red-600">Revisita: 3 meses</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-xl border shadow-sm">
+                        <h3 className="font-semibold text-lg mb-4">Matriz de Critérios</h3>
+                        
+                        <div className="flex gap-2 mb-4 overflow-x-auto">
+                            {Object.keys(criterios).map(c => (
+                                <button
+                                    key={c}
+                                    onClick={() => setSelectedCriterio(c)}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                                        selectedCriterio === c
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    {c.charAt(0).toUpperCase() + c.slice(1)}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th className="p-3 text-left font-semibold">Valor</th>
+                                        <th className="p-3 text-left font-semibold">Impacto</th>
+                                        <th className="p-3 text-center font-semibold">Score</th>
+                                        <th className="p-3 text-left font-semibold">Frequência</th>
+                                        <th className="p-3 text-left font-semibold">Intervenção</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                    {criterios[selectedCriterio].map(valor => {
+                                        const regra = RULES_DATABASE[`${selectedCriterio}|${valor}`];
+                                        return (
+                                            <tr key={valor} className="hover:bg-slate-50">
+                                                <td className="p-3 font-medium">{valor}</td>
+                                                <td className="p-3">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                                        regra.impacto === 'Muito Alto' ? 'bg-red-100 text-red-700' :
+                                                        regra.impacto === 'Alto' ? 'bg-orange-100 text-orange-700' :
+                                                        regra.impacto === 'Médio' ? 'bg-yellow-100 text-yellow-700' :
+                                                        'bg-green-100 text-green-700'
+                                                    }`}>
+                                                        {regra.impacto}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3 text-center font-bold text-slate-700">{regra.score}</td>
+                                                <td className="p-3 text-slate-600">{regra.frequencia}</td>
+                                                <td className="p-3 text-slate-600">{regra.intervencao}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+                        <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4" />
+                            Princípio do Pior Caso
+                        </h4>
+                        <p className="text-sm text-blue-800 leading-relaxed">
+                            Quando uma erosão possui múltiplos critérios avaliados (ex: tipo "ravina" + profundidade ">3.0m"), 
+                            o sistema adota automaticamente o <strong>critério de maior criticidade</strong>. Se um critério 
+                            indicar "Médio" mas outro indicar "Muito Alto", o resultado final será <strong>Muito Alto</strong>, 
+                            garantindo uma abordagem conservadora e segura na gestão de riscos geotécnicos.
+                        </p>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<GeoMonitorApp />);
+    </script>
+</body>
+</html>
