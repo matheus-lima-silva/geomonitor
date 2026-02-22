@@ -162,6 +162,15 @@ function selectFromGroups(groups, count, seed) {
   return selected;
 }
 
+function sortTowerItems(items) {
+  const towersSorted = sortTowers((items || []).map((item) => normalizeTower(item?.torre)).filter(Boolean));
+  const indexByTower = new Map(towersSorted.map((tower, idx) => [tower, idx]));
+  return [...(items || [])].sort(
+    (a, b) => (indexByTower.get(normalizeTower(a?.torre)) ?? Number.MAX_SAFE_INTEGER)
+      - (indexByTower.get(normalizeTower(b?.torre)) ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
 export function computeVisitPlanning({ project, inspections, erosions, year = new Date().getFullYear() }) {
   const projectId = String(project?.id || '').trim();
   if (!projectId) {
@@ -245,14 +254,15 @@ export function computeVisitPlanning({ project, inspections, erosions, year = ne
     neededNonMandatory,
     seed,
   ).map((item) => ({ ...item, categoria: 'amostragem' }));
+  const sampledSorted = sortTowerItems(sampled);
 
-  const sampledSet = new Set(sampled.map((item) => item.torre));
+  const sampledSet = new Set(sampledSorted.map((item) => item.torre));
   const naoPriorizar = [...candidatesInsufficient, ...candidatesNaoPriorizar]
     .filter((item) => !sampledSet.has(item.torre));
 
   return {
     obrigatorias,
-    amostragemSelecionada: sampled,
+    amostragemSelecionada: sampledSorted,
     naoPriorizar,
     metaAmostragem,
     totalTorres,

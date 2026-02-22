@@ -8,13 +8,14 @@ export function normalizeUserStatus(value) {
 export function normalizeErosionStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (['monitorado', 'monitoramento', 'monitoring'].includes(normalized)) return 'Monitoramento';
-  if (['resolvido', 'resolved', 'resolvida'].includes(normalized)) return 'Resolvido';
+  if (['estabilizado', 'stabilized'].includes(normalized)) return 'Estabilizado';
+  if (['resolvido', 'resolved', 'resolvida'].includes(normalized)) return 'Estabilizado';
   return 'Ativo';
 }
 
 export function erosionStatusClass(status) {
   const normalized = normalizeErosionStatus(status);
-  if (normalized === 'Resolvido') return 'status-chip status-ok';
+  if (normalized === 'Estabilizado') return 'status-chip status-ok';
   if (normalized === 'Monitoramento') return 'status-chip status-warn';
   return 'status-chip status-danger';
 }

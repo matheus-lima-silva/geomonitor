@@ -16,9 +16,18 @@ export async function saveErosion(payload, meta = {}) {
   const id = String(payload.id || '').trim() || `ERS-${Date.now()}`;
   const previous = meta.merge ? await loadDoc('erosions', id) : null;
   const criticality = payload.criticality || null;
+  const mergedInspectionIds = [
+    String(payload.vistoriaId || '').trim(),
+    ...(Array.isArray(payload.vistoriaIds) ? payload.vistoriaIds : []).map((item) => String(item || '').trim()),
+    String(previous?.vistoriaId || '').trim(),
+    ...(Array.isArray(previous?.vistoriaIds) ? previous.vistoriaIds : []).map((item) => String(item || '').trim()),
+  ].filter(Boolean);
+  const vistoriaIds = [...new Set(mergedInspectionIds)];
   const nextData = {
     ...payload,
     id,
+    vistoriaId: String(payload.vistoriaId || '').trim(),
+    ...(vistoriaIds.length > 0 ? { vistoriaIds } : {}),
     status: normalizeErosionStatus(payload.status),
     impacto: payload.impacto || criticality?.impacto || 'Baixo',
     score: payload.score || criticality?.score || 1,
@@ -29,15 +38,17 @@ export async function saveErosion(payload, meta = {}) {
   };
 
   const history = normalizeFollowupHistory(previous?.acompanhamentosResumo);
-  const event = buildFollowupEvent(previous, nextData, {
-    updatedBy: meta.updatedBy,
-    isCreate: !previous,
-    origem: meta.origem,
-  });
+  const event = meta.skipAutoFollowup
+    ? null
+    : buildFollowupEvent(previous, nextData, {
+      updatedBy: meta.updatedBy,
+      isCreate: !previous,
+      origem: meta.origem,
+    });
 
   await saveDoc('erosions', id, {
     ...nextData,
-    acompanhamentosResumo: appendFollowupEvent(history, event),
+    acompanhamentosResumo: appendFollowupEvent(nextData.acompanhamentosResumo ?? history, event),
   }, { ...meta, merge: true });
   return id;
 }

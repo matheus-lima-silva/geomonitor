@@ -75,6 +75,32 @@ describe('computeVisitPlanning', () => {
 
     expect(out.obrigatorias[0].mapsLink).toContain('google.com/maps');
   });
+
+  it('retorna amostragem selecionada em ordem crescente de torre', () => {
+    const inspections = [
+      {
+        id: 'VS2',
+        projetoId: 'P1',
+        dataInicio: '2026-02-10',
+        detalhesDias: [{ torresDetalhadas: [{ numero: '1', temErosao: false }] }],
+      },
+      {
+        id: 'VS1',
+        projetoId: 'P1',
+        dataInicio: '2026-01-10',
+        detalhesDias: [{ torresDetalhadas: [{ numero: '2', temErosao: false }] }],
+      },
+    ];
+    const out = computeVisitPlanning({
+      project: { id: 'P1', torres: '10' },
+      inspections,
+      erosions: [],
+      year: 2026,
+    });
+    const towers = out.amostragemSelecionada.map((item) => Number(item.torre));
+    const sorted = [...towers].sort((a, b) => a - b);
+    expect(towers).toEqual(sorted);
+  });
 });
 
 describe('serializeTowersForInput', () => {

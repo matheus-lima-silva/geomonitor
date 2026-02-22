@@ -93,11 +93,59 @@ export function buildFollowupEvent(previous, next, meta = {}) {
     timestamp: event.timestamp,
     usuario: event.usuario,
     origem: event.origem,
+    tipoEvento: 'sistema',
     ...(event.vistoriaId ? { vistoriaId: event.vistoriaId } : {}),
     ...(event.statusAnterior ? { statusAnterior: event.statusAnterior } : {}),
     statusNovo: event.statusNovo,
     resumo: event.resumo,
   };
+}
+
+export function normalizeFollowupEventType(item) {
+  const raw = String(item?.tipoEvento || '').trim().toLowerCase();
+  if (raw === 'obra') return 'obra';
+  if (raw === 'autuacao') return 'autuacao';
+  return 'sistema';
+}
+
+export function buildManualFollowupEvent(data, meta = {}) {
+  const tipoEvento = String(data?.tipoEvento || '').trim().toLowerCase();
+  const usuario = String(meta?.updatedBy || '').trim();
+  if (tipoEvento === 'obra') {
+    const obraEtapa = String(data?.obraEtapa || '').trim();
+    const descricao = String(data?.descricao || '').trim();
+    if (!obraEtapa || !descricao) return null;
+    const etapaConcluida = obraEtapa.toLowerCase() === 'concluída' || obraEtapa.toLowerCase() === 'concluida';
+    return {
+      timestamp: new Date().toISOString(),
+      usuario,
+      origem: 'manual',
+      tipoEvento: 'obra',
+      obraEtapa,
+      descricao,
+      ...(etapaConcluida ? { statusNovo: 'Estabilizado' } : {}),
+      resumo: `Obra - ${obraEtapa}: ${descricao}`,
+    };
+  }
+
+  if (tipoEvento === 'autuacao') {
+    const orgao = String(data?.orgao || '').trim();
+    const numeroOuDescricao = String(data?.numeroOuDescricao || '').trim();
+    const autuacaoStatus = String(data?.autuacaoStatus || '').trim();
+    if (!orgao || !numeroOuDescricao || !autuacaoStatus) return null;
+    return {
+      timestamp: new Date().toISOString(),
+      usuario,
+      origem: 'manual',
+      tipoEvento: 'autuacao',
+      orgao,
+      numeroOuDescricao,
+      autuacaoStatus,
+      resumo: `Autuação (${orgao}) - ${autuacaoStatus}: ${numeroOuDescricao}`,
+    };
+  }
+
+  return null;
 }
 
 export function appendFollowupEvent(history, event) {
@@ -117,11 +165,24 @@ function normalizeProjectKey(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function getErosionInspectionIds(erosion) {
+  const primary = String(erosion?.vistoriaId || '').trim();
+  const extra = Array.isArray(erosion?.vistoriaIds) ? erosion.vistoriaIds : [];
+  const merged = [primary, ...extra.map((item) => String(item || '').trim())]
+    .filter(Boolean);
+  return [...new Set(merged)];
+}
+
 function resolveErosionProjectId(erosion, inspectionsById = new Map()) {
   const explicit = normalizeProjectKey(erosion?.projetoId);
   if (explicit) return explicit;
-  const inspection = inspectionsById.get(String(erosion?.vistoriaId || '').trim());
-  return normalizeProjectKey(inspection?.projetoId);
+  const inspectionIds = getErosionInspectionIds(erosion);
+  for (let i = 0; i < inspectionIds.length; i += 1) {
+    const inspection = inspectionsById.get(inspectionIds[i]);
+    const project = normalizeProjectKey(inspection?.projetoId);
+    if (project) return project;
+  }
+  return '';
 }
 
 function resolveErosionDate(erosion, inspectionsById = new Map()) {
@@ -132,10 +193,12 @@ function resolveErosionDate(erosion, inspectionsById = new Map()) {
     erosion?.dataCadastro,
     erosion?.data,
   ];
-  const inspection = inspectionsById.get(String(erosion?.vistoriaId || '').trim());
-  if (inspection) {
-    candidates.push(inspection?.dataFim, inspection?.dataInicio, inspection?.data);
-  }
+  getErosionInspectionIds(erosion).forEach((inspectionId) => {
+    const inspection = inspectionsById.get(inspectionId);
+    if (inspection) {
+      candidates.push(inspection?.dataFim, inspection?.dataInicio, inspection?.data);
+    }
+  });
   for (let i = 0; i < candidates.length; i += 1) {
     const parsed = toIsoDate(candidates[i]);
     if (parsed) return parsed;
@@ -145,23 +208,26 @@ function resolveErosionDate(erosion, inspectionsById = new Map()) {
 
 export function filterErosionsForReport(
   erosions,
-  { projetoId, dataInicio, dataFim },
+  { projetoId, anos },
   inspections = [],
 ) {
-  const start = toIsoDate(dataInicio);
-  const end = toIsoDate(dataFim);
+  const selectedYearsRaw = Array.isArray(anos) ? anos : [];
+  const selectedYears = new Set(
+    selectedYearsRaw
+      .map((year) => Number(year))
+      .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 9999),
+  );
   const projectKey = normalizeProjectKey(projetoId);
   const inspectionsById = new Map((inspections || []).map((item) => [String(item?.id || '').trim(), item]));
 
   return (erosions || []).filter((item) => {
     if (resolveErosionProjectId(item, inspectionsById) !== projectKey) return false;
-    if (!start && !end) return true;
+    if (selectedYears.size === 0) return true;
 
     const rowDate = resolveErosionDate(item, inspectionsById);
-    if (!rowDate) return true;
-    if (start && rowDate < start) return false;
-    if (end && rowDate > end) return false;
-    return true;
+    if (!rowDate) return false;
+    const year = Number(String(rowDate).slice(0, 4));
+    return selectedYears.has(year);
   });
 }
 

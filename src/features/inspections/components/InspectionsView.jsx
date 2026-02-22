@@ -4,6 +4,28 @@ import { deleteInspection, saveInspection } from '../../../services/inspectionSe
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 
+function normalizeInspectionPendencies(value) {
+  const raw = Array.isArray(value) ? value : [];
+  const dedup = new Map();
+  raw.forEach((item) => {
+    const vistoriaId = String(item?.vistoriaId || '').trim();
+    if (!vistoriaId) return;
+    dedup.set(vistoriaId, {
+      vistoriaId,
+      status: String(item?.status || '').trim().toLowerCase() === 'visitada' ? 'visitada' : 'pendente',
+      dia: String(item?.dia || '').trim(),
+    });
+  });
+  return [...dedup.values()];
+}
+
+function getInspectionPendency(erosion, inspectionId) {
+  const vistoriaId = String(inspectionId || '').trim();
+  if (!vistoriaId) return null;
+  return normalizeInspectionPendencies(erosion?.pendenciasVistoria)
+    .find((item) => item.vistoriaId === vistoriaId) || null;
+}
+
 function buildInspectionId(projetoId, dataInicio, inspections = []) {
   if (!projetoId || !dataInicio) return '';
 
@@ -40,6 +62,7 @@ const baseForm = {
 function InspectionsView({
   inspections,
   projects,
+  erosions,
   forcedProjectFilterId,
   onClearForcedProjectFilter,
   searchTerm,
@@ -63,6 +86,29 @@ function InspectionsView({
         || String(i.responsavel || '').toLowerCase().includes(t);
     });
   }, [inspections, forcedProjectFilterId, searchTerm]);
+
+  const pendingSummaryByInspection = useMemo(() => {
+    const summary = new Map();
+    (inspections || []).forEach((inspection) => {
+      const inspectionId = String(inspection?.id || '').trim();
+      const projectId = String(inspection?.projetoId || '').trim();
+      if (!inspectionId || !projectId) {
+        if (inspectionId) summary.set(inspectionId, { count: 0, towers: [] });
+        return;
+      }
+
+      const pending = (erosions || []).filter((erosion) => {
+        if (String(erosion?.projetoId || '').trim() !== projectId) return false;
+        const pendency = getInspectionPendency(erosion, inspectionId);
+        const hasVisitDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
+        return !hasVisitDate;
+      });
+      const towers = [...new Set(pending.map((item) => String(item?.torreRef || '').trim()).filter(Boolean))]
+        .sort((a, b) => Number(a) - Number(b));
+      summary.set(inspectionId, { count: pending.length, towers });
+    });
+    return summary;
+  }, [inspections, erosions]);
 
   const forcedProject = projects.find((p) => p.id === forcedProjectFilterId);
 
@@ -141,6 +187,8 @@ function InspectionsView({
 
       <InspectionManager
         projects={projects}
+        erosions={erosions}
+        actorName={String(user?.displayName || user?.email || user?.uid || '').trim()}
         planningDraft={planningDraft}
         onPlanningDraftConsumed={onPlanningDraftConsumed}
       />
@@ -154,29 +202,46 @@ function InspectionsView({
               <th>Início</th>
               <th>Fim</th>
               <th>Responsável</th>
+              <th>Pendências</th>
               <th>Ações</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((i) => (
-              <tr key={i.id}>
-                <td>{i.id}</td>
-                <td>{i.projetoId}</td>
-                <td>{i.dataInicio || '-'}</td>
-                <td>{i.dataFim || '-'}</td>
-                <td>{i.responsavel || '-'}</td>
-                <td>
-                  <div className="inline-row">
-                    <button type="button" className="secondary" onClick={() => setDetailsModal(i)}>Detalhes</button>
-                    <button type="button" className="secondary" onClick={() => openEdit(i)}>Editar</button>
-                    <button type="button" className="danger" onClick={() => handleDelete(i.id)}>Excluir</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {filtered.map((i) => {
+              const pendingSummary = pendingSummaryByInspection.get(i.id) || { count: 0, towers: [] };
+              const pendingCount = Number(pendingSummary.count || 0);
+              return (
+                <tr key={i.id}>
+                  <td>{i.id}</td>
+                  <td>{i.projetoId}</td>
+                  <td>{i.dataInicio || '-'}</td>
+                  <td>{i.dataFim || '-'}</td>
+                  <td>{i.responsavel || '-'}</td>
+                  <td>
+                    {pendingCount > 0 ? (
+                      <span
+                        className="status-chip status-warn"
+                        title={pendingSummary.towers.length > 0 ? `Torres pendentes: ${pendingSummary.towers.join(', ')}` : 'Existem erosões pendentes sem data de visita'}
+                      >
+                        {pendingCount} pendente(s)
+                      </span>
+                    ) : (
+                      <span className="status-chip status-ok">Sem pendências</span>
+                    )}
+                  </td>
+                  <td>
+                    <div className="inline-row">
+                      <button type="button" className="secondary" onClick={() => setDetailsModal(i)}>Detalhes</button>
+                      <button type="button" className="secondary" onClick={() => openEdit(i)}>Editar</button>
+                      <button type="button" className="danger" onClick={() => handleDelete(i.id)}>Excluir</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan="6" className="muted">Nenhuma vistoria encontrada.</td>
+                <td colSpan="7" className="muted">Nenhuma vistoria encontrada.</td>
               </tr>
             )}
           </tbody>

@@ -359,6 +359,76 @@
             return Array.isArray(value) ? value.filter(Boolean) : [];
         }
 
+        function normalizeErosionStatus(value) {
+            const normalized = String(value || '').trim().toLowerCase();
+            if (['monitorado', 'monitoramento', 'monitoring'].includes(normalized)) return 'Monitoramento';
+            if (['estabilizado', 'stabilized', 'resolvido', 'resolvida', 'resolved'].includes(normalized)) return 'Estabilizado';
+            return 'Ativo';
+        }
+
+        function normalizeErosionInspectionIds(erosion) {
+            const primary = String(erosion?.vistoriaId || '').trim();
+            const list = Array.isArray(erosion?.vistoriaIds) ? erosion.vistoriaIds : [];
+            const pendencies = Array.isArray(erosion?.pendenciasVistoria) ? erosion.pendenciasVistoria : [];
+            const fromPendencies = pendencies.map((item) => String(item?.vistoriaId || '').trim());
+            return [...new Set([primary, ...list.map((item) => String(item || '').trim()), ...fromPendencies].filter(Boolean))];
+        }
+
+        function normalizeInspectionPendencies(value) {
+            const raw = Array.isArray(value) ? value : [];
+            const dedup = new Map();
+            raw.forEach((item) => {
+                const vistoriaId = String(item?.vistoriaId || '').trim();
+                if (!vistoriaId) return;
+                dedup.set(vistoriaId, {
+                    vistoriaId,
+                    status: String(item?.status || '').trim().toLowerCase() === 'visitada' ? 'visitada' : 'pendente',
+                    dia: String(item?.dia || '').trim()
+                });
+            });
+            return [...dedup.values()];
+        }
+
+        function upsertInspectionPendency(erosion, inspectionId, patch = {}) {
+            const vistoriaId = String(inspectionId || '').trim();
+            if (!vistoriaId) return normalizeInspectionPendencies(erosion?.pendenciasVistoria);
+            const current = normalizeInspectionPendencies(erosion?.pendenciasVistoria);
+            const map = new Map(current.map((item) => [item.vistoriaId, item]));
+            const prev = map.get(vistoriaId) || { vistoriaId, status: 'pendente', dia: '' };
+            map.set(vistoriaId, { ...prev, ...patch, vistoriaId });
+            return [...map.values()];
+        }
+
+        function getInspectionPendency(erosion, inspectionId) {
+            const vistoriaId = String(inspectionId || '').trim();
+            if (!vistoriaId) return null;
+            return normalizeInspectionPendencies(erosion?.pendenciasVistoria)
+                .find((item) => item.vistoriaId === vistoriaId) || null;
+        }
+
+        function toBrDate(value) {
+            const text = String(value || '').trim();
+            if (!text) return '';
+            const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+            const brMatch = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if (brMatch) return text;
+            return '';
+        }
+
+        function isBrDateValid(value) {
+            const text = String(value || '').trim();
+            const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if (!match) return false;
+            const day = Number(match[1]);
+            const month = Number(match[2]);
+            const year = Number(match[3]);
+            if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) return false;
+            if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+            const date = new Date(year, month - 1, day);
+            return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+        }
+
         function validateErosionLocation(data) {
             const localTipo = String(data?.localTipo || '').trim();
             const localDescricao = String(data?.localDescricao || '').trim();
@@ -370,8 +440,8 @@
 
         function buildFollowupEvent(previous, next, meta = {}) {
             const origem = meta.origem || (meta.isCreate ? 'cadastro' : 'edicao');
-            const statusAnterior = previous ? String(previous.status || 'Ativo') : undefined;
-            const statusNovo = String(next.status || 'Ativo');
+            const statusAnterior = previous ? normalizeErosionStatus(previous.status) : undefined;
+            const statusNovo = normalizeErosionStatus(next.status);
             const changedStatus = statusAnterior !== statusNovo;
             const changedTower = String(previous?.torreRef || '') !== String(next?.torreRef || '');
             const changedLocal = String(previous?.localTipo || '') !== String(next?.localTipo || '');
@@ -395,11 +465,57 @@
                 timestamp: new Date().toISOString(),
                 usuario: meta.updatedBy || '',
                 origem,
+                tipoEvento: 'sistema',
                 ...(next.vistoriaId ? { vistoriaId: String(next.vistoriaId) } : {}),
                 ...(statusAnterior ? { statusAnterior } : {}),
                 statusNovo,
                 resumo
             };
+        }
+
+        function normalizeFollowupEventType(item) {
+            const raw = String(item?.tipoEvento || '').trim().toLowerCase();
+            if (raw === 'obra') return 'obra';
+            if (raw === 'autuacao') return 'autuacao';
+            return 'sistema';
+        }
+
+        function buildManualFollowupEvent(data, meta = {}) {
+            const tipoEvento = String(data?.tipoEvento || '').trim().toLowerCase();
+            const usuario = String(meta?.updatedBy || '').trim();
+            if (tipoEvento === 'obra') {
+                const obraEtapa = String(data?.obraEtapa || '').trim();
+                const descricao = String(data?.descricao || '').trim();
+                if (!obraEtapa || !descricao) return null;
+                const etapa = obraEtapa.toLowerCase();
+                return {
+                    timestamp: new Date().toISOString(),
+                    usuario,
+                    origem: 'manual',
+                    tipoEvento: 'obra',
+                    obraEtapa,
+                    descricao,
+                    ...((etapa === 'concluída' || etapa === 'concluida') ? { statusNovo: 'Estabilizado' } : {}),
+                    resumo: `Obra - ${obraEtapa}: ${descricao}`
+                };
+            }
+            if (tipoEvento === 'autuacao') {
+                const orgao = String(data?.orgao || '').trim();
+                const numeroOuDescricao = String(data?.numeroOuDescricao || '').trim();
+                const autuacaoStatus = String(data?.autuacaoStatus || '').trim();
+                if (!orgao || !numeroOuDescricao || !autuacaoStatus) return null;
+                return {
+                    timestamp: new Date().toISOString(),
+                    usuario,
+                    origem: 'manual',
+                    tipoEvento: 'autuacao',
+                    orgao,
+                    numeroOuDescricao,
+                    autuacaoStatus,
+                    resumo: `Autuação (${orgao}) - ${autuacaoStatus}: ${numeroOuDescricao}`
+                };
+            }
+            return null;
         }
 
         function appendFollowupEvent(history, event) {
@@ -422,8 +538,13 @@
         function resolveErosionProjectId(erosion, inspectionsById = new Map()) {
             const explicit = normalizeProjectKey(erosion?.projetoId);
             if (explicit) return explicit;
-            const inspection = inspectionsById.get(String(erosion?.vistoriaId || '').trim());
-            return normalizeProjectKey(inspection?.projetoId);
+            const inspectionIds = normalizeErosionInspectionIds(erosion);
+            for (let i = 0; i < inspectionIds.length; i += 1) {
+                const inspection = inspectionsById.get(inspectionIds[i]);
+                const project = normalizeProjectKey(inspection?.projetoId);
+                if (project) return project;
+            }
+            return '';
         }
 
         function resolveErosionDate(erosion, inspectionsById = new Map()) {
@@ -434,10 +555,10 @@
                 erosion?.dataCadastro,
                 erosion?.data
             ];
-            const inspection = inspectionsById.get(String(erosion?.vistoriaId || '').trim());
-            if (inspection) {
-                candidates.push(inspection?.dataFim, inspection?.dataInicio, inspection?.data);
-            }
+            normalizeErosionInspectionIds(erosion).forEach((inspectionId) => {
+                const inspection = inspectionsById.get(inspectionId);
+                if (inspection) candidates.push(inspection?.dataFim, inspection?.dataInicio, inspection?.data);
+            });
             for (let i = 0; i < candidates.length; i += 1) {
                 const parsed = toIsoDate(candidates[i]);
                 if (parsed) return parsed;
@@ -447,17 +568,20 @@
 
         function filterErosionsForReport(erosions, filters, inspections = []) {
             const projectId = normalizeProjectKey(filters?.projetoId);
-            const start = toIsoDate(filters?.dataInicio);
-            const end = toIsoDate(filters?.dataFim);
+            const selectedYearsRaw = Array.isArray(filters?.anos) ? filters.anos : [];
+            const selectedYears = new Set(
+                selectedYearsRaw
+                    .map((year) => Number(year))
+                    .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 9999)
+            );
             const inspectionsById = new Map((inspections || []).map((item) => [String(item?.id || '').trim(), item]));
             return (erosions || []).filter((item) => {
                 if (resolveErosionProjectId(item, inspectionsById) !== projectId) return false;
-                if (!start && !end) return true;
+                if (selectedYears.size === 0) return true;
                 const rowDate = resolveErosionDate(item, inspectionsById);
-                if (!rowDate) return true;
-                if (start && rowDate < start) return false;
-                if (end && rowDate > end) return false;
-                return true;
+                if (!rowDate) return false;
+                const year = Number(String(rowDate).slice(0, 4));
+                return selectedYears.has(year);
             });
         }
 
@@ -474,7 +598,7 @@
                 profundidade: item.profundidade || '',
                 declividade: item.declividade || '',
                 largura: item.largura || '',
-                status: item.status || '',
+                status: normalizeErosionStatus(item.status),
                 impacto: item.impacto || '',
                 score: item.score || '',
                 frequencia: item.frequencia || '',
@@ -690,7 +814,9 @@
             const amostragemSelecionada = selectFromGroups(
                 [candidatesNotVisited, candidatesInsufficient, candidatesNaoPriorizar],
                 needNonMandatory
-            ).map((item) => ({ ...item, categoria: 'amostragem' }));
+            )
+                .map((item) => ({ ...item, categoria: 'amostragem' }))
+                .sort((a, b) => Number(a.torre) - Number(b.torre));
 
             const sampledSet = new Set(amostragemSelecionada.map((item) => item.torre));
             const naoPriorizar = [...candidatesInsufficient, ...candidatesNaoPriorizar].filter((item) => !sampledSet.has(item.torre));
@@ -1081,13 +1207,24 @@
                 setTimeout(() => setToast({ kind: '', text: '' }), 4000);
             };
 
+            const resolveActorName = () => {
+                const profileName = String(currentUserProfile?.nome || '').trim();
+                if (profileName) return profileName;
+                const displayName = String(authUser?.displayName || '').trim();
+                if (displayName) return displayName;
+                const email = String(authUser?.email || '').trim();
+                if (email) return email;
+                return String(authUser?.uid || '').trim();
+            };
+
             const saveToFirestore = async (colName, docId, data) => {
                 try {
                     const { doc, setDoc } = window.firebaseModules;
+                    const actorName = resolveActorName();
                     const dataWithMeta = {
                         ...data,
                         ultimaAtualizacao: new Date().toISOString(),
-                        atualizadoPor: authUser.email || authUser.uid
+                        atualizadoPor: actorName
                     };
                     await setDoc(doc(db, 'shared', 'geomonitor', colName, docId), dataWithMeta);
                     showToast('ok', 'Dados salvos com sucesso!');
@@ -1511,6 +1648,7 @@
                                     pendingDraft={pendingErosionDraft}
                                     onDraftConsumed={() => setPendingErosionDraft(null)}
                                     rulesConfig={rulesConfig}
+                                    currentUserName={resolveActorName()}
                                 />
                             )}
                             {activeTab === 'visit-planning' && (
@@ -2969,11 +3107,6 @@
                 </div>
             );
         }
-                    )}
-                </div>
-            );
-        }
-
         function InspectionsView({
             inspections,
             projects,
@@ -2993,6 +3126,7 @@
             const [confirmDelete, setConfirmDelete] = useState(null);
             const [detailsModal, setDetailsModal] = useState(null);
             const [suggestedTowerInput, setSuggestedTowerInput] = useState('');
+            const autoPendingCheckRef = useRef('');
             const forcedProject = projects.find(p => p.id === forcedProjectFilterId) || null;
 
             const filtered = inspections.filter(i => {
@@ -3003,6 +3137,81 @@
                        String(i.projetoId || '').toLowerCase().includes(t) ||
                        String(i.responsavel || '').toLowerCase().includes(t);
             });
+
+            const pendingSummaryByInspection = useMemo(() => {
+                const summary = new Map();
+                (inspections || []).forEach((inspection) => {
+                    const inspectionId = String(inspection?.id || '').trim();
+                    const projectId = String(inspection?.projetoId || '').trim();
+                    if (!inspectionId || !projectId) {
+                        if (inspectionId) summary.set(inspectionId, { count: 0, towers: [] });
+                        return;
+                    }
+                    const pending = (erosions || []).filter((erosion) => {
+                        if (String(erosion?.projetoId || '').trim() !== projectId) return false;
+                        const pendency = getInspectionPendency(erosion, inspectionId);
+                        const hasVisitDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
+                        return !hasVisitDate;
+                    });
+                    const towers = [...new Set(pending.map((item) => String(item?.torreRef || '').trim()).filter(Boolean))]
+                        .sort((a, b) => Number(a) - Number(b));
+                    summary.set(inspectionId, { count: pending.length, towers });
+                });
+                return summary;
+            }, [inspections, erosions]);
+
+            const normalizeTowerKey = (value) => {
+                const text = String(value ?? '').trim();
+                if (!text) return '';
+                const numeric = Number(text);
+                if (Number.isFinite(numeric)) return String(numeric);
+                return text.toUpperCase();
+            };
+
+            const collectDayTowerKeys = (day) => {
+                const detailed = Array.isArray(day?.torresDetalhadas) ? day.torresDetalhadas.map((item) => item?.numero) : [];
+                let source = detailed;
+                if (source.length === 0 && Array.isArray(day?.torres)) source = day.torres;
+                if (source.length === 0) {
+                    const typed = String(day?.torresInput ?? day?.torres ?? '').trim();
+                    if (typed) source = parseTowerInput(typed).numbers;
+                }
+                return [...new Set(source.map((item) => normalizeTowerKey(item)).filter(Boolean))];
+            };
+
+            const findDuplicateTowersAcrossDays = (details) => {
+                const days = Array.isArray(details) ? details : [];
+                const map = new Map();
+                days.forEach((day) => {
+                    const dayLabel = toBrDate(day?.data) || String(day?.data || '').trim() || 'Dia sem data';
+                    collectDayTowerKeys(day).forEach((tower) => {
+                        if (!map.has(tower)) map.set(tower, new Set());
+                        map.get(tower).add(dayLabel);
+                    });
+                });
+                return [...map.entries()]
+                    .map(([tower, daySet]) => ({ tower, days: [...daySet] }))
+                    .filter((item) => item.days.length > 1)
+                    .sort((a, b) => {
+                        const aNum = Number(a.tower);
+                        const bNum = Number(b.tower);
+                        if (Number.isFinite(aNum) && Number.isFinite(bNum)) return aNum - bNum;
+                        return String(a.tower).localeCompare(String(b.tower));
+                    });
+            };
+
+            const confirmDuplicateTowersAcrossDays = (details) => {
+                const duplicateTowers = findDuplicateTowersAcrossDays(details);
+                if (duplicateTowers.length === 0) return true;
+                const sample = duplicateTowers
+                    .slice(0, 8)
+                    .map((item) => `- Torre ${item.tower}: ${item.days.join(', ')}`)
+                    .join('\n');
+                const overflow = duplicateTowers.length > 8 ? `\n... e mais ${duplicateTowers.length - 8} torre(s).` : '';
+                return window.confirm(
+                    `Há torres registradas em mais de um dia nesta vistoria:\n${sample}${overflow}\n\nIsso pode estar correto em caso de revisita.\nClique em OK para continuar ou Cancelar para revisar.`
+                );
+            };
 
             useEffect(() => {
                 if (!isFormOpen) return;
@@ -3016,10 +3225,100 @@
 
             const selectedProject = projects.find(p => p.id === formData.projetoId);
 
+            const resolveInspectionProjectId = (explicitProjectId = '') =>
+                String(explicitProjectId || formData.projetoId || '').trim();
+
+            const syncInspectionPendencies = async (inspectionId, explicitProjectId = '') => {
+                const projectId = resolveInspectionProjectId(explicitProjectId);
+                if (!projectId || !inspectionId) return;
+                const projectErosions = (erosions || []).filter((item) => String(item?.projetoId || '').trim() === projectId);
+                await Promise.all(projectErosions.map((erosion) => saveToFirestore('erosions', erosion.id, {
+                    ...erosion,
+                    vistoriaId: inspectionId,
+                    vistoriaIds: [...new Set([inspectionId, ...normalizeErosionInspectionIds(erosion)])],
+                    pendenciasVistoria: upsertInspectionPendency(erosion, inspectionId)
+                })));
+            };
+
+            const getPendingErosionsForInspection = (inspectionId, explicitProjectId = '') => {
+                const projectId = resolveInspectionProjectId(explicitProjectId);
+                if (!projectId || !inspectionId) return [];
+                const projectErosions = (erosions || []).filter((item) => String(item?.projetoId || '').trim() === projectId);
+                return projectErosions.filter((erosion) => {
+                    const pendency = getInspectionPendency(erosion, inspectionId);
+                    const hasVisitDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
+                    return !hasVisitDate;
+                });
+            };
+
+            const ensurePendingTowersVisible = (pendingErosions) => {
+                setFormData((prev) => {
+                    const targetDay = prev.detalhesDias?.[0]?.data || '';
+                    if (!targetDay) return prev;
+
+                    const pendingTowers = [...new Set(
+                        (pendingErosions || [])
+                            .map((item) => String(item?.torreRef || '').trim())
+                            .filter(Boolean)
+                    )];
+
+                    const nextDays = (prev.detalhesDias || []).map((day) => {
+                        if (day.data !== targetDay) return day;
+
+                        const map = new Map((day.torresDetalhadas || []).map((item) => [String(item?.numero || '').trim(), item]));
+                        pendingTowers.forEach((tower) => {
+                            const existing = map.get(tower);
+                            if (!existing) {
+                                map.set(tower, { numero: tower, obs: '', temErosao: true });
+                                return;
+                            }
+                            map.set(tower, { ...existing, temErosao: true });
+                        });
+
+                        const merged = [...map.values()].sort((a, b) => Number(a.numero) - Number(b.numero));
+                        return {
+                            ...day,
+                            torres: merged.map((item) => item.numero).join(', '),
+                            torresInput: merged.map((item) => item.numero).join(', '),
+                            torresDetalhadas: merged
+                        };
+                    });
+
+                    return { ...prev, detalhesDias: nextDays };
+                });
+            };
+
+            const checkInspectionPendencies = async ({
+                inspectionId,
+                projectId = '',
+                syncBeforeCheck = false,
+                notifyWhenPending = true
+            } = {}) => {
+                const normalizedInspectionId = String(inspectionId || '').trim();
+                const normalizedProjectId = resolveInspectionProjectId(projectId);
+                if (!normalizedInspectionId || !normalizedProjectId) return [];
+
+                if (syncBeforeCheck) {
+                    await syncInspectionPendencies(normalizedInspectionId, normalizedProjectId);
+                }
+
+                const pending = getPendingErosionsForInspection(normalizedInspectionId, normalizedProjectId);
+                if (pending.length > 0) {
+                    ensurePendingTowersVisible(pending);
+                    if (notifyWhenPending) {
+                        const towers = [...new Set(pending.map((item) => String(item?.torreRef || '').trim()).filter(Boolean))]
+                            .sort((a, b) => Number(a) - Number(b));
+                        alert(`Esta vistoria possui erosões pendentes de visita: ${towers.join(', ') || '-'}. As torres foram carregadas para marcação.`);
+                    }
+                }
+                return pending;
+            };
+
             useEffect(() => {
                 if (!planningDraft) return;
                 setIsFormOpen(true);
                 setIsEditing(false);
+                autoPendingCheckRef.current = '';
                 setFormData((prev) => ({
                     ...prev,
                     id: '',
@@ -3031,6 +3330,7 @@
             }, [planningDraft, onPlanningDraftConsumed]);
 
             const openNew = () => {
+                autoPendingCheckRef.current = '';
                 setFormData({
                     id: '',
                     projetoId: forcedProjectFilterId || '',
@@ -3051,13 +3351,49 @@
                 setFormData(prev => ({ ...prev, id: generatedId }));
             }, [isFormOpen, isEditing, formData.projetoId, formData.dataInicio, inspections]);
 
-            const openEdit = (i) => {
+            useEffect(() => {
+                if (!isFormOpen || isEditing) return;
+                const inspectionId = String(formData.id || '').trim();
+                const projectId = String(formData.projetoId || '').trim();
+                const hasDays = Array.isArray(formData.detalhesDias) && formData.detalhesDias.length > 0;
+                if (!inspectionId || !projectId || !hasDays) return;
+
+                const checkKey = `${inspectionId}|${projectId}`;
+                if (autoPendingCheckRef.current === checkKey) return;
+                autoPendingCheckRef.current = checkKey;
+
+                (async () => {
+                    try {
+                        await checkInspectionPendencies({
+                            inspectionId,
+                            projectId,
+                            syncBeforeCheck: false,
+                            notifyWhenPending: true
+                        });
+                    } catch (err) {
+                        alert(err.message || 'Erro ao verificar pendências de erosão nesta vistoria.');
+                    }
+                })();
+            }, [isFormOpen, isEditing, formData.id, formData.projetoId, formData.detalhesDias, erosions]);
+
+            const openEdit = async (i) => {
                 setFormData({
                     ...i,
                     detalhesDias: Array.isArray(i.detalhesDias) ? i.detalhesDias : []
                 });
                 setIsEditing(true);
                 setIsFormOpen(true);
+                autoPendingCheckRef.current = '';
+                try {
+                    await checkInspectionPendencies({
+                        inspectionId: i.id,
+                        projectId: i.projetoId,
+                        syncBeforeCheck: false,
+                        notifyWhenPending: true
+                    });
+                } catch (err) {
+                    alert(err.message || 'Erro ao verificar pendências de erosão nesta vistoria.');
+                }
             };
 
             const buildInspectionPayload = (baseData) => ({
@@ -3082,8 +3418,23 @@
                     return null;
                 }
 
+                if (!keepOpen && !confirmDuplicateTowersAcrossDays(formData.detalhesDias)) {
+                    return null;
+                }
+
                 const payload = buildInspectionPayload(formData);
                 await saveToFirestore('inspections', formData.id, payload);
+                await syncInspectionPendencies(formData.id, formData.projetoId);
+                if (!keepOpen) {
+                    const pending = getPendingErosionsForInspection(formData.id, formData.projetoId);
+                    if (pending.length > 0) {
+                        ensurePendingTowersVisible(pending);
+                        const towers = [...new Set(pending.map((item) => String(item?.torreRef || '').trim()).filter(Boolean))]
+                            .sort((a, b) => Number(a) - Number(b));
+                        alert(`Existem erosões pendentes de visita nesta vistoria: ${towers.join(', ') || '-'}. As torres foram carregadas para marcar a data da visita.`);
+                        return null;
+                    }
+                }
                 if (!keepOpen) setIsFormOpen(false);
                 return formData.id;
             };
@@ -3176,6 +3527,43 @@
                 });
             };
 
+            const markPendingErosionVisit = async (dayIndex, towerNumber) => {
+                try {
+                    const selectedDay = formData.detalhesDias?.[dayIndex]?.data || '';
+                    const defaultDate = toBrDate(selectedDay) || toBrDate(new Date().toISOString().slice(0, 10));
+                    const typed = window.prompt('Informe a data da visita (DD/MM/AAAA):', defaultDate);
+                    if (typed === null) return;
+                    const visitDate = String(typed || '').trim();
+                    if (!isBrDateValid(visitDate)) {
+                        alert('Data inválida. Use o formato DD/MM/AAAA.');
+                        return;
+                    }
+                    const inspectionId = await saveInspectionState();
+                    const projectId = String(formData.projetoId || '').trim();
+                    const towerKey = String(towerNumber || '').trim();
+                    const targetErosions = (erosions || []).filter((item) =>
+                        String(item?.projetoId || '').trim() === projectId
+                        && String(item?.torreRef || '').trim() === towerKey
+                    );
+                    if (targetErosions.length === 0) {
+                        alert('Não há erosão cadastrada nessa torre para marcar visita.');
+                        return;
+                    }
+                    await Promise.all(targetErosions.map((erosion) => saveToFirestore('erosions', erosion.id, {
+                        ...erosion,
+                        vistoriaId: inspectionId,
+                        vistoriaIds: [...new Set([inspectionId, ...normalizeErosionInspectionIds(erosion)])],
+                        pendenciasVistoria: upsertInspectionPendency(erosion, inspectionId, {
+                            status: 'visitada',
+                            dia: visitDate
+                        })
+                    })));
+                    alert(`Visita da erosão marcada em ${visitDate}.`);
+                } catch (err) {
+                    alert(err.message || 'Erro ao marcar visita da erosão.');
+                }
+            };
+
             const openErosionFromTower = async (dayIndex, towerNumber) => {
                 try {
                     if (!formData.projetoId || !formData.dataInicio) {
@@ -3231,6 +3619,8 @@
                     <div className="space-y-4">
                         {filtered.map(i => {
                             const projeto = projects.find(p => p.id === i.projetoId);
+                            const pendingSummary = pendingSummaryByInspection.get(i.id) || { count: 0, towers: [] };
+                            const pendingCount = Number(pendingSummary.count || 0);
                             return (
                                 <div key={i.id} className="bg-white rounded-xl border shadow-sm p-5 hover:shadow-md transition-shadow">
                                     <div className="flex justify-between items-start">
@@ -3244,10 +3634,23 @@
                                                         {i.detalhesDias.length} dia(s)
                                                     </span>
                                                 )}
+                                                {pendingCount > 0 && (
+                                                    <span
+                                                        className="px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded"
+                                                        title={pendingSummary.towers.length > 0 ? `Torres pendentes: ${pendingSummary.towers.join(', ')}` : 'Existem erosões pendentes sem data de visita'}
+                                                    >
+                                                        {pendingCount} pendente(s)
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="text-sm text-slate-600 space-y-1">
                                                 {i.responsavel && <p><strong>Responsável:</strong> {i.responsavel}</p>}
                                                 {i.dataFim && <p><strong>Data Fim:</strong> {i.dataFim}</p>}
+                                                {pendingCount > 0 && (
+                                                    <p className="text-amber-700 text-xs">
+                                                        Erosões sem data de visita: {pendingSummary.towers.length > 0 ? pendingSummary.towers.join(', ') : '-'}
+                                                    </p>
+                                                )}
                                                 {projeto && (
                                                     <p className="text-slate-500 text-xs mt-2">
                                                         <MapIcon className="w-3 h-3 inline mr-1" />
@@ -3423,6 +3826,18 @@
                                                                             const linkedErosion = erosions.some(e =>
                                                                                 e.vistoriaId === formData.id && String(e.torreRef) === String(torre.numero)
                                                                             );
+                                                                            const linkedTowerErosions = erosions.filter((e) =>
+                                                                                String(e.projetoId || '').trim() === String(formData.projetoId || '').trim()
+                                                                                && String(e.torreRef || '').trim() === String(torre.numero || '').trim()
+                                                                            );
+                                                                            const pendingVisit = linkedTowerErosions.some((e) => {
+                                                                                const pendency = getInspectionPendency(e, formData.id);
+                                                                                const hasVisitDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
+                                                                                return !!pendency && !hasVisitDate;
+                                                                            });
+                                                                            const visitedEntry = linkedTowerErosions
+                                                                                .map((e) => getInspectionPendency(e, formData.id))
+                                                                                .find((p) => p && p.status === 'visitada' && String(p.dia || '').trim());
                                                                             const hasErosion = torre.temErosao || linkedErosion;
                                                                             return (
                                                                                 <tr key={`${dia.data}-${torre.numero}`} className={hasErosion ? 'bg-red-50' : 'bg-white'}>
@@ -3436,16 +3851,30 @@
                                                                                         />
                                                                                     </td>
                                                                                     <td className="p-2 text-center">
-                                                                                        <button
-                                                                                            onClick={() => openErosionFromTower(dayIndex, torre.numero)}
-                                                                                            title="Cadastrar erosão nesta torre"
-                                                                                            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
-                                                                                                hasErosion ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                                                                                            }`}
-                                                                                        >
-                                                                                            <AlertTriangle />
-                                                                                            {hasErosion ? 'Com erosão' : 'Erosão'}
-                                                                                        </button>
+                                                                                        <div className="flex items-center justify-center gap-2">
+                                                                                            <button
+                                                                                                onClick={() => openErosionFromTower(dayIndex, torre.numero)}
+                                                                                                title="Cadastrar erosão nesta torre"
+                                                                                                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+                                                                                                    hasErosion ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                                                                                }`}
+                                                                                            >
+                                                                                                <AlertTriangle />
+                                                                                                {hasErosion ? 'Com erosão' : 'Erosão'}
+                                                                                            </button>
+                                                                                            {linkedTowerErosions.length > 0 && (
+                                                                                                <button
+                                                                                                    onClick={() => markPendingErosionVisit(dayIndex, torre.numero)}
+                                                                                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+                                                                                                        pendingVisit
+                                                                                                            ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                                                                                                            : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                                                                                                    }`}
+                                                                                                >
+                                                                                                    {visitedEntry?.dia ? `Visitada ${visitedEntry.dia}` : 'Marcar visita'}
+                                                                                                </button>
+                                                                                            )}
+                                                                                        </div>
                                                                                     </td>
                                                                                 </tr>
                                                                             );
@@ -3654,13 +4083,73 @@
             );
         }
 
-        function ErosionsView({ erosions, projects, inspections, searchTerm, saveToFirestore, deleteFromFirestore, pendingDraft, onDraftConsumed, rulesConfig }) {
+        function ErosionsView({ erosions, projects, inspections, searchTerm, saveToFirestore, deleteFromFirestore, pendingDraft, onDraftConsumed, rulesConfig, currentUserName }) {
             const [isFormOpen, setIsFormOpen] = useState(false);
             const [formData, setFormData] = useState({});
             const [isEditing, setIsEditing] = useState(false);
             const [confirmDelete, setConfirmDelete] = useState(null);
             const [detailsModal, setDetailsModal] = useState(null);
-            const [reportFilters, setReportFilters] = useState({ projetoId: '', dataInicio: '', dataFim: '' });
+            const currentYear = new Date().getFullYear();
+            const [reportFilters, setReportFilters] = useState({
+                projetoId: '',
+                ano: '',
+                mostrarMultiAno: false,
+                anosExtras: []
+            });
+
+            const getInspectionDateScore = (inspection) => {
+                const candidates = [inspection?.dataFim, inspection?.dataInicio, inspection?.data];
+                for (let i = 0; i < candidates.length; i += 1) {
+                    const d = new Date(candidates[i]);
+                    if (!Number.isNaN(d.getTime())) return d.getTime();
+                }
+                return null;
+            };
+
+            const resolvePrimaryInspectionId = (inspectionIds) => {
+                if (!inspectionIds || inspectionIds.length === 0) return '';
+                const inspectionById = new Map((inspections || []).map((item) => [String(item?.id || '').trim(), item]));
+                return [...inspectionIds].sort((a, b) => {
+                    const ia = inspectionById.get(String(a || '').trim());
+                    const ib = inspectionById.get(String(b || '').trim());
+                    const da = getInspectionDateScore(ia);
+                    const db = getInspectionDateScore(ib);
+                    if (da !== null && db !== null) return db - da;
+                    if (da !== null) return -1;
+                    if (db !== null) return 1;
+                    return String(b || '').localeCompare(String(a || ''));
+                })[0];
+            };
+
+            const reportYears = useMemo(() => {
+                if (!reportFilters.projetoId) return [currentYear];
+                const inspectionsById = new Map((inspections || []).map((item) => [String(item?.id || '').trim(), item]));
+                const yearsSet = new Set();
+                (erosions || []).forEach((item) => {
+                    if (resolveErosionProjectId(item, inspectionsById) !== normalizeProjectKey(reportFilters.projetoId)) return;
+                    const rowDate = resolveErosionDate(item, inspectionsById);
+                    if (!rowDate) return;
+                    const year = Number(String(rowDate).slice(0, 4));
+                    if (Number.isInteger(year) && year >= 1900 && year <= 9999) yearsSet.add(year);
+                });
+                const sorted = [...yearsSet].sort((a, b) => b - a);
+                return sorted.length > 0 ? sorted : [currentYear];
+            }, [erosions, inspections, reportFilters.projetoId, currentYear]);
+
+            const selectedReportYears = useMemo(() => {
+                const baseYearText = String(reportFilters.ano || '').trim();
+                const hasBaseYear = baseYearText !== '';
+                const baseYear = hasBaseYear ? Number(baseYearText) : null;
+                const extras = (reportFilters.anosExtras || [])
+                    .map((year) => Number(year))
+                    .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 9999 && year !== baseYear);
+                if (!reportFilters.mostrarMultiAno) {
+                    if (!hasBaseYear) return [];
+                    return [baseYear];
+                }
+                if (!hasBaseYear) return [...new Set(extras)].sort((a, b) => a - b);
+                return [...new Set([baseYear, ...extras])].sort((a, b) => a - b);
+            }, [reportFilters]);
 
             const filtered = erosions.filter(e => {
                 const t = searchTerm.toLowerCase();
@@ -3676,6 +4165,7 @@
                     id: newId, 
                     projetoId: '', 
                     vistoriaId: '',
+                    vistoriaIds: [],
                     torreRef: '',
                     localTipo: '',
                     localDescricao: '',
@@ -3695,8 +4185,12 @@
             };
 
             const openEdit = (e) => {
+                const inspectionIds = normalizeErosionInspectionIds(e);
                 setFormData({
                     ...e,
+                    status: normalizeErosionStatus(e.status),
+                    vistoriaId: resolvePrimaryInspectionId(inspectionIds),
+                    vistoriaIds: inspectionIds,
                     localTipo: e.localTipo || '',
                     localDescricao: e.localDescricao || '',
                     acompanhamentosResumo: normalizeFollowupHistory(e.acompanhamentosResumo)
@@ -3712,6 +4206,7 @@
                     id: newId,
                     projetoId: pendingDraft.projetoId || '',
                     vistoriaId: pendingDraft.vistoriaId || '',
+                    vistoriaIds: pendingDraft.vistoriaId ? [pendingDraft.vistoriaId] : [],
                     torreRef: pendingDraft.torreRef || '',
                     localTipo: '',
                     localDescricao: '',
@@ -3742,16 +4237,27 @@
                     return;
                 }
                 
-                const criticality = calculateCriticality(formData, rulesConfig);
                 const previous = erosions.find((item) => item.id === formData.id) || null;
-                const origem = !previous && String(formData.obs || '').includes('Origem da vistoria') ? 'vistoria' : undefined;
-                const followupEvent = buildFollowupEvent(previous, formData, {
-                    updatedBy: '',
+                const nextStatus = normalizeErosionStatus(formData.status);
+                const currentIds = normalizeErosionInspectionIds(formData);
+                const previousIds = normalizeErosionInspectionIds(previous);
+                const vistoriaIds = [...new Set([...currentIds, ...previousIds])];
+                const vistoriaId = resolvePrimaryInspectionId(vistoriaIds);
+                const payload = {
+                    ...formData,
+                    status: nextStatus,
+                    vistoriaId,
+                    vistoriaIds
+                };
+                const criticality = calculateCriticality(payload, rulesConfig);
+                const origem = !previous && String(payload.obs || '').includes('Origem da vistoria') ? 'vistoria' : undefined;
+                const followupEvent = buildFollowupEvent(previous, payload, {
+                    updatedBy: currentUserName || '',
                     isCreate: !previous,
                     origem
                 });
                 const dataToSave = {
-                    ...formData,
+                    ...payload,
                     impacto: criticality.impacto,
                     score: criticality.score,
                     frequencia: criticality.frequencia,
@@ -3782,9 +4288,13 @@
                     alert('Selecione um empreendimento para exportar.');
                     return;
                 }
-                const rows = buildReportRows(filterErosionsForReport(erosions, reportFilters, inspections));
+                const rows = buildReportRows(filterErosionsForReport(erosions, {
+                    ...reportFilters,
+                    anos: selectedReportYears
+                }, inspections));
                 const csv = buildErosionsCsv(rows);
-                downloadTextFile(`relatorio-erosoes-${reportFilters.projetoId}-${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv;charset=utf-8');
+                const yearLabel = selectedReportYears.length > 0 ? selectedReportYears.join('-') : 'todos-os-anos';
+                downloadTextFile(`relatorio-erosoes-${reportFilters.projetoId}-${yearLabel}-${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv;charset=utf-8');
             };
 
             const handleExportPdf = () => {
@@ -3792,7 +4302,10 @@
                     alert('Selecione um empreendimento para exportar.');
                     return;
                 }
-                const rows = buildReportRows(filterErosionsForReport(erosions, reportFilters, inspections));
+                const rows = buildReportRows(filterErosionsForReport(erosions, {
+                    ...reportFilters,
+                    anos: selectedReportYears
+                }, inspections));
                 const summary = rows.reduce((acc, row) => {
                     acc.status[row.status || 'Não informado'] = (acc.status[row.status || 'Não informado'] || 0) + 1;
                     acc.impacto[row.impacto || 'Não informado'] = (acc.impacto[row.impacto || 'Não informado'] || 0) + 1;
@@ -3803,13 +4316,18 @@
                 const statusHtml = Object.entries(summary.status).map(([k, v]) => `<li><strong>${k}</strong>: ${v}</li>`).join('');
                 const impactoHtml = Object.entries(summary.impacto).map(([k, v]) => `<li><strong>${k}</strong>: ${v}</li>`).join('');
                 const tableHtml = rows.map((row) => `<tr><td>${row.id}</td><td>${row.vistoriaId || '-'}</td><td>${row.torreRef || '-'}</td><td>${row.localTipo || '-'}</td><td>${row.status || '-'}</td><td>${row.impacto || '-'}</td><td>${row.ultimaAtualizacao || '-'}</td></tr>`).join('');
+                const selectedYearsLabel = selectedReportYears.length > 0 ? selectedReportYears.join(', ') : 'Todos';
+                const periodLabel = selectedReportYears.length > 0
+                    ? `${selectedReportYears[0]}-01-01 até ${selectedReportYears[selectedReportYears.length - 1]}-12-31`
+                    : 'Histórico completo do empreendimento';
                 windowRef.document.write(`
                     <html><head><title>Relatório de Erosões</title>
                     <style>body{font-family:Arial,sans-serif;padding:24px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px;font-size:12px}th{background:#f5f5f5}</style>
                     </head><body>
                     <h1>Relatório de Processos Erosivos</h1>
                     <div><strong>Empreendimento:</strong> ${reportFilters.projetoId}</div>
-                    <div><strong>Período:</strong> ${reportFilters.dataInicio || '-'} até ${reportFilters.dataFim || '-'}</div>
+                    <div><strong>Ano(s):</strong> ${selectedYearsLabel}</div>
+                    <div><strong>Período consolidado:</strong> ${periodLabel}</div>
                     <div><strong>Gerado em:</strong> ${new Date().toLocaleString('pt-BR')}</div>
                     <h3>Totais por Status</h3><ul>${statusHtml || '<li>Sem dados</li>'}</ul>
                     <h3>Totais por Impacto</h3><ul>${impactoHtml || '<li>Sem dados</li>'}</ul>
@@ -3819,6 +4337,44 @@
                 windowRef.document.close();
                 windowRef.print();
             };
+
+            const handleAddManualHistoryEvent = async (erosionId, eventData) => {
+                const target = erosions.find((item) => item.id === erosionId);
+                if (!target) {
+                    alert('Erosão não encontrada para atualizar histórico.');
+                    return false;
+                }
+                const event = buildManualFollowupEvent(eventData, { updatedBy: currentUserName || '' });
+                if (!event) {
+                    alert('Dados do evento inválidos.');
+                    return false;
+                }
+                const etapa = String(event.obraEtapa || '').trim().toLowerCase();
+                const shouldStabilize = event.tipoEvento === 'obra' && (etapa === 'concluída' || etapa === 'concluida');
+                const status = shouldStabilize ? 'Estabilizado' : normalizeErosionStatus(target?.status);
+                const vistoriaIds = normalizeErosionInspectionIds(target);
+                const dataToSave = {
+                    ...target,
+                    status,
+                    vistoriaIds,
+                    vistoriaId: resolvePrimaryInspectionId(vistoriaIds),
+                    acompanhamentosResumo: appendFollowupEvent(target?.acompanhamentosResumo, event)
+                };
+                await saveToFirestore('erosions', target.id, dataToSave);
+                setDetailsModal((prev) => {
+                    if (!prev || prev.id !== target.id) return prev;
+                    return {
+                        ...dataToSave,
+                        ultimaAtualizacao: new Date().toISOString(),
+                        atualizadoPor: currentUserName || prev.atualizadoPor || ''
+                    };
+                });
+                return true;
+            };
+
+            const activeDetailsErosion = detailsModal
+                ? (erosions.find((item) => item.id === detailsModal.id) || detailsModal)
+                : null;
 
             return (
                 <div className="space-y-6">
@@ -3834,25 +4390,70 @@
                     <div className="bg-white rounded-xl border shadow-sm p-4">
                         <h3 className="font-bold text-slate-800 mb-3">Exportar relatório de erosões</h3>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                            <select className="border p-2 rounded text-sm" value={reportFilters.projetoId} onChange={(e) => setReportFilters((prev) => ({ ...prev, projetoId: e.target.value }))}>
+                            <select className="border p-2 rounded text-sm" value={reportFilters.projetoId} onChange={(e) => setReportFilters((prev) => ({ ...prev, projetoId: e.target.value, anosExtras: [] }))}>
                                 <option value="">Empreendimento...</option>
                                 {projects.map((p) => (
                                     <option key={p.id} value={p.id}>{p.id} - {p.nome}</option>
                                 ))}
                             </select>
-                            <input type="date" className="border p-2 rounded text-sm" value={reportFilters.dataInicio} onChange={(e) => setReportFilters((prev) => ({ ...prev, dataInicio: e.target.value }))} />
-                            <input type="date" className="border p-2 rounded text-sm" value={reportFilters.dataFim} onChange={(e) => setReportFilters((prev) => ({ ...prev, dataFim: e.target.value }))} />
+                            <select className="border p-2 rounded text-sm" value={String(reportFilters.ano)} onChange={(e) => setReportFilters((prev) => ({ ...prev, ano: e.target.value, anosExtras: (prev.anosExtras || []).filter((y) => Number(y) !== Number(e.target.value)) }))}>
+                                <option value="">Todos os anos</option>
+                                {reportYears.map((year) => (
+                                    <option key={year} value={year}>{year}</option>
+                                ))}
+                            </select>
+                            <button
+                                className="border p-2 rounded text-sm text-left hover:bg-slate-50"
+                                onClick={() => setReportFilters((prev) => ({ ...prev, mostrarMultiAno: !prev.mostrarMultiAno }))}
+                            >
+                                {reportFilters.mostrarMultiAno ? 'Ocultar seleção de mais anos' : 'Selecionar mais de um ano'}
+                            </button>
                             <div className="flex gap-2">
                                 <button className="flex-1 bg-slate-100 text-slate-700 py-2 rounded text-sm hover:bg-slate-200" onClick={handleExportCsv}>Exportar CSV</button>
                                 <button className="flex-1 bg-blue-600 text-white py-2 rounded text-sm hover:bg-blue-700" onClick={handleExportPdf}>Exportar PDF</button>
                             </div>
+                        </div>
+                        {reportFilters.mostrarMultiAno && (
+                            <div className="mt-3 border rounded-lg p-3 bg-slate-50">
+                                <div className="text-xs font-medium text-slate-700 mb-2">Anos adicionais (além do ano principal)</div>
+                                <div className="flex flex-wrap gap-2">
+                                    {reportYears.filter((year) => String(reportFilters.ano || '') === '' || Number(year) !== Number(reportFilters.ano)).map((year) => {
+                                        const checked = (reportFilters.anosExtras || []).includes(year);
+                                        return (
+                                            <label key={year} className="inline-flex items-center gap-1 text-sm border rounded px-2 py-1 bg-white">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    onChange={(e) => {
+                                                        setReportFilters((prev) => {
+                                                            const current = new Set((prev.anosExtras || []).map((y) => Number(y)));
+                                                            if (e.target.checked) current.add(year);
+                                                            else current.delete(year);
+                                                            return { ...prev, anosExtras: [...current].sort((a, b) => a - b) };
+                                                        });
+                                                    }}
+                                                />
+                                                <span>{year}</span>
+                                            </label>
+                                        );
+                                    })}
+                                    {reportYears.filter((year) => Number(year) !== Number(reportFilters.ano)).length === 0 && (
+                                        <span className="text-xs text-slate-500">Sem outros anos disponíveis para este empreendimento.</span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        <div className="mt-3 text-xs text-slate-500">
+                            Filtro ativo: empreendimento <strong>{reportFilters.projetoId || '-'}</strong> | ano(s) <strong>{selectedReportYears.length > 0 ? selectedReportYears.join(', ') : 'Todos'}</strong>.
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filtered.map(e => {
                             const projeto = projects.find(p => p.id === e.projetoId);
-                            const vistoria = inspections.find(v => v.id === e.vistoriaId);
+                            const primaryInspectionId = resolvePrimaryInspectionId(normalizeErosionInspectionIds(e));
+                            const vistoria = inspections.find(v => v.id === primaryInspectionId);
+                            const normalizedStatus = normalizeErosionStatus(e.status);
                             const hasCoordinates = e.latitude && e.longitude;
                             return (
                                 <div key={e.id} className="bg-white rounded-xl shadow-sm border p-5 hover:shadow-md transition-shadow">
@@ -3898,11 +4499,11 @@
                                         {e.status && (
                                             <div className="mt-2 pt-2 border-t border-slate-200">
                                                 <span className={`text-xs px-2 py-1 rounded ${
-                                                    e.status === 'Ativo' ? 'bg-red-100 text-red-700' :
-                                                    e.status === 'Monitoramento' ? 'bg-yellow-100 text-yellow-700' :
+                                                    normalizedStatus === 'Ativo' ? 'bg-red-100 text-red-700' :
+                                                    normalizedStatus === 'Monitoramento' ? 'bg-yellow-100 text-yellow-700' :
                                                     'bg-green-100 text-green-700'
                                                 }`}>
-                                                    {e.status}
+                                                    {normalizedStatus}
                                                 </span>
                                             </div>
                                         )}
@@ -3934,13 +4535,16 @@
                         )}
                     </div>
 
-                    {detailsModal && (
+                    {activeDetailsErosion && (
                         <ErosionDetailsModal 
-                            erosion={detailsModal} 
-                            project={projects.find(p => p.id === detailsModal.projetoId)} 
-                            inspection={inspections.find(i => i.id === detailsModal.vistoriaId)} 
+                            erosion={activeDetailsErosion} 
+                            project={projects.find((p) => p.id === activeDetailsErosion.projetoId)} 
+                            inspection={inspections.find((i) => i.id === resolvePrimaryInspectionId(normalizeErosionInspectionIds(activeDetailsErosion)))} 
+                            inspections={inspections}
                             onClose={() => setDetailsModal(null)} 
                             openGoogleMapsRoute={openGoogleMapsRoute} 
+                            onAddHistoryEvent={handleAddManualHistoryEvent}
+                            currentUserName={currentUserName}
                         />
                     )}
 
@@ -3969,7 +4573,18 @@
                                         </div>
                                         <div>
                                             <label className="block text-xs font-medium text-slate-700 mb-1">Vistoria</label>
-                                            <select className="w-full border p-2 rounded text-sm" value={formData.vistoriaId} onChange={(e) => setFormData({...formData, vistoriaId: e.target.value})}>
+                                            <select
+                                                className="w-full border p-2 rounded text-sm"
+                                                value={formData.vistoriaId}
+                                                onChange={(e) => {
+                                                    const nextInspection = String(e.target.value || '').trim();
+                                                    const nextIds = [...new Set([
+                                                        ...normalizeErosionInspectionIds(formData),
+                                                        nextInspection
+                                                    ].filter(Boolean))];
+                                                    setFormData({ ...formData, vistoriaId: nextInspection, vistoriaIds: nextIds });
+                                                }}
+                                            >
                                                 <option value="">Selecione...</option>
                                                 {inspections.filter(i => i.projetoId === formData.projetoId).map(i => (
                                                     <option key={i.id} value={i.id}>{i.id}</option>
@@ -4077,8 +4692,8 @@
                                             <label className="block text-xs font-medium text-slate-700 mb-1">Status</label>
                                             <select className="w-full border p-2 rounded text-sm" value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})}>
                                                 <option value="Ativo">Ativo</option>
-                                                <option value="Monitorado">Monitorado</option>
-                                                <option value="Resolvido">Resolvido</option>
+                                                <option value="Monitoramento">Monitoramento</option>
+                                                <option value="Estabilizado">Estabilizado</option>
                                             </select>
                                         </div>
                                     </div>
@@ -4144,8 +4759,209 @@
             );
         }
 
-        function ErosionDetailsModal({ erosion, project, inspection, onClose, openGoogleMapsRoute }) {
+        function ErosionDetailsModal({ erosion, project, inspection, inspections, onClose, openGoogleMapsRoute, onAddHistoryEvent, currentUserName }) {
             const hasCoordinates = erosion.latitude && erosion.longitude;
+            const linkedInspectionIds = normalizeErosionInspectionIds(erosion);
+            const linkedInspections = useMemo(() => {
+                const byId = new Map((inspections || []).map((item) => [String(item?.id || '').trim(), item]));
+                return linkedInspectionIds.map((id) => ({
+                    id,
+                    inspection: byId.get(id) || null
+                }));
+            }, [inspections, linkedInspectionIds]);
+            const [showAddEventForm, setShowAddEventForm] = useState(false);
+            const [savingEvent, setSavingEvent] = useState(false);
+            const [eventForm, setEventForm] = useState({
+                tipoEvento: 'obra',
+                obraEtapa: 'Projeto',
+                descricao: '',
+                orgao: '',
+                numeroOuDescricao: '',
+                autuacaoStatus: 'Aberta'
+            });
+
+            const sortedHistory = useMemo(() => normalizeFollowupHistory(erosion.acompanhamentosResumo)
+                .slice()
+                .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || ''))), [erosion.acompanhamentosResumo]);
+
+            const escapeHtml = (value) => String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+
+            const handleExportA4Pdf = () => {
+                const win = window.open('', '_blank');
+                if (!win) return;
+
+                const historyRows = sortedHistory.map((item) => {
+                    const itemType = normalizeFollowupEventType(item);
+                    const typeLabel = itemType === 'obra' ? 'Obra' : (itemType === 'autuacao' ? 'Autuação' : 'Sistema');
+                    const toneClass = itemType === 'obra'
+                        ? 'tone-obra'
+                        : (itemType === 'autuacao' ? 'tone-autuacao' : 'tone-sistema');
+                    const details = itemType === 'obra'
+                        ? `Etapa: ${escapeHtml(item.obraEtapa || '-')} | Descrição: ${escapeHtml(item.descricao || '-')}`
+                        : (itemType === 'autuacao'
+                            ? `Órgão: ${escapeHtml(item.orgao || '-')} | Nº/Descrição: ${escapeHtml(item.numeroOuDescricao || '-')} | Status: ${escapeHtml(item.autuacaoStatus || '-')}`
+                            : `Status da erosão: ${escapeHtml(item.statusNovo || '-')}`);
+                    return `
+                        <div class="timeline-item ${toneClass} avoid-break">
+                            <div class="timeline-head">
+                                <span class="badge">${escapeHtml(typeLabel)}</span>
+                                <span class="date">${escapeHtml(item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : '-')}</span>
+                            </div>
+                            <div class="timeline-summary">${escapeHtml(item.resumo || '-')}</div>
+                            <div class="timeline-details">${details}</div>
+                            <div class="timeline-meta">Usuário: ${escapeHtml(item.usuario || '-')} | Origem: ${escapeHtml(item.origem || '-')}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                const fullObs = String(erosion.obs || '').trim();
+                const fullObsHtml = escapeHtml(fullObs).replace(/\n/g, '<br />');
+
+                win.document.write(`
+                    <html>
+                    <head>
+                        <title>Detalhes da Erosão ${escapeHtml(erosion.id)}</title>
+                        <style>
+                            @page { size: A4; margin: 12mm; }
+                            * { box-sizing: border-box; }
+                            body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; background: #f8fafc; }
+                            .wrapper { max-width: 100%; }
+                            .header { background: linear-gradient(135deg, #dbeafe 0%, #e2e8f0 100%); border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px; }
+                            .title { font-size: 19px; font-weight: 700; margin: 0 0 4px 0; color: #1e3a8a; }
+                            .meta { color: #475569; font-size: 11px; }
+                            .section { margin-top: 12px; border: 1px solid #dbe4ee; border-radius: 10px; background: #ffffff; padding: 12px; }
+                            .section-title { font-size: 13px; font-weight: 700; margin: 0 0 8px 0; color: #0f172a; }
+                            .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+                            .row { line-height: 1.4; color: #1f2937; }
+                            .label { color: #475569; font-weight: 600; }
+                            .crit-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+                            .crit-card { border: 1px solid #fdba74; border-radius: 8px; background: #fff7ed; padding: 8px; }
+                            .crit-card .k { color: #9a3412; font-size: 11px; font-weight: 600; }
+                            .crit-card .v { color: #7c2d12; font-size: 13px; font-weight: 700; margin-top: 2px; }
+                            .timeline-item { border: 1px solid #e2e8f0; border-left: 4px solid #94a3b8; border-radius: 8px; padding: 8px; margin-bottom: 8px; background: #fff; }
+                            .tone-obra { border-left-color: #3b82f6; background: #f8fbff; }
+                            .tone-autuacao { border-left-color: #f59e0b; background: #fffbeb; }
+                            .tone-sistema { border-left-color: #64748b; background: #f8fafc; }
+                            .timeline-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+                            .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #e2e8f0; color: #334155; }
+                            .date { font-size: 10px; color: #64748b; }
+                            .timeline-summary { font-weight: 600; color: #1f2937; margin-bottom: 2px; }
+                            .timeline-details { font-size: 11px; color: #334155; margin-bottom: 2px; }
+                            .timeline-meta { font-size: 10px; color: #64748b; }
+                            .empty { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; color: #64748b; background: #f8fafc; }
+                            .avoid-break { page-break-inside: avoid; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="wrapper">
+                            <div class="header avoid-break">
+                                <h1 class="title">Detalhes da Erosão ${escapeHtml(erosion.id)}</h1>
+                                <div class="meta">Empreendimento: ${escapeHtml(erosion.projetoId || '-')} ${project?.nome ? `(${escapeHtml(project.nome)})` : ''}</div>
+                                <div class="meta">Gerado em: ${escapeHtml(new Date().toLocaleString('pt-BR'))}</div>
+                            </div>
+
+                            <div class="section avoid-break">
+                                <h2 class="section-title">Resumo</h2>
+                                <div class="summary-grid">
+                                    <div class="row"><span class="label">ID:</span> ${escapeHtml(erosion.id || '-')}</div>
+                                    <div class="row"><span class="label">Torre:</span> ${escapeHtml(formatTowerLabel(erosion.torreRef))}</div>
+                                    <div class="row"><span class="label">Status:</span> ${escapeHtml(normalizeErosionStatus(erosion.status) || '-')}</div>
+                                    <div class="row"><span class="label">Impacto:</span> ${escapeHtml(erosion.impacto || '-')}</div>
+                                    <div class="row"><span class="label">Coordenadas:</span> ${escapeHtml(formatCoordinates(erosion.latitude, erosion.longitude))}</div>
+                                    <div class="row"><span class="label">Última atualização:</span> ${escapeHtml(erosion.ultimaAtualizacao ? new Date(erosion.ultimaAtualizacao).toLocaleString('pt-BR') : '-')}</div>
+                                    <div class="row"><span class="label">Atualizado por:</span> ${escapeHtml(erosion.atualizadoPor || '-')}</div>
+                                    <div class="row"><span class="label">Vistoria principal:</span> ${escapeHtml(inspection?.id || '-')}</div>
+                                    <div class="row"><span class="label">Vistorias vinculadas:</span> ${escapeHtml(linkedInspectionIds.join(', ') || '-')}</div>
+                                </div>
+                                <div class="row" style="margin-top:8px;"><span class="label">Observações:</span> ${fullObsHtml || '-'}</div>
+                            </div>
+
+                            <div class="section avoid-break">
+                                <h2 class="section-title">Análise de Criticidade</h2>
+                                <div class="crit-grid">
+                                    <div class="crit-card">
+                                        <div class="k">Score de risco</div>
+                                        <div class="v">${escapeHtml(erosion.score || 'N/A')}</div>
+                                    </div>
+                                    <div class="crit-card">
+                                        <div class="k">Frequência de revisita</div>
+                                        <div class="v">${escapeHtml(erosion.frequencia || '-')}</div>
+                                    </div>
+                                    <div class="crit-card">
+                                        <div class="k">Intervenção recomendada</div>
+                                        <div class="v">${escapeHtml(erosion.intervencao || '-')}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="section">
+                                <h2 class="section-title">Histórico de Acompanhamento</h2>
+                                ${historyRows || '<div class="empty">Sem histórico de acompanhamento.</div>'}
+                            </div>
+                        </div>
+                    </body>
+                    </html>
+                `);
+                win.document.close();
+                win.print();
+            };
+
+            const resetEventForm = () => {
+                setEventForm({
+                    tipoEvento: 'obra',
+                    obraEtapa: 'Projeto',
+                    descricao: '',
+                    orgao: '',
+                    numeroOuDescricao: '',
+                    autuacaoStatus: 'Aberta'
+                });
+            };
+
+            const handleSaveManualEvent = async () => {
+                if (!onAddHistoryEvent) return;
+                const tipo = String(eventForm.tipoEvento || '').trim();
+                if (tipo === 'obra') {
+                    if (!String(eventForm.obraEtapa || '').trim()) {
+                        alert('Selecione a etapa da obra.');
+                        return;
+                    }
+                    if (!String(eventForm.descricao || '').trim()) {
+                        alert('Descreva a obra para registrar no histórico.');
+                        return;
+                    }
+                } else if (tipo === 'autuacao') {
+                    if (!String(eventForm.orgao || '').trim()) {
+                        alert('Informe o órgão público.');
+                        return;
+                    }
+                    if (!String(eventForm.numeroOuDescricao || '').trim()) {
+                        alert('Informe o número ou descrição da autuação.');
+                        return;
+                    }
+                    if (!String(eventForm.autuacaoStatus || '').trim()) {
+                        alert('Selecione o status da autuação.');
+                        return;
+                    }
+                } else {
+                    alert('Tipo de evento inválido.');
+                    return;
+                }
+
+                try {
+                    setSavingEvent(true);
+                    const ok = await onAddHistoryEvent(erosion.id, eventForm);
+                    if (!ok) return;
+                    setShowAddEventForm(false);
+                    resetEventForm();
+                } finally {
+                    setSavingEvent(false);
+                }
+            };
             
             return (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -4216,11 +5032,11 @@
                                     <div>
                                         <div className="text-blue-700 font-medium">Status</div>
                                         <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                                            erosion.status === 'Ativo' ? 'bg-green-100 text-green-700' :
-                                            erosion.status === 'Monitorado' ? 'bg-yellow-100 text-yellow-700' :
-                                            'bg-slate-100 text-slate-700'
+                                            normalizeErosionStatus(erosion.status) === 'Ativo' ? 'bg-red-100 text-red-700' :
+                                            normalizeErosionStatus(erosion.status) === 'Monitoramento' ? 'bg-yellow-100 text-yellow-700' :
+                                            'bg-green-100 text-green-700'
                                         }`}>
-                                            {erosion.status}
+                                            {normalizeErosionStatus(erosion.status)}
                                         </span>
                                     </div>
                                     <div>
@@ -4292,6 +5108,23 @@
                                         <div><strong>ID:</strong> {inspection.id}</div>
                                         <div><strong>Período:</strong> {inspection.dataInicio} até {inspection.dataFim || 'Em andamento'}</div>
                                         {inspection.responsavel && <div><strong>Responsável:</strong> {inspection.responsavel}</div>}
+                                        <div><strong>Vistorias vinculadas:</strong> {linkedInspectionIds.join(', ') || '-'}</div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {linkedInspections.length > 0 && (
+                                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                    <h4 className="font-semibold text-purple-900 mb-2">Vistorias que abordaram esta erosão</h4>
+                                    <div className="text-sm text-purple-800 space-y-1">
+                                        {linkedInspections.map((row) => (
+                                            <div key={`related-inspection-${row.id}`}>
+                                                <strong>{row.id}</strong>
+                                                {row.inspection?.dataInicio ? ` | início: ${row.inspection.dataInicio}` : ''}
+                                                {row.inspection?.dataFim ? ` | fim: ${row.inspection.dataFim}` : ''}
+                                                {row.inspection?.responsavel ? ` | resp.: ${row.inspection.responsavel}` : ''}
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             )}
@@ -4304,19 +5137,148 @@
                             )}
 
                             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                                <h4 className="font-semibold text-slate-800 mb-2">Histórico de acompanhamento</h4>
-                                <div className="space-y-2">
-                                    {normalizeFollowupHistory(erosion.acompanhamentosResumo)
-                                        .slice()
-                                        .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')))
-                                        .map((item, idx) => (
-                                            <div key={`${item.timestamp}-${idx}`} className="rounded border border-slate-200 bg-white p-2 text-sm">
-                                                <div className="font-medium text-slate-700">{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : 'Sem data'}</div>
-                                                <div className="text-slate-700">{item.resumo || '-'}</div>
-                                                <div className="text-xs text-slate-500">Origem: {item.origem || '-'} | Usuário: {item.usuario || '-'} | Status: {item.statusNovo || '-'}</div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h4 className="font-semibold text-slate-800">Histórico de acompanhamento</h4>
+                                    <button
+                                        onClick={() => {
+                                            setShowAddEventForm((prev) => !prev);
+                                            if (showAddEventForm) resetEventForm();
+                                        }}
+                                        className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700"
+                                    >
+                                        {showAddEventForm ? 'Cancelar evento' : 'Adicionar evento'}
+                                    </button>
+                                </div>
+
+                                {showAddEventForm && (
+                                    <div className="mb-4 p-3 rounded border border-blue-200 bg-blue-50 space-y-3">
+                                        <div className="text-xs text-blue-800">Registar evento manual no histórico. Usuário: <strong>{currentUserName || '-'}</strong></div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-700 mb-1">Tipo de evento</label>
+                                                <select
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    value={eventForm.tipoEvento}
+                                                    onChange={(e) => setEventForm((prev) => ({ ...prev, tipoEvento: e.target.value }))}
+                                                >
+                                                    <option value="obra">Obra</option>
+                                                    <option value="autuacao">Autuação por órgão público</option>
+                                                </select>
                                             </div>
-                                        ))}
-                                    {normalizeFollowupHistory(erosion.acompanhamentosResumo).length === 0 && (
+                                            {eventForm.tipoEvento === 'obra' && (
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-700 mb-1">Etapa da obra *</label>
+                                                    <select
+                                                        className="w-full border p-2 rounded text-sm"
+                                                        value={eventForm.obraEtapa}
+                                                        onChange={(e) => setEventForm((prev) => ({ ...prev, obraEtapa: e.target.value }))}
+                                                    >
+                                                        <option value="Projeto">Projeto</option>
+                                                        <option value="Em andamento">Em andamento</option>
+                                                        <option value="Concluída">Concluída</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                            {eventForm.tipoEvento === 'autuacao' && (
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-700 mb-1">Status da autuação *</label>
+                                                    <select
+                                                        className="w-full border p-2 rounded text-sm"
+                                                        value={eventForm.autuacaoStatus}
+                                                        onChange={(e) => setEventForm((prev) => ({ ...prev, autuacaoStatus: e.target.value }))}
+                                                    >
+                                                        <option value="Aberta">Aberta</option>
+                                                        <option value="Recorrida">Recorrida</option>
+                                                        <option value="Encerrada">Encerrada</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {eventForm.tipoEvento === 'obra' && (
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-700 mb-1">Descrição da obra *</label>
+                                                <textarea
+                                                    className="w-full border p-2 rounded text-sm"
+                                                    rows="2"
+                                                    value={eventForm.descricao}
+                                                    onChange={(e) => setEventForm((prev) => ({ ...prev, descricao: e.target.value }))}
+                                                    placeholder="Descreva o que foi projetado/executado."
+                                                />
+                                            </div>
+                                        )}
+
+                                        {eventForm.tipoEvento === 'autuacao' && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-700 mb-1">Órgão público *</label>
+                                                    <input
+                                                        className="w-full border p-2 rounded text-sm"
+                                                        value={eventForm.orgao}
+                                                        onChange={(e) => setEventForm((prev) => ({ ...prev, orgao: e.target.value }))}
+                                                        placeholder="Ex.: IBAMA, Prefeitura..."
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-700 mb-1">Nº/Descrição *</label>
+                                                    <input
+                                                        className="w-full border p-2 rounded text-sm"
+                                                        value={eventForm.numeroOuDescricao}
+                                                        onChange={(e) => setEventForm((prev) => ({ ...prev, numeroOuDescricao: e.target.value }))}
+                                                        placeholder="Ex.: Auto 12345/2026..."
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex gap-2 justify-end">
+                                            <button
+                                                onClick={handleSaveManualEvent}
+                                                disabled={savingEvent}
+                                                className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700 disabled:opacity-60"
+                                            >
+                                                {savingEvent ? 'Salvando...' : 'Salvar evento'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-1">
+                                    {sortedHistory.map((item, idx) => {
+                                        const itemType = normalizeFollowupEventType(item);
+                                        const typeLabel = itemType === 'obra' ? 'Obra' : (itemType === 'autuacao' ? 'Autuação' : 'Sistema');
+                                        const typeBadgeClass = itemType === 'obra'
+                                            ? 'bg-blue-100 text-blue-700'
+                                            : (itemType === 'autuacao' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700');
+                                        const markerClass = itemType === 'obra'
+                                            ? 'bg-blue-500'
+                                            : (itemType === 'autuacao' ? 'bg-amber-500' : 'bg-slate-400');
+                                        return (
+                                            <div key={`${item.timestamp}-${idx}`} className="relative pl-8 pb-3 last:pb-0">
+                                                {idx < sortedHistory.length - 1 && <div className="absolute left-[11px] top-5 bottom-0 w-px bg-slate-300" />}
+                                                <div className={`absolute left-[6px] top-2 w-3 h-3 rounded-full ${markerClass}`} />
+                                                <div className="rounded border border-slate-200 bg-white p-3 text-sm">
+                                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                                        <div className="font-medium text-slate-700">{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : 'Sem data'}</div>
+                                                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${typeBadgeClass}`}>{typeLabel}</span>
+                                                    </div>
+                                                    <div className="text-slate-700">{item.resumo || '-'}</div>
+                                                    {itemType === 'obra' && (
+                                                        <div className="text-xs text-slate-500 mt-1">
+                                                            Etapa: {item.obraEtapa || '-'} | Descrição: {item.descricao || '-'}
+                                                        </div>
+                                                    )}
+                                                    {itemType === 'autuacao' && (
+                                                        <div className="text-xs text-slate-500 mt-1">
+                                                            Órgão: {item.orgao || '-'} | Nº/Descrição: {item.numeroOuDescricao || '-'} | Status: {item.autuacaoStatus || '-'}
+                                                        </div>
+                                                    )}
+                                                    <div className="text-xs text-slate-500 mt-1">Origem: {item.origem || '-'} | Usuário: {item.usuario || '-'} | Status da erosão: {item.statusNovo || '-'}</div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {sortedHistory.length === 0 && (
                                         <div className="text-sm text-slate-500">Sem histórico de acompanhamento.</div>
                                     )}
                                 </div>
@@ -4328,6 +5290,9 @@
                             </div>
 
                             <div className="flex gap-3 pt-4 border-t">
+                                <button onClick={handleExportA4Pdf} className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-semibold transition-colors">
+                                    Gerar PDF
+                                </button>
                                 <button onClick={onClose} className="flex-1 bg-slate-600 text-white py-3 rounded-lg hover:bg-slate-700 font-semibold transition-colors">
                                     Fechar
                                 </button>

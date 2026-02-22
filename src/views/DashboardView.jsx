@@ -181,6 +181,7 @@ function DashboardView() {
         <InspectionsView
           inspections={inspections}
           projects={projects}
+          erosions={erosions}
           searchTerm={searchTerm}
           forcedProjectFilterId={inspectionProjectFilterId}
           onClearForcedProjectFilter={() => setInspectionProjectFilterId(null)}

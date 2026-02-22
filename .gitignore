@@ -11,6 +11,25 @@ coverage/
 .env.local
 .env.*.local
 
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Live Server artifacts
+.live-server/
+live-server/
+live_server*
+
+# Test results
+test-results/
+playwright-report/
+allure-results/
+allure-report/
+tests/results/
+tests/output/
+
 # Logs
 *.log
 npm-debug.log*
