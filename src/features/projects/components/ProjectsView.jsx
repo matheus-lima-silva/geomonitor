@@ -142,6 +142,10 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
         importErrors={state.kmlImportErrors}
         createFromKmlData={state.createFromKmlData}
         setCreateFromKmlData={state.setCreateFromKmlData}
+        kmlMeta={state.kmlMeta}
+        kmlMergeSnapshot={state.kmlMergeSnapshot}
+        applyKmlMetadataOnMerge={state.applyKmlMetadataOnMerge}
+        setApplyKmlMetadataOnMerge={state.setApplyKmlMetadataOnMerge}
         setKmlRows={state.setKmlRows}
         onCancel={state.closeKmlReview}
         onApply={() => safeRun(state.kmlReviewMode === 'create' ? state.createProjectFromKml : state.applyKmlToForm)}

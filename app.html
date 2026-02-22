@@ -686,7 +686,7 @@
                 }
                 return list;
             };
-            const sortTowers = (values) => [...values].sort((a, b) => Number(a) - Number(b));
+            const sortTowers = (values) => [...values].sort((a, b) => compareTowerNumbers(a, b));
             const collectVisitedTowers = (inspection) => {
                 const set = new Set();
                 (inspection?.detalhesDias || []).forEach((day) => {
@@ -984,55 +984,352 @@
             return String(num);
         }
 
+        function normalizeForSearch(text) {
+            return String(text ?? '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '');
+        }
+
+        function hasPorticoMarker(text) {
+            const raw = String(text ?? '').toLowerCase();
+            if (!raw) return false;
+
+            const normalized = normalizeForSearch(raw);
+            if (normalized.includes('portico')) return true;
+
+            const asciiOnly = raw.replace(/[^a-z]/g, '');
+            return asciiOnly.includes('portico') || asciiOnly.includes('prtico');
+        }
+
+        function formatTowerId(numberPart, suffixPart = '') {
+            const base = Number.parseInt(String(numberPart ?? '').replace(/^0+/, '') || '0', 10);
+            if (!Number.isFinite(base) || base < 0) return '';
+            return `${base}${String(suffixPart || '').toUpperCase()}`;
+        }
+
+        function normalizeTowerToken(raw) {
+            const token = String(raw ?? '').trim();
+            if (!token) return '';
+            if (hasPorticoMarker(token)) return '0';
+
+            const compact = token.replace(/\s+/g, '').toUpperCase();
+            const match = compact.match(/^0*(\d+)([A-Z]?)$/);
+            if (!match) return '';
+            return formatTowerId(match[1], match[2]);
+        }
+
         function normalizeTowerNumber(raw) {
             const text = String(raw ?? '').trim();
             if (!text) return '';
-            const lower = text.toLowerCase();
-            if (lower.includes('portico') || lower.includes('pórtico')) return '0';
-            const match = text.match(/(\d+)/);
-            if (!match) return '';
-            return String(Number(match[1]));
+            if (hasPorticoMarker(text)) return '0';
+            const explicit = text.match(/^(?:torre|tor|t)\s*[-_: ]?\s*0*(\d+)([a-zA-Z]?)$/i);
+            if (explicit) return formatTowerId(explicit[1], explicit[2]);
+            return normalizeTowerToken(text);
+        }
+
+        function findTowerIdFromSource(source) {
+            const text = String(source ?? '').trim();
+            if (!text) return '';
+            if (hasPorticoMarker(text)) return '0';
+
+            const explicit = text.match(/(?:torre|tor|t)\s*[-_: ]?\s*0*(\d+)([a-zA-Z]?)/i);
+            if (explicit) return formatTowerId(explicit[1], explicit[2]);
+
+            const tokens = text.match(/[A-Za-z0-9]+/g) || [];
+            for (let i = tokens.length - 1; i >= 0; i -= 1) {
+                const token = tokens[i];
+                const normalized = normalizeTowerToken(token);
+                if (!normalized) continue;
+
+                const isSingleMixedToken =
+                    tokens.length === 1 && /[A-Za-z]/.test(token) && /\d/.test(token);
+                if (isSingleMixedToken) continue;
+
+                return normalized;
+            }
+
+            return '';
         }
 
         function extractTowerNumberFromText(...sources) {
-            const text = sources.filter(Boolean).join(' ').trim();
-            if (!text) return '';
-            const explicit = text.match(/(?:torre|tor|t)\s*[-_: ]?\s*0*(\d+)/i);
-            if (explicit) return String(Number(explicit[1]));
-            return normalizeTowerNumber(text);
+            for (const source of sources) {
+                const found = findTowerIdFromSource(source);
+                if (found) return found;
+            }
+            return '';
+        }
+
+        function parseTowerSortParts(value) {
+            const normalized = normalizeTowerNumber(value);
+            if (!normalized) return null;
+            const match = normalized.match(/^(\d+)([A-Z]?)$/);
+            if (!match) return null;
+
+            return {
+                base: Number(match[1]),
+                suffix: match[2] || '',
+                normalized
+            };
+        }
+
+        function sanitizeProjectId(raw) {
+            return String(raw ?? '')
+                .replace(/\.[^/.]+$/, '')
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, '')
+                .slice(0, 12);
+        }
+
+        function parseCoordinateTuple(raw) {
+            const tuple = String(raw ?? '').trim();
+            if (!tuple) return null;
+            const [lonRaw, latRaw] = tuple.split(',');
+            const lat = Number(String(latRaw ?? '').trim().replace(',', '.'));
+            const lon = Number(String(lonRaw ?? '').trim().replace(',', '.'));
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+            return { lat, lon };
+        }
+
+        function parseCoordinatePath(raw) {
+            return String(raw ?? '')
+                .trim()
+                .split(/\s+/)
+                .map(parseCoordinateTuple)
+                .filter(Boolean);
+        }
+
+        function haversineDistanceKm(a, b) {
+            const earthRadiusKm = 6371.0088;
+            const lat1 = (a.lat * Math.PI) / 180;
+            const lat2 = (b.lat * Math.PI) / 180;
+            const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+            const dLon = ((b.lon - a.lon) * Math.PI) / 180;
+            const sinDLat = Math.sin(dLat / 2);
+            const sinDLon = Math.sin(dLon / 2);
+            const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
+            return 2 * earthRadiusKm * Math.asin(Math.min(1, Math.sqrt(h)));
+        }
+
+        function getPathLengthKm(path) {
+            if (!Array.isArray(path) || path.length < 2) return 0;
+            let total = 0;
+            for (let i = 0; i < path.length - 1; i += 1) {
+                total += haversineDistanceKm(path[i], path[i + 1]);
+            }
+            return total;
+        }
+
+        function extractDocumentName(xml) {
+            return (
+                xml.getElementsByTagName('Document')?.[0]
+                    ?.getElementsByTagName('name')?.[0]
+                    ?.textContent
+                || xml.getElementsByTagName('name')?.[0]?.textContent
+                || ''
+            ).trim();
+        }
+
+        function extractProjectNameFromDocument(documentName) {
+            return String(documentName ?? '')
+                .trim()
+                .replace(/\.(kml|kmz)$/i, '');
+        }
+
+        function stripCircuitSuffix(rawName) {
+            return String(rawName ?? '')
+                .trim()
+                .replace(/\s*[-_/]?\s*C\d+[A-Z]?$/i, '')
+                .trim();
+        }
+
+        function extractProjectNameFromLineStringPlacemark(placemarks = []) {
+            for (const placemark of placemarks) {
+                const lineNode = placemark.getElementsByTagName('LineString')?.[0];
+                if (!lineNode) continue;
+
+                const name = placemark.getElementsByTagName('name')?.[0]?.textContent || '';
+                const cleaned = stripCircuitSuffix(name);
+                if (cleaned) return cleaned;
+            }
+
+            return '';
+        }
+
+        function extractSiglaFromLineStringPlacemark(placemarks = []) {
+            for (const placemark of placemarks) {
+                const lineNode = placemark.getElementsByTagName('LineString')?.[0];
+                if (!lineNode) continue;
+
+                const descriptionRaw = placemark.getElementsByTagName('description')?.[0]?.textContent || '';
+                const description = String(descriptionRaw).replace(/<[^>]*>/g, ' ');
+                const token = description.match(/[A-Za-z][A-Za-z0-9]*/)?.[0] || '';
+                if (!token) continue;
+
+                let sigla = sanitizeProjectId(token);
+                if (/^[A-Z]+\d+$/.test(sigla)) sigla = sigla.replace(/\d+$/, '');
+                if (sigla) return sigla;
+            }
+
+            return '';
+        }
+
+        function inferSiglaFromRows(rows = []) {
+            const prefixCount = new Map();
+            const increment = (value) => {
+                if (!value) return;
+                prefixCount.set(value, (prefixCount.get(value) || 0) + 1);
+            };
+
+            rows.forEach((row) => {
+                const name = String(row?.sourceName ?? '').trim();
+                if (!name) return;
+                const tokens = name.split(/\s+/).map((token) => token.trim()).filter(Boolean);
+                if (tokens.length === 0) return;
+
+                let prefix = sanitizeProjectId(tokens[0]);
+                const second = String(tokens[1] || '');
+                const secondLooksLikeTower = !!(normalizeTowerToken(second) || hasPorticoMarker(second));
+                if (/\d+$/.test(prefix) && secondLooksLikeTower) {
+                    prefix = prefix.replace(/\d+$/, '');
+                }
+
+                increment(sanitizeProjectId(prefix));
+            });
+
+            let best = '';
+            let bestCount = -1;
+            prefixCount.forEach((count, value) => {
+                if (count > bestCount) {
+                    best = value;
+                    bestCount = count;
+                }
+            });
+            return best;
+        }
+
+        function extractFirstLineStringMeta(placemarks = []) {
+            for (const placemark of placemarks) {
+                const lineNode = placemark.getElementsByTagName('LineString')?.[0];
+                if (!lineNode) continue;
+
+                const coordinatesText = lineNode.getElementsByTagName('coordinates')?.[0]?.textContent || '';
+                const path = parseCoordinatePath(coordinatesText);
+                if (path.length < 2) {
+                    return { lineStringFound: true, extensao: '' };
+                }
+
+                const lengthKm = getPathLengthKm(path);
+                return { lineStringFound: true, extensao: lengthKm.toFixed(2) };
+            }
+
+            return { lineStringFound: false, extensao: '' };
+        }
+
+        function compareTowerNumbers(a, b) {
+            const aParts = parseTowerSortParts(a);
+            const bParts = parseTowerSortParts(b);
+
+            if (aParts && bParts) {
+                if (aParts.base !== bParts.base) return aParts.base - bParts.base;
+                if (aParts.suffix === bParts.suffix) return 0;
+                if (!aParts.suffix) return -1;
+                if (!bParts.suffix) return 1;
+                return aParts.suffix.localeCompare(bParts.suffix);
+            }
+
+            if (aParts) return -1;
+            if (bParts) return 1;
+            return String(a ?? '').localeCompare(String(b ?? ''));
         }
 
         function parseKmlTowers(kmlText) {
             const parser = new DOMParser();
             const xml = parser.parseFromString(String(kmlText || ''), 'application/xml');
+            const baseMeta = {
+                sigla: '',
+                nome: '',
+                torres: 0,
+                extensao: '',
+                lineStringFound: false,
+                sourceLabel: ''
+            };
             if (xml.querySelector('parsererror')) {
-                return { rows: [], errors: ['Arquivo KML inválido ou corrompido.'] };
+                return { rows: [], errors: ['Arquivo KML invalido ou corrompido.'], meta: baseMeta };
             }
 
+            const documentName = extractDocumentName(xml);
+            baseMeta.sourceLabel = documentName;
             const placemarks = Array.from(xml.getElementsByTagName('Placemark'));
             if (placemarks.length === 0) {
-                return { rows: [], errors: ['Nenhum Placemark encontrado no KML.'] };
+                return { rows: [], errors: ['Nenhum Placemark encontrado no KML.'], meta: baseMeta };
             }
+            const projectName = extractProjectNameFromLineStringPlacemark(placemarks)
+                || extractProjectNameFromDocument(documentName);
+            baseMeta.nome = projectName;
 
-            const rows = placemarks.map((placemark, idx) => {
+            const rows = [];
+            let ignoredPlacemarks = 0;
+
+            placemarks.forEach((placemark) => {
+                const pointNode = placemark.getElementsByTagName('Point')?.[0];
+                if (!pointNode) {
+                    ignoredPlacemarks += 1;
+                    return;
+                }
+
                 const name = placemark.getElementsByTagName('name')?.[0]?.textContent || '';
                 const description = placemark.getElementsByTagName('description')?.[0]?.textContent || '';
-                const coordinatesText = placemark.getElementsByTagName('coordinates')?.[0]?.textContent || '';
+                const coordinatesText = pointNode.getElementsByTagName('coordinates')?.[0]?.textContent || '';
                 const firstPoint = coordinatesText.trim().split(/\s+/)[0] || '';
-                const [lonRaw, latRaw] = firstPoint.split(',');
+                if (!firstPoint) {
+                    ignoredPlacemarks += 1;
+                    return;
+                }
+
+                const tuple = parseCoordinateTuple(firstPoint);
+                if (!tuple) {
+                    ignoredPlacemarks += 1;
+                    return;
+                }
+
                 const numero = extractTowerNumberFromText(name, description);
-                return {
-                    key: `kml-${idx + 1}`,
-                    numero: numero || '',
-                    latitude: normalizeCoordinateString(latRaw || ''),
-                    longitude: normalizeCoordinateString(lonRaw || ''),
+                const latitude = normalizeCoordinateString(tuple.lat);
+                const longitude = normalizeCoordinateString(tuple.lon);
+                if (!numero || !latitude || !longitude) {
+                    ignoredPlacemarks += 1;
+                    return;
+                }
+
+                rows.push({
+                    key: `kml-${rows.length + 1}`,
+                    numero,
+                    latitude,
+                    longitude,
                     origem: 'kml',
-                    sourceName: name || `Placemark ${idx + 1}`,
+                    sourceName: name || `Placemark ${rows.length + 1}`,
                     error: ''
-                };
+                });
             });
 
-            return { rows, errors: [] };
+            const errors = [];
+            if (ignoredPlacemarks > 0) {
+                errors.push(`${ignoredPlacemarks} Placemark(s) ignorado(s) por tipo de geometria, identificacao ou coordenadas invalidas.`);
+            }
+
+            const lineMeta = extractFirstLineStringMeta(placemarks);
+            const lineSigla = extractSiglaFromLineStringPlacemark(placemarks);
+            const inferredSigla = inferSiglaFromRows(rows) || lineSigla || sanitizeProjectId(documentName);
+            const meta = {
+                sigla: inferredSigla,
+                nome: projectName,
+                torres: rows.length,
+                extensao: lineMeta.extensao,
+                lineStringFound: lineMeta.lineStringFound,
+                sourceLabel: documentName
+            };
+
+            return { rows, errors, meta };
         }
 
         function validateTowerCoordinatesAsString(list) {
@@ -1044,9 +1341,9 @@
                 const lng = Number(longitude);
                 const issues = [];
 
-                if (!numero && numero !== '0') issues.push('Torre inválida');
-                if (!latitude || Number.isNaN(lat) || lat < -90 || lat > 90) issues.push('Latitude inválida');
-                if (!longitude || Number.isNaN(lng) || lng < -180 || lng > 180) issues.push('Longitude inválida');
+                if (!numero && numero !== '0') issues.push('Torre invalida');
+                if (!latitude || Number.isNaN(lat) || lat < -90 || lat > 90) issues.push('Latitude invalida');
+                if (!longitude || Number.isNaN(lng) || lng < -180 || lng > 180) issues.push('Longitude invalida');
 
                 return {
                     key: row?.key || `manual-${idx + 1}`,
@@ -1091,7 +1388,7 @@
             normalizedExisting.forEach((row) => mergedMap.set(String(row.numero), row));
             normalizedImported.forEach((row) => mergedMap.set(String(row.numero), row));
 
-            return [...mergedMap.values()].sort((a, b) => Number(a.numero) - Number(b.numero));
+            return [...mergedMap.values()].sort((a, b) => compareTowerNumbers(a.numero, b.numero));
         }
 
         function buildGoogleMapsMultiStopUrl(points, opts = {}) {
@@ -2146,6 +2443,19 @@
                 mesesEntregaRelatorio: [],
                 anoBaseBienal: ''
             };
+            const emptyKmlMeta = {
+                sigla: '',
+                nome: '',
+                torres: 0,
+                extensao: '',
+                lineStringFound: false,
+                sourceLabel: ''
+            };
+            const emptyKmlMergeSnapshot = {
+                id: '',
+                extensao: '',
+                torres: ''
+            };
             const [isFormOpen, setIsFormOpen] = useState(false);
             const [formData, setFormData] = useState(baseProjectForm);
             const [isEditing, setIsEditing] = useState(false);
@@ -2155,6 +2465,9 @@
             const [kmlRows, setKmlRows] = useState([]);
             const [kmlImportErrors, setKmlImportErrors] = useState([]);
             const [createFromKmlData, setCreateFromKmlData] = useState(baseCreateFromKml);
+            const [kmlMeta, setKmlMeta] = useState(emptyKmlMeta);
+            const [kmlMergeSnapshot, setKmlMergeSnapshot] = useState(emptyKmlMergeSnapshot);
+            const [applyKmlMetadataOnMerge, setApplyKmlMetadataOnMerge] = useState(false);
             const [routeModalProject, setRouteModalProject] = useState(null);
             const [routeSelection, setRouteSelection] = useState([]);
             const mergeInputRef = useRef(null);
@@ -2174,7 +2487,7 @@
                 const reviewed = validateTowerCoordinatesAsString(routeModalProject.torresCoordenadas || []);
                 return reviewed.rows
                     .filter((r) => !r.error)
-                    .sort((a, b) => Number(a.numero) - Number(b.numero));
+                    .sort((a, b) => compareTowerNumbers(a.numero, b.numero));
             }, [routeModalProject]);
 
             const openNew = () => {
@@ -2269,24 +2582,39 @@
                 setKmlReviewOpen(false);
                 setKmlRows([]);
                 setKmlImportErrors([]);
+                setKmlMeta(emptyKmlMeta);
+                setKmlMergeSnapshot(emptyKmlMergeSnapshot);
+                setApplyKmlMetadataOnMerge(false);
             };
 
             const parseKmlFile = async (file, mode, targetProject = null) => {
                 if (!file) return;
                 const text = await file.text();
                 const parsed = parseKmlTowers(text);
+                const parsedMeta = parsed?.meta || emptyKmlMeta;
                 const baseId = String(file.name || 'PROJ').replace(/\.[^/.]+$/, '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || 'PROJ';
-                if (mode === 'merge' && targetProject) {
-                    openEdit(targetProject);
+                if (mode === 'merge') {
+                    if (targetProject) openEdit(targetProject);
+                    const source = targetProject || formData || {};
+                    setKmlMergeSnapshot({
+                        id: String(source.id || ''),
+                        extensao: String(source.extensao || ''),
+                        torres: String(source.torres || '')
+                    });
+                } else {
+                    setKmlMergeSnapshot(emptyKmlMergeSnapshot);
                 }
                 if (mode === 'create') {
                     setCreateFromKmlData({
                         ...baseCreateFromKml,
-                        id: baseId,
-                        nome: String(file.name || 'Empreendimento').replace(/\.[^/.]+$/, ''),
-                        torres: String(parsed.rows.length || '')
+                        id: String(parsedMeta.sigla || baseId).toUpperCase(),
+                        nome: String(parsedMeta.nome || file.name || 'Empreendimento').replace(/\.[^/.]+$/, ''),
+                        extensao: String(parsedMeta.extensao || ''),
+                        torres: String(parsedMeta.torres ?? parsed.rows.length ?? '')
                     });
                 }
+                setKmlMeta(parsedMeta);
+                setApplyKmlMetadataOnMerge(false);
                 setKmlReviewMode(mode);
                 setKmlRows(parsed.rows);
                 setKmlImportErrors(parsed.errors || []);
@@ -2333,10 +2661,17 @@
                     return;
                 }
                 if (kmlReviewMode === 'merge') {
-                    setFormData((prev) => ({
-                        ...prev,
-                        torresCoordenadas: mergeTowerCoordinates(prev.torresCoordenadas || [], reviewedKml.rows)
-                    }));
+                    setFormData((prev) => {
+                        const next = {
+                            ...prev,
+                            torresCoordenadas: mergeTowerCoordinates(prev.torresCoordenadas || [], reviewedKml.rows)
+                        };
+                        if (applyKmlMetadataOnMerge) {
+                            next.torres = String(kmlMeta.torres ?? reviewedKml.rows.length ?? '');
+                            if (kmlMeta.extensao) next.extensao = String(kmlMeta.extensao);
+                        }
+                        return next;
+                    });
                     closeKmlReview();
                     setIsFormOpen(true);
                     return;
@@ -2708,6 +3043,14 @@
                                                     <option>Reservatório de Represa</option>
                                                 </select>
                                             </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-700 mb-1">Extensao (km)</label>
+                                                <input className="w-full border p-2 rounded text-sm" value={createFromKmlData.extensao} onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, extensao: e.target.value })} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-700 mb-1">Torres (qtd)</label>
+                                                <input className="w-full border p-2 rounded text-sm" value={createFromKmlData.torres} onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, torres: e.target.value })} />
+                                            </div>
                                             <div className="md:col-span-3">
                                                 <div className="text-xs font-medium text-slate-700 mb-1">Periodicidade do relatório</div>
                                                 <div className="flex flex-wrap gap-2">
@@ -2758,6 +3101,19 @@
                                                     <input type="number" min="2000" className="w-full border p-2 rounded text-sm" value={createFromKmlData.anoBaseBienal || ''} onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, anoBaseBienal: e.target.value })} />
                                                 </div>
                                             )}
+                                        </div>
+                                    )}
+
+                                    {kmlReviewMode === 'merge' && (
+                                        <div className="bg-slate-50 border rounded-lg p-3 text-sm text-slate-700 space-y-1">
+                                            <div className="font-semibold text-slate-800">Comparacao de metadados do KML</div>
+                                            <div>ID atual: <strong>{kmlMergeSnapshot.id || '-'}</strong> | Sigla KML (sugerida): <strong>{kmlMeta.sigla || '-'}</strong></div>
+                                            <div>Extensao atual: <strong>{kmlMergeSnapshot.extensao || '-'}</strong> | Extensao KML: <strong>{kmlMeta.extensao || '-'}</strong></div>
+                                            <div>Torres atual: <strong>{kmlMergeSnapshot.torres || '-'}</strong> | Torres KML: <strong>{String(kmlMeta.torres ?? '-')}</strong></div>
+                                            <label className="inline-flex items-center gap-2 pt-1">
+                                                <input type="checkbox" checked={!!applyKmlMetadataOnMerge} onChange={(e) => setApplyKmlMetadataOnMerge(e.target.checked)} />
+                                                Aplicar metadados do KML (extensao e torres)
+                                            </label>
                                         </div>
                                     )}
 
@@ -3154,7 +3510,7 @@
                         return !hasVisitDate;
                     });
                     const towers = [...new Set(pending.map((item) => String(item?.torreRef || '').trim()).filter(Boolean))]
-                        .sort((a, b) => Number(a) - Number(b));
+                        .sort((a, b) => compareTowerNumbers(a, b));
                     summary.set(inspectionId, { count: pending.length, towers });
                 });
                 return summary;
@@ -3275,7 +3631,7 @@
                             map.set(tower, { ...existing, temErosao: true });
                         });
 
-                        const merged = [...map.values()].sort((a, b) => Number(a.numero) - Number(b.numero));
+                        const merged = [...map.values()].sort((a, b) => compareTowerNumbers(a.numero, b.numero));
                         return {
                             ...day,
                             torres: merged.map((item) => item.numero).join(', '),
@@ -3307,7 +3663,7 @@
                     ensurePendingTowersVisible(pending);
                     if (notifyWhenPending) {
                         const towers = [...new Set(pending.map((item) => String(item?.torreRef || '').trim()).filter(Boolean))]
-                            .sort((a, b) => Number(a) - Number(b));
+                            .sort((a, b) => compareTowerNumbers(a, b));
                         alert(`Esta vistoria possui erosões pendentes de visita: ${towers.join(', ') || '-'}. As torres foram carregadas para marcação.`);
                     }
                 }
@@ -3430,7 +3786,7 @@
                     if (pending.length > 0) {
                         ensurePendingTowersVisible(pending);
                         const towers = [...new Set(pending.map((item) => String(item?.torreRef || '').trim()).filter(Boolean))]
-                            .sort((a, b) => Number(a) - Number(b));
+                            .sort((a, b) => compareTowerNumbers(a, b));
                         alert(`Existem erosões pendentes de visita nesta vistoria: ${towers.join(', ') || '-'}. As torres foram carregadas para marcar a data da visita.`);
                         return null;
                     }

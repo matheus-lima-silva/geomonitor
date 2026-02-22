@@ -9,6 +9,21 @@ import {
 import { mergeTowerCoordinates, parseKmlTowers, validateTowerCoordinatesAsString } from '../utils/kmlUtils';
 import { deleteProject, saveProject } from '../services/projectService';
 
+const emptyKmlMeta = {
+  sigla: '',
+  nome: '',
+  torres: 0,
+  extensao: '',
+  lineStringFound: false,
+  sourceLabel: '',
+};
+
+const emptyKmlMergeSnapshot = {
+  id: '',
+  extensao: '',
+  torres: '',
+};
+
 const baseCreateFromKml = {
   id: '',
   nome: '',
@@ -31,6 +46,9 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
   const [kmlRows, setKmlRows] = useState([]);
   const [kmlImportErrors, setKmlImportErrors] = useState([]);
   const [createFromKmlData, setCreateFromKmlData] = useState(baseCreateFromKml);
+  const [kmlMeta, setKmlMeta] = useState(emptyKmlMeta);
+  const [kmlMergeSnapshot, setKmlMergeSnapshot] = useState(emptyKmlMergeSnapshot);
+  const [applyKmlMetadataOnMerge, setApplyKmlMetadataOnMerge] = useState(false);
   const [routeModalProject, setRouteModalProject] = useState(null);
   const [routeSelection, setRouteSelection] = useState([]);
 
@@ -114,27 +132,42 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
     setKmlReviewOpen(false);
     setKmlRows([]);
     setKmlImportErrors([]);
+    setKmlMeta(emptyKmlMeta);
+    setKmlMergeSnapshot(emptyKmlMergeSnapshot);
+    setApplyKmlMetadataOnMerge(false);
   }
 
   async function parseKmlFile(file, mode, targetProject = null) {
     if (!file) return;
     const text = await file.text();
     const parsed = parseKmlTowers(text);
+    const parsedMeta = parsed?.meta || emptyKmlMeta;
     const baseId = String(file.name || 'PROJ').replace(/\.[^/.]+$/, '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || 'PROJ';
 
-    if (mode === 'merge' && targetProject) {
-      openEdit(targetProject);
+    if (mode === 'merge') {
+      if (targetProject) openEdit(targetProject);
+      const source = targetProject || formData || {};
+      setKmlMergeSnapshot({
+        id: String(source.id || ''),
+        extensao: String(source.extensao || ''),
+        torres: String(source.torres || ''),
+      });
+    } else {
+      setKmlMergeSnapshot(emptyKmlMergeSnapshot);
     }
 
     if (mode === 'create') {
       setCreateFromKmlData({
         ...baseCreateFromKml,
-        id: baseId,
-        nome: String(file.name || 'Empreendimento').replace(/\.[^/.]+$/, ''),
-        torres: String(parsed.rows.length || ''),
+        id: String(parsedMeta.sigla || baseId).toUpperCase(),
+        nome: String(parsedMeta.nome || file.name || 'Empreendimento').replace(/\.[^/.]+$/, ''),
+        extensao: String(parsedMeta.extensao || ''),
+        torres: String(parsedMeta.torres ?? parsed.rows.length ?? ''),
       });
     }
 
+    setKmlMeta(parsedMeta);
+    setApplyKmlMetadataOnMerge(false);
     setKmlReviewMode(mode);
     setKmlRows(parsed.rows);
     setKmlImportErrors(parsed.errors || []);
@@ -143,10 +176,19 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
 
   function applyKmlToForm() {
     if (reviewedKml.hasErrors) throw new Error('Existem linhas inválidas no KML. Corrija ou remova antes de aplicar.');
-    setFormData((prev) => ({
-      ...prev,
-      torresCoordenadas: mergeTowerCoordinates(prev.torresCoordenadas || [], reviewedKml.rows),
-    }));
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        torresCoordenadas: mergeTowerCoordinates(prev.torresCoordenadas || [], reviewedKml.rows),
+      };
+
+      if (applyKmlMetadataOnMerge) {
+        next.torres = String(kmlMeta.torres ?? reviewedKml.rows.length ?? '');
+        if (kmlMeta.extensao) next.extensao = String(kmlMeta.extensao);
+      }
+
+      return next;
+    });
     closeKmlReview();
     setIsFormOpen(true);
   }
@@ -203,6 +245,10 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
     kmlImportErrors,
     createFromKmlData,
     setCreateFromKmlData,
+    kmlMeta,
+    kmlMergeSnapshot,
+    applyKmlMetadataOnMerge,
+    setApplyKmlMetadataOnMerge,
     routeModalProject,
     setRouteModalProject,
     routeSelection,

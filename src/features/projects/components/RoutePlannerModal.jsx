@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { buildGoogleMapsMultiStopUrl, chunkRoutePoints } from '../utils/routeUtils';
-import { validateTowerCoordinatesAsString } from '../utils/kmlUtils';
+import { compareTowerNumbers, validateTowerCoordinatesAsString } from '../utils/kmlUtils';
 
 function formatTowerLabel(towerRef) {
   const ref = String(towerRef ?? '').trim();
@@ -15,7 +15,7 @@ function RoutePlannerModal({ project, routeSelection, setRouteSelection, onClose
     const reviewed = validateTowerCoordinatesAsString(project.torresCoordenadas || []);
     return reviewed.rows
       .filter((r) => !r.error)
-      .sort((a, b) => Number(a.numero) - Number(b.numero));
+      .sort((a, b) => compareTowerNumbers(a.numero, b.numero));
   }, [project]);
 
   if (!project) return null;

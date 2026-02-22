@@ -8,6 +8,10 @@ function KmlReviewModal({
   importErrors,
   createFromKmlData,
   setCreateFromKmlData,
+  kmlMeta,
+  kmlMergeSnapshot,
+  applyKmlMetadataOnMerge,
+  setApplyKmlMetadataOnMerge,
   setKmlRows,
   onCancel,
   onApply,
@@ -51,6 +55,16 @@ function KmlReviewModal({
               <option>Linha de Transmissão</option>
               <option>Reservatório de Represa</option>
             </select>
+            <input
+              value={createFromKmlData.extensao}
+              onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, extensao: e.target.value })}
+              placeholder="Extensao (km)"
+            />
+            <input
+              value={createFromKmlData.torres}
+              onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, torres: e.target.value })}
+              placeholder="Torres (qtd)"
+            />
             <select
               value={normalizeReportPeriodicity(createFromKmlData.periodicidadeRelatorio)}
               onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, periodicidadeRelatorio: e.target.value, mesesEntregaRelatorio: [], anoBaseBienal: '' })}
@@ -74,6 +88,23 @@ function KmlReviewModal({
               {normalizeReportMonths(createFromKmlData.mesesEntregaRelatorio).length}/
               {requiredMonthCount(createFromKmlData.periodicidadeRelatorio)}
             </small>
+          </div>
+        )}
+
+        {mode === 'merge' && (
+          <div className="notice">
+            <strong>Comparacao de metadados do KML</strong>
+            <div>ID atual: <strong>{kmlMergeSnapshot?.id || '-'}</strong> | Sigla KML (sugerida): <strong>{kmlMeta?.sigla || '-'}</strong></div>
+            <div>Extensao atual: <strong>{kmlMergeSnapshot?.extensao || '-'}</strong> | Extensao KML: <strong>{kmlMeta?.extensao || '-'}</strong></div>
+            <div>Torres atual: <strong>{kmlMergeSnapshot?.torres || '-'}</strong> | Torres KML: <strong>{String(kmlMeta?.torres ?? '-')}</strong></div>
+            <label style={{ display: 'inline-flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <input
+                type="checkbox"
+                checked={!!applyKmlMetadataOnMerge}
+                onChange={(e) => setApplyKmlMetadataOnMerge(e.target.checked)}
+              />
+              Aplicar metadados do KML (extensao e torres)
+            </label>
           </div>
         )}
 
