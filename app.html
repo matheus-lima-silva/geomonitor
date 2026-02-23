@@ -173,6 +173,7 @@
             { value: 11, label: 'Nov' },
             { value: 12, label: 'Dez' }
         ];
+        const TRANSMISSION_VOLTAGE_OPTIONS = ['13', '138', '230', '345', '500', '600', '750'];
 
         function getMonthLabel(month) {
             const num = Number(month);
@@ -1220,11 +1221,12 @@
         function parseCoordinateTuple(raw) {
             const tuple = String(raw ?? '').trim();
             if (!tuple) return null;
-            const [lonRaw, latRaw] = tuple.split(',');
+            const [lonRaw, latRaw, altRaw] = tuple.split(',');
             const lat = Number(String(latRaw ?? '').trim().replace(',', '.'));
             const lon = Number(String(lonRaw ?? '').trim().replace(',', '.'));
             if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-            return { lat, lon };
+            const alt = Number(String(altRaw ?? '').trim().replace(',', '.'));
+            return { lat, lon, alt: Number.isFinite(alt) ? alt : null };
         }
 
         function parseCoordinatePath(raw) {
@@ -1279,35 +1281,13 @@
                 .trim();
         }
 
-        function extractProjectNameFromLineStringPlacemark(placemarks = []) {
-            for (const placemark of placemarks) {
-                const lineNode = placemark.getElementsByTagName('LineString')?.[0];
-                if (!lineNode) continue;
-
-                const name = placemark.getElementsByTagName('name')?.[0]?.textContent || '';
-                const cleaned = stripCircuitSuffix(name);
-                if (cleaned) return cleaned;
-            }
-
-            return '';
-        }
-
-        function extractSiglaFromLineStringPlacemark(placemarks = []) {
-            for (const placemark of placemarks) {
-                const lineNode = placemark.getElementsByTagName('LineString')?.[0];
-                if (!lineNode) continue;
-
-                const descriptionRaw = placemark.getElementsByTagName('description')?.[0]?.textContent || '';
-                const description = String(descriptionRaw).replace(/<[^>]*>/g, ' ');
-                const token = description.match(/[A-Za-z][A-Za-z0-9]*/)?.[0] || '';
-                if (!token) continue;
-
-                let sigla = sanitizeProjectId(token);
-                if (/^[A-Z]+\d+$/.test(sigla)) sigla = sigla.replace(/\d+$/, '');
-                if (sigla) return sigla;
-            }
-
-            return '';
+        function extractSiglaFromDescription(descriptionRaw) {
+            const description = String(descriptionRaw ?? '').replace(/<[^>]*>/g, ' ');
+            const token = description.match(/[A-Za-z][A-Za-z0-9]*/)?.[0] || '';
+            if (!token) return '';
+            let sigla = sanitizeProjectId(token);
+            if (/^[A-Z]+\d+$/.test(sigla)) sigla = sigla.replace(/\d+$/, '');
+            return sigla || '';
         }
 
         function inferSiglaFromRows(rows = []) {
@@ -1344,22 +1324,63 @@
             return best;
         }
 
-        function extractFirstLineStringMeta(placemarks = []) {
+        function normalizeLineCoordinates(path = []) {
+            return path
+                .map((point) => ({
+                    latitude: normalizeCoordinateString(point?.lat),
+                    longitude: normalizeCoordinateString(point?.lon),
+                    altitude: normalizeCoordinateString(point?.alt)
+                }))
+                .filter((point) => point.latitude && point.longitude);
+        }
+
+        function extractLongestLineStringMeta(placemarks = []) {
+            let lineStringFound = false;
+            let bestLengthKm = -1;
+            let bestMeta = null;
+
             for (const placemark of placemarks) {
                 const lineNode = placemark.getElementsByTagName('LineString')?.[0];
                 if (!lineNode) continue;
+                lineStringFound = true;
 
                 const coordinatesText = lineNode.getElementsByTagName('coordinates')?.[0]?.textContent || '';
                 const path = parseCoordinatePath(coordinatesText);
-                if (path.length < 2) {
-                    return { lineStringFound: true, extensao: '' };
-                }
-
                 const lengthKm = getPathLengthKm(path);
-                return { lineStringFound: true, extensao: lengthKm.toFixed(2) };
+                if (lengthKm <= bestLengthKm) continue;
+
+                const placemarkName = placemark.getElementsByTagName('name')?.[0]?.textContent || '';
+                const lineName = stripCircuitSuffix(placemarkName);
+                const descriptionRaw = placemark.getElementsByTagName('description')?.[0]?.textContent || '';
+                bestLengthKm = lengthKm;
+                bestMeta = {
+                    extensao: path.length >= 2 ? lengthKm.toFixed(2) : '',
+                    linhaCoordenadas: normalizeLineCoordinates(path),
+                    linhaNome: lineName,
+                    linhaFonteKml: String(placemarkName || '').trim(),
+                    siglaFromLine: extractSiglaFromDescription(descriptionRaw)
+                };
             }
 
-            return { lineStringFound: false, extensao: '' };
+            if (!lineStringFound) {
+                return {
+                    lineStringFound: false,
+                    extensao: '',
+                    linhaCoordenadas: [],
+                    linhaNome: '',
+                    linhaFonteKml: '',
+                    siglaFromLine: ''
+                };
+            }
+
+            return {
+                lineStringFound: true,
+                extensao: bestMeta?.extensao || '',
+                linhaCoordenadas: bestMeta?.linhaCoordenadas || [],
+                linhaNome: bestMeta?.linhaNome || '',
+                linhaFonteKml: bestMeta?.linhaFonteKml || '',
+                siglaFromLine: bestMeta?.siglaFromLine || ''
+            };
         }
 
         function compareTowerNumbers(a, b) {
@@ -1388,7 +1409,10 @@
                 torres: 0,
                 extensao: '',
                 lineStringFound: false,
-                sourceLabel: ''
+                sourceLabel: '',
+                linhaCoordenadas: [],
+                linhaNome: '',
+                linhaFonteKml: ''
             };
             if (xml.querySelector('parsererror')) {
                 return { rows: [], errors: ['Arquivo KML invalido ou corrompido.'], meta: baseMeta };
@@ -1400,8 +1424,8 @@
             if (placemarks.length === 0) {
                 return { rows: [], errors: ['Nenhum Placemark encontrado no KML.'], meta: baseMeta };
             }
-            const projectName = extractProjectNameFromLineStringPlacemark(placemarks)
-                || extractProjectNameFromDocument(documentName);
+            const lineMeta = extractLongestLineStringMeta(placemarks);
+            const projectName = lineMeta.linhaNome || extractProjectNameFromDocument(documentName);
             baseMeta.nome = projectName;
 
             const rows = [];
@@ -1453,16 +1477,17 @@
                 errors.push(`${ignoredPlacemarks} Placemark(s) ignorado(s) por tipo de geometria, identificacao ou coordenadas invalidas.`);
             }
 
-            const lineMeta = extractFirstLineStringMeta(placemarks);
-            const lineSigla = extractSiglaFromLineStringPlacemark(placemarks);
-            const inferredSigla = inferSiglaFromRows(rows) || lineSigla || sanitizeProjectId(documentName);
+            const inferredSigla = inferSiglaFromRows(rows) || lineMeta.siglaFromLine || sanitizeProjectId(documentName);
             const meta = {
                 sigla: inferredSigla,
                 nome: projectName,
                 torres: rows.length,
                 extensao: lineMeta.extensao,
                 lineStringFound: lineMeta.lineStringFound,
-                sourceLabel: documentName
+                sourceLabel: documentName,
+                linhaCoordenadas: lineMeta.linhaCoordenadas,
+                linhaNome: lineMeta.linhaNome,
+                linhaFonteKml: lineMeta.linhaFonteKml
             };
 
             return { rows, errors, meta };
@@ -2831,6 +2856,8 @@
                 mesesEntregaRelatorio: [],
                 anoBaseBienal: '',
                 torresCoordenadas: [],
+                linhaCoordenadas: [],
+                linhaFonteKml: '',
                 dataCadastro: new Date().toISOString().split('T')[0]
             };
             const baseCreateFromKml = {
@@ -2850,10 +2877,14 @@
                 torres: 0,
                 extensao: '',
                 lineStringFound: false,
-                sourceLabel: ''
+                sourceLabel: '',
+                linhaCoordenadas: [],
+                linhaNome: '',
+                linhaFonteKml: ''
             };
             const emptyKmlMergeSnapshot = {
                 id: '',
+                nome: '',
                 extensao: '',
                 torres: ''
             };
@@ -2905,7 +2936,9 @@
                     periodicidadeRelatorio: reportConfig.periodicidadeRelatorio,
                     mesesEntregaRelatorio: reportConfig.mesesEntregaRelatorio,
                     anoBaseBienal: reportConfig.anoBaseBienal ?? '',
-                    torresCoordenadas: Array.isArray(p.torresCoordenadas) ? p.torresCoordenadas : []
+                    torresCoordenadas: Array.isArray(p.torresCoordenadas) ? p.torresCoordenadas : [],
+                    linhaCoordenadas: Array.isArray(p.linhaCoordenadas) ? p.linhaCoordenadas : [],
+                    linhaFonteKml: String(p.linhaFonteKml || '')
                 });
                 setIsEditing(true);
                 setIsFormOpen(true);
@@ -2968,6 +3001,8 @@
                     mesesEntregaRelatorio,
                     anoBaseBienal,
                     torresCoordenadas: Array.isArray(formData.torresCoordenadas) ? formData.torresCoordenadas : [],
+                    linhaCoordenadas: Array.isArray(formData.linhaCoordenadas) ? formData.linhaCoordenadas : [],
+                    linhaFonteKml: String(formData.linhaFonteKml || ''),
                     dataCadastro: formData.dataCadastro || new Date().toISOString().split('T')[0]
                 };
                 await saveToFirestore('projects', formData.id, dataToSave);
@@ -2999,6 +3034,7 @@
                     const source = targetProject || formData || {};
                     setKmlMergeSnapshot({
                         id: String(source.id || ''),
+                        nome: String(source.nome || ''),
                         extensao: String(source.extensao || ''),
                         torres: String(source.torres || '')
                     });
@@ -3006,10 +3042,12 @@
                     setKmlMergeSnapshot(emptyKmlMergeSnapshot);
                 }
                 if (mode === 'create') {
+                    setIsFormOpen(false);
+                    setIsEditing(false);
                     setCreateFromKmlData({
                         ...baseCreateFromKml,
                         id: String(parsedMeta.sigla || baseId).toUpperCase(),
-                        nome: String(parsedMeta.nome || file.name || 'Empreendimento').replace(/\.[^/.]+$/, ''),
+                        nome: String(parsedMeta.linhaNome || parsedMeta.nome || file.name || 'Empreendimento').replace(/\.[^/.]+$/, ''),
                         extensao: String(parsedMeta.extensao || ''),
                         torres: String(parsedMeta.torres ?? parsed.rows.length ?? '')
                     });
@@ -3067,9 +3105,14 @@
                             ...prev,
                             torresCoordenadas: mergeTowerCoordinates(prev.torresCoordenadas || [], reviewedKml.rows)
                         };
+                        if (Array.isArray(kmlMeta.linhaCoordenadas) && kmlMeta.linhaCoordenadas.length > 0) {
+                            next.linhaCoordenadas = kmlMeta.linhaCoordenadas;
+                            next.linhaFonteKml = String(kmlMeta.linhaFonteKml || '');
+                        }
                         if (applyKmlMetadataOnMerge) {
                             next.torres = String(kmlMeta.torres ?? reviewedKml.rows.length ?? '');
                             if (kmlMeta.extensao) next.extensao = String(kmlMeta.extensao);
+                            if (kmlMeta.linhaNome || kmlMeta.nome) next.nome = String(kmlMeta.linhaNome || kmlMeta.nome);
                         }
                         return next;
                     });
@@ -3113,10 +3156,14 @@
                     mesesEntregaRelatorio,
                     anoBaseBienal,
                     torresCoordenadas: mergeTowerCoordinates([], reviewedKml.rows),
+                    linhaCoordenadas: Array.isArray(kmlMeta.linhaCoordenadas) ? kmlMeta.linhaCoordenadas : [],
+                    linhaFonteKml: String(kmlMeta.linhaFonteKml || ''),
                     dataCadastro: new Date().toISOString().split('T')[0]
                 };
 
                 await saveToFirestore('projects', payload.id, payload);
+                setIsFormOpen(false);
+                setIsEditing(false);
                 closeKmlReview();
             };
 
@@ -3158,6 +3205,101 @@
                 }
             };
 
+            const exportProjectToKml = (project) => {
+                const source = project || {};
+                const toNumber = (value) => {
+                    const num = Number(String(value ?? '').trim().replace(',', '.'));
+                    return Number.isFinite(num) ? num : null;
+                };
+                const escapeXml = (value) => String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&apos;');
+                const lineCoordinates = (Array.isArray(source.linhaCoordenadas) ? source.linhaCoordenadas : [])
+                    .map((point) => {
+                        const latitude = toNumber(point?.latitude);
+                        const longitude = toNumber(point?.longitude);
+                        const altitude = toNumber(point?.altitude);
+                        if (latitude === null || longitude === null) return null;
+                        if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+                        return { latitude, longitude, altitude: altitude === null ? 0 : altitude };
+                    })
+                    .filter(Boolean);
+                const reviewedTowers = validateTowerCoordinatesAsString(source.torresCoordenadas || []).rows
+                    .filter((row) => !row.error)
+                    .sort((a, b) => compareTowerNumbers(a.numero, b.numero));
+
+                if (lineCoordinates.length < 2 && reviewedTowers.length === 0) {
+                    throw new Error('Este empreendimento não possui geometria suficiente para exportar KML.');
+                }
+
+                const projectTitle = escapeXml(source.nome || source.id || 'Empreendimento');
+                const lineName = escapeXml(source.linhaFonteKml || `${source.nome || source.id || 'Linha'} C1`);
+                const projectId = escapeXml(source.id || '');
+                const linePlacemark = lineCoordinates.length >= 2
+                    ? [
+                        '    <Placemark>',
+                        `      <name>${lineName}</name>`,
+                        projectId ? `      <description>${projectId}</description>` : '',
+                        '      <LineString>',
+                        '        <coordinates>',
+                        `          ${lineCoordinates.map((p) => `${p.longitude},${p.latitude},${p.altitude}`).join(' ')}`,
+                        '        </coordinates>',
+                        '      </LineString>',
+                        '    </Placemark>'
+                    ].filter(Boolean).join('\n')
+                    : '';
+                const towerPlacemarks = reviewedTowers
+                    .map((tower) => {
+                        const latitude = toNumber(tower.latitude);
+                        const longitude = toNumber(tower.longitude);
+                        if (latitude === null || longitude === null) return '';
+                        return [
+                            '    <Placemark>',
+                            `      <name>${escapeXml(`Torre ${tower.numero}`)}</name>`,
+                            '      <Point>',
+                            `        <coordinates>${longitude},${latitude},0</coordinates>`,
+                            '      </Point>',
+                            '    </Placemark>'
+                        ].join('\n');
+                    })
+                    .filter(Boolean)
+                    .join('\n');
+                return [
+                    '<?xml version="1.0" encoding="UTF-8"?>',
+                    '<kml xmlns="http://www.opengis.net/kml/2.2">',
+                    '  <Document>',
+                    `    <name>${projectTitle}</name>`,
+                    linePlacemark,
+                    towerPlacemarks,
+                    '  </Document>',
+                    '</kml>'
+                ].filter(Boolean).join('\n');
+            };
+
+            const handleExportProjectKml = (project) => {
+                try {
+                    const kml = exportProjectToKml(project);
+                    const safeId = String(project?.id || 'empreendimento')
+                        .toUpperCase()
+                        .replace(/[^A-Z0-9_-]/g, '')
+                        .slice(0, 40) || 'EMPREENDIMENTO';
+                    const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${safeId}.kml`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                } catch (e) {
+                    alert(e.message || 'Erro ao exportar KML.');
+                }
+            };
+
             return (
                 <div className="space-y-6">
                     <input ref={mergeInputRef} type="file" accept=".kml,application/vnd.google-earth.kml+xml" className="hidden" onChange={handleMergeInputChange} />
@@ -3177,7 +3319,9 @@
                             const stats = getProjectInspectionStats(p.id, inspections);
                             const reportConfig = getProjectReportConfig(p);
                             const gpsCount = validateTowerCoordinatesAsString(p.torresCoordenadas || []).rows.filter((r) => !r.error).length;
+                            const lineCount = Array.isArray(p.linhaCoordenadas) ? p.linhaCoordenadas.length : 0;
                             const hasKmlData = gpsCount > 0;
+                            const hasExportGeometry = gpsCount > 0 || lineCount >= 2;
                             return (
                                 <div key={p.id} className="bg-white rounded-xl shadow-sm border p-5 hover:shadow-md transition-shadow">
                                     <div className="flex justify-between items-start mb-4">
@@ -3238,6 +3382,14 @@
                                             <Upload /> Importar KML neste empreendimento
                                         </button>
                                     )}
+                                    {hasExportGeometry && (
+                                        <button
+                                            onClick={() => handleExportProjectKml(p)}
+                                            className="w-full mt-2 text-xs px-3 py-2 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center justify-center gap-1"
+                                        >
+                                            <MapIcon /> Exportar KML
+                                        </button>
+                                    )}
                                 </div>
                             );
                         })}
@@ -3294,7 +3446,7 @@
                                             <div className="text-xs text-slate-600">
                                                 Torres georreferenciadas: <strong>{validateTowerCoordinatesAsString(formData.torresCoordenadas || []).rows.filter((r) => !r.error).length}</strong>
                                             </div>
-                                            <button onClick={() => startMergeKml(null)} className="text-xs px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1">
+                                            <button onClick={() => (isEditing ? startMergeKml(null) : startCreateFromKml())} className="text-xs px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1">
                                                 <Upload /> Importar KML
                                             </button>
                                         </div>
@@ -3370,11 +3522,10 @@
                                                     value={formData.tensao}
                                                     onChange={(e) => setFormData({...formData, tensao: e.target.value})}
                                                 >
-                                                    <option value="">-</option>
-                                                    <option value="69">69</option>
-                                                    <option value="138">138</option>
-                                                    <option value="230">230</option>
-                                                    <option value="500">500</option>
+                                                    <option value="">Selecione a tensão (kV)</option>
+                                                    {TRANSMISSION_VOLTAGE_OPTIONS.map((kv) => (
+                                                        <option key={kv} value={kv}>{kv} kV</option>
+                                                    ))}
                                                 </select>
                                             </div>
                                             <div>
@@ -3445,6 +3596,15 @@
                                                 </select>
                                             </div>
                                             <div>
+                                                <label className="block text-xs font-medium text-slate-700 mb-1">kV</label>
+                                                <select className="w-full border p-2 rounded text-sm" value={createFromKmlData.tensao || ''} onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, tensao: e.target.value })}>
+                                                    <option value="">Selecione a tensão (kV)</option>
+                                                    {TRANSMISSION_VOLTAGE_OPTIONS.map((kv) => (
+                                                        <option key={`create-kv-${kv}`} value={kv}>{kv} kV</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
                                                 <label className="block text-xs font-medium text-slate-700 mb-1">Extensao (km)</label>
                                                 <input className="w-full border p-2 rounded text-sm" value={createFromKmlData.extensao} onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, extensao: e.target.value })} />
                                             </div>
@@ -3509,11 +3669,12 @@
                                         <div className="bg-slate-50 border rounded-lg p-3 text-sm text-slate-700 space-y-1">
                                             <div className="font-semibold text-slate-800">Comparacao de metadados do KML</div>
                                             <div>ID atual: <strong>{kmlMergeSnapshot.id || '-'}</strong> | Sigla KML (sugerida): <strong>{kmlMeta.sigla || '-'}</strong></div>
+                                            <div>Nome atual: <strong>{kmlMergeSnapshot.nome || '-'}</strong> | Nome KML (sugerido): <strong>{kmlMeta.linhaNome || kmlMeta.nome || '-'}</strong></div>
                                             <div>Extensao atual: <strong>{kmlMergeSnapshot.extensao || '-'}</strong> | Extensao KML: <strong>{kmlMeta.extensao || '-'}</strong></div>
                                             <div>Torres atual: <strong>{kmlMergeSnapshot.torres || '-'}</strong> | Torres KML: <strong>{String(kmlMeta.torres ?? '-')}</strong></div>
                                             <label className="inline-flex items-center gap-2 pt-1">
                                                 <input type="checkbox" checked={!!applyKmlMetadataOnMerge} onChange={(e) => setApplyKmlMetadataOnMerge(e.target.checked)} />
-                                                Aplicar metadados do KML (extensao e torres)
+                                                Aplicar metadados do KML (nome, extensao e torres)
                                             </label>
                                         </div>
                                     )}
