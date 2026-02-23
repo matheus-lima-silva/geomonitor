@@ -16,10 +16,14 @@ const emptyKmlMeta = {
   extensao: '',
   lineStringFound: false,
   sourceLabel: '',
+  linhaCoordenadas: [],
+  linhaNome: '',
+  linhaFonteKml: '',
 };
 
 const emptyKmlMergeSnapshot = {
   id: '',
+  nome: '',
   extensao: '',
   torres: '',
 };
@@ -77,6 +81,8 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
       mesesEntregaRelatorio: reportConfig.mesesEntregaRelatorio,
       anoBaseBienal: reportConfig.anoBaseBienal ?? '',
       torresCoordenadas: Array.isArray(project.torresCoordenadas) ? project.torresCoordenadas : [],
+      linhaCoordenadas: Array.isArray(project.linhaCoordenadas) ? project.linhaCoordenadas : [],
+      linhaFonteKml: String(project.linhaFonteKml || ''),
     });
     setIsEditing(true);
     setIsFormOpen(true);
@@ -109,6 +115,8 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
       mesesEntregaRelatorio,
       anoBaseBienal,
       torresCoordenadas: Array.isArray(formData.torresCoordenadas) ? formData.torresCoordenadas : [],
+      linhaCoordenadas: Array.isArray(formData.linhaCoordenadas) ? formData.linhaCoordenadas : [],
+      linhaFonteKml: String(formData.linhaFonteKml || ''),
     });
 
     await saveProject(payload.id, payload, {
@@ -149,6 +157,7 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
       const source = targetProject || formData || {};
       setKmlMergeSnapshot({
         id: String(source.id || ''),
+        nome: String(source.nome || ''),
         extensao: String(source.extensao || ''),
         torres: String(source.torres || ''),
       });
@@ -157,10 +166,12 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
     }
 
     if (mode === 'create') {
+      setIsFormOpen(false);
+      setIsEditing(false);
       setCreateFromKmlData({
         ...baseCreateFromKml,
         id: String(parsedMeta.sigla || baseId).toUpperCase(),
-        nome: String(parsedMeta.nome || file.name || 'Empreendimento').replace(/\.[^/.]+$/, ''),
+        nome: String(parsedMeta.linhaNome || parsedMeta.nome || file.name || 'Empreendimento').replace(/\.[^/.]+$/, ''),
         extensao: String(parsedMeta.extensao || ''),
         torres: String(parsedMeta.torres ?? parsed.rows.length ?? ''),
       });
@@ -182,9 +193,15 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
         torresCoordenadas: mergeTowerCoordinates(prev.torresCoordenadas || [], reviewedKml.rows),
       };
 
+      if (Array.isArray(kmlMeta.linhaCoordenadas) && kmlMeta.linhaCoordenadas.length > 0) {
+        next.linhaCoordenadas = kmlMeta.linhaCoordenadas;
+        next.linhaFonteKml = String(kmlMeta.linhaFonteKml || '');
+      }
+
       if (applyKmlMetadataOnMerge) {
         next.torres = String(kmlMeta.torres ?? reviewedKml.rows.length ?? '');
         if (kmlMeta.extensao) next.extensao = String(kmlMeta.extensao);
+        if (kmlMeta.linhaNome || kmlMeta.nome) next.nome = String(kmlMeta.linhaNome || kmlMeta.nome);
       }
 
       return next;
@@ -221,10 +238,14 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
       mesesEntregaRelatorio,
       anoBaseBienal,
       torresCoordenadas: mergeTowerCoordinates([], reviewedKml.rows),
+      linhaCoordenadas: Array.isArray(kmlMeta.linhaCoordenadas) ? kmlMeta.linhaCoordenadas : [],
+      linhaFonteKml: String(kmlMeta.linhaFonteKml || ''),
       dataCadastro: new Date().toISOString().split('T')[0],
     });
 
     await saveProject(payload.id, payload, { updatedBy: currentUserEmail });
+    setIsFormOpen(false);
+    setIsEditing(false);
     closeKmlReview();
     await onSaved?.();
     showToast?.('Empreendimento criado por KML.', 'success');

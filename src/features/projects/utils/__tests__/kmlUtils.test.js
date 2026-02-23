@@ -10,6 +10,8 @@ describe('kmlUtils', () => {
     expect(parsed.meta.sigla).toBe('');
     expect(parsed.meta.nome).toBe('');
     expect(parsed.meta.torres).toBe(0);
+    expect(parsed.meta.linhaCoordenadas).toEqual([]);
+    expect(parsed.meta.linhaNome).toBe('');
   });
 
   it('flags invalid coordinates', () => {
@@ -18,7 +20,7 @@ describe('kmlUtils', () => {
     expect(result.rows[0].error).toContain('Latitude');
   });
 
-  it('parses numbered, portico and suffixed towers from KML points and ignores linestring', () => {
+  it('parses numbered, portico and suffixed towers from KML points and keeps line metadata', () => {
     const kml = `
       <kml>
         <Document>
@@ -56,6 +58,8 @@ describe('kmlUtils', () => {
     expect(parsed.meta.extensao).toBe('151.88');
     expect(parsed.meta.lineStringFound).toBe(true);
     expect(parsed.meta.sourceLabel).toBe('SIMRLE.kmz');
+    expect(parsed.meta.linhaNome).toBe('SIMRLE1 TRACADO');
+    expect(parsed.meta.linhaCoordenadas).toHaveLength(2);
   });
 
   it('infers sigla from prefix when second token is portico', () => {
@@ -63,7 +67,7 @@ describe('kmlUtils', () => {
       <kml>
         <Document>
           <Placemark>
-            <name>SIMRLE1 Pórtico SIM</name>
+            <name>SIMRLE1 Portico SIM</name>
             <Point><coordinates>-42.79536041,-21.92260055,0</coordinates></Point>
           </Placemark>
         </Document>
@@ -77,13 +81,13 @@ describe('kmlUtils', () => {
     expect(parsed.meta.torres).toBe(1);
   });
 
-  it('extracts project name from linestring placemark and removes circuit suffix', () => {
+  it('extracts project name from line placemark and removes circuit suffix', () => {
     const kml = `
       <kml>
         <Document>
           <name>DOCUMENTO-TESTE.kmz</name>
           <Placemark>
-            <name>Simplício - Rocha Leão C1</name>
+            <name>Simplicio - Rocha Leao C1</name>
             <description>SIMRLE1</description>
             <LineString><coordinates>-42,-21,0 -43,-22,0</coordinates></LineString>
           </Placemark>
@@ -96,16 +100,17 @@ describe('kmlUtils', () => {
     `;
 
     const parsed = parseKmlTowers(kml);
-    expect(parsed.meta.nome).toBe('Simplício - Rocha Leão');
+    expect(parsed.meta.nome).toBe('Simplicio - Rocha Leao');
+    expect(parsed.meta.linhaFonteKml).toBe('Simplicio - Rocha Leao C1');
   });
 
-  it('extracts sigla from linestring description when point names do not have prefix', () => {
+  it('extracts sigla from line description when point names do not have prefix', () => {
     const kml = `
       <kml>
         <Document>
           <name>DOCUMENTO-TESTE.kmz</name>
           <Placemark>
-            <name>Simplício - Rocha Leão C1</name>
+            <name>Simplicio - Rocha Leao C1</name>
             <description>SIMRLE1</description>
             <LineString><coordinates>-42,-21,0 -43,-22,0</coordinates></LineString>
           </Placemark>
@@ -119,6 +124,33 @@ describe('kmlUtils', () => {
 
     const parsed = parseKmlTowers(kml);
     expect(parsed.meta.sigla).toBe('SIMRLE');
+  });
+
+  it('selects the longest linestring when multiple lines are present', () => {
+    const kml = `
+      <kml>
+        <Document>
+          <name>LINHAS.kml</name>
+          <Placemark>
+            <name>Linha Curta C1</name>
+            <description>SHORT1</description>
+            <LineString><coordinates>-42,-21,0 -42.001,-21.001,0</coordinates></LineString>
+          </Placemark>
+          <Placemark>
+            <name>Linha Longa C2</name>
+            <description>LONG2</description>
+            <LineString><coordinates>-42,-21,0 -43,-22,0 -44,-23,10</coordinates></LineString>
+          </Placemark>
+        </Document>
+      </kml>
+    `;
+
+    const parsed = parseKmlTowers(kml);
+    expect(parsed.meta.linhaFonteKml).toBe('Linha Longa C2');
+    expect(parsed.meta.linhaNome).toBe('Linha Longa');
+    expect(parsed.meta.linhaCoordenadas).toHaveLength(3);
+    expect(parsed.meta.extensao).toBe('302.19');
+    expect(parsed.meta.sigla).toBe('LONG');
   });
 
   it('treats suffixed towers as distinct ids', () => {

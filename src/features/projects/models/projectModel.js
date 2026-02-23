@@ -1,3 +1,5 @@
+export const TRANSMISSION_VOLTAGE_OPTIONS = ['13', '138', '230', '345', '500', '600', '750'];
+
 export function createEmptyProject() {
   return {
     id: '',
@@ -10,11 +12,19 @@ export function createEmptyProject() {
     mesesEntregaRelatorio: [],
     anoBaseBienal: '',
     torresCoordenadas: [],
+    linhaCoordenadas: [],
+    linhaFonteKml: '',
     dataCadastro: new Date().toISOString().split('T')[0],
   };
 }
 
 export function normalizeProjectPayload(input) {
+  const normalizeLinePoint = (point) => ({
+    latitude: String(point?.latitude ?? ''),
+    longitude: String(point?.longitude ?? ''),
+    altitude: String(point?.altitude ?? ''),
+  });
+
   return {
     ...createEmptyProject(),
     ...input,
@@ -25,6 +35,8 @@ export function normalizeProjectPayload(input) {
     extensao: String(input?.extensao || ''),
     torres: String(input?.torres || ''),
     torresCoordenadas: Array.isArray(input?.torresCoordenadas) ? input.torresCoordenadas : [],
+    linhaCoordenadas: Array.isArray(input?.linhaCoordenadas) ? input.linhaCoordenadas.map(normalizeLinePoint) : [],
+    linhaFonteKml: String(input?.linhaFonteKml || ''),
     dataCadastro: input?.dataCadastro || new Date().toISOString().split('T')[0],
   };
 }

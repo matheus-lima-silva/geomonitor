@@ -1,4 +1,5 @@
 import { MONTH_OPTIONS_PT, normalizeReportMonths, normalizeReportPeriodicity, requiredMonthCount } from '../utils/reportSchedule';
+import { TRANSMISSION_VOLTAGE_OPTIONS } from '../models/projectModel';
 import AppIcon from '../../../components/AppIcon';
 
 function ProjectFormModal({ open, isEditing, formData, setFormData, onSave, onCancel, onImportKml }) {
@@ -32,8 +33,8 @@ function ProjectFormModal({ open, isEditing, formData, setFormData, onSave, onCa
             disabled={isEditing}
           />
           <select value={formData.tipo} onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}>
-            <option>Linha de TransmissÃ£o</option>
-            <option>ReservatÃ³rio de Represa</option>
+            <option>Linha de Transmissão</option>
+            <option>Reservatório de Represa</option>
           </select>
           <input placeholder="Nome" value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} />
 
@@ -84,10 +85,15 @@ function ProjectFormModal({ open, isEditing, formData, setFormData, onSave, onCa
             />
           )}
 
-          {formData.tipo === 'Linha de TransmissÃ£o' && (
+          {formData.tipo === 'Linha de Transmissão' && (
             <>
-              <input placeholder="kV" value={formData.tensao} onChange={(e) => setFormData({ ...formData, tensao: e.target.value })} />
-              <input placeholder="ExtensÃ£o (km)" value={formData.extensao} onChange={(e) => setFormData({ ...formData, extensao: e.target.value })} />
+              <select value={formData.tensao || ''} onChange={(e) => setFormData({ ...formData, tensao: e.target.value })}>
+                <option value="">Selecione a tensão (kV)</option>
+                {TRANSMISSION_VOLTAGE_OPTIONS.map((kv) => (
+                  <option key={kv} value={kv}>{kv} kV</option>
+                ))}
+              </select>
+              <input placeholder="Extensão (km)" value={formData.extensao} onChange={(e) => setFormData({ ...formData, extensao: e.target.value })} />
               <input placeholder="Torres (qtd)" value={formData.torres} onChange={(e) => setFormData({ ...formData, torres: e.target.value })} />
             </>
           )}

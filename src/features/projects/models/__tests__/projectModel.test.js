@@ -13,6 +13,8 @@ describe('projectModel', () => {
     expect(empty.periodicidadeRelatorio).toBe('Anual');
     expect(empty.mesesEntregaRelatorio).toEqual([]);
     expect(empty.torresCoordenadas).toEqual([]);
+    expect(empty.linhaCoordenadas).toEqual([]);
+    expect(empty.linhaFonteKml).toBe('');
     expect(empty.dataCadastro).toBe('2025-02-10');
 
     vi.useRealTimers();
@@ -29,6 +31,7 @@ describe('projectModel', () => {
       tensao: 230,
       torres: 12,
       torresCoordenadas: 'invalido',
+      linhaCoordenadas: 'invalido',
     });
 
     expect(normalized.id).toBe('LT-001');
@@ -37,6 +40,8 @@ describe('projectModel', () => {
     expect(normalized.tensao).toBe('230');
     expect(normalized.torres).toBe('12');
     expect(normalized.torresCoordenadas).toEqual([]);
+    expect(normalized.linhaCoordenadas).toEqual([]);
+    expect(normalized.linhaFonteKml).toBe('');
     expect(normalized.dataCadastro).toBe('2025-03-01');
 
     vi.useRealTimers();
@@ -48,9 +53,13 @@ describe('projectModel', () => {
       nome: 'Projeto A',
       dataCadastro: '2024-12-05',
       torresCoordenadas: [{ torre: 1 }],
+      linhaCoordenadas: [{ latitude: -10.2, longitude: -40.2, altitude: 10 }],
+      linhaFonteKml: 'Linha Exemplo C1',
     });
 
     expect(normalized.dataCadastro).toBe('2024-12-05');
     expect(normalized.torresCoordenadas).toEqual([{ torre: 1 }]);
+    expect(normalized.linhaCoordenadas).toEqual([{ latitude: '-10.2', longitude: '-40.2', altitude: '10' }]);
+    expect(normalized.linhaFonteKml).toBe('Linha Exemplo C1');
   });
 });

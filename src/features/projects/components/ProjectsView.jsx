@@ -4,6 +4,7 @@ import { useProjectsFeatureState } from '../hooks/useProjectsFeatureState';
 import { formatReportMonths, getProjectReportConfig } from '../utils/reportSchedule';
 import { validateTowerCoordinatesAsString } from '../utils/kmlUtils';
 import { getProjectInspectionStats } from '../utils/projectStats';
+import { downloadProjectKml } from '../utils/projectKmlExport';
 import ProjectFormModal from './ProjectFormModal';
 import KmlReviewModal from './KmlReviewModal';
 import RoutePlannerModal from './RoutePlannerModal';
@@ -11,6 +12,7 @@ import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 function ProjectsView({ projects, inspections, userEmail, showToast, reloadProjects, onOpenProjectInspections, searchTerm }) {
   const mergeInputRef = useRef(null);
+  const createInputRef = useRef(null);
   const mergeTargetProjectRef = useRef(null);
 
   const state = useProjectsFeatureState({
@@ -35,6 +37,12 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
     e.target.value = '';
   }
 
+  async function handleCreateInputChange(e) {
+    const file = e.target.files?.[0];
+    await state.parseKmlFile(file, 'create', null);
+    e.target.value = '';
+  }
+
   async function safeRun(fn) {
     try {
       await fn();
@@ -51,6 +59,13 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
         accept=".kml,application/vnd.google-earth.kml+xml"
         className="hidden-input"
         onChange={handleMergeInputChange}
+      />
+      <input
+        ref={createInputRef}
+        type="file"
+        accept=".kml,application/vnd.google-earth.kml+xml"
+        className="hidden-input"
+        onChange={handleCreateInputChange}
       />
 
       <div className="topbar">
@@ -69,7 +84,9 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
           const stats = getProjectInspectionStats(p.id, inspections);
           const reportConfig = getProjectReportConfig(p);
           const gpsCount = validateTowerCoordinatesAsString(p.torresCoordenadas || []).rows.filter((r) => !r.error).length;
+          const lineCount = Array.isArray(p.linhaCoordenadas) ? p.linhaCoordenadas.length : 0;
           const hasKmlData = gpsCount > 0;
+          const hasExportGeometry = gpsCount > 0 || lineCount >= 2;
 
           return (
             <article key={p.id} className="project-card">
@@ -118,6 +135,17 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
                 )}
               </div>
 
+              {hasExportGeometry && (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => safeRun(() => downloadProjectKml(p))}
+                >
+                  <AppIcon name="map" />
+                  Exportar KML
+                </button>
+              )}
+
               {!hasKmlData && (
                 <button
                   type="button"
@@ -145,7 +173,11 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
         onCancel={state.closeForm}
         onImportKml={() => {
           mergeTargetProjectRef.current = null;
-          mergeInputRef.current?.click();
+          if (state.isEditing) {
+            mergeInputRef.current?.click();
+          } else {
+            createInputRef.current?.click();
+          }
         }}
       />
 

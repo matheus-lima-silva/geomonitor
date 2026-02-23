@@ -111,12 +111,13 @@ function parseCoordinateTuple(raw) {
   const tuple = String(raw ?? '').trim();
   if (!tuple) return null;
 
-  const [lonRaw, latRaw] = tuple.split(',');
+  const [lonRaw, latRaw, altRaw] = tuple.split(',');
   const lat = Number(String(latRaw ?? '').trim().replace(',', '.'));
   const lon = Number(String(lonRaw ?? '').trim().replace(',', '.'));
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
-  return { lat, lon };
+  const alt = Number(String(altRaw ?? '').trim().replace(',', '.'));
+  return { lat, lon, alt: Number.isFinite(alt) ? alt : null };
 }
 
 function parseCoordinatePath(raw) {
@@ -172,35 +173,14 @@ function stripCircuitSuffix(rawName) {
     .trim();
 }
 
-function extractProjectNameFromLineStringPlacemark(placemarks = []) {
-  for (const placemark of placemarks) {
-    const lineNode = placemark.getElementsByTagName('LineString')?.[0];
-    if (!lineNode) continue;
+function extractSiglaFromDescription(descriptionRaw) {
+  const description = String(descriptionRaw ?? '').replace(/<[^>]*>/g, ' ');
+  const token = description.match(/[A-Za-z][A-Za-z0-9]*/)?.[0] || '';
+  if (!token) return '';
 
-    const name = placemark.getElementsByTagName('name')?.[0]?.textContent || '';
-    const cleaned = stripCircuitSuffix(name);
-    if (cleaned) return cleaned;
-  }
-
-  return '';
-}
-
-function extractSiglaFromLineStringPlacemark(placemarks = []) {
-  for (const placemark of placemarks) {
-    const lineNode = placemark.getElementsByTagName('LineString')?.[0];
-    if (!lineNode) continue;
-
-    const descriptionRaw = placemark.getElementsByTagName('description')?.[0]?.textContent || '';
-    const description = String(descriptionRaw).replace(/<[^>]*>/g, ' ');
-    const token = description.match(/[A-Za-z][A-Za-z0-9]*/)?.[0] || '';
-    if (!token) continue;
-
-    let sigla = sanitizeProjectId(token);
-    if (/^[A-Z]+\d+$/.test(sigla)) sigla = sigla.replace(/\d+$/, '');
-    if (sigla) return sigla;
-  }
-
-  return '';
+  let sigla = sanitizeProjectId(token);
+  if (/^[A-Z]+\d+$/.test(sigla)) sigla = sigla.replace(/\d+$/, '');
+  return sigla || '';
 }
 
 function inferSiglaFromRows(rows = []) {
@@ -238,22 +218,63 @@ function inferSiglaFromRows(rows = []) {
   return best;
 }
 
-function extractFirstLineStringMeta(placemarks = []) {
+function normalizeLineCoordinates(path = []) {
+  return path
+    .map((point) => ({
+      latitude: normalizeCoordinateString(point?.lat),
+      longitude: normalizeCoordinateString(point?.lon),
+      altitude: normalizeCoordinateString(point?.alt),
+    }))
+    .filter((point) => point.latitude && point.longitude);
+}
+
+function extractLongestLineStringMeta(placemarks = []) {
+  let lineStringFound = false;
+  let bestLengthKm = -1;
+  let bestMeta = null;
+
   for (const placemark of placemarks) {
     const lineNode = placemark.getElementsByTagName('LineString')?.[0];
     if (!lineNode) continue;
+    lineStringFound = true;
 
     const coordinatesText = lineNode.getElementsByTagName('coordinates')?.[0]?.textContent || '';
     const path = parseCoordinatePath(coordinatesText);
-    if (path.length < 2) {
-      return { lineStringFound: true, extensao: '' };
-    }
-
     const lengthKm = getPathLengthKm(path);
-    return { lineStringFound: true, extensao: lengthKm.toFixed(2) };
+    if (lengthKm <= bestLengthKm) continue;
+
+    const placemarkName = placemark.getElementsByTagName('name')?.[0]?.textContent || '';
+    const lineName = stripCircuitSuffix(placemarkName);
+    const descriptionRaw = placemark.getElementsByTagName('description')?.[0]?.textContent || '';
+    bestLengthKm = lengthKm;
+    bestMeta = {
+      extensao: path.length >= 2 ? lengthKm.toFixed(2) : '',
+      linhaCoordenadas: normalizeLineCoordinates(path),
+      linhaNome: lineName,
+      linhaFonteKml: String(placemarkName || '').trim(),
+      siglaFromLine: extractSiglaFromDescription(descriptionRaw),
+    };
   }
 
-  return { lineStringFound: false, extensao: '' };
+  if (!lineStringFound) {
+    return {
+      lineStringFound: false,
+      extensao: '',
+      linhaCoordenadas: [],
+      linhaNome: '',
+      linhaFonteKml: '',
+      siglaFromLine: '',
+    };
+  }
+
+  return {
+    lineStringFound: true,
+    extensao: bestMeta?.extensao || '',
+    linhaCoordenadas: bestMeta?.linhaCoordenadas || [],
+    linhaNome: bestMeta?.linhaNome || '',
+    linhaFonteKml: bestMeta?.linhaFonteKml || '',
+    siglaFromLine: bestMeta?.siglaFromLine || '',
+  };
 }
 
 export function compareTowerNumbers(a, b) {
@@ -283,6 +304,9 @@ export function parseKmlTowers(kmlText) {
     extensao: '',
     lineStringFound: false,
     sourceLabel: '',
+    linhaCoordenadas: [],
+    linhaNome: '',
+    linhaFonteKml: '',
   };
 
   if (xml.querySelector('parsererror')) {
@@ -295,8 +319,8 @@ export function parseKmlTowers(kmlText) {
   if (placemarks.length === 0) {
     return { rows: [], errors: ['Nenhum Placemark encontrado no KML.'], meta: baseMeta };
   }
-  const projectName = extractProjectNameFromLineStringPlacemark(placemarks)
-    || extractProjectNameFromDocument(documentName);
+  const lineMeta = extractLongestLineStringMeta(placemarks);
+  const projectName = lineMeta.linhaNome || extractProjectNameFromDocument(documentName);
   baseMeta.nome = projectName;
 
   const rows = [];
@@ -348,9 +372,7 @@ export function parseKmlTowers(kmlText) {
     errors.push(`${ignoredPlacemarks} Placemark(s) ignorado(s) por tipo de geometria, identificacao ou coordenadas invalidas.`);
   }
 
-  const lineMeta = extractFirstLineStringMeta(placemarks);
-  const lineSigla = extractSiglaFromLineStringPlacemark(placemarks);
-  const inferredSigla = inferSiglaFromRows(rows) || lineSigla || sanitizeProjectId(documentName);
+  const inferredSigla = inferSiglaFromRows(rows) || lineMeta.siglaFromLine || sanitizeProjectId(documentName);
   const meta = {
     sigla: inferredSigla,
     nome: projectName,
@@ -358,6 +380,9 @@ export function parseKmlTowers(kmlText) {
     extensao: lineMeta.extensao,
     lineStringFound: lineMeta.lineStringFound,
     sourceLabel: documentName,
+    linhaCoordenadas: lineMeta.linhaCoordenadas,
+    linhaNome: lineMeta.linhaNome,
+    linhaFonteKml: lineMeta.linhaFonteKml,
   };
 
   return { rows, errors, meta };

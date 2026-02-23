@@ -1,4 +1,5 @@
 import { MONTH_OPTIONS_PT, normalizeReportMonths, normalizeReportPeriodicity, requiredMonthCount } from '../utils/reportSchedule';
+import { TRANSMISSION_VOLTAGE_OPTIONS } from '../models/projectModel';
 import AppIcon from '../../../components/AppIcon';
 
 function KmlReviewModal({
@@ -44,7 +45,7 @@ function KmlReviewModal({
   return (
     <div className="modal-backdrop">
       <div className="modal xwide">
-        <h3>{mode === 'create' ? 'Novo empreendimento a partir de KML' : 'Revisar importaÃ§Ã£o KML'}</h3>
+        <h3>{mode === 'create' ? 'Novo empreendimento a partir de KML' : 'Revisar importação KML'}</h3>
 
         {importErrors.length > 0 && <div className="notice">{importErrors.join(' ')}</div>}
 
@@ -53,8 +54,14 @@ function KmlReviewModal({
             <input value={createFromKmlData.id} onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, id: e.target.value.toUpperCase() })} placeholder="ID" />
             <input value={createFromKmlData.nome} onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, nome: e.target.value })} placeholder="Nome" />
             <select value={createFromKmlData.tipo} onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, tipo: e.target.value })}>
-              <option>Linha de TransmissÃ£o</option>
-              <option>ReservatÃ³rio de Represa</option>
+              <option>Linha de Transmissão</option>
+              <option>Reservatório de Represa</option>
+            </select>
+            <select value={createFromKmlData.tensao || ''} onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, tensao: e.target.value })}>
+              <option value="">Selecione a tensão (kV)</option>
+              {TRANSMISSION_VOLTAGE_OPTIONS.map((kv) => (
+                <option key={kv} value={kv}>{kv} kV</option>
+              ))}
             </select>
             <input
               value={createFromKmlData.extensao}
@@ -96,6 +103,7 @@ function KmlReviewModal({
           <div className="notice">
             <strong>Comparacao de metadados do KML</strong>
             <div>ID atual: <strong>{kmlMergeSnapshot?.id || '-'}</strong> | Sigla KML (sugerida): <strong>{kmlMeta?.sigla || '-'}</strong></div>
+            <div>Nome atual: <strong>{kmlMergeSnapshot?.nome || '-'}</strong> | Nome KML (sugerido): <strong>{kmlMeta?.linhaNome || kmlMeta?.nome || '-'}</strong></div>
             <div>Extensao atual: <strong>{kmlMergeSnapshot?.extensao || '-'}</strong> | Extensao KML: <strong>{kmlMeta?.extensao || '-'}</strong></div>
             <div>Torres atual: <strong>{kmlMergeSnapshot?.torres || '-'}</strong> | Torres KML: <strong>{String(kmlMeta?.torres ?? '-')}</strong></div>
             <label style={{ display: 'inline-flex', gap: '0.5rem', marginTop: '0.5rem' }}>
@@ -104,7 +112,7 @@ function KmlReviewModal({
                 checked={!!applyKmlMetadataOnMerge}
                 onChange={(e) => setApplyKmlMetadataOnMerge(e.target.checked)}
               />
-              Aplicar metadados do KML (extensao e torres)
+              Aplicar metadados do KML (nome, extensao e torres)
             </label>
           </div>
         )}
@@ -118,7 +126,7 @@ function KmlReviewModal({
                 <th>Longitude</th>
                 <th>Origem</th>
                 <th>Erro</th>
-                <th>AÃ§Ãµes</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -144,7 +152,7 @@ function KmlReviewModal({
         <div className="row-actions">
           <button type="button" onClick={onApply}>
             <AppIcon name={mode === 'create' ? 'plus' : 'save'} />
-            {mode === 'create' ? 'Criar empreendimento' : 'Aplicar importaÃ§Ã£o'}
+            {mode === 'create' ? 'Criar empreendimento' : 'Aplicar importação'}
           </button>
           <button type="button" className="secondary" onClick={onCancel}>
             <AppIcon name="close" />
