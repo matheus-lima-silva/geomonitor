@@ -27,11 +27,34 @@ export function buildPlanningGuideRows(planningResult, project, year) {
     obrigatoria: item.categoria === 'obrigatoria' ? 'S' : 'N',
     comentarios: commentsToText(item.comentariosAnteriores || []),
     link_maps: item.mapsLink || '',
+    hotel_sugerido: item.hotelSugeridoNome || '',
+    hotel_municipio: item.hotelSugeridoMunicipio || '',
+    hotel_logistica: item.hotelSugeridoLogisticaNota ?? '',
+    hotel_reserva: item.hotelSugeridoReservaNota ?? '',
+    hotel_estadia: item.hotelSugeridoEstadiaNota ?? '',
+    hotel_torre_base: item.hotelSugeridoTorreBase || '',
+    distancia_torre_alvo: item.hotelSugeridoDistanciaTorreAlvo ?? '',
   }));
 }
 
 export function exportPlanningGuideCsv(rows) {
-  const headers = ['empreendimento', 'ano', 'torre', 'categoria', 'motivo', 'obrigatoria', 'comentarios', 'link_maps'];
+  const headers = [
+    'empreendimento',
+    'ano',
+    'torre',
+    'categoria',
+    'motivo',
+    'obrigatoria',
+    'comentarios',
+    'link_maps',
+    'hotel_sugerido',
+    'hotel_municipio',
+    'hotel_logistica',
+    'hotel_reserva',
+    'hotel_estadia',
+    'hotel_torre_base',
+    'distancia_torre_alvo',
+  ];
   const lines = [headers.join(';')];
   (rows || []).forEach((row) => {
     lines.push(headers.map((key) => escapeCsv(row[key])).join(';'));

@@ -1,3 +1,5 @@
+﻿import { parseTowerInput } from '../../../utils/parseTowerInput';
+
 function toDate(value) {
   if (!value) return null;
   const d = new Date(`${value}T00:00:00`);
@@ -64,6 +66,246 @@ function samplingRate(total) {
   if (total <= 200) return 0.20;
   if (total <= 400) return 0.18;
   return 0.15;
+}
+
+function parseTowerNumber(value) {
+  const text = normalizeTower(value);
+  if (!text) return null;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseHotelRating(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed < 1 || parsed > 5) return null;
+  return parsed;
+}
+
+function roundOneDecimal(value) {
+  return Math.round(value * 10) / 10;
+}
+
+function toFiniteOrNull(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function average(values) {
+  const valid = values.map((item) => toFiniteOrNull(item)).filter((item) => item !== null);
+  if (valid.length === 0) return null;
+  return valid.reduce((sum, item) => sum + item, 0) / valid.length;
+}
+
+function collectDayTowers(day) {
+  const towers = new Set();
+  (Array.isArray(day?.torresDetalhadas) ? day.torresDetalhadas : []).forEach((item) => {
+    const tower = normalizeTower(item?.numero);
+    if (tower) towers.add(tower);
+  });
+
+  if (Array.isArray(day?.torres)) {
+    day.torres.forEach((item) => {
+      const tower = normalizeTower(item);
+      if (tower) towers.add(tower);
+    });
+  } else {
+    const parsedTorres = parseTowerInput(String(day?.torres || ''));
+    parsedTorres.forEach((item) => towers.add(String(item)));
+  }
+
+  const parsedInput = parseTowerInput(String(day?.torresInput || ''));
+  parsedInput.forEach((item) => towers.add(String(item)));
+  return towers;
+}
+
+function dayContainsTower(day, towerRef) {
+  return collectDayTowers(day).has(normalizeTower(towerRef));
+}
+
+function compareHotelCandidates(a, b) {
+  if (!!a.hasTorreBase !== !!b.hasTorreBase) return a.hasTorreBase ? -1 : 1;
+
+  const aDistance = toFiniteOrNull(a.distanciaTorreAlvo);
+  const bDistance = toFiniteOrNull(b.distanciaTorreAlvo);
+  if (aDistance !== null && bDistance !== null && aDistance !== bDistance) return aDistance - bDistance;
+  if (aDistance !== null && bDistance === null) return -1;
+  if (aDistance === null && bDistance !== null) return 1;
+
+  const aAvg = toFiniteOrNull(a.notaMedia) ?? -1;
+  const bAvg = toFiniteOrNull(b.notaMedia) ?? -1;
+  if (aAvg !== bAvg) return bAvg - aAvg;
+
+  const byDate = String(b.ultimaData || '').localeCompare(String(a.ultimaData || ''));
+  if (byDate !== 0) return byDate;
+
+  const aLabel = `${a.hotelNome || ''}|${a.hotelMunicipio || ''}`;
+  const bLabel = `${b.hotelNome || ''}|${b.hotelMunicipio || ''}`;
+  return aLabel.localeCompare(bLabel);
+}
+
+function normalizeHotelCandidateGroup(group, targetTower) {
+  const targetNum = parseTowerNumber(targetTower);
+  const torreBase = normalizeTower(group.torreBase);
+  const baseNum = parseTowerNumber(torreBase);
+  const distanciaTorreAlvo = targetNum !== null && baseNum !== null ? Math.abs(baseNum - targetNum) : null;
+
+  const hotelLogisticaNota = average(group.logisticaNotas);
+  const hotelReservaNota = average(group.reservaNotas);
+  const hotelEstadiaNota = average(group.estadiaNotas);
+  const notaMedia = average([hotelLogisticaNota, hotelReservaNota, hotelEstadiaNota]);
+
+  return {
+    hotelNome: group.hotelNome,
+    hotelMunicipio: group.hotelMunicipio,
+    hotelTorreBase: torreBase,
+    hasTorreBase: !!torreBase,
+    hotelLogisticaNota: hotelLogisticaNota === null ? '' : roundOneDecimal(hotelLogisticaNota),
+    hotelReservaNota: hotelReservaNota === null ? '' : roundOneDecimal(hotelReservaNota),
+    hotelEstadiaNota: hotelEstadiaNota === null ? '' : roundOneDecimal(hotelEstadiaNota),
+    notaMedia: notaMedia === null ? null : roundOneDecimal(notaMedia),
+    distanciaTorreAlvo,
+    ultimaData: group.ultimaData || '',
+  };
+}
+
+function collectHotelCandidatesForTower(inspections, projectId, towerRef, targetTower) {
+  const tower = normalizeTower(towerRef);
+  if (!tower || !projectId) return [];
+
+  const grouped = new Map();
+  (inspections || []).forEach((inspection) => {
+    if (String(inspection?.projetoId || '').trim() !== projectId) return;
+
+    (inspection?.detalhesDias || []).forEach((day) => {
+      if (!dayContainsTower(day, tower)) return;
+
+      const hotelNome = String(day?.hotelNome || '').trim();
+      if (!hotelNome) return;
+
+      const hotelMunicipio = String(day?.hotelMunicipio || '').trim();
+      const hotelTorreBase = normalizeTower(day?.hotelTorreBase);
+      const key = `${hotelNome.toLowerCase()}|${hotelMunicipio.toLowerCase()}|${hotelTorreBase.toLowerCase()}`;
+      const date = formatInspectionDate(inspection, day?.data);
+      const logistica = parseHotelRating(day?.hotelLogisticaNota);
+      const reserva = parseHotelRating(day?.hotelReservaNota);
+      const estadia = parseHotelRating(day?.hotelEstadiaNota);
+
+      const current = grouped.get(key) || {
+        hotelNome,
+        hotelMunicipio,
+        torreBase: hotelTorreBase,
+        logisticaNotas: [],
+        reservaNotas: [],
+        estadiaNotas: [],
+        ultimaData: '',
+      };
+      if (logistica !== null) current.logisticaNotas.push(logistica);
+      if (reserva !== null) current.reservaNotas.push(reserva);
+      if (estadia !== null) current.estadiaNotas.push(estadia);
+      if (date && String(date).localeCompare(String(current.ultimaData || '')) > 0) current.ultimaData = date;
+      grouped.set(key, current);
+    });
+  });
+
+  return [...grouped.values()].map((group) => normalizeHotelCandidateGroup(group, targetTower));
+}
+
+export function getTargetTowerFromSelection(selectedTowers = []) {
+  const list = Array.isArray(selectedTowers) ? selectedTowers : [];
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    const tower = normalizeTower(list[i]);
+    if (tower) return tower;
+  }
+  return '';
+}
+
+export function recommendHotelForTower({
+  inspections,
+  projectId,
+  tower,
+  targetTower,
+}) {
+  const candidates = collectHotelCandidatesForTower(inspections, projectId, tower, targetTower)
+    .sort(compareHotelCandidates);
+
+  const selected = candidates[0];
+  if (!selected) {
+    return {
+      hotelSugeridoNome: '',
+      hotelSugeridoMunicipio: '',
+      hotelSugeridoLogisticaNota: '',
+      hotelSugeridoReservaNota: '',
+      hotelSugeridoEstadiaNota: '',
+      hotelSugeridoTorreBase: '',
+      hotelSugeridoDistanciaTorreAlvo: '',
+      hotelSugeridoNotaMedia: '',
+      hotelSugeridoUltimaData: '',
+    };
+  }
+
+  return {
+    hotelSugeridoNome: selected.hotelNome,
+    hotelSugeridoMunicipio: selected.hotelMunicipio,
+    hotelSugeridoLogisticaNota: selected.hotelLogisticaNota,
+    hotelSugeridoReservaNota: selected.hotelReservaNota,
+    hotelSugeridoEstadiaNota: selected.hotelEstadiaNota,
+    hotelSugeridoTorreBase: selected.hotelTorreBase,
+    hotelSugeridoDistanciaTorreAlvo: selected.distanciaTorreAlvo ?? '',
+    hotelSugeridoNotaMedia: selected.notaMedia ?? '',
+    hotelSugeridoUltimaData: selected.ultimaData || '',
+  };
+}
+
+export function enrichPlanningItemsWithHotelRecommendation(items = [], { inspections, projectId, targetTower } = {}) {
+  return (items || []).map((item) => ({
+    ...item,
+    ...recommendHotelForTower({
+      inspections,
+      projectId,
+      tower: item?.torre,
+      targetTower,
+    }),
+  }));
+}
+
+function compareRecommendedItems(a, b) {
+  const aHasName = !!String(a?.hotelSugeridoNome || '').trim();
+  const bHasName = !!String(b?.hotelSugeridoNome || '').trim();
+  if (aHasName !== bHasName) return aHasName ? -1 : 1;
+
+  const aHasBase = !!String(a?.hotelSugeridoTorreBase || '').trim();
+  const bHasBase = !!String(b?.hotelSugeridoTorreBase || '').trim();
+  if (aHasBase !== bHasBase) return aHasBase ? -1 : 1;
+
+  const aDistance = toFiniteOrNull(a?.hotelSugeridoDistanciaTorreAlvo);
+  const bDistance = toFiniteOrNull(b?.hotelSugeridoDistanciaTorreAlvo);
+  if (aDistance !== null && bDistance !== null && aDistance !== bDistance) return aDistance - bDistance;
+  if (aDistance !== null && bDistance === null) return -1;
+  if (aDistance === null && bDistance !== null) return 1;
+
+  const aAvg = toFiniteOrNull(a?.hotelSugeridoNotaMedia) ?? -1;
+  const bAvg = toFiniteOrNull(b?.hotelSugeridoNotaMedia) ?? -1;
+  if (aAvg !== bAvg) return bAvg - aAvg;
+
+  return String(b?.hotelSugeridoUltimaData || '').localeCompare(String(a?.hotelSugeridoUltimaData || ''));
+}
+
+export function pickPriorityHotelFromItems(items = [], targetTower = '') {
+  const normalizedTarget = normalizeTower(targetTower);
+  const list = Array.isArray(items) ? items : [];
+
+  if (normalizedTarget) {
+    const exactTarget = list.find(
+      (item) => normalizeTower(item?.torre) === normalizedTarget && String(item?.hotelSugeridoNome || '').trim(),
+    );
+    if (exactTarget) return exactTarget;
+  }
+
+  const withHotels = list.filter((item) => String(item?.hotelSugeridoNome || '').trim());
+  if (withHotels.length === 0) return null;
+  return [...withHotels].sort(compareRecommendedItems)[0] || null;
 }
 
 export function collectVisitedTowers(inspection) {

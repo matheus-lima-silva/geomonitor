@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import AppIcon from './AppIcon';
 import { useToast } from '../context/ToastContext';
 import { createEmptyProject } from '../models/projectModel';
 import { useProjects } from '../hooks/useProjects';
@@ -28,11 +29,11 @@ function ProjectManager({ onProjectsChange }) {
   return (
     <section className="panel">
       <h2>Empreendimentos</h2>
-      <p className="muted">Cadastre e mantenha os dados base das linhas de transmissão.</p>
+      <p className="muted">Cadastre e mantenha os dados base das linhas de transmissÃ£o.</p>
 
       <form onSubmit={handleSubmit} className="grid-form">
         <input placeholder="Nome" value={form.nome} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} required />
-        <input placeholder="Código" value={form.codigo} onChange={(e) => setForm((p) => ({ ...p, codigo: e.target.value }))} required />
+        <input placeholder="CÃ³digo" value={form.codigo} onChange={(e) => setForm((p) => ({ ...p, codigo: e.target.value }))} required />
         <input
           placeholder="Total de torres"
           type="number"
@@ -45,7 +46,10 @@ function ProjectManager({ onProjectsChange }) {
           value={typeof form.coordenadasPorTorre === 'string' ? form.coordenadasPorTorre : JSON.stringify(form.coordenadasPorTorre)}
           onChange={(e) => setForm((p) => ({ ...p, coordenadasPorTorre: e.target.value }))}
         />
-        <button type="submit">Salvar empreendimento</button>
+        <button type="submit">
+          <AppIcon name="save" />
+          Salvar empreendimento
+        </button>
       </form>
 
       {loading ? (
@@ -55,7 +59,7 @@ function ProjectManager({ onProjectsChange }) {
           <thead>
             <tr>
               <th>Nome</th>
-              <th>Código</th>
+              <th>CÃ³digo</th>
               <th>Total de torres</th>
             </tr>
           </thead>

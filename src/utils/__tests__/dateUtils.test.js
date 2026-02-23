@@ -32,6 +32,12 @@ describe('preservarDetalhesDias', () => {
       clima: '',
       torres: [],
       torresDetalhadas: [],
+      hotelNome: '',
+      hotelMunicipio: '',
+      hotelLogisticaNota: '',
+      hotelReservaNota: '',
+      hotelEstadiaNota: '',
+      hotelTorreBase: '',
     });
   });
 });

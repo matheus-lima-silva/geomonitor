@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
+import AppIcon from '../../../components/AppIcon';
 import { buildGoogleMapsMultiStopUrl, chunkRoutePoints } from '../utils/routeUtils';
 import { compareTowerNumbers, validateTowerCoordinatesAsString } from '../utils/kmlUtils';
 
 function formatTowerLabel(towerRef) {
   const ref = String(towerRef ?? '').trim();
-  if (!ref) return 'Não informado';
-  if (ref === '0') return 'Pórtico (T0)';
+  if (!ref) return 'NÃ£o informado';
+  if (ref === '0') return 'PÃ³rtico (T0)';
   return `Torre ${ref}`;
 }
 
@@ -31,7 +32,7 @@ function RoutePlannerModal({ project, routeSelection, setRouteSelection, onClose
 
   function handleOpenRoute() {
     if (selectedRoutePoints.length < 2) {
-      alert('Selecione pelo menos 2 torres para traçar a rota.');
+      alert('Selecione pelo menos 2 torres para traÃ§ar a rota.');
       return;
     }
     const chunks = chunkRoutePoints(selectedRoutePoints, 8);
@@ -51,7 +52,7 @@ function RoutePlannerModal({ project, routeSelection, setRouteSelection, onClose
   return (
     <div className="modal-backdrop">
       <div className="modal wide">
-        <h3>Traçar rota - {project.nome || project.id}</h3>
+        <h3>TraÃ§ar rota - {project.nome || project.id}</h3>
         <p className="muted">Selecione torres na ordem desejada.</p>
 
         <div className="tower-grid">
@@ -71,11 +72,17 @@ function RoutePlannerModal({ project, routeSelection, setRouteSelection, onClose
           })}
         </div>
 
-        {routeProjectTowers.length === 0 && <p className="muted">Este empreendimento não possui torres com coordenadas válidas.</p>}
+        {routeProjectTowers.length === 0 && <p className="muted">Este empreendimento nÃ£o possui torres com coordenadas vÃ¡lidas.</p>}
 
         <div className="row-actions">
-          <button type="button" onClick={handleOpenRoute}>Abrir rota</button>
-          <button type="button" className="secondary" onClick={onClose}>Fechar</button>
+          <button type="button" onClick={handleOpenRoute}>
+            <AppIcon name="route" />
+            Abrir rota
+          </button>
+          <button type="button" className="secondary" onClick={onClose}>
+            <AppIcon name="close" />
+            Fechar
+          </button>
         </div>
       </div>
     </div>

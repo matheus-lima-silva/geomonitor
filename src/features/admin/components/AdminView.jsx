@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import AppIcon from '../../../components/AppIcon';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { deleteUser, saveUser } from '../../../services/userService';
@@ -50,7 +51,7 @@ function AdminView({ users, rulesConfig, searchTerm }) {
   async function handleDeleteUser(uid) {
     if (!window.confirm(`Excluir utilizador ${uid}?`)) return;
     await deleteUser(uid);
-    show('Utilizador excluído.', 'success');
+    show('Utilizador excluÃ­do.', 'success');
   }
 
   function openNewUser() {
@@ -111,7 +112,7 @@ function AdminView({ users, rulesConfig, searchTerm }) {
   }
 
   const criterios = {
-    tipo: ['sulco', 'ravina', 'voçoroca', 'deslizamento'],
+    tipo: ['sulco', 'ravina', 'voÃ§oroca', 'deslizamento'],
     estagio: ['inicial', 'intermediario', 'avancado', 'critico'],
     profundidade: ['<0.5', '0.5-1.5', '1.5-3.0', '>3.0'],
     declividade: ['<15', '15-30', '30-45', '>45'],
@@ -123,8 +124,8 @@ function AdminView({ users, rulesConfig, searchTerm }) {
     <section className="panel">
       <div className="topbar">
         <div>
-          <h2>Administração</h2>
-          <p className="muted">Gestão de utilizadores e regras de criticidade.</p>
+          <h2>AdministraÃ§Ã£o</h2>
+          <p className="muted">GestÃ£o de utilizadores e regras de criticidade.</p>
         </div>
       </div>
 
@@ -136,7 +137,10 @@ function AdminView({ users, rulesConfig, searchTerm }) {
       {section === 'users' && (
         <div>
           <div className="row-actions">
-            <button type="button" onClick={openNewUser}>Novo Utilizador</button>
+            <button type="button" onClick={openNewUser}>
+              <AppIcon name="plus" />
+              Novo Utilizador
+            </button>
           </div>
 
           <div className="table-scroll">
@@ -148,7 +152,7 @@ function AdminView({ users, rulesConfig, searchTerm }) {
                   <th>Cargo</th>
                   <th>Perfil</th>
                   <th>Status</th>
-                  <th>Ações</th>
+                  <th>AÃ§Ãµes</th>
                 </tr>
               </thead>
               <tbody>
@@ -161,14 +165,26 @@ function AdminView({ users, rulesConfig, searchTerm }) {
                     <td>{normalizeUserStatus(u.status)}</td>
                     <td>
                       <div className="inline-row">
-                        <button type="button" className="secondary" onClick={() => openEditUser(u)}>Editar</button>
+                        <button type="button" className="secondary" onClick={() => openEditUser(u)}>
+                          <AppIcon name="edit" />
+                          Editar
+                        </button>
                         {canApproveUsers && normalizeUserStatus(u.status) === 'Pendente' && (
                           <>
-                            <button type="button" onClick={() => handleApproveUser(u.id, 'Ativo')}>Aprovar</button>
-                            <button type="button" className="secondary" onClick={() => handleApproveUser(u.id, 'Inativo')}>Inativar</button>
+                            <button type="button" onClick={() => handleApproveUser(u.id, 'Ativo')}>
+                              <AppIcon name="check" />
+                              Aprovar
+                            </button>
+                            <button type="button" className="secondary" onClick={() => handleApproveUser(u.id, 'Inativo')}>
+                              <AppIcon name="pause" />
+                              Inativar
+                            </button>
                           </>
                         )}
-                        <button type="button" className="danger" onClick={() => handleDeleteUser(u.id)}>Excluir</button>
+                        <button type="button" className="danger" onClick={() => handleDeleteUser(u.id)}>
+                          <AppIcon name="trash" />
+                          Excluir
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -201,8 +217,8 @@ function AdminView({ users, rulesConfig, searchTerm }) {
                   <th>Valor</th>
                   <th>Impacto</th>
                   <th>Score</th>
-                  <th>Frequência</th>
-                  <th>Intervenção</th>
+                  <th>FrequÃªncia</th>
+                  <th>IntervenÃ§Ã£o</th>
                 </tr>
               </thead>
               <tbody>
@@ -224,8 +240,14 @@ function AdminView({ users, rulesConfig, searchTerm }) {
           </div>
 
           <div className="row-actions">
-            <button type="button" className="secondary" onClick={() => setDraftRules(normalizeRulesConfig(RULES_DATABASE))}>Restaurar padrão</button>
-            <button type="button" onClick={handleSaveRules}>Salvar regras</button>
+            <button type="button" className="secondary" onClick={() => setDraftRules(normalizeRulesConfig(RULES_DATABASE))}>
+              <AppIcon name="reset" />
+              Restaurar padrÃ£o
+            </button>
+            <button type="button" onClick={handleSaveRules}>
+              <AppIcon name="save" />
+              Salvar regras
+            </button>
           </div>
         </div>
       )}
@@ -286,8 +308,14 @@ function AdminView({ users, rulesConfig, searchTerm }) {
             </div>
 
             <div className="row-actions">
-              <button type="button" onClick={handleSaveUser}>Salvar</button>
-              <button type="button" className="secondary" onClick={() => setIsUserFormOpen(false)}>Cancelar</button>
+              <button type="button" onClick={handleSaveUser}>
+                <AppIcon name="save" />
+                Salvar
+              </button>
+              <button type="button" className="secondary" onClick={() => setIsUserFormOpen(false)}>
+                <AppIcon name="close" />
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

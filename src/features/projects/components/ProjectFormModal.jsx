@@ -1,4 +1,5 @@
 import { MONTH_OPTIONS_PT, normalizeReportMonths, normalizeReportPeriodicity, requiredMonthCount } from '../utils/reportSchedule';
+import AppIcon from '../../../components/AppIcon';
 
 function ProjectFormModal({ open, isEditing, formData, setFormData, onSave, onCancel, onImportKml }) {
   if (!open) return null;
@@ -31,14 +32,17 @@ function ProjectFormModal({ open, isEditing, formData, setFormData, onSave, onCa
             disabled={isEditing}
           />
           <select value={formData.tipo} onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}>
-            <option>Linha de Transmissão</option>
-            <option>Reservatório de Represa</option>
+            <option>Linha de TransmissÃ£o</option>
+            <option>ReservatÃ³rio de Represa</option>
           </select>
           <input placeholder="Nome" value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} />
 
           <div className="inline-row">
             <small>Torres georreferenciadas: <strong>{gpsCount}</strong></small>
-            <button type="button" onClick={onImportKml}>Importar KML</button>
+            <button type="button" onClick={onImportKml}>
+              <AppIcon name="upload" />
+              Importar KML
+            </button>
           </div>
 
           <select
@@ -80,18 +84,24 @@ function ProjectFormModal({ open, isEditing, formData, setFormData, onSave, onCa
             />
           )}
 
-          {formData.tipo === 'Linha de Transmissão' && (
+          {formData.tipo === 'Linha de TransmissÃ£o' && (
             <>
               <input placeholder="kV" value={formData.tensao} onChange={(e) => setFormData({ ...formData, tensao: e.target.value })} />
-              <input placeholder="Extensão (km)" value={formData.extensao} onChange={(e) => setFormData({ ...formData, extensao: e.target.value })} />
+              <input placeholder="ExtensÃ£o (km)" value={formData.extensao} onChange={(e) => setFormData({ ...formData, extensao: e.target.value })} />
               <input placeholder="Torres (qtd)" value={formData.torres} onChange={(e) => setFormData({ ...formData, torres: e.target.value })} />
             </>
           )}
         </div>
 
         <div className="row-actions">
-          <button type="button" onClick={onSave}>Salvar</button>
-          <button type="button" className="secondary" onClick={onCancel}>Cancelar</button>
+          <button type="button" onClick={onSave}>
+            <AppIcon name="save" />
+            Salvar
+          </button>
+          <button type="button" className="secondary" onClick={onCancel}>
+            <AppIcon name="close" />
+            Cancelar
+          </button>
         </div>
       </div>
     </div>

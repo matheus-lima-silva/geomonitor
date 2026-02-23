@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import AppIcon from '../../../components/AppIcon';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { saveUser } from '../../../services/userService';
@@ -49,8 +50,14 @@ function ProfileModal({ onClose }) {
         </div>
 
         <div className="row-actions">
-          <button type="button" onClick={handleSave}>Salvar</button>
-          <button type="button" className="secondary" onClick={onClose}>Fechar</button>
+          <button type="button" onClick={handleSave}>
+            <AppIcon name="save" />
+            Salvar
+          </button>
+          <button type="button" className="secondary" onClick={onClose}>
+            <AppIcon name="close" />
+            Fechar
+          </button>
         </div>
       </div>
     </div>

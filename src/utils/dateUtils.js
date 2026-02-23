@@ -27,6 +27,12 @@ export function preservarDetalhesDias(detalhesAnteriores, novasDatas) {
       clima: '',
       torres: [],
       torresDetalhadas: [],
+      hotelNome: '',
+      hotelMunicipio: '',
+      hotelLogisticaNota: '',
+      hotelReservaNota: '',
+      hotelEstadiaNota: '',
+      hotelTorreBase: '',
     };
   });
 }

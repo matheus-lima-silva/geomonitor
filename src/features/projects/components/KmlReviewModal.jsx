@@ -1,4 +1,5 @@
 import { MONTH_OPTIONS_PT, normalizeReportMonths, normalizeReportPeriodicity, requiredMonthCount } from '../utils/reportSchedule';
+import AppIcon from '../../../components/AppIcon';
 
 function KmlReviewModal({
   open,
@@ -43,7 +44,7 @@ function KmlReviewModal({
   return (
     <div className="modal-backdrop">
       <div className="modal xwide">
-        <h3>{mode === 'create' ? 'Novo empreendimento a partir de KML' : 'Revisar importação KML'}</h3>
+        <h3>{mode === 'create' ? 'Novo empreendimento a partir de KML' : 'Revisar importaÃ§Ã£o KML'}</h3>
 
         {importErrors.length > 0 && <div className="notice">{importErrors.join(' ')}</div>}
 
@@ -52,8 +53,8 @@ function KmlReviewModal({
             <input value={createFromKmlData.id} onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, id: e.target.value.toUpperCase() })} placeholder="ID" />
             <input value={createFromKmlData.nome} onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, nome: e.target.value })} placeholder="Nome" />
             <select value={createFromKmlData.tipo} onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, tipo: e.target.value })}>
-              <option>Linha de Transmissão</option>
-              <option>Reservatório de Represa</option>
+              <option>Linha de TransmissÃ£o</option>
+              <option>ReservatÃ³rio de Represa</option>
             </select>
             <input
               value={createFromKmlData.extensao}
@@ -117,7 +118,7 @@ function KmlReviewModal({
                 <th>Longitude</th>
                 <th>Origem</th>
                 <th>Erro</th>
-                <th>Ações</th>
+                <th>AÃ§Ãµes</th>
               </tr>
             </thead>
             <tbody>
@@ -128,7 +129,12 @@ function KmlReviewModal({
                   <td><input value={row.longitude} onChange={(e) => updateKmlRow(index, { longitude: e.target.value })} /></td>
                   <td>{row.sourceName || '-'}</td>
                   <td>{row.error || '-'}</td>
-                  <td><button type="button" className="danger" onClick={() => removeKmlRow(index)}>Remover</button></td>
+                  <td>
+                    <button type="button" className="danger" onClick={() => removeKmlRow(index)}>
+                      <AppIcon name="trash" />
+                      Remover
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -136,8 +142,14 @@ function KmlReviewModal({
         </div>
 
         <div className="row-actions">
-          <button type="button" onClick={onApply}>{mode === 'create' ? 'Criar empreendimento' : 'Aplicar importação'}</button>
-          <button type="button" className="secondary" onClick={onCancel}>Cancelar</button>
+          <button type="button" onClick={onApply}>
+            <AppIcon name={mode === 'create' ? 'plus' : 'save'} />
+            {mode === 'create' ? 'Criar empreendimento' : 'Aplicar importaÃ§Ã£o'}
+          </button>
+          <button type="button" className="secondary" onClick={onCancel}>
+            <AppIcon name="close" />
+            Cancelar
+          </button>
         </div>
       </div>
     </div>

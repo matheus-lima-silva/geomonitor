@@ -1,4 +1,11 @@
-import { computeVisitPlanning, serializeTowersForInput } from '../visitPlanning';
+import {
+  computeVisitPlanning,
+  enrichPlanningItemsWithHotelRecommendation,
+  getTargetTowerFromSelection,
+  pickPriorityHotelFromItems,
+  recommendHotelForTower,
+  serializeTowersForInput,
+} from '../visitPlanning';
 
 describe('computeVisitPlanning', () => {
   it('calcula meta por faixa', () => {
@@ -13,7 +20,7 @@ describe('computeVisitPlanning', () => {
     expect(out500.metaAmostragem).toBe(75);
   });
 
-  it('mantém obrigatórias e adiciona 5% extras quando obrigatórias excedem meta', () => {
+  it('mantem obrigatorias e adiciona 5% extras quando obrigatorias excedem meta', () => {
     const erosions = new Array(30).fill(0).map((_, idx) => ({ projetoId: 'P1', torreRef: String(idx + 1) }));
     const out = computeVisitPlanning({
       project: { id: 'P1', torres: '120' },
@@ -27,7 +34,7 @@ describe('computeVisitPlanning', () => {
     expect(out.amostragemSelecionada).toHaveLength(6);
   });
 
-  it('classifica torre visitada em 1 das 2 últimas sem erosão como não priorizar', () => {
+  it('classifica torre visitada em 1 das 2 ultimas sem erosao como nao priorizar', () => {
     const inspections = [
       {
         id: 'VS2',
@@ -47,7 +54,7 @@ describe('computeVisitPlanning', () => {
     expect(out.naoPriorizar.some((item) => item.torre === '2')).toBe(true);
   });
 
-  it('gera seleção reprodutível com a mesma seed base', () => {
+  it('gera selecao reproduzivel com a mesma seed base', () => {
     const base = {
       project: { id: 'PX', torres: '150' },
       inspections: [],
@@ -100,6 +107,238 @@ describe('computeVisitPlanning', () => {
     const towers = out.amostragemSelecionada.map((item) => Number(item.torre));
     const sorted = [...towers].sort((a, b) => a - b);
     expect(towers).toEqual(sorted);
+  });
+});
+
+describe('hotel recommendation by tower target', () => {
+  const inspections = [
+    {
+      id: 'VS-1',
+      projetoId: 'P1',
+      dataInicio: '2026-01-01',
+      detalhesDias: [
+        {
+          data: '2026-01-01',
+          torresDetalhadas: [{ numero: '5' }],
+          hotelNome: 'Hotel A',
+          hotelMunicipio: 'Cidade A',
+          hotelTorreBase: '4',
+          hotelLogisticaNota: 5,
+          hotelReservaNota: 4,
+          hotelEstadiaNota: 4,
+        },
+        {
+          data: '2026-01-02',
+          torresDetalhadas: [{ numero: '5' }],
+          hotelNome: 'Hotel B',
+          hotelMunicipio: 'Cidade B',
+          hotelTorreBase: '5',
+          hotelLogisticaNota: 3,
+          hotelReservaNota: 3,
+          hotelEstadiaNota: 3,
+        },
+      ],
+    },
+  ];
+
+  it('usa ultima torre da selecao como torre-alvo', () => {
+    expect(getTargetTowerFromSelection(['1', '3', '5'])).toBe('5');
+    expect(getTargetTowerFromSelection(['2'])).toBe('2');
+    expect(getTargetTowerFromSelection([])).toBe('');
+  });
+
+  it('prioriza menor distancia limítrofe antes da media de notas', () => {
+    const recommendation = recommendHotelForTower({
+      inspections,
+      projectId: 'P1',
+      tower: '5',
+      targetTower: '5',
+    });
+
+    expect(recommendation.hotelSugeridoNome).toBe('Hotel B');
+    expect(recommendation.hotelSugeridoTorreBase).toBe('5');
+    expect(recommendation.hotelSugeridoDistanciaTorreAlvo).toBe(0);
+  });
+
+  it('desempata por media de notas quando a distancia é igual', () => {
+    const recommendation = recommendHotelForTower({
+      inspections: [
+        {
+          id: 'VS-AVG-1',
+          projetoId: 'P1',
+          dataInicio: '2026-02-01',
+          detalhesDias: [{
+            data: '2026-02-01',
+            torresDetalhadas: [{ numero: '10' }],
+            hotelNome: 'Hotel Nota Maior',
+            hotelMunicipio: 'Cidade M',
+            hotelTorreBase: '10',
+            hotelLogisticaNota: 5,
+            hotelReservaNota: 4,
+            hotelEstadiaNota: 4,
+          }],
+        },
+        {
+          id: 'VS-AVG-2',
+          projetoId: 'P1',
+          dataInicio: '2026-02-02',
+          detalhesDias: [{
+            data: '2026-02-02',
+            torresDetalhadas: [{ numero: '10' }],
+            hotelNome: 'Hotel Nota Menor',
+            hotelMunicipio: 'Cidade M',
+            hotelTorreBase: '10',
+            hotelLogisticaNota: 3,
+            hotelReservaNota: 3,
+            hotelEstadiaNota: 3,
+          }],
+        },
+      ],
+      projectId: 'P1',
+      tower: '10',
+      targetTower: '10',
+    });
+
+    expect(recommendation.hotelSugeridoNome).toBe('Hotel Nota Maior');
+  });
+
+  it('mantem candidatos sem torre base atras de candidatos com torre base', () => {
+    const recommendation = recommendHotelForTower({
+      inspections: [
+        {
+          id: 'VS-2',
+          projetoId: 'P1',
+          dataInicio: '2026-01-03',
+          detalhesDias: [
+            {
+              data: '2026-01-03',
+              torresDetalhadas: [{ numero: '7' }],
+              hotelNome: 'Hotel sem base',
+              hotelMunicipio: 'Cidade C',
+              hotelLogisticaNota: 5,
+              hotelReservaNota: 5,
+              hotelEstadiaNota: 5,
+              hotelTorreBase: '',
+            },
+            {
+              data: '2026-01-02',
+              torresDetalhadas: [{ numero: '7' }],
+              hotelNome: 'Hotel com base',
+              hotelMunicipio: 'Cidade D',
+              hotelLogisticaNota: 3,
+              hotelReservaNota: 3,
+              hotelEstadiaNota: 3,
+              hotelTorreBase: '7',
+            },
+          ],
+        },
+      ],
+      projectId: 'P1',
+      tower: '7',
+      targetTower: '7',
+    });
+
+    expect(recommendation.hotelSugeridoNome).toBe('Hotel com base');
+  });
+
+  it('rebaixa torre base nao numerica na comparacao de distancia', () => {
+    const recommendation = recommendHotelForTower({
+      inspections: [
+        {
+          id: 'VS-NN-1',
+          projetoId: 'P1',
+          dataInicio: '2026-02-03',
+          detalhesDias: [{
+            data: '2026-02-03',
+            torresDetalhadas: [{ numero: '11' }],
+            hotelNome: 'Hotel Torre Texto',
+            hotelMunicipio: 'Cidade N',
+            hotelTorreBase: 'LOOP-A',
+            hotelLogisticaNota: 5,
+            hotelReservaNota: 5,
+            hotelEstadiaNota: 5,
+          }],
+        },
+        {
+          id: 'VS-NN-2',
+          projetoId: 'P1',
+          dataInicio: '2026-02-04',
+          detalhesDias: [{
+            data: '2026-02-04',
+            torresDetalhadas: [{ numero: '11' }],
+            hotelNome: 'Hotel Torre Numerica',
+            hotelMunicipio: 'Cidade N',
+            hotelTorreBase: '11',
+            hotelLogisticaNota: 3,
+            hotelReservaNota: 3,
+            hotelEstadiaNota: 3,
+          }],
+        },
+      ],
+      projectId: 'P1',
+      tower: '11',
+      targetTower: '11',
+    });
+
+    expect(recommendation.hotelSugeridoNome).toBe('Hotel Torre Numerica');
+    expect(recommendation.hotelSugeridoDistanciaTorreAlvo).toBe(0);
+  });
+
+  it('desempata por media e depois por recencia', () => {
+    const recommendation = recommendHotelForTower({
+      inspections: [
+        {
+          id: 'VS-3',
+          projetoId: 'P1',
+          dataInicio: '2026-01-10',
+          detalhesDias: [{
+            data: '2026-01-10',
+            torresDetalhadas: [{ numero: '9' }],
+            hotelNome: 'Hotel C',
+            hotelMunicipio: 'Cidade X',
+            hotelTorreBase: '9',
+            hotelLogisticaNota: 4,
+            hotelReservaNota: 4,
+            hotelEstadiaNota: 4,
+          }],
+        },
+        {
+          id: 'VS-4',
+          projetoId: 'P1',
+          dataInicio: '2026-01-12',
+          detalhesDias: [{
+            data: '2026-01-12',
+            torresDetalhadas: [{ numero: '9' }],
+            hotelNome: 'Hotel D',
+            hotelMunicipio: 'Cidade X',
+            hotelTorreBase: '9',
+            hotelLogisticaNota: 4,
+            hotelReservaNota: 4,
+            hotelEstadiaNota: 4,
+          }],
+        },
+      ],
+      projectId: 'P1',
+      tower: '9',
+      targetTower: '9',
+    });
+
+    expect(recommendation.hotelSugeridoNome).toBe('Hotel D');
+  });
+
+  it('anexa metadados de hotel aos itens de planejamento e escolhe destaque', () => {
+    const enriched = enrichPlanningItemsWithHotelRecommendation(
+      [
+        { torre: '5', categoria: 'obrigatoria', motivo: 'x' },
+        { torre: '8', categoria: 'amostragem', motivo: 'y' },
+      ],
+      { inspections, projectId: 'P1', targetTower: '5' },
+    );
+
+    expect(enriched[0].hotelSugeridoNome).toBeTruthy();
+    const priority = pickPriorityHotelFromItems(enriched, '5');
+    expect(priority).toBeTruthy();
+    expect(priority.torre).toBe('5');
   });
 });
 

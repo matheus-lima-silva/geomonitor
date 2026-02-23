@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import AppIcon from './AppIcon';
 import { useAutoSaveInspection } from '../hooks/useAutoSaveInspection';
 import { createEmptyInspection } from '../models/inspectionModel';
 import { saveErosion } from '../services/erosionService';
@@ -9,6 +10,11 @@ import {
   EROSION_LOCATION_OPTIONS,
   validateErosionLocation,
 } from '../features/erosions/utils/erosionUtils';
+import {
+  buildHotelHistory,
+  extractHotelFields,
+  findPreviousDayHotel,
+} from '../features/inspections/utils/hotelHistory';
 
 function normalizeInspectionPendencies(value) {
   const raw = Array.isArray(value) ? value : [];
@@ -62,7 +68,7 @@ function collectDayTowerKeys(day) {
   if (source.length === 0 && Array.isArray(day?.torres)) source = day.torres;
   if (source.length === 0) {
     const typed = String(day?.torresInput ?? day?.torres ?? '').trim();
-    if (typed) source = parseTowerInput(typed).numbers;
+    if (typed) source = parseTowerInput(typed);
   }
   return [...new Set(source.map((item) => normalizeTowerKey(item)).filter(Boolean))];
 }
@@ -123,9 +129,54 @@ function createInspectionId(projetoId, dataInicio) {
   return `VS-${String(projetoId).toUpperCase()}-${dd}${mm}${yyyy}`;
 }
 
+function getDateScore(value) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? Number.NEGATIVE_INFINITY : parsed.getTime();
+}
+
+function getLatestLinkedErosion(erosions = [], projectId = '', towerNumber = '') {
+  return (erosions || [])
+    .filter((item) =>
+      String(item?.projetoId || '').trim() === String(projectId || '').trim()
+      && String(item?.torreRef || '').trim() === String(towerNumber || '').trim())
+    .sort((a, b) => {
+      const aScore = Math.max(
+        getDateScore(a?.ultimaAtualizacao),
+        getDateScore(a?.updatedAt),
+        getDateScore(a?.createdAt),
+        getDateScore(a?.dataCadastro),
+        getDateScore(a?.data),
+      );
+      const bScore = Math.max(
+        getDateScore(b?.ultimaAtualizacao),
+        getDateScore(b?.updatedAt),
+        getDateScore(b?.createdAt),
+        getDateScore(b?.dataCadastro),
+        getDateScore(b?.data),
+      );
+      if (aScore !== bScore) return bScore - aScore;
+      return String(b?.id || '').localeCompare(String(a?.id || ''));
+    })[0] || null;
+}
+
+const EMPTY_EROSION_FORM = {
+  localTipo: '',
+  localDescricao: '',
+  latitude: '',
+  longitude: '',
+  descricao: '',
+};
+
+function formatHotelHistoryOption(item) {
+  const usageText = Number(item?.usageCount || 0) > 1 ? ` | ${item.usageCount} usos` : '';
+  const dateText = item?.lastDate ? ` | Ultimo uso: ${item.lastDate}` : '';
+  return `${item.hotelNome}${item.hotelMunicipio ? ` (${item.hotelMunicipio})` : ''}${usageText}${dateText}`;
+}
+
 function InspectionManager({
   projects,
   erosions,
+  inspections = [],
   actorName,
   onSaved,
   planningDraft,
@@ -134,6 +185,9 @@ function InspectionManager({
   const [inspection, setInspection] = useState(createEmptyInspection());
   const [diaSelecionado, setDiaSelecionado] = useState('');
   const [torreModal, setTorreModal] = useState(null);
+  const [erosionForm, setErosionForm] = useState(EMPTY_EROSION_FORM);
+  const [expandedTowerKey, setExpandedTowerKey] = useState('');
+  const [selectedHotelHistoryKey, setSelectedHotelHistoryKey] = useState('');
   const [suggestedTowerInput, setSuggestedTowerInput] = useState('');
   const autoPendingCheckRef = useRef('');
   const { ensureSaved, saving } = useAutoSaveInspection();
@@ -141,6 +195,25 @@ function InspectionManager({
 
   const diaAtual = useMemo(
     () => inspection.detalhesDias.find((dia) => dia.data === diaSelecionado),
+    [inspection.detalhesDias, diaSelecionado],
+  );
+
+  const hotelHistory = useMemo(
+    () => buildHotelHistory({
+      inspections,
+      draftInspection: inspection,
+      projectId: inspection.projetoId,
+    }),
+    [inspections, inspection],
+  );
+
+  const selectedHotelHistory = useMemo(
+    () => hotelHistory.find((item) => item.key === selectedHotelHistoryKey) || null,
+    [hotelHistory, selectedHotelHistoryKey],
+  );
+
+  const previousDayHotel = useMemo(
+    () => findPreviousDayHotel(inspection.detalhesDias, diaSelecionado),
     [inspection.detalhesDias, diaSelecionado],
   );
 
@@ -161,12 +234,40 @@ function InspectionManager({
     }));
   }
 
+  function applyHotelToDay(hotelData) {
+    if (!diaSelecionado || !hotelData) return;
+    const fields = extractHotelFields(hotelData);
+    atualizarDia(diaSelecionado, (dia) => ({
+      ...dia,
+      ...fields,
+    }));
+  }
+
+  function handleApplySelectedHotelHistory() {
+    if (!selectedHotelHistory) {
+      show('Selecione um hotel do historico para aplicar.', 'error');
+      return;
+    }
+    applyHotelToDay(selectedHotelHistory);
+    show('Dados de hospedagem aplicados ao dia atual.', 'success');
+  }
+
+  function handleRepeatPreviousDayHotel() {
+    if (!previousDayHotel) {
+      show('Nao ha hotel valido no dia anterior para repetir.', 'error');
+      return;
+    }
+    applyHotelToDay(previousDayHotel);
+    show(`Hotel do dia anterior (${previousDayHotel.date}) aplicado com sucesso.`, 'success');
+  }
+
   function applySuggestedTowersToCurrentDay() {
     if (!diaSelecionado || !suggestedTowerInput) return;
     const torres = parseTowerInput(suggestedTowerInput);
     atualizarDia(diaSelecionado, (dia) => ({
       ...dia,
       torres: torres,
+      torresInput: suggestedTowerInput,
       torresDetalhadas: torres.map(
         (numero) => dia.torresDetalhadas.find((item) => item.numero === numero) ?? { numero, obs: '', temErosao: false },
       ),
@@ -181,48 +282,80 @@ function InspectionManager({
         id: inspection.id || createInspectionId(inspection.projetoId, inspection.dataInicio),
       });
       setInspection((prev) => ({ ...prev, id: inspectionId }));
-      setTorreModal(numeroTorre);
+      const latestErosion = getLatestLinkedErosion(erosions, inspection.projetoId, numeroTorre);
+      setTorreModal({
+        towerNumber: String(numeroTorre),
+        existingErosion: latestErosion,
+      });
+      setErosionForm({
+        localTipo: String(latestErosion?.localTipo || '').trim(),
+        localDescricao: String(latestErosion?.localDescricao || '').trim(),
+        latitude: String(latestErosion?.latitude || '').trim(),
+        longitude: String(latestErosion?.longitude || '').trim(),
+        descricao: String(latestErosion?.obs || '').trim(),
+      });
     } catch {
-      show('Não foi possível salvar vistoria antes da erosão.', 'error');
+      show('Nao foi possivel salvar vistoria antes da erosao.', 'error');
     }
   }
 
   async function handleSaveErosion(event) {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
 
     try {
-      const localTipo = String(formData.get('localTipo') || '').trim();
-      const localDescricao = String(formData.get('localDescricao') || '').trim();
+      if (!torreModal?.towerNumber) {
+        show('Torre nao definida para o detalhe da erosao.', 'error');
+        return;
+      }
+
+      const localTipo = String(erosionForm.localTipo || '').trim();
+      const localDescricao = String(erosionForm.localDescricao || '').trim();
       const locationValidation = validateErosionLocation({ localTipo, localDescricao });
       if (!locationValidation.ok) {
         show(locationValidation.message, 'error');
         return;
       }
 
-      await saveErosion({
-        vistoriaId: inspection.id,
-        vistoriaIds: [...new Set([inspection.id])],
+      const inspectionId = String(inspection.id || '').trim() || await ensureSaved({
+        ...inspection,
+        id: inspection.id || createInspectionId(inspection.projetoId, inspection.dataInicio),
+      });
+      setInspection((prev) => ({ ...prev, id: inspectionId }));
+
+      const existing = torreModal.existingErosion || null;
+      const payload = {
+        ...(existing || {}),
+        ...(existing?.id ? { id: existing.id } : {}),
+        vistoriaId: inspectionId,
+        vistoriaIds: existing
+          ? [...new Set([inspectionId, ...normalizeLinkedInspectionIds(existing)])]
+          : [inspectionId],
         projetoId: inspection.projetoId,
-        torreRef: String(torreModal),
-        latitude: formData.get('latitude') || '',
-        longitude: formData.get('longitude') || '',
+        torreRef: String(torreModal.towerNumber),
+        latitude: String(erosionForm.latitude || '').trim(),
+        longitude: String(erosionForm.longitude || '').trim(),
         localTipo,
         localDescricao,
-        obs: formData.get('descricao') || '',
-      }, { origem: 'vistoria' });
+        obs: String(erosionForm.descricao || '').trim(),
+      };
+      await saveErosion(payload, {
+        origem: 'vistoria',
+        merge: !!existing,
+        updatedBy: actorName,
+      });
 
       atualizarDia(diaSelecionado, (dia) => ({
         ...dia,
         torresDetalhadas: dia.torresDetalhadas.map((torre) =>
-          towerMatches(torre.numero, torreModal) ? { ...torre, temErosao: true } : torre,
+          towerMatches(torre.numero, torreModal.towerNumber) ? { ...torre, temErosao: true } : torre,
         ),
       }));
 
       setTorreModal(null);
-      show('Erosão cadastrada com sucesso.', 'success');
+      setErosionForm(EMPTY_EROSION_FORM);
+      show(existing ? 'Erosao atualizada com sucesso.' : 'Erosao cadastrada com sucesso.', 'success');
     } catch {
-      show('Erro ao cadastrar erosão.', 'error');
+      show('Erro ao salvar erosao.', 'error');
     }
   }
 
@@ -300,7 +433,7 @@ function InspectionManager({
   function alertPendingTowers(pendingErosions) {
     const towers = [...new Set((pendingErosions || []).map((item) => String(item?.torreRef || '').trim()).filter(Boolean))]
       .sort((a, b) => Number(a) - Number(b));
-    show(`Pendências de visita em erosões: ${towers.join(', ') || '-'}. As torres já foram carregadas para marcação da data.`, 'error');
+    show(`PendÃªncias de visita em erosÃµes: ${towers.join(', ') || '-'}. As torres jÃ¡ foram carregadas para marcaÃ§Ã£o da data.`, 'error');
   }
 
   async function checkInspectionPendencies({
@@ -333,7 +466,7 @@ function InspectionManager({
       if (typed === null) return;
       const visitDate = String(typed || '').trim();
       if (!isBrDateValid(visitDate)) {
-        show('Data inválida. Use o formato DD/MM/AAAA.', 'error');
+        show('Data invÃ¡lida. Use o formato DD/MM/AAAA.', 'error');
         return;
       }
       const inspectionId = await ensureSaved({
@@ -347,7 +480,7 @@ function InspectionManager({
         String(item?.projetoId || '').trim() === projectId
         && String(item?.torreRef || '').trim() === towerKey);
       if (targetErosions.length === 0) {
-        show('Não há erosão cadastrada nessa torre para marcar visita.', 'error');
+        show('NÃ£o hÃ¡ erosÃ£o cadastrada nessa torre para marcar visita.', 'error');
         return;
       }
       await Promise.all(targetErosions.map((erosion) => saveErosion({
@@ -363,9 +496,9 @@ function InspectionManager({
         skipAutoFollowup: true,
         updatedBy: actorName,
       })));
-      show(`Visita da erosão marcada para ${visitDate}.`, 'success');
+      show(`Visita da erosÃ£o marcada para ${visitDate}.`, 'success');
     } catch {
-      show('Erro ao marcar visita da erosão.', 'error');
+      show('Erro ao marcar visita da erosÃ£o.', 'error');
     }
   }
 
@@ -405,15 +538,20 @@ function InspectionManager({
           notifyWhenPending: true,
         });
       } catch {
-        show('Erro ao verificar pendências de erosão nesta vistoria.', 'error');
+        show('Erro ao verificar pendÃªncias de erosÃ£o nesta vistoria.', 'error');
       }
     })();
   }, [inspection.id, inspection.projetoId, inspection.detalhesDias, erosions]);
 
+  useEffect(() => {
+    setExpandedTowerKey('');
+    setSelectedHotelHistoryKey('');
+  }, [diaSelecionado, inspection.projetoId]);
+
   async function handleSaveInspection() {
     try {
       if (!inspection.projetoId || !inspection.dataInicio) {
-        show('Selecione empreendimento e data de início.', 'error');
+        show('Selecione empreendimento e data de inÃ­cio.', 'error');
         return;
       }
 
@@ -425,10 +563,10 @@ function InspectionManager({
           .join('\n');
         const overflow = duplicateTowers.length > 8 ? `\n... e mais ${duplicateTowers.length - 8} torre(s).` : '';
         const confirmed = window.confirm(
-          `Há torres registradas em mais de um dia nesta vistoria:\n${sample}${overflow}\n\nIsso pode estar correto em caso de revisita.\nClique em OK para continuar ou Cancelar para revisar.`,
+          `HÃ¡ torres registradas em mais de um dia nesta vistoria:\n${sample}${overflow}\n\nIsso pode estar correto em caso de revisita.\nClique em OK para continuar ou Cancelar para revisar.`,
         );
         if (!confirmed) {
-          show('Salvamento cancelado para revisão das torres repetidas.', 'error');
+          show('Salvamento cancelado para revisÃ£o das torres repetidas.', 'error');
           return;
         }
       }
@@ -460,7 +598,7 @@ function InspectionManager({
   return (
     <section className="panel nested">
       <h3>Nova Vistoria</h3>
-      <p className="muted">Diário multi-dia com checklist por torre e cadastro de erosão.</p>
+      <p className="muted">Diario multi-dia com checklist por torre e cadastro de erosao.</p>
 
       <div className="grid-form">
         <select value={inspection.projetoId} onChange={(e) => setInspection((prev) => ({ ...prev, projetoId: e.target.value }))}>
@@ -483,12 +621,12 @@ function InspectionManager({
           onChange={(e) => setInspection((prev) => sincronizarDias({ ...prev, dataFim: e.target.value }))}
         />
         <input
-          placeholder="Responsável"
+          placeholder="Responsavel"
           value={inspection.responsavel || ''}
           onChange={(e) => setInspection((prev) => ({ ...prev, responsavel: e.target.value }))}
         />
         <input
-          placeholder="Observações gerais"
+          placeholder="Observacoes gerais"
           value={inspection.obs || ''}
           onChange={(e) => setInspection((prev) => ({ ...prev, obs: e.target.value }))}
         />
@@ -496,6 +634,7 @@ function InspectionManager({
 
       <div className="row-actions">
         <button type="button" onClick={handleSaveInspection} disabled={saving}>
+          <AppIcon name="save" />
           {saving ? 'Salvando...' : 'Salvar vistoria'}
         </button>
       </div>
@@ -505,6 +644,7 @@ function InspectionManager({
           <div><strong>Torres sugeridas:</strong> {suggestedTowerInput}</div>
           <div className="row-actions">
             <button type="button" className="secondary" onClick={applySuggestedTowersToCurrentDay} disabled={!diaSelecionado}>
+              <AppIcon name="clipboard" />
               Aplicar torres sugeridas ao dia atual
             </button>
           </div>
@@ -521,20 +661,113 @@ function InspectionManager({
 
       {diaAtual && (
         <div className="panel nested">
-          <h4>Diário de {diaAtual.data}</h4>
+          <h4>Diario de {diaAtual.data}</h4>
           <input
             placeholder="Clima"
             value={diaAtual.clima}
             onChange={(e) => atualizarDia(diaSelecionado, (dia) => ({ ...dia, clima: e.target.value }))}
           />
 
+          <div className="panel nested hotel-actions-panel">
+            <div className="grid-form hotel-actions-grid">
+              <select value={selectedHotelHistoryKey} onChange={(e) => setSelectedHotelHistoryKey(e.target.value)}>
+                <option value="">Usar hotel do historico do empreendimento...</option>
+                {hotelHistory.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {formatHotelHistoryOption(item)}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="secondary" onClick={handleApplySelectedHotelHistory} disabled={!selectedHotelHistoryKey}>
+                <AppIcon name="clipboard" />
+                Aplicar do historico
+              </button>
+              <button type="button" className="secondary" onClick={handleRepeatPreviousDayHotel} disabled={!previousDayHotel}>
+                <AppIcon name="copy" />
+                Repetir hotel do dia anterior
+              </button>
+            </div>
+            {selectedHotelHistory && (
+              <small className="muted">
+                Selecionado: {selectedHotelHistory.hotelNome}
+                {selectedHotelHistory.hotelMunicipio ? ` (${selectedHotelHistory.hotelMunicipio})` : ''}
+              </small>
+            )}
+            {previousDayHotel && (
+              <small className="muted">
+                Dia anterior disponivel ({previousDayHotel.date}): {previousDayHotel.hotelNome || 'Sem nome'}
+              </small>
+            )}
+          </div>
+
+          <div className="grid-form">
+            <input
+              placeholder="Hotel (opcional)"
+              value={diaAtual.hotelNome || ''}
+              onChange={(e) => atualizarDia(diaSelecionado, (dia) => ({ ...dia, hotelNome: e.target.value }))}
+            />
+            <input
+              placeholder="Municipio do hotel (opcional)"
+              value={diaAtual.hotelMunicipio || ''}
+              onChange={(e) => atualizarDia(diaSelecionado, (dia) => ({ ...dia, hotelMunicipio: e.target.value }))}
+            />
+            <select
+              value={diaAtual.hotelLogisticaNota ?? ''}
+              onChange={(e) => atualizarDia(diaSelecionado, (dia) => ({ ...dia, hotelLogisticaNota: e.target.value }))}
+            >
+              <option value="">Logistica (1-5)</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+            <select
+              value={diaAtual.hotelReservaNota ?? ''}
+              onChange={(e) => atualizarDia(diaSelecionado, (dia) => ({ ...dia, hotelReservaNota: e.target.value }))}
+            >
+              <option value="">Reserva (1-5)</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+            <select
+              value={diaAtual.hotelEstadiaNota ?? ''}
+              onChange={(e) => atualizarDia(diaSelecionado, (dia) => ({ ...dia, hotelEstadiaNota: e.target.value }))}
+            >
+              <option value="">Estadia (1-5)</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+            <select
+              value={diaAtual.hotelTorreBase || ''}
+              onChange={(e) => atualizarDia(diaSelecionado, (dia) => ({ ...dia, hotelTorreBase: e.target.value }))}
+            >
+              <option value="">Torre base da hospedagem (opcional)</option>
+              {(diaAtual.torresDetalhadas || []).map((item) => (
+                <option key={`hotel-base-${diaSelecionado}-${item.numero}`} value={item.numero}>
+                  Torre {item.numero}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <input
             placeholder="Torres visitadas (ex: 1-3, 5, 8)"
+            value={diaAtual.torresInput ?? (Array.isArray(diaAtual.torres) ? diaAtual.torres.join(', ') : '')}
+            onChange={(e) => atualizarDia(diaSelecionado, (dia) => ({ ...dia, torresInput: e.target.value }))}
             onBlur={(e) => {
-              const torres = parseTowerInput(e.target.value);
+              const towerInput = e.target.value;
+              const torres = parseTowerInput(towerInput);
               atualizarDia(diaSelecionado, (dia) => ({
                 ...dia,
                 torres,
+                torresInput: towerInput,
                 torresDetalhadas: torres.map(
                   (numero) => dia.torresDetalhadas.find((item) => item.numero === numero) ?? { numero, obs: '', temErosao: false },
                 ),
@@ -542,42 +775,78 @@ function InspectionManager({
             }}
           />
 
-          <ul>
-            {diaAtual.torresDetalhadas.map((torre) => (
-              <li key={torre.numero} className={torre.temErosao ? 'erosion' : ''}>
-                <strong>Torre {torre.numero}</strong>
-                <input
-                  placeholder="Observação"
-                  value={torre.obs}
-                  onChange={(e) =>
-                    atualizarDia(diaSelecionado, (dia) => ({
-                      ...dia,
-                      torresDetalhadas: dia.torresDetalhadas.map((item) =>
-                        item.numero === torre.numero ? { ...item, obs: e.target.value } : item,
-                      ),
-                    }))
-                  }
-                />
-                <button type="button" onClick={() => abrirModalErosao(torre.numero)} disabled={saving}>
-                  {saving ? 'Salvando...' : 'Detalhar'}
-                </button>
-                {(() => {
-                  const linked = (erosions || []).filter((item) =>
-                    String(item?.projetoId || '').trim() === String(inspection.projetoId || '').trim()
-                    && String(item?.torreRef || '').trim() === String(torre.numero || '').trim());
-                  if (linked.length === 0) return null;
-                  const pendency = linked
-                    .map((item) => getInspectionPendency(item, inspection.id))
-                    .find(Boolean);
-                  const visited = pendency?.status === 'visitada' && pendency?.dia;
-                  return (
-                    <button type="button" className="secondary" onClick={() => markTowerErosionVisit(torre.numero)} disabled={saving}>
-                      {visited ? `Visitada em ${pendency.dia}` : 'Marcar visita da erosão'}
+          <ul className="tower-list">
+            {diaAtual.torresDetalhadas.map((torre) => {
+              const towerKey = String(torre.numero || '').trim();
+              const linked = (erosions || []).filter((item) =>
+                String(item?.projetoId || '').trim() === String(inspection.projetoId || '').trim()
+                && String(item?.torreRef || '').trim() === towerKey);
+              const pendency = linked
+                .map((item) => getInspectionPendency(item, inspection.id))
+                .find(Boolean);
+              const visited = pendency?.status === 'visitada' && pendency?.dia;
+              const isExpanded = expandedTowerKey === towerKey;
+
+              return (
+                <li key={towerKey} className={`tower-item ${torre.temErosao ? 'erosion' : ''}`}>
+                  <div className="tower-item-header">
+                    <div className="tower-item-title">
+                      <strong>Torre {towerKey}</strong>
+                      <span className="muted">
+                        {linked.length > 0 ? `${linked.length} erosao(oes) vinculada(s)` : 'Sem erosao vinculada'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => setExpandedTowerKey((prev) => (prev === towerKey ? '' : towerKey))}
+                    >
+                      <AppIcon name="details" />
+                      {isExpanded ? 'Ocultar' : 'Detalhar'}
                     </button>
-                  );
-                })()}
-              </li>
-            ))}
+                  </div>
+
+                  {isExpanded && (
+                    <div className="tower-item-details">
+                      <div className="grid-form">
+                        <input
+                          placeholder="Observacao"
+                          value={torre.obs}
+                          onChange={(e) =>
+                            atualizarDia(diaSelecionado, (dia) => ({
+                              ...dia,
+                              torresDetalhadas: dia.torresDetalhadas.map((item) =>
+                                item.numero === torre.numero ? { ...item, obs: e.target.value } : item,
+                              ),
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="muted">
+                        <div><strong>Resumo:</strong> {linked.length > 0 ? 'Ha erosao vinculada nesta torre.' : 'Nenhuma erosao vinculada ainda.'}</div>
+                        <div>
+                          <strong>Pendencia desta vistoria:</strong>
+                          {' '}
+                          {visited ? `visitada em ${pendency.dia}` : (linked.length > 0 ? 'pendente' : 'sem pendencia')}
+                        </div>
+                      </div>
+                      <div className="row-actions">
+                        <button type="button" onClick={() => abrirModalErosao(torre.numero)} disabled={saving}>
+                          <AppIcon name="details" />
+                          {saving ? 'Salvando...' : 'Detalhar erosao'}
+                        </button>
+                        {linked.length > 0 && (
+                          <button type="button" className="secondary" onClick={() => markTowerErosionVisit(torre.numero)} disabled={saving}>
+                            <AppIcon name="check" />
+                            {visited ? `Visitada em ${pendency.dia}` : 'Marcar visita da erosao'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -585,18 +854,50 @@ function InspectionManager({
       {torreModal && (
         <div className="modal-backdrop">
           <form className="modal" onSubmit={handleSaveErosion}>
-            <h4>Erosão - Torre {torreModal}</h4>
-            <select name="localTipo" defaultValue="">
-              <option value="">Local da erosão...</option>
+            <h4>Erosao - Torre {torreModal.towerNumber}</h4>
+            {torreModal.existingErosion?.id && (
+              <p className="muted">Editando erosao existente: {torreModal.existingErosion.id}</p>
+            )}
+            <select
+              name="localTipo"
+              value={erosionForm.localTipo}
+              onChange={(e) => setErosionForm((prev) => ({ ...prev, localTipo: e.target.value }))}
+            >
+              <option value="">Local da erosao...</option>
               {EROSION_LOCATION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
-            <input name="localDescricao" placeholder="Detalhe do local (obrigatório se Outros)" />
-            <input name="latitude" placeholder="Latitude" />
-            <input name="longitude" placeholder="Longitude" />
-            <textarea name="descricao" placeholder="Descrição" rows="4" />
+            <input
+              name="localDescricao"
+              placeholder="Detalhe do local (obrigatorio se Outros)"
+              value={erosionForm.localDescricao}
+              onChange={(e) => setErosionForm((prev) => ({ ...prev, localDescricao: e.target.value }))}
+            />
+            <input
+              name="latitude"
+              placeholder="Latitude"
+              value={erosionForm.latitude}
+              onChange={(e) => setErosionForm((prev) => ({ ...prev, latitude: e.target.value }))}
+            />
+            <input
+              name="longitude"
+              placeholder="Longitude"
+              value={erosionForm.longitude}
+              onChange={(e) => setErosionForm((prev) => ({ ...prev, longitude: e.target.value }))}
+            />
+            <textarea
+              name="descricao"
+              placeholder="Descricao"
+              rows="4"
+              value={erosionForm.descricao}
+              onChange={(e) => setErosionForm((prev) => ({ ...prev, descricao: e.target.value }))}
+            />
             <div className="row-actions">
-              <button type="submit">Salvar erosão</button>
+              <button type="submit">
+                <AppIcon name="save" />
+                {torreModal.existingErosion ? 'Salvar alteracoes' : 'Salvar erosao'}
+              </button>
               <button type="button" className="secondary" onClick={() => setTorreModal(null)}>
+                <AppIcon name="close" />
                 Cancelar
               </button>
             </div>

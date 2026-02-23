@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import AppIcon from '../components/AppIcon';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -17,17 +18,17 @@ function AuthView() {
     try {
       if (mode === 'register') {
         if (password !== confirmPassword) {
-          show('As senhas não coincidem.', 'error');
+          show('As senhas nÃ£o coincidem.', 'error');
           return;
         }
         await register(email, password, nome);
-        show('Conta criada. Aguarde aprovação de um administrador.', 'success');
+        show('Conta criada. Aguarde aprovaÃ§Ã£o de um administrador.', 'success');
         return;
       }
 
       if (mode === 'reset') {
         await resetPassword(email);
-        show('Email de recuperação enviado.', 'success');
+        show('Email de recuperaÃ§Ã£o enviado.', 'success');
         setMode('login');
         return;
       }
@@ -35,7 +36,7 @@ function AuthView() {
       await login(email, password);
       show('Login realizado com sucesso', 'success');
     } catch {
-      show('Não foi possível concluir a ação.', 'error');
+      show('NÃ£o foi possÃ­vel concluir a aÃ§Ã£o.', 'error');
     }
   }
 
@@ -69,16 +70,32 @@ function AuthView() {
         )}
 
         <button type="submit">
+          <AppIcon name={mode === 'reset' ? 'lock' : 'login'} />
           {mode === 'login' && 'Entrar'}
           {mode === 'register' && 'Criar conta'}
-          {mode === 'reset' && 'Enviar recuperação'}
+          {mode === 'reset' && 'Enviar recuperaÃ§Ã£o'}
         </button>
       </form>
 
       <div className="inline-row">
-        {mode !== 'login' && <button type="button" className="secondary" onClick={() => setMode('login')}>Entrar</button>}
-        {mode !== 'register' && <button type="button" className="secondary" onClick={() => setMode('register')}>Criar conta</button>}
-        {mode !== 'reset' && <button type="button" className="secondary" onClick={() => setMode('reset')}>Recuperar senha</button>}
+        {mode !== 'login' && (
+          <button type="button" className="secondary" onClick={() => setMode('login')}>
+            <AppIcon name="login" />
+            Entrar
+          </button>
+        )}
+        {mode !== 'register' && (
+          <button type="button" className="secondary" onClick={() => setMode('register')}>
+            <AppIcon name="plus" />
+            Criar conta
+          </button>
+        )}
+        {mode !== 'reset' && (
+          <button type="button" className="secondary" onClick={() => setMode('reset')}>
+            <AppIcon name="lock" />
+            Recuperar senha
+          </button>
+        )}
       </div>
     </section>
   );

@@ -1,4 +1,5 @@
 import { useMemo, useRef } from 'react';
+import AppIcon from '../../../components/AppIcon';
 import { useProjectsFeatureState } from '../hooks/useProjectsFeatureState';
 import { formatReportMonths, getProjectReportConfig } from '../utils/reportSchedule';
 import { validateTowerCoordinatesAsString } from '../utils/kmlUtils';
@@ -55,9 +56,12 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
       <div className="topbar">
         <div>
           <h2>Empreendimentos</h2>
-          <p className="muted">Cadastre e mantenha os dados base das linhas de transmissão.</p>
+          <p className="muted">Cadastre e mantenha os dados base das linhas de transmissÃ£o.</p>
         </div>
-        <button type="button" onClick={state.openNew}>Novo</button>
+        <button type="button" onClick={state.openNew}>
+          <AppIcon name="plus" />
+          Novo
+        </button>
       </div>
 
       <div className="project-cards">
@@ -72,11 +76,17 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
               <header className="project-card-header">
                 <div>
                   <h3>{p.nome || p.id}</h3>
-                  <small>Código: {p.id}</small>
+                  <small>CÃ³digo: {p.id}</small>
                 </div>
                 <div className="inline-row">
-                  <button type="button" onClick={() => state.openEdit(p)}>Editar</button>
-                  <button type="button" className="danger" onClick={() => state.setConfirmDelete(p.id)}>Excluir</button>
+                  <button type="button" onClick={() => state.openEdit(p)}>
+                    <AppIcon name="edit" />
+                    Editar
+                  </button>
+                  <button type="button" className="danger" onClick={() => state.setConfirmDelete(p.id)}>
+                    <AppIcon name="trash" />
+                    Excluir
+                  </button>
                 </div>
               </header>
 
@@ -90,7 +100,10 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
               </div>
 
               <div className={hasKmlData ? 'row-actions two' : 'row-actions one'}>
-                <button type="button" className="secondary" onClick={() => onOpenProjectInspections?.(p.id)}>Vistorias</button>
+                <button type="button" className="secondary" onClick={() => onOpenProjectInspections?.(p.id)}>
+                  <AppIcon name="clipboard" />
+                  Vistorias
+                </button>
                 {hasKmlData && (
                   <button
                     type="button"
@@ -99,7 +112,8 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
                       state.setRouteSelection([]);
                     }}
                   >
-                    Traçar rota
+                    <AppIcon name="route" />
+                    TraÃ§ar rota
                   </button>
                 )}
               </div>
@@ -113,6 +127,7 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
                     mergeInputRef.current?.click();
                   }}
                 >
+                  <AppIcon name="upload" />
                   Importar KML neste empreendimento
                 </button>
               )}

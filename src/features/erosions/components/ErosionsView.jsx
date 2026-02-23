@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import AppIcon from '../../../components/AppIcon';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { calculateCriticality } from '../../shared/rulesConfig';
@@ -109,7 +110,7 @@ function openReportPdfWindow({ projectId, rows, selectedYears }) {
   win.document.write(`
     <html>
       <head>
-        <title>Relatório de Erosões - ${projectId}</title>
+        <title>RelatÃ³rio de ErosÃµes - ${projectId}</title>
         <style>
           body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; }
           h1 { margin: 0 0 8px; }
@@ -122,13 +123,13 @@ function openReportPdfWindow({ projectId, rows, selectedYears }) {
         </style>
       </head>
       <body>
-        <h1>Relatório de Processos Erosivos</h1>
+        <h1>RelatÃ³rio de Processos Erosivos</h1>
         <div class="meta">
           <div><strong>Empreendimento:</strong> ${projectId}</div>
           <div><strong>Ano(s):</strong> ${selectedYears.length > 0 ? selectedYears.join(', ') : 'Todos'}</div>
-          <div><strong>Período consolidado:</strong> ${selectedYears.length > 0 ? `${selectedYears[0]}-01-01 até ${selectedYears[selectedYears.length - 1]}-12-31` : 'Histórico completo do empreendimento'}</div>
+          <div><strong>PerÃ­odo consolidado:</strong> ${selectedYears.length > 0 ? `${selectedYears[0]}-01-01 atÃ© ${selectedYears[selectedYears.length - 1]}-12-31` : 'HistÃ³rico completo do empreendimento'}</div>
           <div><strong>Gerado em:</strong> ${now.toLocaleString('pt-BR')}</div>
-          <div><strong>Total de erosões:</strong> ${rows.length}</div>
+          <div><strong>Total de erosÃµes:</strong> ${rows.length}</div>
         </div>
         <div class="grid">
           <div class="box">
@@ -149,7 +150,7 @@ function openReportPdfWindow({ projectId, rows, selectedYears }) {
               <th>Local</th>
               <th>Status</th>
               <th>Impacto</th>
-              <th>Atualização</th>
+              <th>AtualizaÃ§Ã£o</th>
             </tr>
           </thead>
           <tbody>
@@ -177,13 +178,13 @@ function openErosionDetailsPdfWindow({ erosion, project, history }) {
 
   const historyHtml = (history || []).map((item) => {
     const itemType = normalizeFollowupEventType(item);
-    const typeLabel = itemType === 'obra' ? 'Obra' : (itemType === 'autuacao' ? 'Autuação' : 'Sistema');
+    const typeLabel = itemType === 'obra' ? 'Obra' : (itemType === 'autuacao' ? 'AutuaÃ§Ã£o' : 'Sistema');
     const toneClass = itemType === 'obra' ? 'tone-obra' : (itemType === 'autuacao' ? 'tone-autuacao' : 'tone-sistema');
     const details = itemType === 'obra'
-      ? `Etapa: ${escapeHtml(item.obraEtapa || '-')} | Descrição: ${escapeHtml(item.descricao || '-')}`
+      ? `Etapa: ${escapeHtml(item.obraEtapa || '-')} | DescriÃ§Ã£o: ${escapeHtml(item.descricao || '-')}`
       : (itemType === 'autuacao'
-        ? `Órgão: ${escapeHtml(item.orgao || '-')} | Nº/Descrição: ${escapeHtml(item.numeroOuDescricao || '-')} | Status: ${escapeHtml(item.autuacaoStatus || '-')}`
-        : `Status da erosão: ${escapeHtml(item.statusNovo || '-')}`);
+        ? `Ã“rgÃ£o: ${escapeHtml(item.orgao || '-')} | NÂº/DescriÃ§Ã£o: ${escapeHtml(item.numeroOuDescricao || '-')} | Status: ${escapeHtml(item.autuacaoStatus || '-')}`
+        : `Status da erosÃ£o: ${escapeHtml(item.statusNovo || '-')}`);
     return `
       <div class="timeline-item ${toneClass} avoid-break">
         <div class="timeline-head">
@@ -192,7 +193,7 @@ function openErosionDetailsPdfWindow({ erosion, project, history }) {
         </div>
         <div class="timeline-summary">${escapeHtml(item.resumo || '-')}</div>
         <div class="timeline-details">${details}</div>
-        <div class="timeline-meta">Usuário: ${escapeHtml(item.usuario || '-')} | Origem: ${escapeHtml(item.origem || '-')}</div>
+        <div class="timeline-meta">UsuÃ¡rio: ${escapeHtml(item.usuario || '-')} | Origem: ${escapeHtml(item.origem || '-')}</div>
       </div>
     `;
   }).join('');
@@ -202,7 +203,7 @@ function openErosionDetailsPdfWindow({ erosion, project, history }) {
   win.document.write(`
     <html>
       <head>
-        <title>Detalhes da Erosão ${escapeHtml(erosion?.id || '-')}</title>
+        <title>Detalhes da ErosÃ£o ${escapeHtml(erosion?.id || '-')}</title>
         <style>
           @page { size: A4; margin: 12mm; }
           * { box-sizing: border-box; }
@@ -237,7 +238,7 @@ function openErosionDetailsPdfWindow({ erosion, project, history }) {
       <body>
         <div class="wrapper">
           <div class="header avoid-break">
-            <h1 class="title">Detalhes da Erosão ${escapeHtml(erosion?.id || '-')}</h1>
+            <h1 class="title">Detalhes da ErosÃ£o ${escapeHtml(erosion?.id || '-')}</h1>
             <div class="meta">Empreendimento: ${escapeHtml(erosion?.projetoId || '-')} ${project?.nome ? `(${escapeHtml(project.nome)})` : ''}</div>
             <div class="meta">Gerado em: ${new Date().toLocaleString('pt-BR')}</div>
           </div>
@@ -250,34 +251,34 @@ function openErosionDetailsPdfWindow({ erosion, project, history }) {
               <div class="row"><span class="label">Status:</span> ${escapeHtml(erosion?.status || '-')}</div>
               <div class="row"><span class="label">Impacto:</span> ${escapeHtml(erosion?.impacto || '-')}</div>
               <div class="row"><span class="label">Coordenadas:</span> ${escapeHtml(`${erosion?.latitude || '-'}, ${erosion?.longitude || '-'}`)}</div>
-              <div class="row"><span class="label">Última atualização:</span> ${escapeHtml(erosion?.ultimaAtualizacao ? new Date(erosion.ultimaAtualizacao).toLocaleString('pt-BR') : '-')}</div>
+              <div class="row"><span class="label">Ãšltima atualizaÃ§Ã£o:</span> ${escapeHtml(erosion?.ultimaAtualizacao ? new Date(erosion.ultimaAtualizacao).toLocaleString('pt-BR') : '-')}</div>
               <div class="row"><span class="label">Atualizado por:</span> ${escapeHtml(erosion?.atualizadoPor || '-')}</div>
               <div class="row"><span class="label">Local:</span> ${escapeHtml(erosion?.localTipo || '-')}</div>
             </div>
-            <div class="row" style="margin-top:8px;"><span class="label">Observações:</span> ${obs}</div>
+            <div class="row" style="margin-top:8px;"><span class="label">ObservaÃ§Ãµes:</span> ${obs}</div>
           </div>
 
           <div class="section avoid-break">
-            <h2 class="section-title">Análise de Criticidade</h2>
+            <h2 class="section-title">AnÃ¡lise de Criticidade</h2>
             <div class="crit-grid">
               <div class="crit-card">
                 <div class="k">Score de risco</div>
                 <div class="v">${escapeHtml(erosion?.score ?? 'N/A')}</div>
               </div>
               <div class="crit-card">
-                <div class="k">Frequência de revisita</div>
+                <div class="k">FrequÃªncia de revisita</div>
                 <div class="v">${escapeHtml(erosion?.frequencia || '-')}</div>
               </div>
               <div class="crit-card">
-                <div class="k">Intervenção recomendada</div>
+                <div class="k">IntervenÃ§Ã£o recomendada</div>
                 <div class="v">${escapeHtml(erosion?.intervencao || '-')}</div>
               </div>
             </div>
           </div>
 
           <div class="section">
-            <h2 class="section-title">Histórico de Acompanhamento</h2>
-            ${historyHtml || '<div class="empty">Sem histórico de acompanhamento.</div>'}
+            <h2 class="section-title">HistÃ³rico de Acompanhamento</h2>
+            ${historyHtml || '<div class="empty">Sem histÃ³rico de acompanhamento.</div>'}
           </div>
         </div>
       </body>
@@ -419,7 +420,7 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
     const latNum = Number(lat);
     const lngNum = Number(lng);
     if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
-      show('Coordenadas inválidas para navegação.', 'error');
+      show('Coordenadas invÃ¡lidas para navegaÃ§Ã£o.', 'error');
       return;
     }
     const url = `https://www.google.com/maps/dir/?api=1&destination=${latNum},${lngNum}&travelmode=driving`;
@@ -468,16 +469,16 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
       );
 
       setIsFormOpen(false);
-      show('Erosão salva com sucesso.', 'success');
+      show('ErosÃ£o salva com sucesso.', 'success');
     } catch (e) {
-      show(e.message || 'Erro ao salvar erosão.', 'error');
+      show(e.message || 'Erro ao salvar erosÃ£o.', 'error');
     }
   }
 
   async function handleDelete(id) {
-    if (!window.confirm(`Excluir erosão ${id}?`)) return;
+    if (!window.confirm(`Excluir erosÃ£o ${id}?`)) return;
     await deleteErosion(id);
-    show('Erosão excluída.', 'success');
+    show('ErosÃ£o excluÃ­da.', 'success');
   }
 
   function handleExportCsv() {
@@ -510,7 +511,7 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
     }, inspections);
     const rows = buildErosionReportRows(filteredRows);
     openReportPdfWindow({ projectId: reportFilters.projetoId, rows, selectedYears: selectedReportYears });
-    show('PDF preparado para impressão.', 'success');
+    show('PDF preparado para impressÃ£o.', 'success');
   }
 
   async function handleAddManualHistoryEvent() {
@@ -522,31 +523,31 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
         return;
       }
       if (!String(eventForm.descricao || '').trim()) {
-        show('Descreva a obra para registrar no histórico.', 'error');
+        show('Descreva a obra para registrar no histÃ³rico.', 'error');
         return;
       }
     } else if (tipo === 'autuacao') {
       if (!String(eventForm.orgao || '').trim()) {
-        show('Informe o órgão público.', 'error');
+        show('Informe o Ã³rgÃ£o pÃºblico.', 'error');
         return;
       }
       if (!String(eventForm.numeroOuDescricao || '').trim()) {
-        show('Informe o número ou descrição da autuação.', 'error');
+        show('Informe o nÃºmero ou descriÃ§Ã£o da autuaÃ§Ã£o.', 'error');
         return;
       }
       if (!String(eventForm.autuacaoStatus || '').trim()) {
-        show('Selecione o status da autuação.', 'error');
+        show('Selecione o status da autuaÃ§Ã£o.', 'error');
         return;
       }
     } else {
-      show('Tipo de evento inválido.', 'error');
+      show('Tipo de evento invÃ¡lido.', 'error');
       return;
     }
 
     const target = erosions.find((item) => item.id === detailsModal.id) || detailsModal;
     const manualEvent = buildManualFollowupEvent(eventForm, { updatedBy: actorName });
     if (!manualEvent) {
-      show('Dados do evento inválidos.', 'error');
+      show('Dados do evento invÃ¡lidos.', 'error');
       return;
     }
 
@@ -554,7 +555,7 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
     try {
       const manualStep = String(manualEvent.obraEtapa || '').trim().toLowerCase();
       const shouldStabilize = manualEvent.tipoEvento === 'obra'
-        && (manualStep === 'concluída' || manualStep === 'concluida');
+        && (manualStep === 'concluÃ­da' || manualStep === 'concluida');
       const nextStatus = shouldStabilize ? 'Estabilizado' : normalizeErosionStatus(target?.status);
       const nextInspectionIds = normalizeErosionInspectionIds(target);
       await saveErosion({
@@ -582,7 +583,7 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
         numeroOuDescricao: '',
         autuacaoStatus: 'Aberta',
       });
-      show('Evento registado no histórico.', 'success');
+      show('Evento registado no histÃ³rico.', 'success');
     } catch (e) {
       show(e.message || 'Erro ao registar evento.', 'error');
     } finally {
@@ -596,14 +597,17 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
     <section className="panel">
       <div className="topbar">
         <div>
-          <h2>Erosões</h2>
-          <p className="muted">Cadastro e acompanhamento das erosões identificadas.</p>
+          <h2>ErosÃµes</h2>
+          <p className="muted">Cadastro e acompanhamento das erosÃµes identificadas.</p>
         </div>
-        <button type="button" onClick={openNew}>Nova Erosão</button>
+        <button type="button" onClick={openNew}>
+          <AppIcon name="plus" />
+          Nova ErosÃ£o
+        </button>
       </div>
 
       <div className="panel nested">
-        <h3>Exportar relatório de erosões</h3>
+        <h3>Exportar relatÃ³rio de erosÃµes</h3>
         <div className="grid-form">
           <select value={reportFilters.projetoId} onChange={(e) => setReportFilters((prev) => ({ ...prev, projetoId: e.target.value, anosExtras: [] }))}>
             <option value="">Empreendimento...</option>
@@ -614,12 +618,13 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
             {reportYears.map((year) => <option key={year} value={year}>{year}</option>)}
           </select>
           <button type="button" className="secondary" onClick={() => setReportFilters((prev) => ({ ...prev, mostrarMultiAno: !prev.mostrarMultiAno }))}>
-            {reportFilters.mostrarMultiAno ? 'Ocultar seleção de mais anos' : 'Selecionar mais de um ano'}
+            <AppIcon name={reportFilters.mostrarMultiAno ? 'close' : 'details'} />
+            {reportFilters.mostrarMultiAno ? 'Ocultar seleÃ§Ã£o de mais anos' : 'Selecionar mais de um ano'}
           </button>
         </div>
         {reportFilters.mostrarMultiAno && (
           <div className="panel nested" style={{ marginTop: 10 }}>
-            <div className="muted">Anos adicionais (além do ano principal)</div>
+            <div className="muted">Anos adicionais (alÃ©m do ano principal)</div>
             <div className="chips">
               {reportYears.filter((year) => String(reportFilters.ano || '') === '' || Number(year) !== Number(reportFilters.ano)).map((year) => {
                 const checked = (reportFilters.anosExtras || []).includes(year);
@@ -642,14 +647,20 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
                 );
               })}
               {reportYears.filter((year) => Number(year) !== Number(reportFilters.ano)).length === 0 && (
-                <span className="muted">Sem outros anos disponíveis para este empreendimento.</span>
+                <span className="muted">Sem outros anos disponÃ­veis para este empreendimento.</span>
               )}
             </div>
           </div>
         )}
         <div className="row-actions">
-          <button type="button" className="secondary" onClick={handleExportCsv}>Exportar CSV</button>
-          <button type="button" onClick={handleExportPdf}>Exportar PDF</button>
+          <button type="button" className="secondary" onClick={handleExportCsv}>
+            <AppIcon name="csv" />
+            Exportar CSV
+          </button>
+          <button type="button" onClick={handleExportPdf}>
+            <AppIcon name="pdf" />
+            Exportar PDF
+          </button>
         </div>
         <div className="muted">
           Filtro ativo: empreendimento <strong>{reportFilters.projetoId || '-'}</strong> | ano(s) <strong>{selectedReportYears.length > 0 ? selectedReportYears.join(', ') : 'Todos'}</strong>.
@@ -669,18 +680,30 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
               <div><strong>Status:</strong> <span className={erosionStatusClass(e.status)}>{normalizeErosionStatus(e.status)}</span></div>
             </div>
             <div className="row-actions two">
-              <button type="button" className="secondary" onClick={() => setDetailsModal(e)}>Detalhes</button>
-              <button type="button" className="secondary" onClick={() => openEdit(e)}>Editar</button>
+              <button type="button" className="secondary" onClick={() => setDetailsModal(e)}>
+                <AppIcon name="details" />
+                Detalhes
+              </button>
+              <button type="button" className="secondary" onClick={() => openEdit(e)}>
+                <AppIcon name="edit" />
+                Editar
+              </button>
               {hasCoordinates(e) && (
-                <button type="button" onClick={() => openGoogleMapsRoute(e.latitude, e.longitude)}>Navegar</button>
+                <button type="button" onClick={() => openGoogleMapsRoute(e.latitude, e.longitude)}>
+                  <AppIcon name="map" />
+                  Navegar
+                </button>
               )}
-              <button type="button" className="danger" onClick={() => handleDelete(e.id)}>Excluir</button>
+              <button type="button" className="danger" onClick={() => handleDelete(e.id)}>
+                <AppIcon name="trash" />
+                Excluir
+              </button>
             </div>
           </article>
         ))}
         {sorted.length === 0 && (
           <article className="project-card">
-            <p className="muted">Nenhuma erosão encontrada.</p>
+            <p className="muted">Nenhuma erosÃ£o encontrada.</p>
           </article>
         )}
       </div>
@@ -688,7 +711,7 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
       {isFormOpen && (
         <div className="modal-backdrop">
           <div className="modal xwide">
-            <h3>{editingId ? 'Editar' : 'Nova'} Erosão</h3>
+            <h3>{editingId ? 'Editar' : 'Nova'} ErosÃ£o</h3>
             <div className="grid-form">
               <input value={formData.id} onChange={(e) => setFormData({ ...formData, id: e.target.value })} placeholder="ID" />
               <select value={formData.projetoId} onChange={(e) => setFormData({ ...formData, projetoId: e.target.value })}>
@@ -712,7 +735,7 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
 
               <input value={formData.torreRef} onChange={(e) => setFormData({ ...formData, torreRef: e.target.value })} placeholder="Torre" />
               <select value={formData.localTipo} onChange={(e) => setFormData({ ...formData, localTipo: e.target.value, localDescricao: e.target.value === 'Outros' ? formData.localDescricao : '' })}>
-                <option value="">Local da erosão...</option>
+                <option value="">Local da erosÃ£o...</option>
                 {EROSION_LOCATION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
               {formData.localTipo === 'Outros' ? (
@@ -723,15 +746,15 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
                 <option value="">Tipo...</option>
                 <option value="sulco">Sulco</option>
                 <option value="ravina">Ravina</option>
-                <option value="voçoroca">Voçoroca</option>
+                <option value="voÃ§oroca">VoÃ§oroca</option>
                 <option value="deslizamento">Deslizamento</option>
               </select>
               <select value={formData.estagio} onChange={(e) => setFormData({ ...formData, estagio: e.target.value })}>
-                <option value="">Estágio...</option>
+                <option value="">EstÃ¡gio...</option>
                 <option value="inicial">Inicial</option>
-                <option value="intermediario">Intermediário</option>
-                <option value="avancado">Avançado</option>
-                <option value="critico">Crítico</option>
+                <option value="intermediario">IntermediÃ¡rio</option>
+                <option value="avancado">AvanÃ§ado</option>
+                <option value="critico">CrÃ­tico</option>
               </select>
               <select value={formData.profundidade} onChange={(e) => setFormData({ ...formData, profundidade: e.target.value })}>
                 <option value="">Profundidade...</option>
@@ -742,10 +765,10 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
               </select>
               <select value={formData.declividade} onChange={(e) => setFormData({ ...formData, declividade: e.target.value })}>
                 <option value="">Declividade...</option>
-                <option value="<15">&lt; 15°</option>
-                <option value="15-30">15-30°</option>
-                <option value="30-45">30-45°</option>
-                <option value=">45">&gt; 45°</option>
+                <option value="<15">&lt; 15Â°</option>
+                <option value="15-30">15-30Â°</option>
+                <option value="30-45">30-45Â°</option>
+                <option value=">45">&gt; 45Â°</option>
               </select>
               <select value={formData.largura} onChange={(e) => setFormData({ ...formData, largura: e.target.value })}>
                 <option value="">Largura...</option>
@@ -761,18 +784,24 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
                 <option>Monitoramento</option>
                 <option>Estabilizado</option>
               </select>
-              <textarea value={formData.obs} onChange={(e) => setFormData({ ...formData, obs: e.target.value })} placeholder="Observações" rows="3" />
+              <textarea value={formData.obs} onChange={(e) => setFormData({ ...formData, obs: e.target.value })} placeholder="ObservaÃ§Ãµes" rows="3" />
             </div>
 
             <div className="notice">
-              <strong>Impacto:</strong> {calc.impacto} | <strong>Score:</strong> {calc.score} | <strong>Frequência:</strong> {calc.frequencia}
+              <strong>Impacto:</strong> {calc.impacto} | <strong>Score:</strong> {calc.score} | <strong>FrequÃªncia:</strong> {calc.frequencia}
               <br />
-              <strong>Intervenção:</strong> {calc.intervencao}
+              <strong>IntervenÃ§Ã£o:</strong> {calc.intervencao}
             </div>
 
             <div className="row-actions">
-              <button type="button" onClick={handleSave}>Salvar</button>
-              <button type="button" className="secondary" onClick={() => setIsFormOpen(false)}>Cancelar</button>
+              <button type="button" onClick={handleSave}>
+                <AppIcon name="save" />
+                Salvar
+              </button>
+              <button type="button" className="secondary" onClick={() => setIsFormOpen(false)}>
+                <AppIcon name="close" />
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
@@ -781,7 +810,7 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
       {detailsModal && (
         <div className="modal-backdrop">
           <div className="modal wide">
-            <h3>Detalhes da Erosão</h3>
+            <h3>Detalhes da ErosÃ£o</h3>
             <div className="muted">
               <div><strong>ID:</strong> {detailsModal.id}</div>
               <div><strong>Projeto:</strong> {detailsModal.projetoId || '-'}</div>
@@ -789,11 +818,11 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
               <div><strong>Vistorias vinculadas:</strong> {normalizeErosionInspectionIds(detailsModal).join(', ') || '-'}</div>
               {relatedInspectionsInDetails.length > 0 && (
                 <div>
-                  <strong>Vistorias que abordaram esta erosão:</strong>
+                  <strong>Vistorias que abordaram esta erosÃ£o:</strong>
                   {relatedInspectionsInDetails.map((row) => (
                     <div key={`related-ins-${row.id}`}>
                       {row.id}
-                      {row.inspection?.dataInicio ? ` | início: ${row.inspection.dataInicio}` : ''}
+                      {row.inspection?.dataInicio ? ` | inÃ­cio: ${row.inspection.dataInicio}` : ''}
                       {row.inspection?.dataFim ? ` | fim: ${row.inspection.dataFim}` : ''}
                       {row.inspection?.responsavel ? ` | resp.: ${row.inspection.responsavel}` : ''}
                     </div>
@@ -802,36 +831,39 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
               )}
               <div><strong>Torre:</strong> {detailsModal.torreRef || '-'}</div>
               <div><strong>Local:</strong> {detailsModal.localTipo || '-'}</div>
-              {detailsModal.localTipo === 'Outros' && <div><strong>Descrição local:</strong> {detailsModal.localDescricao || '-'}</div>}
+              {detailsModal.localTipo === 'Outros' && <div><strong>DescriÃ§Ã£o local:</strong> {detailsModal.localDescricao || '-'}</div>}
               <div><strong>Tipo:</strong> {detailsModal.tipo || '-'}</div>
-              <div><strong>Estágio:</strong> {detailsModal.estagio || '-'}</div>
+              <div><strong>EstÃ¡gio:</strong> {detailsModal.estagio || '-'}</div>
               <div><strong>Impacto:</strong> {detailsModal.impacto || '-'}</div>
               <div><strong>Score:</strong> {detailsModal.score || '-'}</div>
-              <div><strong>Frequência:</strong> {detailsModal.frequencia || '-'}</div>
-              <div><strong>Intervenção:</strong> {detailsModal.intervencao || '-'}</div>
+              <div><strong>FrequÃªncia:</strong> {detailsModal.frequencia || '-'}</div>
+              <div><strong>IntervenÃ§Ã£o:</strong> {detailsModal.intervencao || '-'}</div>
               <div><strong>Status:</strong> <span className={erosionStatusClass(detailsModal.status)}>{normalizeErosionStatus(detailsModal.status)}</span></div>
               <div><strong>Latitude:</strong> {detailsModal.latitude || '-'}</div>
               <div><strong>Longitude:</strong> {detailsModal.longitude || '-'}</div>
-              <div><strong>Observações:</strong> {detailsModal.obs || '-'}</div>
+              <div><strong>ObservaÃ§Ãµes:</strong> {detailsModal.obs || '-'}</div>
             </div>
 
             <div className="panel nested">
-              <h4>Histórico de acompanhamento</h4>
+              <h4>HistÃ³rico de acompanhamento</h4>
               <div className="row-actions">
-                <button type="button" onClick={() => setShowAddEventForm((prev) => !prev)}>{showAddEventForm ? 'Cancelar evento' : 'Adicionar evento'}</button>
+                <button type="button" onClick={() => setShowAddEventForm((prev) => !prev)}>
+                  <AppIcon name={showAddEventForm ? 'close' : 'plus'} />
+                  {showAddEventForm ? 'Cancelar evento' : 'Adicionar evento'}
+                </button>
               </div>
               {showAddEventForm && (
                 <div className="panel nested">
                   <div className="grid-form">
                     <select value={eventForm.tipoEvento} onChange={(e) => setEventForm((prev) => ({ ...prev, tipoEvento: e.target.value }))}>
                       <option value="obra">Obra</option>
-                      <option value="autuacao">Autuação por órgão público</option>
+                      <option value="autuacao">AutuaÃ§Ã£o por Ã³rgÃ£o pÃºblico</option>
                     </select>
                     {eventForm.tipoEvento === 'obra' && (
                       <select value={eventForm.obraEtapa} onChange={(e) => setEventForm((prev) => ({ ...prev, obraEtapa: e.target.value }))}>
                         <option value="Projeto">Projeto</option>
                         <option value="Em andamento">Em andamento</option>
-                        <option value="Concluída">Concluída</option>
+                        <option value="ConcluÃ­da">ConcluÃ­da</option>
                       </select>
                     )}
                     {eventForm.tipoEvento === 'autuacao' && (
@@ -843,16 +875,19 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
                     )}
                   </div>
                   {eventForm.tipoEvento === 'obra' && (
-                    <textarea rows="2" value={eventForm.descricao} onChange={(e) => setEventForm((prev) => ({ ...prev, descricao: e.target.value }))} placeholder="Descrição da obra..." />
+                    <textarea rows="2" value={eventForm.descricao} onChange={(e) => setEventForm((prev) => ({ ...prev, descricao: e.target.value }))} placeholder="DescriÃ§Ã£o da obra..." />
                   )}
                   {eventForm.tipoEvento === 'autuacao' && (
                     <div className="grid-form">
-                      <input value={eventForm.orgao} onChange={(e) => setEventForm((prev) => ({ ...prev, orgao: e.target.value }))} placeholder="Órgão público..." />
-                      <input value={eventForm.numeroOuDescricao} onChange={(e) => setEventForm((prev) => ({ ...prev, numeroOuDescricao: e.target.value }))} placeholder="Nº/Descrição..." />
+                      <input value={eventForm.orgao} onChange={(e) => setEventForm((prev) => ({ ...prev, orgao: e.target.value }))} placeholder="Ã“rgÃ£o pÃºblico..." />
+                      <input value={eventForm.numeroOuDescricao} onChange={(e) => setEventForm((prev) => ({ ...prev, numeroOuDescricao: e.target.value }))} placeholder="NÂº/DescriÃ§Ã£o..." />
                     </div>
                   )}
                   <div className="row-actions">
-                    <button type="button" disabled={savingEvent} onClick={handleAddManualHistoryEvent}>{savingEvent ? 'Salvando...' : 'Salvar evento'}</button>
+                    <button type="button" disabled={savingEvent} onClick={handleAddManualHistoryEvent}>
+                      <AppIcon name="save" />
+                      {savingEvent ? 'Salvando...' : 'Salvar evento'}
+                    </button>
                   </div>
                 </div>
               )}
@@ -862,7 +897,7 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
                 .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')))
                 .map((event, idx, arr) => {
                   const type = normalizeFollowupEventType(event);
-                  const badge = type === 'obra' ? 'Obra' : (type === 'autuacao' ? 'Autuação' : 'Sistema');
+                  const badge = type === 'obra' ? 'Obra' : (type === 'autuacao' ? 'AutuaÃ§Ã£o' : 'Sistema');
                   const toneClass = type === 'obra' ? 'status-ok' : (type === 'autuacao' ? 'status-warn' : 'status-chip');
                   return (
                     <div key={`${event.timestamp}-${event.resumo || idx}`} className="project-card" style={{ position: 'relative', paddingLeft: 22 }}>
@@ -873,14 +908,14 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
                         <span className={toneClass} style={{ padding: '2px 8px', borderRadius: 999 }}>{badge}</span>
                       </div>
                       <div>{event.resumo || '-'}</div>
-                      {type === 'obra' && <div className="muted">Etapa: {event.obraEtapa || '-'} | Descrição: {event.descricao || '-'}</div>}
-                      {type === 'autuacao' && <div className="muted">Órgão: {event.orgao || '-'} | Nº/Descrição: {event.numeroOuDescricao || '-'} | Status: {event.autuacaoStatus || '-'}</div>}
-                      <div className="muted">Origem: {event.origem || '-'} | Usuário: {event.usuario || '-'} | Status: {event.statusNovo || '-'}</div>
+                      {type === 'obra' && <div className="muted">Etapa: {event.obraEtapa || '-'} | DescriÃ§Ã£o: {event.descricao || '-'}</div>}
+                      {type === 'autuacao' && <div className="muted">Ã“rgÃ£o: {event.orgao || '-'} | NÂº/DescriÃ§Ã£o: {event.numeroOuDescricao || '-'} | Status: {event.autuacaoStatus || '-'}</div>}
+                      <div className="muted">Origem: {event.origem || '-'} | UsuÃ¡rio: {event.usuario || '-'} | Status: {event.statusNovo || '-'}</div>
                     </div>
                   );
                 })}
               {normalizeFollowupHistory(detailsModal.acompanhamentosResumo).length === 0 && (
-                <p className="muted">Sem histórico de acompanhamento registrado.</p>
+                <p className="muted">Sem histÃ³rico de acompanhamento registrado.</p>
               )}
             </div>
 
@@ -895,14 +930,19 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
                     .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || ''))),
                 })}
               >
+                <AppIcon name="pdf" />
                 Gerar PDF
               </button>
               {hasCoordinates(detailsModal) && (
                 <button type="button" onClick={() => openGoogleMapsRoute(detailsModal.latitude, detailsModal.longitude)}>
+                  <AppIcon name="map" />
                   Navegar no Google Maps
                 </button>
               )}
-              <button type="button" className="secondary" onClick={() => setDetailsModal(null)}>Fechar</button>
+              <button type="button" className="secondary" onClick={() => setDetailsModal(null)}>
+                <AppIcon name="close" />
+                Fechar
+              </button>
             </div>
           </div>
         </div>

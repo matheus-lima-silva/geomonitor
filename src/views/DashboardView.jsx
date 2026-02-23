@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
+import AppIcon from '../components/AppIcon';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import AppShell from '../layout/AppShell';
@@ -9,11 +10,13 @@ import { subscribeInspections } from '../services/inspectionService';
 import { subscribeErosions } from '../services/erosionService';
 import { subscribeUsers } from '../services/userService';
 import { subscribeRulesConfig } from '../services/rulesService';
+import { subscribeOperatingLicenses } from '../services/licenseService';
 import { normalizeRulesConfig, RULES_DATABASE } from '../features/shared/rulesConfig';
 import { normalizeUserStatus } from '../features/shared/statusUtils';
-import { buildProjectReportOccurrences } from '../features/projects/utils/reportSchedule';
+import { buildEffectiveReportOccurrences } from '../features/licenses/utils/scheduleResolver';
 
 const ProjectsView = lazy(() => import('../features/projects/components/ProjectsView'));
+const LicensesView = lazy(() => import('../features/licenses/components/LicensesView'));
 const InspectionsView = lazy(() => import('../features/inspections/components/InspectionsView'));
 const ErosionsView = lazy(() => import('../features/erosions/components/ErosionsView'));
 const VisitPlanningView = lazy(() => import('../features/inspections/components/VisitPlanningView'));
@@ -28,21 +31,25 @@ function Placeholder({ title, text }) {
   );
 }
 
-function DashboardAlerts({ projects }) {
+function DashboardAlerts({ projects, operatingLicenses }) {
   const currentYear = new Date().getFullYear();
   const now = new Date();
-  const occurrences = projects
-    .flatMap((project) => buildProjectReportOccurrences(project, currentYear, currentYear + 1))
+  const occurrences = buildEffectiveReportOccurrences({
+    projects,
+    operatingLicenses,
+    startYear: currentYear,
+    endYear: currentYear + 1,
+  })
     .sort((a, b) => a.sortDate - b.sortDate);
 
-  const nextByProject = new Map();
+  const nextByScope = new Map();
   occurrences.forEach((occ) => {
-    if (!nextByProject.has(occ.projectId) && occ.sortDate >= now.getTime()) {
-      nextByProject.set(occ.projectId, occ);
+    if (!nextByScope.has(occ.scopeId) && occ.sortDate >= now.getTime()) {
+      nextByScope.set(occ.scopeId, occ);
     }
   });
 
-  const alerts = [...nextByProject.values()]
+  const alerts = [...nextByScope.values()]
     .map((item) => {
       const target = new Date(item.year, item.month - 1, 1);
       const days = Math.ceil((target.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
@@ -53,16 +60,25 @@ function DashboardAlerts({ projects }) {
 
   return (
     <section className="panel">
-      <h2>Monitorização</h2>
-      <p className="muted">Empreendimentos com entrega de relatório em até 45 dias.</p>
+      <h2>MonitorizaÃ§Ã£o</h2>
+      <p className="muted">Empreendimentos com entrega de relatÃ³rio em atÃ© 45 dias.</p>
       {alerts.length === 0 && <p className="muted">Nenhum empreendimento nesta janela.</p>}
       {alerts.length > 0 && (
         <div className="project-cards">
           {alerts.map((alert) => (
-            <article key={`${alert.projectId}-${alert.monthKey}`} className="project-card">
-              <h3>{alert.projectName}</h3>
+            <article key={`${alert.scopeId}-${alert.monthKey}`} className="project-card">
+              <h3>{alert.scopeType === 'lo' ? `LO ${alert.loNumero || alert.loId || '-'}` : (alert.projectNames?.[0] || '-')}</h3>
               <div className="muted">
-                <div><strong>Código:</strong> {alert.projectId}</div>
+                <div><strong>Origem:</strong> {alert.scopeType === 'lo' ? 'LO' : 'Empreendimento vinculado'}</div>
+                <div><strong>Escopo:</strong> {alert.scopeSummary || '-'}</div>
+                {alert.scopeType === 'lo' && (
+                  <div>
+                    <strong>Ã“rgÃ£o:</strong> {alert.orgaoAmbiental || '-'}
+                    {' | '}
+                    <strong>Esfera:</strong> {alert.esfera || '-'}
+                    {alert.uf ? ` (${alert.uf})` : ''}
+                  </div>
+                )}
                 <div><strong>Entrega:</strong> {String(alert.month).padStart(2, '0')}/{alert.year}</div>
                 <div><strong>Faltam:</strong> {alert.days} dia(s)</div>
               </div>
@@ -78,6 +94,7 @@ function DashboardView() {
   const { user, logout } = useAuth();
   const { show } = useToast();
   const [projects, setProjects] = useState([]);
+  const [operatingLicenses, setOperatingLicenses] = useState([]);
   const [inspections, setInspections] = useState([]);
   const [erosions, setErosions] = useState([]);
   const [users, setUsers] = useState([]);
@@ -94,6 +111,11 @@ function DashboardView() {
       () => show('Erro ao carregar empreendimentos.', 'error'),
     );
 
+    const unsubLicenses = subscribeOperatingLicenses(
+      (data) => setOperatingLicenses(data),
+      () => show('Erro ao carregar licenÃ§as de operaÃ§Ã£o.', 'error'),
+    );
+
     const unsubInspections = subscribeInspections(
       (data) => setInspections(data),
       () => show('Erro ao carregar vistorias.', 'error'),
@@ -101,11 +123,12 @@ function DashboardView() {
 
     const unsubErosions = subscribeErosions(
       (data) => setErosions(data),
-      () => show('Erro ao carregar erosões.', 'error'),
+      () => show('Erro ao carregar erosÃµes.', 'error'),
     );
 
     return () => {
       unsubProjects?.();
+      unsubLicenses?.();
       unsubInspections?.();
       unsubErosions?.();
     };
@@ -146,10 +169,13 @@ function DashboardView() {
         <h2>Acesso restrito</h2>
         <p className="muted">
           {accessStatus === 'Pendente'
-            ? 'A sua conta está aguardando aprovação de um administrador.'
-            : 'A sua conta está inativa. Entre em contato com um administrador.'}
+            ? 'A sua conta estÃ¡ aguardando aprovaÃ§Ã£o de um administrador.'
+            : 'A sua conta estÃ¡ inativa. Entre em contato com um administrador.'}
         </p>
-        <button type="button" onClick={logout}>Sair</button>
+        <button type="button" onClick={logout}>
+          <AppIcon name="logout" />
+          Sair
+        </button>
       </section>
     );
   }
@@ -172,6 +198,18 @@ function DashboardView() {
           reloadProjects={async () => null}
           onOpenProjectInspections={openProjectInspections}
           searchTerm={searchTerm}
+        />
+      );
+    }
+
+    if (activeTab === 'licenses') {
+      return (
+        <LicensesView
+          licenses={operatingLicenses}
+          projects={projects}
+          erosions={erosions}
+          userEmail={user?.email}
+          showToast={show}
         />
       );
     }
@@ -223,7 +261,7 @@ function DashboardView() {
     }
 
     if (activeTab === 'dashboard') {
-      return <DashboardAlerts projects={projects} />;
+      return <DashboardAlerts projects={projects} operatingLicenses={operatingLicenses} />;
     }
 
     return null;
@@ -246,7 +284,7 @@ function DashboardView() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </section>
-        <Suspense fallback={<section className="panel">A carregar módulo...</section>}>
+        <Suspense fallback={<section className="panel">A carregar mÃ³dulo...</section>}>
           {renderTab()}
         </Suspense>
       </AppShell>

@@ -83,6 +83,18 @@ button {
   background: #2563eb;
   cursor: pointer;
   transition: 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+a.icon-inline,
+.icon-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
 }
 
 button:hover { background: #1d4ed8; }
@@ -180,6 +192,12 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
   flex-wrap: wrap;
 }
 
+.app-icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+
 .toast {
   position: fixed;
   right: 20px;
@@ -225,6 +243,7 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
   background: #1e293b;
   color: #cbd5e1;
   text-align: left;
+  justify-content: flex-start;
 }
 
 .side-nav button.nav-active {
@@ -321,4 +340,65 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
 .status-ok {
   background: #dcfce7;
   color: #15803d;
+}
+
+.hotel-actions-panel {
+  margin: 10px 0;
+}
+
+.hotel-actions-grid {
+  align-items: center;
+}
+
+.tower-list {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.tower-item {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px;
+  margin: 0;
+}
+
+.tower-item.erosion {
+  border-left: 4px solid #dc2626;
+  background: #fef2f2;
+}
+
+.tower-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.tower-item-title {
+  display: grid;
+  gap: 2px;
+}
+
+.tower-item-details {
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.inspection-hotel-section {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+}
+
+.inspection-hotel-card {
+  border-color: #bfdbfe;
+  background: #ffffff;
 }
