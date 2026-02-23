@@ -16,6 +16,8 @@ coverage/
 venv/
 env/
 ENV/
+__pycache__/
+*.pyc
 
 # Live Server artifacts
 .live-server/

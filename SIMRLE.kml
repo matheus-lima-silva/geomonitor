@@ -1,0 +1,1875 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document>
+	<name>SIMRLE.kmz</name>
+	<StyleMap id="13800">
+		<Pair>
+			<key>normal</key>
+			<styleUrl>#138normal00</styleUrl>
+		</Pair>
+		<Pair>
+			<key>highlight</key>
+			<styleUrl>#138highlight00</styleUrl>
+		</Pair>
+	</StyleMap>
+	<Style id="138highlight00">
+		<IconStyle>
+			<color>ef0000ff</color>
+			<scale>0.7</scale>
+			<Icon>
+				<href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+			</Icon>
+			<hotSpot x="0.5" y="0.5" xunits="fraction" yunits="fraction"/>
+		</IconStyle>
+		<LabelStyle>
+			<scale>0.9</scale>
+		</LabelStyle>
+		<LineStyle>
+			<color>ef00ffff</color>
+			<width>4</width>
+		</LineStyle>
+	</Style>
+	<Style id="138normal00">
+		<IconStyle>
+			<scale>0.6</scale>
+			<Icon>
+				<href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>
+			</Icon>
+			<hotSpot x="0.5" y="0.5" xunits="fraction" yunits="fraction"/>
+		</IconStyle>
+		<LabelStyle>
+			<scale>0.7</scale>
+		</LabelStyle>
+		<LineStyle>
+			<color>ef0000ff</color>
+			<width>2</width>
+		</LineStyle>
+	</Style>
+	<Folder>
+		<name>SIMRLE1</name>
+		<Style>
+			<ListStyle>
+				<listItemType>checkHideChildren</listItemType>
+				<bgColor>00ffffff</bgColor>
+				<maxSnippetLines>2</maxSnippetLines>
+			</ListStyle>
+		</Style>
+		<Placemark>
+			<name>Simplício - Rocha Leão C1</name>
+			<description>SIMRLE1</description>
+			<styleUrl>#13800</styleUrl>
+			<gx:balloonVisibility>1</gx:balloonVisibility>
+			<LineString>
+				<coordinates>
+					-42.79536041,-21.92260055,0 -42.7947786100005,-21.922558453629,0 -42.7914308603838,-21.9244154371328,0 -42.7878257743795,-21.9264163449934,0 -42.7799916864386,-21.9307636040193,0 -42.7787399996022,-21.9314586367325,0 -42.7774884655998,-21.9321556389848,0 -42.7707621248735,-21.9358862650869,0 -42.7687662564582,-21.9369944342504,0 -42.7673830732863,-21.9377619160404,0 -42.7603408139903,-21.9416683258015,0 -42.7505747275514,-21.9470867200241,0 -42.74871589983,-21.9496693245652,0 -42.7451760613778,-21.9545915131903,0 -42.741235610403,-21.9600663454085,0 -42.7382978233624,-21.9641484819397,0 -42.7345438773884,-21.9693690871658,0 -42.7307878283675,-21.9745950466299,0 -42.7271132241867,-21.9797057332506,0 -42.724927127539,-21.98274118493,0 -42.7210184984844,-21.9862867335064,0 -42.7180061266695,-21.9890226244581,0 -42.716871753956,-21.9900479870049,0 -42.7131365309109,-21.9934375219245,0 -42.7120959677524,-21.9943825848734,0 -42.7062314695607,-21.9996990736939,0 -42.7041914838994,-22.0015524299162,0 -42.7030933697262,-22.0025491228598,0 -42.7001808585767,-22.0051842341298,0 -42.6952244929286,-22.0096807305757,0 -42.6925127527398,-22.0121368509598,0 -42.6907988460329,-22.0136915181092,0 -42.6848241992456,-22.0191075547306,0 -42.6835864815527,-22.0202278627375,0 -42.677978257703,-22.0253143523525,0 -42.677364928703,-22.0265146926396,0 -42.6739169320803,-22.0333241879582,0 -42.6728654158717,-22.0353970707029,0 -42.6708257361131,-22.0394078424333,0 -42.6665436439646,-22.0428501560608,0 -42.6610468223175,-22.0472571537289,0 -42.6596959920293,-22.048336304037,0 -42.6535954975633,-22.0532265519443,0 -42.6523248405974,-22.0542458395841,0 -42.6495516917742,-22.056470616818,0 -42.647238800508,-22.0583210031398,0 -42.6443242255062,-22.0627605204546,0 -42.6426208414295,-22.0653618571341,0 -42.6391777550545,-22.0705953677741,0 -42.6373119491001,-22.0734349516001,0 -42.6331202210235,-22.0761227328023,0 -42.6288868756694,-22.0788353063684,0 -42.6267093146645,-22.0802292270817,0 -42.6212514314674,-22.0837252556995,0 -42.6200794369434,-22.0844727622354,0 -42.6167767209025,-22.0865913534043,0 -42.6110969209855,-22.0902271599369,0 -42.6085244404123,-22.091872770386,0 -42.6043291628352,-22.094557722565,0 -42.6010961593275,-22.0966325649165,0 -42.5992507344298,-22.0978124508975,0 -42.596953103675,-22.0992771450646,0 -42.5930324947394,-22.1017898517073,0 -42.5895019492329,-22.1040530317495,0 -42.5882668537067,-22.1048412753222,0 -42.5837982796562,-22.1077013916612,0 -42.5792954925986,-22.1105793399229,0 -42.5777288993174,-22.1115827556723,0 -42.5700864065089,-22.1164758577157,0 -42.5668656832593,-22.1185366305739,0 -42.5631099686386,-22.1229687787344,0 -42.5617537097096,-22.1245728276745,0 -42.5548599264661,-22.1327095125473,0 -42.5498731945735,-22.1385983255351,0 -42.5479607658046,-22.1408531238811,0 -42.5468089907945,-22.1415645144816,0 -42.5419480506069,-22.1445418870186,0 -42.5397063057852,-22.1459183639062,0 -42.5361117901274,-22.1481229974799,0 -42.5329635237364,-22.1500529368824,0 -42.527073953521,-22.1551544080961,0 -42.5218296192242,-22.1596944700678,0 -42.5158342581464,-22.1642020155063,0 -42.5123550691119,-22.1666309740853,0 -42.5097947969012,-22.168500455722,0 -42.5069614735597,-22.1705756509805,0 -42.5049409195753,-22.1720535839887,0 -42.4994738551633,-22.1760531574656,0 -42.4968675210811,-22.177957030568,0 -42.4931459561423,-22.1806763543089,0 -42.4920428589195,-22.1818486620222,0 -42.4912358523064,-22.1827048091346,0 -42.4900846169963,-22.1839255442935,0 -42.4868283220288,-22.1873849693328,0 -42.4803530561837,-22.1942606862985,0 -42.4747790392948,-22.2001695636507,0 -42.4731749139654,-22.2018741688805,0 -42.4720636678462,-22.2030529803442,0 -42.4673358083464,-22.2046574402711,0 -42.4593279502066,-22.2073686596842,0 -42.4573651778163,-22.2080348938911,0 -42.4556874997163,-22.2086003749773,0 -42.4442792609596,-22.2095500340688,0 -42.4429548407951,-22.2096603949131,0 -42.4396378767253,-22.2099332944215,0 -42.4381283264116,-22.2100599436145,0 -42.4294185344209,-22.2107845185182,0 -42.4238537704408,-22.2114011089821,0 -42.4208920390551,-22.2116750511453,0 -42.4168784193658,-22.2121110963903,0 -42.4116272554487,-22.2148159377681,0 -42.4061451555823,-22.2176393129438,0 -42.4008970556786,-22.220334548127,0 -42.396817237767,-22.222429733597,0 -42.3944747235164,-22.2232071924193,0 -42.3852296865323,-22.2262713947817,0 -42.3824181709277,-22.2272021166517,0 -42.3800974809778,-22.227969836647,0 -42.3714276514581,-22.230839530615,0 -42.3674519411763,-22.2312003901302,0 -42.359486672369,-22.2319271058791,0 -42.3548645928303,-22.2315729140306,0 -42.3519566288811,-22.2313461129473,0 -42.3485501403731,-22.23108045384,0 -42.3420932794004,-22.2305839329871,0 -42.33898711988,-22.2303384130242,0 -42.3331173230544,-22.2298873140464,0 -42.3283284467662,-22.229514833559,0 -42.3259976745204,-22.2293343241591,0 -42.3215860690422,-22.2289944845076,0 -42.3168172365325,-22.2286271935401,0 -42.3106842251873,-22.2281470754667,0 -42.3076412543754,-22.2269011649621,0 -42.3027194401717,-22.2248948372834,0 -42.2990562680792,-22.223397214116,0 -42.2976594254929,-22.2228221965213,0 -42.2928286627953,-22.2203840234212,0 -42.2885033786221,-22.2181906612356,0 -42.2852257695656,-22.2165343567155,0 -42.2806845147238,-22.2142383296197,0 -42.2769422292172,-22.2127142847704,0 -42.2729116002271,-22.2110738069907,0 -42.271917635862,-22.2106666533576,0 -42.2674531591125,-22.2088582187087,0 -42.2638941753875,-22.207406127161,0 -42.2584308407658,-22.2051904292977,0 -42.2551130134303,-22.203838866284,0 -42.2537848269409,-22.2032989976999,0 -42.2474995745188,-22.200741202847,0 -42.2400194009153,-22.1983144028788,0 -42.2384341555751,-22.1977991511363,0 -42.2318382916512,-22.1956551998285,0 -42.2303981060922,-22.1951864312654,0 -42.2249978786965,-22.1934338153314,0 -42.2189620211255,-22.1914776328455,0 -42.2130724356065,-22.1895610177704,0 -42.2100514760382,-22.1885766011495,0 -42.2079217674702,-22.1878858399249,0 -42.2042353868744,-22.1877943899085,0 -42.1993394744814,-22.1876717400968,0 -42.1957694624908,-22.187585410602,0 -42.1884862262753,-22.1891829267352,0 -42.1871966009393,-22.1894629479009,0 -42.1826074509605,-22.1904669335337,0 -42.1798966490129,-22.1910611239643,0 -42.1756307145781,-22.191993524941,0 -42.1700447891219,-22.1932152704507,0 -42.1681725472134,-22.1937218439403,0 -42.163530113706,-22.1949971667119,0 -42.1595152274175,-22.1960948811807,0 -42.1540640100821,-22.1975827204685,0 -42.1520582046735,-22.1981316992189,0 -42.1473273952024,-22.1994252418213,0 -42.1437463799591,-22.2004016305323,0 -42.1402671827456,-22.2013547197807,0 -42.137534758383,-22.2021000695649,0 -42.1338280801288,-22.2052177956437,0 -42.1256916799079,-22.2120558463644,0 -42.1227294093506,-22.2145461970276,0 -42.1200355438994,-22.2168096633806,0 -42.1151198910118,-22.2209469961323,0 -42.11084500683,-22.224535379927,0 -42.1045392756322,-22.2298356397394,0 -42.1032804830039,-22.2308880552067,0 -42.0987689781376,-22.2318960423099,0 -42.0972986772152,-22.2322260825188,0 -42.0897216553357,-22.2339171974163,0 -42.0881407436178,-22.2342684644564,0 -42.0859262255561,-22.2347554773732,0 -42.081899877799,-22.2356633924132,0 -42.0786397156099,-22.2363878451433,0 -42.0759611672287,-22.2369881350556,0 -42.0725530757206,-22.2391802034828,0 -42.0661631844759,-22.2411144385051,0 -42.0648201637644,-22.2416850062519,0 -42.0625756237968,-22.2426321238198,0 -42.0544680128533,-22.2442752709136,0 -42.0482618955926,-22.2455305003663,0 -42.0465997499113,-22.2458678294929,0 -42.0440026423483,-22.2463942810286,0 -42.0318797819688,-22.2488447631418,0 -42.0302498307434,-22.2491734233911,0 -42.0217798445636,-22.2508845245076,0 -42.0211035972758,-22.251023691294,0 -42.0194121936363,-22.2519335416266,0 -42.0088559152676,-22.2576101209622,0 -42.0051910821022,-22.2595815373585,0 -42.0039814024269,-22.2602332525881,0 -42.0012577175179,-22.2616944852812,0 -41.9987821322022,-22.2630263428136,0 -41.9931955174754,-22.2660271454663,0 -41.9863934179675,-22.2696814453388,0 -41.9802839773158,-22.2729629073511,0 -41.9773152958178,-22.275862854508,0 -41.9729782636125,-22.2800932868262,0 -41.9701514264685,-22.2828434689006,0 -41.9674095485303,-22.2886252550097,0 -41.9697364807298,-22.2936751429401,0 -41.9732220973996,-22.301225988511,0 -41.9746100332769,-22.3036408723812,0 -41.9774084116243,-22.3085049684689,0 -41.9798125614173,-22.3126827872168,0 -41.9823436492238,-22.3170803424678,0 -41.9847918727833,-22.3213283577434,0 -41.9867867943701,-22.324799739759,0 -41.9888853329863,-22.3284430465754,0 -41.9911927660967,-22.3324541285301,0 -41.9934766703918,-22.3364455751629,0 -41.9956027341535,-22.3401486261005,0 -41.9975894768174,-22.3435900453249,0 -42.0000829916908,-22.3478924828392,0 -42.0027268562834,-22.3524823271618,0 -42.0051303404494,-22.3566598635073,0 -42.0070187181974,-22.3599451055815,0 -42.0072558287425,-22.3626809238202,0 -42.0074664613862,-22.3651798409638,0 -42.0079803890282,-22.3713544930654,0 -42.0081305897227,-22.3730441384103,0 -42.0083535722409,-22.375744143618,0 -42.0087798414238,-22.380710045813,0 -42.0091004940198,-22.3844934802781,0 -42.0094533813968,-22.3887665547819,0 -42.0064801151175,-22.3924472489732,0 -42.0062057447969,-22.3970656939537,0 -42.005916725593,-22.4019702120828,0 -42.0056909939347,-22.4057717306799,0 -42.0052100923642,-22.4079338873089,0 -42.0048292028189,-22.4096718763293,0 -42.0039871909994,-22.4134591569096,0 -42.0033612999462,-22.4162902919529,0 -42.0043649102001,-22.4176424295484,0 -42.0057459075002,-22.4194972386674,0 -42.0087314583288,-22.423445421599,0 -42.0095918209723,-22.4242137017846,0 -42.0098069,-22.42427437,0 
+				</coordinates>
+			</LineString>
+		</Placemark>
+		<Folder>
+			<name>Numeração</name>
+			<Region>
+				<LatLonAltBox>
+					<north>8</north>
+					<south>-55</south>
+					<east>-24</east>
+					<west>-81</west>
+					<minAltitude>20</minAltitude>
+					<maxAltitude>100</maxAltitude>
+				</LatLonAltBox>
+				<Lod>
+					<minLodPixels>1e+06</minLodPixels>
+					<maxLodPixels>-1</maxLodPixels>
+					<minFadeExtent>0</minFadeExtent>
+					<maxFadeExtent>0</maxFadeExtent>
+				</Lod>
+			</Region>
+			<Placemark>
+				<name>SIMRLE1 Pórtico SIM</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.79536041,-21.92260055,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0001</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.79477448,-21.92254088,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0002</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.79142091,-21.9244,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0003</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.78781582,-21.92640091,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0004</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.77998173,-21.93074817,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0005</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.77873003,-21.93144321,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0006</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.7774785,-21.93214021,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0007</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.77075217,-21.93587083,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0008</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.7687563,-21.936979,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0009</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.76737312,-21.93774648,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0010</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.76033086,-21.94165289,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0011</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.75056136,-21.94707369,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0012</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.74869977,-21.94965934,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0013</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.74515993,-21.95458153,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0014</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.74121948,-21.96005636,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0015</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.73828169,-21.9641385,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0016</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.73452774,-21.96935911,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0017</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.73077169,-21.97458507,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0018</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.72709709,-21.97969575,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0019</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.7249122,-21.9827297,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0020</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.72100493,-21.98627388,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0021</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.71799257,-21.98900976,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0022</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.7168582,-21.99003512,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0023</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.71312296,-21.99342467,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0024</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.7120824,-21.99436973,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0025</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.7062179,-21.99968622,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0026</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.70417791,-22.00153958,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0027</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.70307981,-22.00253626,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0028</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.7001673,-22.00517137,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0029</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.69521093,-22.00966787,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0030</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.69249919,-22.01212399,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0031</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.69078528,-22.01367866,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0032</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.68481064,-22.01909469,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0033</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.68357292,-22.020215,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0034</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.67796246,-22.02530391,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0035</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.67734738,-22.02650702,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0036</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.67389937,-22.03331654,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0037</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.67284786,-22.03538941,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0038</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.67081027,-22.03939698,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0039</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.66653094,-22.04283656,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0040</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.66103414,-22.04724354,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0041</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.65968331,-22.04832269,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0042</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.6535828,-22.05321295,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0043</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.65231214,-22.05423224,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0044</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.649539,-22.05645701,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0045</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.64722399,-22.05830938,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0046</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.64430764,-22.06275118,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0047</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.64260426,-22.06535251,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0048</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.63916118,-22.07058601,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0049</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.63729783,-22.07342261,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0050</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.63310918,-22.07610794,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0051</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.62887584,-22.07882051,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0052</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.62669828,-22.08021443,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0053</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.62124041,-22.08371045,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0054</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.62006841,-22.08445796,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0055</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.61676568,-22.08657656,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0056</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.61108589,-22.09021236,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0057</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.60851341,-22.09185797,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0058</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.60431812,-22.09454293,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0059</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.60108512,-22.09661777,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0060</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.59923972,-22.09779764,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0061</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.59694208,-22.09926234,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0062</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.59302145,-22.10177506,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0063</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.58949092,-22.10403823,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0064</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.58825583,-22.10482647,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0065</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.58378725,-22.10768659,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0066</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.57928446,-22.11056454,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0067</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.57771786,-22.11156796,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0068</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.57007537,-22.11646106,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0069</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.56685238,-22.11852353,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0070</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.56309469,-22.12295768,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0071</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.56173843,-22.12456173,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0072</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.55484465,-22.13269841,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0073</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.54985792,-22.13858722,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0074</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.54794758,-22.14083992,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0075</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.54679825,-22.14154953,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0076</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.54193733,-22.14452689,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0077</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.53969558,-22.14590337,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0078</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.53610107,-22.148108,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0079</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.53295149,-22.15003882,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0080</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.52706069,-22.15514127,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0081</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.52181686,-22.15968091,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0082</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.51582229,-22.16418785,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0083</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.51234321,-22.16661673,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0084</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.50978276,-22.16848634,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0085</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.50694943,-22.17056154,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0086</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.50492888,-22.17203947,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0087</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.49946182,-22.17603904,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0088</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.49685549,-22.17794291,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0089</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.49313256,-22.18066333,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0090</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.49202822,-22.18183684,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0091</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.49122122,-22.18269298,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0092</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.49006998,-22.18391372,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0093</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.48681368,-22.18737315,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0094</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.48033842,-22.19424886,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0095</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.4747644,-22.20015774,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0096</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.47316027,-22.20186235,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0097</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.47205266,-22.20303816,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0098</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.46732913,-22.20464055,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0099</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.45932127,-22.20735177,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0100</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.45735851,-22.208018,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0101</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.45568327,-22.20858282,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0102</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.44427752,-22.20953212,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0103</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.44295311,-22.20964248,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0104</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.43963614,-22.20991538,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0105</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.43812658,-22.21004203,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0106</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.42941651,-22.21076663,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0107</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.42385165,-22.21138323,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0108</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.42088994,-22.21165717,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0109</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.41687245,-22.21209398,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0110</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.41161781,-22.21480022,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0111</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.40613572,-22.21762359,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0112</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.40088763,-22.22031882,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0113</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.39680922,-22.22241335,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0114</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.39446817,-22.22319026,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0115</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.38522314,-22.22625446,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0116</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.38241163,-22.22718518,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0117</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.38009094,-22.2279529,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0118</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.3714234,-22.23082198,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0119</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.36745004,-22.23118249,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0120</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.35948652,-22.23190912,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0121</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.35486621,-22.23155499,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0122</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.35195826,-22.23132819,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0123</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.34855176,-22.23106253,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0124</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.34209491,-22.23056601,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0125</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.33898875,-22.23032049,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0126</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.33311894,-22.22986939,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0127</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.32833007,-22.22949691,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0128</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.32599929,-22.2293164,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0129</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.32158768,-22.22897656,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0130</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.31681886,-22.22860927,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0131</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.31068904,-22.22812965,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0132</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.3076491,-22.22688471,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0133</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.30272728,-22.22487838,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0134</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.29906414,-22.22338077,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0135</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.29766803,-22.22280607,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0136</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.29283798,-22.22036824,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0137</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.2885127,-22.21817488,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0138</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.28523508,-22.21651857,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0139</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.28069309,-22.21422219,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0140</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.27695005,-22.21269782,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0141</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.27291944,-22.21105735,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0142</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.27192546,-22.21065019,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0143</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.26746097,-22.20884175,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0144</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.26390199,-22.20738966,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0145</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.25843865,-22.20517396,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0146</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.25512083,-22.2038224,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0147</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.25379264,-22.20328253,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0148</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.2475067,-22.20072447,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0149</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.24002583,-22.19829743,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0150</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.23844059,-22.19778218,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0151</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.23184473,-22.19563823,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0152</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.23040454,-22.19516946,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0153</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.2250043,-22.19341684,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0154</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.21896845,-22.19146066,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0155</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.21307888,-22.18954405,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0156</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.21005791,-22.18855963,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0157</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.20792528,-22.18786815,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0158</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.20423591,-22.18777641,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0159</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.19933999,-22.18765376,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0160</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.19576746,-22.18756752,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0161</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.18848177,-22.18916542,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0162</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.18719215,-22.18944544,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0163</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.18260298,-22.19044943,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0163A</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.17989218,-22.19104362,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0163B</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.17562625,-22.19197602,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0164</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.17003983,-22.19319788,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0165</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.16816706,-22.19370459,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0166</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.1635246,-22.19497992,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0167</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.15950973,-22.19607763,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0168</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.15405851,-22.19756547,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0169</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.1520527,-22.19811445,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0170</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.1473219,-22.19940799,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0171</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.14374088,-22.20038438,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0172</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.14026168,-22.20133747,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0173</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.13752524,-22.20208439,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0174</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.13381502,-22.20520448,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0175</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.12567862,-22.21204253,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0176</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.12271635,-22.21453288,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0177</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.12002248,-22.21679635,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0178</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.11510683,-22.22093368,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0179</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.11083195,-22.22452206,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0180</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.10452623,-22.22982231,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0181</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.10327141,-22.23087215,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0182</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.09876441,-22.23187856,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0183</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.09729411,-22.2322086,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0184</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.08971711,-22.23389971,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0185</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.08813623,-22.23425097,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0186</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.08592168,-22.23473799,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0187</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.08189531,-22.23564591,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0188</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.07863516,-22.23637036,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0189</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.0759532,-22.23697173,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0190</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.07254442,-22.2391641,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0191</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.0661561,-22.24109769,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0192</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.06481208,-22.24166865,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0193</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.06256948,-22.24261506,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0194</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.05446386,-22.2442577,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0195</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.04825774,-22.24551293,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0196</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.04659559,-22.24585026,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0197</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.04399849,-22.24637671,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0198</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.03187564,-22.24882719,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0199</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.03024569,-22.24915585,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0200</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.02177566,-22.25086696,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0201</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.02109652,-22.25100694,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0202</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.01940243,-22.25191799,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0203</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00884615,-22.25759457,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0204</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00518131,-22.25956599,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0205</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00397164,-22.2602177,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0206</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00124796,-22.26167893,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0207</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.99877237,-22.26301079,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0208</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.99318576,-22.26601159,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0209</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.98638366,-22.26966589,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0210</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.98027192,-22.2729488,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0211</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.97730119,-22.27585048,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0212</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.97296417,-22.2800809,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0213</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.97013524,-22.28283351,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0214</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.96739011,-22.28862516,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0215</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.9697186,-22.2936822,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0216</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.97320456,-22.30123375,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0217</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.97459287,-22.30364932,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0218</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.97739125,-22.30851342,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0219</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.9797954,-22.31269124,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0220</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.98232649,-22.3170888,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0221</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.98477471,-22.32133681,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0222</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.98676963,-22.32480819,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0223</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.98886817,-22.3284515,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0224</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.99117559,-22.33246256,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0225</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.99345949,-22.336454,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0226</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.99558557,-22.34015708,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0227</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-41.99757233,-22.34359853,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0228</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00006584,-22.34790096,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0229</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00270969,-22.35249078,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0230</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00511317,-22.35666831,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0231</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00700005,-22.35995015,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0232</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00723644,-22.36268234,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0233</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00744707,-22.36518123,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0234</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.007961,-22.37135592,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0235</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.0081112,-22.37304556,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0236</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00833418,-22.37574554,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0237</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00876045,-22.38071146,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0238</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.0090811,-22.38449487,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0239</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.0094347,-22.38876154,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0240</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00646183,-22.39244111,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0241</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00618632,-22.39706471,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0242</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.0058973,-22.40196923,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0243</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.0056717,-22.40576942,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0244</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00519103,-22.40793029,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0245</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00481014,-22.40966828,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0246</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00396813,-22.41345555,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0247</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00334223,-22.41629386,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0248</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00434887,-22.41765261,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0249</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00572992,-22.41950749,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0250</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00871666,-22.4234571,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0251</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.00958266,-22.42422957,0</coordinates>
+				</Point>
+			</Placemark>
+			<Placemark>
+				<name>SIMRLE1 0252A</name>
+				<styleUrl>#13800</styleUrl>
+				<Point>
+					<coordinates>-42.0098069,-22.42427437,0</coordinates>
+				</Point>
+			</Placemark>
+		</Folder>
+		<atom:link rel="app" href="https://www.google.com/earth/about/versions/#earth-pro" title="Google Earth Pro 7.3.6.10441"></atom:link>
+	</Folder>
+</Document>
+</kml>
