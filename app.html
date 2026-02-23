@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -314,6 +314,118 @@
             return occurrences;
         }
 
+        function normalizeAgencyName(value) {
+            return String(value || '').trim().replace(/\s+/g, ' ');
+        }
+
+        function getAgencyOptions({ licenses, erosions }) {
+            const map = new Map();
+            const upsert = (value, source) => {
+                const cleaned = normalizeAgencyName(value);
+                if (!cleaned) return;
+                const key = cleaned.toLowerCase();
+                const current = map.get(key);
+                if (!current) {
+                    map.set(key, { value: cleaned, source });
+                    return;
+                }
+                if (current.source === 'history' && source === 'catalog') {
+                    map.set(key, { value: current.value, source: 'catalog' });
+                }
+            };
+
+            ENVIRONMENTAL_AGENCY_CATALOG.forEach((item) => upsert(item, 'catalog'));
+            (licenses || []).forEach((item) => upsert(item?.orgaoAmbiental, 'history'));
+            (erosions || []).forEach((erosion) => {
+                (Array.isArray(erosion?.acompanhamentosResumo) ? erosion.acompanhamentosResumo : []).forEach((event) => {
+                    if (normalizeFollowupEventType(event) !== 'autuacao') return;
+                    upsert(event?.orgao, 'history');
+                });
+            });
+
+            return [...map.values()].sort((a, b) => a.value.localeCompare(b.value, 'pt-BR'));
+        }
+
+        function buildLicenseReportOccurrences(license, projectsById, startYear, endYear) {
+            const rows = [];
+            const coverage = (Array.isArray(license?.cobertura) ? license.cobertura : [])
+                .map((item) => ({
+                    projetoId: String(item?.projetoId || '').trim(),
+                    torres: [...new Set((Array.isArray(item?.torres) ? item.torres : []).map((tower) => String(tower || '').trim()).filter(Boolean))]
+                }))
+                .filter((item) => item.projetoId);
+            if (coverage.length === 0) return rows;
+            if (String(license?.status || '').trim().toLowerCase() === 'inativa') return rows;
+            const periodicidade = normalizeReportPeriodicity(license?.periodicidadeRelatorio);
+            const months = normalizeReportMonths(license?.mesesEntregaRelatorio);
+            if (months.length === 0) return rows;
+
+            for (let year = startYear; year <= endYear; year += 1) {
+                if (periodicidade === 'Bienal') {
+                    const base = Number(license?.anoBaseBienal);
+                    if (!Number.isInteger(base) || base < 2000) continue;
+                    if ((year - base) % 2 !== 0) continue;
+                }
+                months.forEach((month) => {
+                    const ref = new Date(year, month - 1, 1);
+                    const start = license?.inicioVigencia ? new Date(`${license.inicioVigencia}T00:00:00`) : null;
+                    const end = license?.fimVigencia ? new Date(`${license.fimVigencia}T23:59:59`) : null;
+                    if (start && !Number.isNaN(start.getTime()) && ref < start) return;
+                    if (end && !Number.isNaN(end.getTime()) && ref > end) return;
+
+                    const projectIds = [...new Set(coverage.map((item) => item.projetoId))];
+                    const projectNames = projectIds.map((id) => projectsById.get(id)?.nome || id);
+                    const scopeSummary = coverage.map((item) => `${item.projetoId}: ${item.torres.join(', ')}`).join(' | ');
+
+                    rows.push({
+                        scopeType: 'lo',
+                        scopeId: String(license?.id || '').trim(),
+                        loId: String(license?.id || '').trim(),
+                        loNumero: String(license?.numero || '').trim(),
+                        orgaoAmbiental: String(license?.orgaoAmbiental || '').trim(),
+                        esfera: String(license?.esfera || 'Federal').trim(),
+                        uf: String(license?.uf || '').trim(),
+                        projectIds,
+                        projectNames,
+                        scopeSummary,
+                        month,
+                        year,
+                        monthKey: `${year}-${String(month).padStart(2, '0')}`,
+                        sortDate: new Date(year, month - 1, 1).getTime()
+                    });
+                });
+            }
+            return rows;
+        }
+
+        function buildEffectiveReportOccurrences({ projects, licenses, startYear, endYear }) {
+            const projectsById = new Map((projects || []).map((item) => [String(item?.id || '').trim(), item]));
+            const loOccurrences = (licenses || []).flatMap((license) =>
+                buildLicenseReportOccurrences(license, projectsById, startYear, endYear)
+            );
+            const coveredProjectMonth = new Set();
+            loOccurrences.forEach((occ) => {
+                (occ.projectIds || []).forEach((projectId) => coveredProjectMonth.add(`${projectId}|${occ.monthKey}`));
+            });
+
+            const fallback = (projects || [])
+                .flatMap((project) => buildProjectReportOccurrences(project, startYear, endYear))
+                .filter((occ) => !coveredProjectMonth.has(`${occ.projectId}|${occ.monthKey}`))
+                .map((occ) => ({
+                    scopeType: 'project_fallback',
+                    scopeId: occ.projectId,
+                    projectIds: [occ.projectId],
+                    projectNames: [occ.projectName],
+                    scopeSummary: occ.projectName ? `${occ.projectId}: ${occ.projectName}` : occ.projectId,
+                    month: occ.month,
+                    year: occ.year,
+                    monthKey: occ.monthKey,
+                    sortDate: occ.sortDate.getTime ? occ.sortDate.getTime() : Number(occ.sortDate)
+                }));
+
+            return [...loOccurrences, ...fallback].sort((a, b) => a.sortDate - b.sortDate);
+        }
+
         function calculateCriticality(dados, rulesConfig = RULES_DATABASE) {
             let maxScore = 0;
             let resultado = { impacto: 'Baixo', score: 1, frequencia: '24 meses', intervencao: 'Monitoramento visual' };
@@ -353,6 +465,24 @@
             'Fora da faixa de servidão',
             'Base de torre',
             'Outros'
+        ];
+
+        const LICENSE_SPHERE_OPTIONS = ['Federal', 'Estadual'];
+        const BRAZIL_UF_OPTIONS = [
+            'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
+            'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI',
+            'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+        ];
+        const ENVIRONMENTAL_AGENCY_CATALOG = [
+            'IBAMA',
+            'ICMBio',
+            'ANM',
+            'INEA',
+            'SEMAD-MG',
+            'IAT-PR',
+            'CETESB',
+            'SEMAS-PA',
+            'SEMA-MT'
         ];
 
         function normalizeFollowupHistory(value) {
@@ -884,7 +1014,13 @@
                     clima: prev.clima || '',
                     torresInput,
                     torres: torresInput,
-                    torresDetalhadas: Array.isArray(prev.torresDetalhadas) ? prev.torresDetalhadas : []
+                    torresDetalhadas: Array.isArray(prev.torresDetalhadas) ? prev.torresDetalhadas : [],
+                    hotelNome: prev.hotelNome || '',
+                    hotelMunicipio: prev.hotelMunicipio || '',
+                    hotelLogisticaNota: prev.hotelLogisticaNota ?? '',
+                    hotelReservaNota: prev.hotelReservaNota ?? '',
+                    hotelEstadiaNota: prev.hotelEstadiaNota ?? '',
+                    hotelTorreBase: prev.hotelTorreBase || ''
                 });
             }
 
@@ -1482,6 +1618,7 @@
             const [authUser, setAuthUser] = useState(null);
             const [authLoading, setAuthLoading] = useState(true);
             const [projects, setProjects] = useState([]);
+            const [licenses, setLicenses] = useState([]);
             const [inspections, setInspections] = useState([]);
             const [erosions, setErosions] = useState([]);
             const [users, setUsers] = useState([]);
@@ -1595,6 +1732,10 @@
                     ));
                 });
 
+                const unLicenses = onSnapshot(collection(db, 'shared', 'geomonitor', 'operatingLicenses'), (s) => {
+                    setLicenses(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+
                 const un3 = onSnapshot(collection(db, 'shared', 'geomonitor', 'erosions'), (s) => {
                     setErosions(s.docs.map(d => ({ id: d.id, ...d.data() })));
                     setLoading(false);
@@ -1617,7 +1758,7 @@
                 });
 
                 return () => {
-                    un1(); un2(); un3(); un4(); un5();
+                    un1(); un2(); un3(); un4(); un5(); unLicenses();
                 };
             }, [authUser, initialized]);
 
@@ -1783,6 +1924,7 @@
             const menu = [
                 { id: 'dashboard', icon: <Activity />, label: 'Monitorização' },
                 { id: 'projects', icon: <MapIcon />, label: 'Empreendimentos' },
+                { id: 'licenses', icon: <Scale />, label: 'Licenças LO' },
                 { id: 'inspections', icon: <ClipboardList />, label: 'Vistorias' },
                 { id: 'erosions', icon: <AlertTriangle />, label: 'Erosões' },
                 { id: 'visit-planning', icon: <Scale />, label: 'Planejamento' },
@@ -1904,7 +2046,7 @@
 
                         <div className="max-w-7xl mx-auto">
                             {activeTab === 'dashboard' && (
-                                <DashboardView projects={projects} inspections={inspections} erosions={erosions} searchTerm={globalSearchTerm} />
+                                <DashboardView projects={projects} licenses={licenses} inspections={inspections} erosions={erosions} searchTerm={globalSearchTerm} />
                             )}
                             {activeTab === 'projects' && (
                                 <ProjectsView
@@ -1914,6 +2056,15 @@
                                     saveToFirestore={saveToFirestore}
                                     deleteFromFirestore={deleteFromFirestore}
                                     onOpenProjectInspections={openProjectInspections}
+                                />
+                            )}
+                            {activeTab === 'licenses' && (
+                                <LicensesView
+                                    licenses={licenses}
+                                    projects={projects}
+                                    erosions={erosions}
+                                    saveToFirestore={saveToFirestore}
+                                    deleteFromFirestore={deleteFromFirestore}
                                 />
                             )}
                             {activeTab === 'inspections' && (
@@ -2213,7 +2364,7 @@
             );
         }
 
-        function DashboardView({ projects, inspections, erosions, searchTerm }) {
+        function DashboardView({ projects, licenses, inspections, erosions, searchTerm }) {
             const filtered = erosions.filter(e => {
                 const t = searchTerm.toLowerCase();
                 if (!t) return true;
@@ -2223,9 +2374,12 @@
 
             const currentYear = new Date().getFullYear();
             const nextYear = currentYear + 1;
-            const reportOccurrences = projects
-                .flatMap((p) => buildProjectReportOccurrences(p, currentYear, nextYear))
-                .sort((a, b) => a.sortDate - b.sortDate || a.projectId.localeCompare(b.projectId));
+            const reportOccurrences = buildEffectiveReportOccurrences({
+                projects,
+                licenses,
+                startYear: currentYear,
+                endYear: nextYear
+            }).sort((a, b) => a.sortDate - b.sortDate || String(a.scopeId || '').localeCompare(String(b.scopeId || '')));
 
             const reportByMonth = reportOccurrences.reduce((acc, item) => {
                 const key = item.monthKey;
@@ -2258,8 +2412,12 @@
                             <h3 className="font-bold text-amber-900 mb-2">Planejamento de visita (janela de 45 dias)</h3>
                             <div className="space-y-1 text-sm text-amber-800">
                                 {reportPlanningAlerts.slice(0, 5).map((item) => (
-                                    <div key={`${item.projectId}-${item.monthKey}`}>
-                                        {item.projectName} ({item.projectId}) • entrega {getMonthLabel(item.month)}/{item.year} • faltam {item.days} dia(s)
+                                    <div key={`${item.scopeId}-${item.monthKey}`}>
+                                        {item.scopeType === 'lo'
+                                            ? `LO ${item.loNumero || item.loId} (${item.orgaoAmbiental || '-'})`
+                                            : `${item.projectNames?.[0] || '-'} (${item.projectIds?.[0] || '-'})`}
+                                        {' • '}entrega {getMonthLabel(item.month)}/{item.year}
+                                        {' • '}faltam {item.days} dia(s)
                                     </div>
                                 ))}
                             </div>
@@ -2321,16 +2479,16 @@
                                 <table className="w-full text-sm">
                                     <thead className="bg-slate-50 text-slate-500">
                                         <tr>
-                                            <th className="p-3 text-left">Empreendimento</th>
-                                            <th className="p-3 text-left">Código</th>
+                                            <th className="p-3 text-left">Origem</th>
+                                            <th className="p-3 text-left">Escopo</th>
                                             <th className="p-3 text-left">Mês/Ano entrega</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
                                         {reportOccurrences.slice(0, 8).map((item, idx) => (
-                                            <tr key={`${item.projectId}-${item.monthKey}-${idx}`}>
-                                                <td className="p-3 font-medium">{item.projectName}</td>
-                                                <td className="p-3 text-slate-600">{item.projectId}</td>
+                                            <tr key={`${item.scopeId}-${item.monthKey}-${idx}`}>
+                                                <td className="p-3 font-medium">{item.scopeType === 'lo' ? `LO ${item.loNumero || item.loId}` : 'Empreendimento vinculado'}</td>
+                                                <td className="p-3 text-slate-600">{item.scopeSummary || '-'}</td>
                                                 <td className="p-3">{getMonthLabel(item.month)}/{item.year}</td>
                                             </tr>
                                         ))}
@@ -2414,6 +2572,249 @@
                             </table>
                         </div>
                     </div>
+                </div>
+            );
+        }
+
+        function LicensesView({ licenses, projects, erosions, saveToFirestore, deleteFromFirestore }) {
+            const [isFormOpen, setIsFormOpen] = useState(false);
+            const [isEditing, setIsEditing] = useState(false);
+            const [formData, setFormData] = useState({
+                id: '',
+                numero: '',
+                orgaoAmbiental: '',
+                esfera: 'Federal',
+                uf: '',
+                descricao: '',
+                inicioVigencia: '',
+                fimVigencia: '',
+                status: 'ativa',
+                periodicidadeRelatorio: 'Anual',
+                mesesEntregaRelatorio: [1],
+                anoBaseBienal: '',
+                exigeAcompanhamentoErosivo: true,
+                cobertura: [],
+                observacoes: ''
+            });
+            const agencyOptions = useMemo(() => getAgencyOptions({ licenses, erosions }), [licenses, erosions]);
+
+            const toggleMonth = (monthValue) => {
+                const month = Number(monthValue);
+                setFormData((prev) => {
+                    const current = normalizeReportMonths(prev.mesesEntregaRelatorio);
+                    const exists = current.includes(month);
+                    const next = exists ? current.filter((item) => item !== month) : [...current, month];
+                    return { ...prev, mesesEntregaRelatorio: normalizeReportMonths(next) };
+                });
+            };
+
+            const openNew = () => {
+                setIsEditing(false);
+                setFormData({
+                    id: '',
+                    numero: '',
+                    orgaoAmbiental: '',
+                    esfera: 'Federal',
+                    uf: '',
+                    descricao: '',
+                    inicioVigencia: '',
+                    fimVigencia: '',
+                    status: 'ativa',
+                    periodicidadeRelatorio: 'Anual',
+                    mesesEntregaRelatorio: [1],
+                    anoBaseBienal: '',
+                    exigeAcompanhamentoErosivo: true,
+                    cobertura: [],
+                    observacoes: ''
+                });
+                setIsFormOpen(true);
+            };
+
+            const openEdit = (item) => {
+                setIsEditing(true);
+                setFormData({
+                    ...item,
+                    esfera: LICENSE_SPHERE_OPTIONS.includes(String(item?.esfera || '').trim()) ? item.esfera : 'Federal',
+                    uf: String(item?.uf || '').trim().toUpperCase(),
+                    orgaoAmbiental: String(item?.orgaoAmbiental || '').trim(),
+                    cobertura: (item.cobertura || []).map((row) => ({
+                        projetoId: String(row?.projetoId || '').trim(),
+                        torresInput: (Array.isArray(row?.torres) ? row.torres : []).join(', '),
+                        descricaoEscopo: String(row?.descricaoEscopo || '').trim()
+                    }))
+                });
+                setIsFormOpen(true);
+            };
+
+            const handleDelete = async (id) => {
+                if (!window.confirm(`Excluir LO ${id}?`)) return;
+                await deleteFromFirestore('operatingLicenses', id);
+            };
+
+            const handleSave = async () => {
+                const esfera = LICENSE_SPHERE_OPTIONS.includes(String(formData.esfera || '').trim()) ? formData.esfera : 'Federal';
+                const uf = esfera === 'Estadual' ? String(formData.uf || '').trim().toUpperCase() : '';
+                if (!String(formData.numero || '').trim()) return alert('Informe o número da LO.');
+                if (!String(formData.orgaoAmbiental || '').trim()) return alert('Informe o órgão ambiental.');
+                if (esfera === 'Estadual' && !BRAZIL_UF_OPTIONS.includes(uf)) return alert('UF obrigatória para esfera estadual.');
+                if (!String(formData.inicioVigencia || '').trim()) return alert('Informe o início de vigência.');
+                if (formData.fimVigencia && formData.fimVigencia < formData.inicioVigencia) {
+                    return alert('Fim de vigência não pode ser anterior ao início.');
+                }
+                const scheduleValidation = validateReportSchedule({
+                    periodicidadeRelatorio: formData.periodicidadeRelatorio,
+                    mesesEntregaRelatorio: formData.mesesEntregaRelatorio,
+                    anoBaseBienal: formData.anoBaseBienal
+                });
+                if (!scheduleValidation.ok) return alert(scheduleValidation.message);
+
+                const cobertura = (formData.cobertura || []).map((row) => {
+                    const torres = parseTowerInput(row?.torresInput || '').numbers.map((item) => String(item));
+                    return {
+                        projetoId: String(row?.projetoId || '').trim(),
+                        torres,
+                        descricaoEscopo: String(row?.descricaoEscopo || '').trim()
+                    };
+                }).filter((row) => row.projetoId && row.torres.length > 0);
+                if (cobertura.length === 0) return alert('Adicione ao menos um escopo de cobertura com torres.');
+
+                const id = String(formData.id || '').trim().toUpperCase()
+                    || (`LO-${String(formData.numero || '').trim().toUpperCase().replace(/[^A-Z0-9]+/g, '-') || Date.now()}`);
+
+                await saveToFirestore('operatingLicenses', id, {
+                    ...formData,
+                    id,
+                    numero: String(formData.numero || '').trim(),
+                    orgaoAmbiental: String(formData.orgaoAmbiental || '').trim(),
+                    esfera,
+                    uf,
+                    periodicidadeRelatorio: normalizeReportPeriodicity(formData.periodicidadeRelatorio),
+                    mesesEntregaRelatorio: normalizeReportMonths(formData.mesesEntregaRelatorio),
+                    anoBaseBienal: normalizeReportPeriodicity(formData.periodicidadeRelatorio) === 'Bienal'
+                        ? Number(formData.anoBaseBienal)
+                        : '',
+                    exigeAcompanhamentoErosivo: true,
+                    cobertura
+                });
+                setIsFormOpen(false);
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-2xl font-bold text-slate-800">Licenças de Operação (LO)</h2>
+                        <button className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700" onClick={openNew}>Nova LO</button>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {(licenses || []).map((item) => (
+                            <article key={item.id} className="bg-white rounded-xl border shadow-sm p-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <div>
+                                        <h3 className="font-bold text-slate-800">{item.numero || item.id}</h3>
+                                        <div className="text-xs text-slate-500">{item.id}</div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button className="px-2 py-1 rounded text-xs bg-slate-100 hover:bg-slate-200" onClick={() => openEdit(item)}>Editar</button>
+                                        <button className="px-2 py-1 rounded text-xs bg-red-100 text-red-700 hover:bg-red-200" onClick={() => handleDelete(item.id)}>Excluir</button>
+                                    </div>
+                                </div>
+                                <div className="text-sm text-slate-700 space-y-1">
+                                    <div><strong>Esfera:</strong> {item.esfera || '-'}</div>
+                                    {item.esfera === 'Estadual' && <div><strong>UF:</strong> {item.uf || '-'}</div>}
+                                    <div><strong>Órgão:</strong> {item.orgaoAmbiental || '-'}</div>
+                                    <div><strong>Vigência:</strong> {item.inicioVigencia || '-'} até {item.fimVigencia || 'indeterminada'}</div>
+                                    <div><strong>Cobertura:</strong> {(item.cobertura || []).length} escopo(s)</div>
+                                    <div><strong>Condicionante erosão:</strong> Sim</div>
+                                </div>
+                            </article>
+                        ))}
+                        {(licenses || []).length === 0 && (
+                            <div className="bg-white rounded-xl border shadow-sm p-4 text-slate-500">Nenhuma LO cadastrada.</div>
+                        )}
+                    </div>
+
+                    {isFormOpen && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl max-h-[90vh] overflow-y-auto p-6">
+                                <h3 className="text-lg font-bold mb-4">{isEditing ? 'Editar' : 'Nova'} LO</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <select className="w-full border p-2 rounded text-sm" value={formData.esfera || 'Federal'} onChange={(e) => setFormData((prev) => ({ ...prev, esfera: e.target.value, uf: e.target.value === 'Estadual' ? prev.uf : '' }))}>
+                                        {LICENSE_SPHERE_OPTIONS.map((item) => <option key={item} value={item}>{item}</option>)}
+                                    </select>
+                                    {String(formData.esfera || 'Federal') === 'Estadual' ? (
+                                        <select className="w-full border p-2 rounded text-sm" value={formData.uf || ''} onChange={(e) => setFormData((prev) => ({ ...prev, uf: e.target.value }))}>
+                                            <option value="">UF...</option>
+                                            {BRAZIL_UF_OPTIONS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+                                        </select>
+                                    ) : <div />}
+                                    <div>
+                                        <input list="lo-agency-options" className="w-full border p-2 rounded text-sm" value={formData.orgaoAmbiental || ''} onChange={(e) => setFormData((prev) => ({ ...prev, orgaoAmbiental: e.target.value }))} placeholder="Órgão ambiental" />
+                                        <datalist id="lo-agency-options">
+                                            {agencyOptions.map((item) => <option key={item.value} value={item.value} />)}
+                                        </datalist>
+                                    </div>
+
+                                    <input className="w-full border p-2 rounded text-sm" value={formData.id || ''} onChange={(e) => setFormData((prev) => ({ ...prev, id: e.target.value.toUpperCase() }))} placeholder="Código interno (opcional)" />
+                                    <input className="w-full border p-2 rounded text-sm" value={formData.numero || ''} onChange={(e) => setFormData((prev) => ({ ...prev, numero: e.target.value }))} placeholder="Número da LO" />
+                                    <input className="w-full border p-2 rounded text-sm" value={formData.descricao || ''} onChange={(e) => setFormData((prev) => ({ ...prev, descricao: e.target.value }))} placeholder="Descrição" />
+
+                                    <input type="date" className="w-full border p-2 rounded text-sm" value={formData.inicioVigencia || ''} onChange={(e) => setFormData((prev) => ({ ...prev, inicioVigencia: e.target.value }))} />
+                                    <input type="date" className="w-full border p-2 rounded text-sm" value={formData.fimVigencia || ''} onChange={(e) => setFormData((prev) => ({ ...prev, fimVigencia: e.target.value }))} />
+                                    <select className="w-full border p-2 rounded text-sm" value={normalizeReportPeriodicity(formData.periodicidadeRelatorio)} onChange={(e) => setFormData((prev) => ({ ...prev, periodicidadeRelatorio: normalizeReportPeriodicity(e.target.value), mesesEntregaRelatorio: [], anoBaseBienal: '' }))}>
+                                        <option value="Trimestral">Trimestral</option>
+                                        <option value="Semestral">Semestral</option>
+                                        <option value="Anual">Anual</option>
+                                        <option value="Bienal">Bienal (2 anos)</option>
+                                    </select>
+                                </div>
+
+                                <div className="mt-3 flex flex-wrap gap-2 items-center">
+                                    {MONTH_OPTIONS_PT.map((month) => {
+                                        const selected = normalizeReportMonths(formData.mesesEntregaRelatorio).includes(month.value);
+                                        return (
+                                            <button key={month.value} className={`px-2 py-1 rounded text-xs ${selected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`} onClick={() => toggleMonth(month.value)}>
+                                                {month.label}
+                                            </button>
+                                        );
+                                    })}
+                                    <span className="text-xs text-slate-500">{normalizeReportMonths(formData.mesesEntregaRelatorio).length}/{requiredMonthCount(formData.periodicidadeRelatorio)}</span>
+                                </div>
+
+                                {normalizeReportPeriodicity(formData.periodicidadeRelatorio) === 'Bienal' && (
+                                    <div className="mt-3">
+                                        <input type="number" min="2000" className="w-full border p-2 rounded text-sm" value={formData.anoBaseBienal ?? ''} onChange={(e) => setFormData((prev) => ({ ...prev, anoBaseBienal: e.target.value }))} placeholder="Ano base (bienal)" />
+                                    </div>
+                                )}
+
+                                <div className="mt-4 p-3 bg-slate-50 rounded border">
+                                    <div className="font-semibold text-sm text-slate-700 mb-2">Cobertura por empreendimento/torres</div>
+                                    {(formData.cobertura || []).map((row, idx) => (
+                                        <div key={`coverage-row-${idx}`} className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2">
+                                            <select className="w-full border p-2 rounded text-sm" value={row.projetoId || ''} onChange={(e) => setFormData((prev) => ({ ...prev, cobertura: prev.cobertura.map((it, i) => i === idx ? { ...it, projetoId: e.target.value } : it) }))}>
+                                                <option value="">Empreendimento...</option>
+                                                {projects.map((project) => <option key={project.id} value={project.id}>{project.id} - {project.nome}</option>)}
+                                            </select>
+                                            <input className="w-full border p-2 rounded text-sm" value={row.torresInput || ''} onChange={(e) => setFormData((prev) => ({ ...prev, cobertura: prev.cobertura.map((it, i) => i === idx ? { ...it, torresInput: e.target.value } : it) }))} placeholder="Torres (1-3, 8)" />
+                                            <input className="w-full border p-2 rounded text-sm" value={row.descricaoEscopo || ''} onChange={(e) => setFormData((prev) => ({ ...prev, cobertura: prev.cobertura.map((it, i) => i === idx ? { ...it, descricaoEscopo: e.target.value } : it) }))} placeholder="Descrição (opcional)" />
+                                            <button className="px-2 py-2 rounded text-xs bg-slate-100 text-slate-700 hover:bg-slate-200" onClick={() => setFormData((prev) => ({ ...prev, cobertura: prev.cobertura.filter((_, i) => i !== idx) }))}>Remover</button>
+                                        </div>
+                                    ))}
+                                    <button className="px-3 py-2 rounded text-sm bg-slate-100 text-slate-700 hover:bg-slate-200" onClick={() => setFormData((prev) => ({ ...prev, cobertura: [...(prev.cobertura || []), { projetoId: '', torresInput: '', descricaoEscopo: '' }] }))}>
+                                        Adicionar escopo
+                                    </button>
+                                </div>
+
+                                <div className="mt-3 text-sm text-slate-700"><strong>Condicionante:</strong> exige acompanhamento de processos erosivos.</div>
+                                <textarea className="w-full border p-2 rounded text-sm mt-3" rows="3" value={formData.observacoes || ''} onChange={(e) => setFormData((prev) => ({ ...prev, observacoes: e.target.value }))} placeholder="Observações" />
+
+                                <div className="flex gap-2 mt-4">
+                                    <button className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700" onClick={handleSave}>Salvar</button>
+                                    <button className="px-4 bg-slate-100 text-slate-700 py-2 rounded hover:bg-slate-200" onClick={() => setIsFormOpen(false)}>Cancelar</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -3274,15 +3675,236 @@
                 ]);
             }, [projectId, planning.obrigatorias, planning.amostragemSelecionada]);
 
-            const allSelectable = useMemo(
+            const allSelectableBase = useMemo(
                 () => [...planning.obrigatorias, ...planning.amostragemSelecionada, ...planning.naoPriorizar],
                 [planning.obrigatorias, planning.amostragemSelecionada, planning.naoPriorizar]
             );
+
+            const targetTower = useMemo(() => {
+                const list = Array.isArray(selectedTowers) ? selectedTowers : [];
+                for (let i = list.length - 1; i >= 0; i -= 1) {
+                    const tower = String(list[i] || '').trim();
+                    if (tower) return tower;
+                }
+                return '';
+            }, [selectedTowers]);
+
+            const allSelectable = useMemo(() => {
+                const projectKey = String(selectedProject?.id || '').trim();
+                const parseTowerNumber = (value) => {
+                    const text = String(value || '').trim();
+                    if (!text) return null;
+                    const parsed = Number(text);
+                    return Number.isFinite(parsed) ? parsed : null;
+                };
+                const parseHotelRating = (value) => {
+                    if (value === '' || value === null || value === undefined) return null;
+                    const parsed = Number(value);
+                    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 5) return null;
+                    return parsed;
+                };
+                const avg = (values) => {
+                    const valid = values.filter((item) => Number.isFinite(item));
+                    if (valid.length === 0) return null;
+                    return valid.reduce((sum, item) => sum + item, 0) / valid.length;
+                };
+                const formatDate = (inspection, day) => {
+                    const rawDate = day?.data || inspection?.dataInicio || inspection?.data || '';
+                    if (!rawDate) return '';
+                    const d = new Date(`${rawDate}T00:00:00`);
+                    if (Number.isNaN(d.getTime())) return String(rawDate);
+                    return d.toISOString().slice(0, 10);
+                };
+                const normalizeTower = (value) => String(value || '').trim();
+                const collectDayTowers = (day) => {
+                    const set = new Set();
+                    (Array.isArray(day?.torresDetalhadas) ? day.torresDetalhadas : []).forEach((item) => {
+                        const tower = normalizeTower(item?.numero);
+                        if (tower) set.add(tower);
+                    });
+                    if (Array.isArray(day?.torres)) {
+                        day.torres.forEach((item) => {
+                            const tower = normalizeTower(item);
+                            if (tower) set.add(tower);
+                        });
+                    } else {
+                        const parsed = parseTowerInput(String(day?.torres || '')).numbers;
+                        parsed.forEach((item) => set.add(String(item)));
+                    }
+                    const parsedInput = parseTowerInput(String(day?.torresInput || '')).numbers;
+                    parsedInput.forEach((item) => set.add(String(item)));
+                    return set;
+                };
+                const compareCandidates = (a, b) => {
+                    if (!!a.hasBase !== !!b.hasBase) return a.hasBase ? -1 : 1;
+                    if (Number.isFinite(a.distance) && Number.isFinite(b.distance) && a.distance !== b.distance) return a.distance - b.distance;
+                    if (Number.isFinite(a.distance) && !Number.isFinite(b.distance)) return -1;
+                    if (!Number.isFinite(a.distance) && Number.isFinite(b.distance)) return 1;
+                    if ((a.avgScore ?? -1) !== (b.avgScore ?? -1)) return (b.avgScore ?? -1) - (a.avgScore ?? -1);
+                    const byDate = String(b.lastDate || '').localeCompare(String(a.lastDate || ''));
+                    if (byDate !== 0) return byDate;
+                    return `${a.hotelNome || ''}|${a.hotelMunicipio || ''}`.localeCompare(`${b.hotelNome || ''}|${b.hotelMunicipio || ''}`);
+                };
+
+                const recommendHotelForTower = (tower) => {
+                    if (!projectKey || !tower) {
+                        return {
+                            hotelSugeridoNome: '',
+                            hotelSugeridoMunicipio: '',
+                            hotelSugeridoLogisticaNota: '',
+                            hotelSugeridoReservaNota: '',
+                            hotelSugeridoEstadiaNota: '',
+                            hotelSugeridoTorreBase: '',
+                            hotelSugeridoDistanciaTorreAlvo: '',
+                            hotelSugeridoNotaMedia: '',
+                            hotelSugeridoUltimaData: ''
+                        };
+                    }
+
+                    const targetNum = parseTowerNumber(targetTower);
+                    const grouped = new Map();
+                    (inspections || [])
+                        .filter((inspection) => String(inspection?.projetoId || '').trim() === projectKey)
+                        .forEach((inspection) => {
+                            (inspection?.detalhesDias || []).forEach((day) => {
+                                if (!collectDayTowers(day).has(String(tower))) return;
+                                const hotelNome = String(day?.hotelNome || '').trim();
+                                if (!hotelNome) return;
+
+                                const hotelMunicipio = String(day?.hotelMunicipio || '').trim();
+                                const hotelTorreBase = String(day?.hotelTorreBase || '').trim();
+                                const key = `${hotelNome.toLowerCase()}|${hotelMunicipio.toLowerCase()}|${hotelTorreBase.toLowerCase()}`;
+
+                                const logistica = parseHotelRating(day?.hotelLogisticaNota);
+                                const reserva = parseHotelRating(day?.hotelReservaNota);
+                                const estadia = parseHotelRating(day?.hotelEstadiaNota);
+                                const entry = grouped.get(key) || {
+                                    hotelNome,
+                                    hotelMunicipio,
+                                    hotelTorreBase,
+                                    logisticaNotas: [],
+                                    reservaNotas: [],
+                                    estadiaNotas: [],
+                                    lastDate: ''
+                                };
+
+                                if (Number.isFinite(logistica)) entry.logisticaNotas.push(logistica);
+                                if (Number.isFinite(reserva)) entry.reservaNotas.push(reserva);
+                                if (Number.isFinite(estadia)) entry.estadiaNotas.push(estadia);
+
+                                const date = formatDate(inspection, day);
+                                if (date && String(date).localeCompare(String(entry.lastDate || '')) > 0) entry.lastDate = date;
+                                grouped.set(key, entry);
+                            });
+                        });
+
+                    const candidates = [...grouped.values()].map((entry) => {
+                        const avgLogistica = avg(entry.logisticaNotas);
+                        const avgReserva = avg(entry.reservaNotas);
+                        const avgEstadia = avg(entry.estadiaNotas);
+                        const avgScore = avg([avgLogistica, avgReserva, avgEstadia]);
+                        const baseNum = parseTowerNumber(entry.hotelTorreBase);
+                        const distance = Number.isFinite(baseNum) && Number.isFinite(targetNum) ? Math.abs(baseNum - targetNum) : null;
+                        return {
+                            hotelNome: entry.hotelNome,
+                            hotelMunicipio: entry.hotelMunicipio,
+                            hotelTorreBase: entry.hotelTorreBase,
+                            hasBase: !!entry.hotelTorreBase,
+                            hotelLogisticaNota: Number.isFinite(avgLogistica) ? Math.round(avgLogistica * 10) / 10 : '',
+                            hotelReservaNota: Number.isFinite(avgReserva) ? Math.round(avgReserva * 10) / 10 : '',
+                            hotelEstadiaNota: Number.isFinite(avgEstadia) ? Math.round(avgEstadia * 10) / 10 : '',
+                            avgScore: Number.isFinite(avgScore) ? Math.round(avgScore * 10) / 10 : null,
+                            distance,
+                            lastDate: entry.lastDate
+                        };
+                    }).sort(compareCandidates);
+
+                    const selected = candidates[0];
+                    if (!selected) {
+                        return {
+                            hotelSugeridoNome: '',
+                            hotelSugeridoMunicipio: '',
+                            hotelSugeridoLogisticaNota: '',
+                            hotelSugeridoReservaNota: '',
+                            hotelSugeridoEstadiaNota: '',
+                            hotelSugeridoTorreBase: '',
+                            hotelSugeridoDistanciaTorreAlvo: '',
+                            hotelSugeridoNotaMedia: '',
+                            hotelSugeridoUltimaData: ''
+                        };
+                    }
+
+                    return {
+                        hotelSugeridoNome: selected.hotelNome,
+                        hotelSugeridoMunicipio: selected.hotelMunicipio,
+                        hotelSugeridoLogisticaNota: selected.hotelLogisticaNota,
+                        hotelSugeridoReservaNota: selected.hotelReservaNota,
+                        hotelSugeridoEstadiaNota: selected.hotelEstadiaNota,
+                        hotelSugeridoTorreBase: selected.hotelTorreBase,
+                        hotelSugeridoDistanciaTorreAlvo: Number.isFinite(selected.distance) ? selected.distance : '',
+                        hotelSugeridoNotaMedia: Number.isFinite(selected.avgScore) ? selected.avgScore : '',
+                        hotelSugeridoUltimaData: selected.lastDate || ''
+                    };
+                };
+
+                return allSelectableBase.map((item) => ({
+                    ...item,
+                    ...recommendHotelForTower(String(item?.torre || '').trim())
+                }));
+            }, [allSelectableBase, inspections, selectedProject?.id, targetTower]);
+
+            const obrigatoriasItems = useMemo(
+                () => allSelectable.filter((item) => item.categoria === 'obrigatoria'),
+                [allSelectable]
+            );
+            const amostragemItems = useMemo(
+                () => allSelectable.filter((item) => item.categoria === 'amostragem'),
+                [allSelectable]
+            );
+            const naoPriorizarItems = useMemo(
+                () => allSelectable.filter((item) => item.categoria === 'nao_priorizar'),
+                [allSelectable]
+            );
+
             const selectedItems = useMemo(
                 () => allSelectable.filter((item) => selectedTowers.includes(item.torre)),
                 [allSelectable, selectedTowers]
             );
             const towerInput = selectedItems.map((item) => item.torre).join(', ');
+
+            const priorityHotel = useMemo(() => {
+                if (!Array.isArray(selectedItems) || selectedItems.length === 0) return null;
+                const compareItems = (a, b) => {
+                    const hasNameA = !!String(a?.hotelSugeridoNome || '').trim();
+                    const hasNameB = !!String(b?.hotelSugeridoNome || '').trim();
+                    if (hasNameA !== hasNameB) return hasNameA ? -1 : 1;
+
+                    const hasBaseA = !!String(a?.hotelSugeridoTorreBase || '').trim();
+                    const hasBaseB = !!String(b?.hotelSugeridoTorreBase || '').trim();
+                    if (hasBaseA !== hasBaseB) return hasBaseA ? -1 : 1;
+
+                    const distA = Number(a?.hotelSugeridoDistanciaTorreAlvo);
+                    const distB = Number(b?.hotelSugeridoDistanciaTorreAlvo);
+                    const distAFinite = Number.isFinite(distA);
+                    const distBFinite = Number.isFinite(distB);
+                    if (distAFinite && distBFinite && distA !== distB) return distA - distB;
+                    if (distAFinite && !distBFinite) return -1;
+                    if (!distAFinite && distBFinite) return 1;
+
+                    const scoreA = Number.isFinite(Number(a?.hotelSugeridoNotaMedia)) ? Number(a.hotelSugeridoNotaMedia) : -1;
+                    const scoreB = Number.isFinite(Number(b?.hotelSugeridoNotaMedia)) ? Number(b.hotelSugeridoNotaMedia) : -1;
+                    if (scoreA !== scoreB) return scoreB - scoreA;
+
+                    return String(b?.hotelSugeridoUltimaData || '').localeCompare(String(a?.hotelSugeridoUltimaData || ''));
+                };
+
+                const byTarget = selectedItems.find((item) => String(item?.torre || '') === String(targetTower || '') && String(item?.hotelSugeridoNome || '').trim());
+                if (byTarget) return byTarget;
+
+                const withHotel = selectedItems.filter((item) => String(item?.hotelSugeridoNome || '').trim());
+                if (withHotel.length === 0) return null;
+                return [...withHotel].sort(compareItems)[0] || null;
+            }, [selectedItems, targetTower]);
 
             const toggleTower = (tower) => {
                 setSelectedTowers((prev) => prev.includes(tower)
@@ -3298,12 +3920,19 @@
                 motivo: item.motivo,
                 obrigatoria: item.categoria === 'obrigatoria' ? 'S' : 'N',
                 comentarios: (item.comentariosAnteriores || []).map((comment) => `${comment.data || '-'} ${comment.inspectionId ? `(${comment.inspectionId})` : ''}: ${comment.obs || ''}`.trim()).join(' | '),
-                link_maps: item.mapsLink || ''
+                link_maps: item.mapsLink || '',
+                hotel_sugerido: item.hotelSugeridoNome || '',
+                hotel_municipio: item.hotelSugeridoMunicipio || '',
+                hotel_logistica: item.hotelSugeridoLogisticaNota ?? '',
+                hotel_reserva: item.hotelSugeridoReservaNota ?? '',
+                hotel_estadia: item.hotelSugeridoEstadiaNota ?? '',
+                hotel_torre_base: item.hotelSugeridoTorreBase || '',
+                distancia_torre_alvo: item.hotelSugeridoDistanciaTorreAlvo ?? ''
             }));
 
             const exportGuideCsv = () => {
                 if (!selectedProject || selectedItems.length === 0) return;
-                const headers = ['empreendimento', 'ano', 'torre', 'categoria', 'motivo', 'obrigatoria', 'comentarios', 'link_maps'];
+                const headers = ['empreendimento', 'ano', 'torre', 'categoria', 'motivo', 'obrigatoria', 'comentarios', 'link_maps', 'hotel_sugerido', 'hotel_municipio', 'hotel_logistica', 'hotel_reserva', 'hotel_estadia', 'hotel_torre_base', 'distancia_torre_alvo'];
                 const rows = buildGuideRows();
                 const escapeValue = (value) => {
                     const text = String(value ?? '');
@@ -3343,6 +3972,25 @@
                             ))}
                         </div>
                     )}
+                    {item.hotelSugeridoNome ? (
+                        <div>
+                            <small>
+                                Hotel sugerido: <strong>{item.hotelSugeridoNome}</strong>
+                                {item.hotelSugeridoMunicipio ? ` (${item.hotelSugeridoMunicipio})` : ''}
+                                {item.hotelSugeridoTorreBase ? ` | Torre base: ${item.hotelSugeridoTorreBase}` : ''}
+                                {item.hotelSugeridoDistanciaTorreAlvo !== '' ? ` | Distância da torre-alvo: ${item.hotelSugeridoDistanciaTorreAlvo}` : ''}
+                            </small>
+                            <div>
+                                <small>
+                                    Notas - Logística: {Number.isFinite(Number(item.hotelSugeridoLogisticaNota)) ? Number(item.hotelSugeridoLogisticaNota) : '-'}
+                                    {' | '}Reserva: {Number.isFinite(Number(item.hotelSugeridoReservaNota)) ? Number(item.hotelSugeridoReservaNota) : '-'}
+                                    {' | '}Estadia: {Number.isFinite(Number(item.hotelSugeridoEstadiaNota)) ? Number(item.hotelSugeridoEstadiaNota) : '-'}
+                                </small>
+                            </div>
+                        </div>
+                    ) : (
+                        <div><small>Sem histórico de hospedagem para esta torre.</small></div>
+                    )}
                 </div>
             );
 
@@ -3374,6 +4022,17 @@
 
                             <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
                                 <div><strong>Seleção atual:</strong> {selectedItems.length} torre(s)</div>
+                                <div><strong>Torre-alvo (última da sequência):</strong> {targetTower || 'N/D'}</div>
+                                {priorityHotel ? (
+                                    <div>
+                                        <strong>Hotel prioritário da última torre{targetTower ? ` (T${targetTower})` : ''}:</strong> {priorityHotel.hotelSugeridoNome}
+                                        {priorityHotel.hotelSugeridoMunicipio ? ` (${priorityHotel.hotelSugeridoMunicipio})` : ''}
+                                        {priorityHotel.hotelSugeridoTorreBase ? ` | Torre base ${priorityHotel.hotelSugeridoTorreBase}` : ''}
+                                        {priorityHotel.hotelSugeridoDistanciaTorreAlvo !== '' ? ` | Distância ${priorityHotel.hotelSugeridoDistanciaTorreAlvo}` : ''}
+                                    </div>
+                                ) : (
+                                    <div>Sem histórico de hotel para priorização da torre-alvo.</div>
+                                )}
                                 <div className="mt-2 flex gap-2">
                                     <button className="px-2 py-2 rounded text-xs bg-slate-100 text-slate-700 hover:bg-slate-200" onClick={() => setSelectedTowers(allSelectable.map((item) => item.torre))}>Marcar todas</button>
                                     <button className="px-2 py-2 rounded text-xs bg-slate-100 text-slate-700 hover:bg-slate-200" onClick={() => setSelectedTowers([...planning.obrigatorias, ...planning.amostragemSelecionada].map((item) => item.torre))}>Reset padrão</button>
@@ -3397,22 +4056,22 @@
                                 <div className="bg-white rounded-xl border shadow-sm p-4">
                                     <h3 className="font-bold text-slate-800 mb-2">Obrigatórias</h3>
                                     <div className="space-y-1 text-sm">
-                                        {planning.obrigatorias.map(renderTowerItem)}
-                                        {planning.obrigatorias.length === 0 && <div className="text-slate-400">Nenhuma torre obrigatória.</div>}
+                                        {obrigatoriasItems.map(renderTowerItem)}
+                                        {obrigatoriasItems.length === 0 && <div className="text-slate-400">Nenhuma torre obrigatória.</div>}
                                     </div>
                                 </div>
                                 <div className="bg-white rounded-xl border shadow-sm p-4">
                                     <h3 className="font-bold text-slate-800 mb-2">Selecionadas por amostragem</h3>
                                     <div className="space-y-1 text-sm">
-                                        {planning.amostragemSelecionada.map(renderTowerItem)}
-                                        {planning.amostragemSelecionada.length === 0 && <div className="text-slate-400">Nenhuma torre em amostragem automática.</div>}
+                                        {amostragemItems.map(renderTowerItem)}
+                                        {amostragemItems.length === 0 && <div className="text-slate-400">Nenhuma torre em amostragem automática.</div>}
                                     </div>
                                 </div>
                                 <div className="bg-white rounded-xl border shadow-sm p-4">
                                     <h3 className="font-bold text-slate-800 mb-2">Não priorizar</h3>
                                     <div className="space-y-1 text-sm">
-                                        {planning.naoPriorizar.map(renderTowerItem)}
-                                        {planning.naoPriorizar.length === 0 && <div className="text-slate-400">Nenhuma torre nesta categoria.</div>}
+                                        {naoPriorizarItems.map(renderTowerItem)}
+                                        {naoPriorizarItems.length === 0 && <div className="text-slate-400">Nenhuma torre nesta categoria.</div>}
                                     </div>
                                 </div>
                             </div>
@@ -3421,7 +4080,7 @@
 
                     {showGuidePreview && selectedProject && (
                         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                            <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl max-h-[90vh] overflow-y-auto p-6">
+                            <div className="bg-white rounded-xl w-full max-w-6xl shadow-2xl max-h-[90vh] overflow-y-auto p-6">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-lg font-bold">Guia de Campo - {selectedProject.id}</h3>
                                     <button onClick={() => setShowGuidePreview(false)}><X /></button>
@@ -3430,6 +4089,10 @@
                                     <div><strong>Empreendimento:</strong> {selectedProject.id} - {selectedProject.nome || '-'}</div>
                                     <div><strong>Ano:</strong> {year}</div>
                                     <div><strong>Total selecionado:</strong> {selectedItems.length}</div>
+                                    <div><strong>Torre-alvo:</strong> {targetTower || 'N/D'}</div>
+                                    {priorityHotel && (
+                                        <div><strong>Hotel prioritário da última torre{targetTower ? ` (T${targetTower})` : ''}:</strong> {priorityHotel.hotelSugeridoNome}{priorityHotel.hotelSugeridoMunicipio ? ` (${priorityHotel.hotelSugeridoMunicipio})` : ''}</div>
+                                    )}
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm border rounded">
@@ -3438,6 +4101,13 @@
                                                 <th className="text-left p-2">Torre</th>
                                                 <th className="text-left p-2">Categoria</th>
                                                 <th className="text-left p-2">Motivo</th>
+                                                <th className="text-left p-2">Hotel sugerido</th>
+                                                <th className="text-left p-2">Município</th>
+                                                <th className="text-left p-2">Logística</th>
+                                                <th className="text-left p-2">Reserva</th>
+                                                <th className="text-left p-2">Estadia</th>
+                                                <th className="text-left p-2">Torre base</th>
+                                                <th className="text-left p-2">Distância alvo</th>
                                                 <th className="text-left p-2">Maps</th>
                                             </tr>
                                         </thead>
@@ -3447,6 +4117,13 @@
                                                     <td className="p-2">{item.torre}</td>
                                                     <td className="p-2">{item.categoria}</td>
                                                     <td className="p-2">{item.motivo}</td>
+                                                    <td className="p-2">{item.hotelSugeridoNome || '-'}</td>
+                                                    <td className="p-2">{item.hotelSugeridoMunicipio || '-'}</td>
+                                                    <td className="p-2">{Number.isFinite(Number(item.hotelSugeridoLogisticaNota)) ? Number(item.hotelSugeridoLogisticaNota) : '-'}</td>
+                                                    <td className="p-2">{Number.isFinite(Number(item.hotelSugeridoReservaNota)) ? Number(item.hotelSugeridoReservaNota) : '-'}</td>
+                                                    <td className="p-2">{Number.isFinite(Number(item.hotelSugeridoEstadiaNota)) ? Number(item.hotelSugeridoEstadiaNota) : '-'}</td>
+                                                    <td className="p-2">{item.hotelSugeridoTorreBase || '-'}</td>
+                                                    <td className="p-2">{item.hotelSugeridoDistanciaTorreAlvo !== '' ? item.hotelSugeridoDistanciaTorreAlvo : '-'}</td>
                                                     <td className="p-2">{item.mapsLink ? <a href={item.mapsLink} target="_blank" rel="noreferrer">Abrir</a> : '-'}</td>
                                                 </tr>
                                             ))}
@@ -3759,7 +4436,13 @@
                     ...d,
                     torresInput: d.torresInput ?? d.torres ?? '',
                     torres: d.torresInput ?? d.torres ?? '',
-                    torresDetalhadas: Array.isArray(d.torresDetalhadas) ? d.torresDetalhadas : []
+                    torresDetalhadas: Array.isArray(d.torresDetalhadas) ? d.torresDetalhadas : [],
+                    hotelNome: d.hotelNome || '',
+                    hotelMunicipio: d.hotelMunicipio || '',
+                    hotelLogisticaNota: d.hotelLogisticaNota ?? '',
+                    hotelReservaNota: d.hotelReservaNota ?? '',
+                    hotelEstadiaNota: d.hotelEstadiaNota ?? '',
+                    hotelTorreBase: d.hotelTorreBase || ''
                 }))
             });
 
@@ -4167,6 +4850,87 @@
                                                             </div>
                                                         </div>
 
+                                                        <div className="mt-3 grid grid-cols-1 md:grid-cols-6 gap-2">
+                                                            <div className="md:col-span-2">
+                                                                <label className="block text-xs font-medium text-slate-700 mb-1">Hotel (opcional)</label>
+                                                                <input
+                                                                    className="w-full border p-2 rounded text-sm"
+                                                                    value={dia.hotelNome || ''}
+                                                                    onChange={(e) => updateDayField(dayIndex, { hotelNome: e.target.value })}
+                                                                    placeholder="Nome do hotel"
+                                                                />
+                                                            </div>
+                                                            <div className="md:col-span-2">
+                                                                <label className="block text-xs font-medium text-slate-700 mb-1">Município</label>
+                                                                <input
+                                                                    className="w-full border p-2 rounded text-sm"
+                                                                    value={dia.hotelMunicipio || ''}
+                                                                    onChange={(e) => updateDayField(dayIndex, { hotelMunicipio: e.target.value })}
+                                                                    placeholder="Município da hospedagem"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-medium text-slate-700 mb-1">Logística (1-5)</label>
+                                                                <select
+                                                                    className="w-full border p-2 rounded text-sm"
+                                                                    value={dia.hotelLogisticaNota ?? ''}
+                                                                    onChange={(e) => updateDayField(dayIndex, { hotelLogisticaNota: e.target.value })}
+                                                                >
+                                                                    <option value="">-</option>
+                                                                    <option value="1">1</option>
+                                                                    <option value="2">2</option>
+                                                                    <option value="3">3</option>
+                                                                    <option value="4">4</option>
+                                                                    <option value="5">5</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-medium text-slate-700 mb-1">Reserva (1-5)</label>
+                                                                <select
+                                                                    className="w-full border p-2 rounded text-sm"
+                                                                    value={dia.hotelReservaNota ?? ''}
+                                                                    onChange={(e) => updateDayField(dayIndex, { hotelReservaNota: e.target.value })}
+                                                                >
+                                                                    <option value="">-</option>
+                                                                    <option value="1">1</option>
+                                                                    <option value="2">2</option>
+                                                                    <option value="3">3</option>
+                                                                    <option value="4">4</option>
+                                                                    <option value="5">5</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-medium text-slate-700 mb-1">Estadia (1-5)</label>
+                                                                <select
+                                                                    className="w-full border p-2 rounded text-sm"
+                                                                    value={dia.hotelEstadiaNota ?? ''}
+                                                                    onChange={(e) => updateDayField(dayIndex, { hotelEstadiaNota: e.target.value })}
+                                                                >
+                                                                    <option value="">-</option>
+                                                                    <option value="1">1</option>
+                                                                    <option value="2">2</option>
+                                                                    <option value="3">3</option>
+                                                                    <option value="4">4</option>
+                                                                    <option value="5">5</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-medium text-slate-700 mb-1">Torre base hospedagem</label>
+                                                                <select
+                                                                    className="w-full border p-2 rounded text-sm"
+                                                                    value={dia.hotelTorreBase || ''}
+                                                                    onChange={(e) => updateDayField(dayIndex, { hotelTorreBase: e.target.value })}
+                                                                >
+                                                                    <option value="">Opcional</option>
+                                                                    {(dia.torresDetalhadas || []).map((tower) => (
+                                                                        <option key={`hotel-base-day-${dayIndex}-${tower.numero}`} value={tower.numero}>
+                                                                            Torre {tower.numero}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+
                                                         {(dia.torresDetalhadas || []).length > 0 && (
                                                             <div className="mt-3 overflow-x-auto">
                                                                 <table className="w-full text-sm border rounded-lg overflow-hidden">
@@ -4288,6 +5052,18 @@
             const currentIndex = inspections.findIndex(i => i.id === inspection.id);
             const hasPrevious = currentIndex > 0;
             const hasNext = currentIndex < inspections.length - 1;
+            const escapeHtml = (value) => String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+            const hasHotelData = (day) => !!String(day?.hotelNome || '').trim()
+                || !!String(day?.hotelMunicipio || '').trim()
+                || !!String(day?.hotelTorreBase || '').trim()
+                || String(day?.hotelLogisticaNota || '').trim() !== ''
+                || String(day?.hotelReservaNota || '').trim() !== ''
+                || String(day?.hotelEstadiaNota || '').trim() !== '';
 
             const handlePrevious = () => {
                 if (hasPrevious) {
@@ -4299,6 +5075,129 @@
                 if (hasNext) {
                     onNavigate(inspections[currentIndex + 1]);
                 }
+            };
+
+            const handleExportDetailsPdf = () => {
+                const win = window.open('', '_blank');
+                if (!win) return;
+
+                const days = Array.isArray(inspection?.detalhesDias) ? inspection.detalhesDias : [];
+                const dayCardsHtml = days.map((dia, idx) => {
+                    const dateLabel = dia?.data ? new Date(`${dia.data}T00:00:00`).toLocaleDateString('pt-BR') : 'Data não informada';
+                    const towers = Array.isArray(dia?.torresDetalhadas) ? dia.torresDetalhadas : [];
+                    const towersHtml = towers.length > 0
+                        ? towers.map((t) => `
+                            <div class="tower-row ${t?.temErosao ? 'tower-erosion' : ''}">
+                                <strong>${escapeHtml(formatTowerLabel(t?.numero))}</strong>
+                                <span>${escapeHtml(t?.obs ? ` - ${t.obs}` : ' - sem observações')}</span>
+                            </div>
+                        `).join('')
+                        : '<div class="empty">Sem torres detalhadas neste dia.</div>';
+                    const hotelHtml = hasHotelData(dia)
+                        ? `
+                            <div class="hotel-box">
+                                <div class="hotel-title">Dados de hospedagem</div>
+                                <div><strong>Hotel:</strong> ${escapeHtml(dia?.hotelNome || '-')}</div>
+                                <div><strong>Município:</strong> ${escapeHtml(dia?.hotelMunicipio || '-')}</div>
+                                <div><strong>Torre base da hospedagem:</strong> ${escapeHtml(dia?.hotelTorreBase || '-')}</div>
+                                <div><strong>Notas:</strong> Logística ${Number.isFinite(Number(dia?.hotelLogisticaNota)) ? Number(dia.hotelLogisticaNota) : '-'} | Reserva ${Number.isFinite(Number(dia?.hotelReservaNota)) ? Number(dia.hotelReservaNota) : '-'} | Estadia ${Number.isFinite(Number(dia?.hotelEstadiaNota)) ? Number(dia.hotelEstadiaNota) : '-'}</div>
+                            </div>
+                        `
+                        : '';
+                    return `
+                        <div class="day-card avoid-break">
+                            <div class="day-head">
+                                <span class="date">${escapeHtml(dateLabel)}</span>
+                                ${dia?.clima ? `<span class="chip sky">${escapeHtml(dia.clima)}</span>` : ''}
+                                ${(dia?.torresInput || dia?.torres) ? `<span class="chip gray">Torres: ${escapeHtml(dia.torresInput || dia.torres)}</span>` : ''}
+                            </div>
+                            <div class="day-subtitle">Torres visitadas</div>
+                            <div class="tower-list">${towersHtml}</div>
+                            ${hotelHtml}
+                        </div>
+                    `;
+                }).join('');
+
+                const erosionsHtml = relatedErosions.length > 0
+                    ? relatedErosions.map((e) => `
+                        <div class="erosion-row avoid-break">
+                            <div><strong>${escapeHtml(e?.id || '-')}</strong></div>
+                            <div>${escapeHtml(String(e?.torreRef ?? '').trim() ? formatTowerLabel(e.torreRef) : '-')} • ${escapeHtml(e?.tipo || '-')} • ${escapeHtml(e?.estagio || '-')}</div>
+                            <div><strong>Impacto:</strong> ${escapeHtml(e?.impacto || '-')}</div>
+                        </div>
+                    `).join('')
+                    : '<div class="empty">Nenhuma erosão vinculada a esta vistoria.</div>';
+
+                win.document.write(`
+                    <html>
+                    <head>
+                        <title>Detalhes da Vistoria ${escapeHtml(inspection?.id || '-')}</title>
+                        <style>
+                            @page { size: A4; margin: 12mm; }
+                            * { box-sizing: border-box; }
+                            body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; background: #f8fafc; }
+                            .wrapper { max-width: 100%; }
+                            .header { background: linear-gradient(135deg, #dbeafe 0%, #e2e8f0 100%); border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px; }
+                            .title { font-size: 19px; font-weight: 700; margin: 0 0 4px 0; color: #1e3a8a; }
+                            .meta { color: #475569; font-size: 11px; }
+                            .section { margin-top: 12px; border: 1px solid #dbe4ee; border-radius: 10px; background: #ffffff; padding: 12px; }
+                            .section-title { font-size: 13px; font-weight: 700; margin: 0 0 8px 0; color: #0f172a; }
+                            .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+                            .row { line-height: 1.4; color: #1f2937; }
+                            .label { color: #475569; font-weight: 600; }
+                            .day-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 8px; background: #fff; }
+                            .day-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+                            .date { font-weight: 700; color: #0f172a; }
+                            .chip { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 999px; }
+                            .chip.sky { background: #e0f2fe; color: #0369a1; }
+                            .chip.gray { background: #f1f5f9; color: #334155; }
+                            .day-subtitle { font-weight: 700; color: #334155; margin: 4px 0 6px; }
+                            .tower-list { display: grid; gap: 5px; }
+                            .tower-row { border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; padding: 6px; }
+                            .tower-erosion { border-color: #fecaca; background: #fef2f2; }
+                            .hotel-box { margin-top: 8px; border: 1px solid #bfdbfe; border-radius: 6px; background: #eff6ff; padding: 8px; }
+                            .hotel-title { color: #1d4ed8; font-weight: 700; margin-bottom: 4px; }
+                            .erosion-row { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: 8px; margin-bottom: 8px; }
+                            .empty { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; color: #64748b; background: #f8fafc; }
+                            .avoid-break { page-break-inside: avoid; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="wrapper">
+                            <div class="header avoid-break">
+                                <h1 class="title">Detalhes da Vistoria ${escapeHtml(inspection?.id || '-')}</h1>
+                                <div class="meta">Empreendimento: ${escapeHtml(inspection?.projetoId || '-')} ${project?.nome ? `(${escapeHtml(project.nome)})` : ''}</div>
+                                <div class="meta">Gerado em: ${escapeHtml(new Date().toLocaleString('pt-BR'))}</div>
+                            </div>
+
+                            <div class="section avoid-break">
+                                <h2 class="section-title">Resumo</h2>
+                                <div class="summary-grid">
+                                    <div class="row"><span class="label">ID:</span> ${escapeHtml(inspection?.id || '-')}</div>
+                                    <div class="row"><span class="label">Empreendimento:</span> ${escapeHtml(inspection?.projetoId || '-')}</div>
+                                    <div class="row"><span class="label">Data Início:</span> ${escapeHtml(inspection?.dataInicio || '-')}</div>
+                                    <div class="row"><span class="label">Data Fim:</span> ${escapeHtml(inspection?.dataFim || '-')}</div>
+                                    <div class="row"><span class="label">Responsável:</span> ${escapeHtml(inspection?.responsavel || '-')}</div>
+                                    <div class="row"><span class="label">Dias registados:</span> ${escapeHtml(days.length)}</div>
+                                </div>
+                                ${inspection?.obs ? `<div class="row" style="margin-top:8px;"><span class="label">Observações:</span> ${escapeHtml(inspection.obs).replace(/\n/g, '<br />')}</div>` : ''}
+                            </div>
+
+                            <div class="section">
+                                <h2 class="section-title">Diário de Campo Detalhado</h2>
+                                ${dayCardsHtml || '<div class="empty">Sem dias detalhados.</div>'}
+                            </div>
+
+                            <div class="section">
+                                <h2 class="section-title">Erosões Identificadas (${escapeHtml(relatedErosions.length)})</h2>
+                                ${erosionsHtml}
+                            </div>
+                        </div>
+                    </body>
+                    </html>
+                `);
+                win.document.close();
+                win.print();
             };
 
             return (
@@ -4320,6 +5219,10 @@
                                 </button>
                                 <button onClick={handleNext} disabled={!hasNext} className={`p-2 rounded-lg transition-colors ${hasNext ? 'hover:bg-slate-100 text-slate-700' : 'text-slate-300 cursor-not-allowed'}`} title="Próxima vistoria">
                                     <svg className="lucide-icon" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                                </button>
+                                <button onClick={handleExportDetailsPdf} className="px-3 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2" title="Gerar PDF">
+                                    <svg className="lucide-icon" viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M8 9h4"/></svg>
+                                    Gerar PDF
                                 </button>
                                 <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors ml-2">
                                     <X />
@@ -4388,6 +5291,20 @@
                                                                 {t.obs ? ` - ${t.obs}` : ' - sem observações'}
                                                             </div>
                                                         ))}
+                                                    </div>
+                                                )}
+                                                {hasHotelData(dia) && (
+                                                    <div className="mt-2 text-xs text-slate-700 bg-blue-50 border border-blue-100 rounded p-2">
+                                                        <div className="font-semibold text-blue-700 mb-1">Dados de hospedagem</div>
+                                                        <div><strong>Hotel:</strong> {dia.hotelNome || '-'}</div>
+                                                        <div><strong>Município:</strong> {dia.hotelMunicipio || '-'}</div>
+                                                        <div><strong>Torre base da hospedagem:</strong> {dia.hotelTorreBase || '-'}</div>
+                                                        <div>
+                                                            <strong>Notas:</strong>
+                                                            {' '}Logística {Number.isFinite(Number(dia.hotelLogisticaNota)) ? Number(dia.hotelLogisticaNota) : '-'}
+                                                            {' | '}Reserva {Number.isFinite(Number(dia.hotelReservaNota)) ? Number(dia.hotelReservaNota) : '-'}
+                                                            {' | '}Estadia {Number.isFinite(Number(dia.hotelEstadiaNota)) ? Number(dia.hotelEstadiaNota) : '-'}
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
@@ -6444,3 +7361,5 @@
     </script>
 </body>
 </html>
+
+
