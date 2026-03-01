@@ -497,6 +497,7 @@ function ErosionFormModal({
                 <span>Medida preventiva</span>
                 <textarea
                   rows="2"
+                  className="erosions-long-textarea erosions-long-textarea-medium"
                   value={safeFormData.medidaPreventiva || ''}
                   onChange={(e) => updateField('medidaPreventiva', e.target.value)}
                 />
@@ -505,6 +506,7 @@ function ErosionFormModal({
                 <span>Fotos (links, um por linha)</span>
                 <textarea
                   rows="2"
+                  className="erosions-long-textarea erosions-long-textarea-links"
                   value={Array.isArray(safeFormData.fotosLinks) ? safeFormData.fotosLinks.join('\n') : ''}
                   onChange={(e) => {
                     const rows = String(e.target.value || '')
@@ -524,6 +526,7 @@ function ErosionFormModal({
               <span>Observacoes gerais</span>
               <textarea
                 rows="3"
+                className="erosions-long-textarea erosions-long-textarea-large"
                 value={safeFormData.obs || ''}
                 onChange={(e) => updateField('obs', e.target.value)}
               />

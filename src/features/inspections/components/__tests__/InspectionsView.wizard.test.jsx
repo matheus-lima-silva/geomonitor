@@ -93,6 +93,18 @@ async function clickElement(element) {
   });
 }
 
+function getTowerPickerButton(label, scope = document.body) {
+  return [...scope.querySelectorAll('.inspections-day-tower-picker-btn')]
+    .find((item) => item.textContent.includes(label));
+}
+
+function getHotelBaseSelect(scope = document.body) {
+  return [...scope.querySelectorAll('.inspections-day-hotel-fields select')]
+    .find((item) => [...item.options]
+      .some((option) => String(option.textContent || '').includes('Torre base da hospedagem')
+        || String(option.textContent || '').includes('Selecione torres visitadas no dia')));
+}
+
 describe('InspectionsView wizard flow', () => {
   let container;
   let root;
@@ -116,7 +128,7 @@ describe('InspectionsView wizard flow', () => {
     vi.clearAllMocks();
   });
 
-  it('opens wizard, validates steps, generates checklist, saves and keeps pending badge list', async () => {
+  it('opens wizard, validates steps, selects towers by buttons and saves inspection', async () => {
     renderView(root, {
       inspections: [
         {
@@ -155,10 +167,8 @@ describe('InspectionsView wizard flow', () => {
 
     await clickByText('Avancar');
     expect(document.body.textContent).toContain('Detalhar dia');
-
-    const towerInput = document.querySelector('.inspections-wizard-modal input[placeholder="Ex: 1-3, 5, 7"]');
-    changeInput(towerInput, '1, 2');
-    await clickByText('Gerar checklist');
+    await clickElement(getTowerPickerButton('Torre 1', document.body));
+    await clickElement(getTowerPickerButton('Torre 2', document.body));
     expect(document.body.textContent).toContain('Torre 1');
 
     await clickByText('Avancar');
@@ -216,10 +226,7 @@ describe('InspectionsView wizard flow', () => {
     await flush();
 
     await clickByText('Avancar');
-
-    const towerInput = document.querySelector('.inspections-wizard-modal input[placeholder="Ex: 1-3, 5, 7"]');
-    changeInput(towerInput, '1');
-    await clickByText('Gerar checklist');
+    await clickElement(getTowerPickerButton('Torre 1', document.body));
 
     const erosionButton = document.querySelector('.inspections-tower-btn-erosion');
     await clickElement(erosionButton);
@@ -239,5 +246,116 @@ describe('InspectionsView wizard flow', () => {
       saturacaoPorAgua: '',
     }));
     expect(onOpenErosionDraft.mock.calls[0][0]).not.toHaveProperty('alturaMaximaClasse');
+  });
+
+  it('limits torre base to selected day towers and clears when deselected', async () => {
+    renderView(root);
+
+    await clickByText('Nova Vistoria');
+
+    const projectSelect = document.querySelector('.inspections-wizard-modal select');
+    const dateInputs = document.querySelectorAll('.inspections-wizard-modal input[type="date"]');
+    changeInput(projectSelect, 'P1');
+    changeInput(dateInputs[0], '2026-03-15');
+    changeInput(dateInputs[1], '2026-03-15');
+    await flush();
+
+    await clickByText('Avancar');
+    await clickElement(getTowerPickerButton('Torre 1', document.body));
+    await clickElement(getTowerPickerButton('Torre 3', document.body));
+
+    const hotelBaseSelect = getHotelBaseSelect(document.body);
+    expect(hotelBaseSelect).toBeTruthy();
+    const optionLabels = [...hotelBaseSelect.options].map((option) => option.textContent || '');
+    expect(optionLabels).toContain('Torre 1');
+    expect(optionLabels).toContain('Torre 3');
+    expect(optionLabels).not.toContain('Torre 2');
+
+    changeInput(hotelBaseSelect, '3');
+    expect(hotelBaseSelect.value).toBe('3');
+
+    await clickElement(getTowerPickerButton('Torre 3', document.body));
+    expect(hotelBaseSelect.value).toBe('');
+    const updatedLabels = [...hotelBaseSelect.options].map((option) => option.textContent || '');
+    expect(updatedLabels).not.toContain('Torre 3');
+  });
+
+  it('supports searchable hotel dropdown, create new, and preserves spaces in hotel name', async () => {
+    renderView(root, {
+      inspections: [
+        {
+          id: 'VS-P1-01012026-0001',
+          projetoId: 'P1',
+          dataInicio: '2026-01-01',
+          dataFim: '2026-01-01',
+          detalhesDias: [
+            {
+              data: '2026-01-01',
+              hotelNome: 'Pousada Azul',
+              hotelMunicipio: 'Cidade A',
+              hotelLogisticaNota: '4',
+              hotelReservaNota: '5',
+              hotelEstadiaNota: '4',
+            },
+          ],
+        },
+      ],
+    });
+
+    await clickByText('Nova Vistoria');
+    const projectSelect = document.querySelector('.inspections-wizard-modal select');
+    const dateInputs = document.querySelectorAll('.inspections-wizard-modal input[type="date"]');
+    changeInput(projectSelect, 'P1');
+    changeInput(dateInputs[0], '2026-03-20');
+    changeInput(dateInputs[1], '2026-03-20');
+    await flush();
+
+    await clickByText('Avancar');
+
+    await clickByText('Selecionar hotel...');
+    const searchInput = document.querySelector('.inspections-day-hotel-picker-search input');
+    expect(searchInput).toBeTruthy();
+    changeInput(searchInput, 'Pousada Azul');
+    await clickByText('Pousada Azul');
+
+    const hotelNameInput = document.querySelector('.inspections-day-hotel-fields input[placeholder="Hotel (opcional)"]');
+    expect(hotelNameInput).toBeTruthy();
+    expect(hotelNameInput.value).toBe('Pousada Azul');
+
+    await clickByText('Pousada Azul (Cidade A)');
+    const createSearchInput = document.querySelector('.inspections-day-hotel-picker-search input');
+    expect(createSearchInput).toBeTruthy();
+    changeInput(createSearchInput, 'Hotel Centro Sul');
+    await clickByText('Criar novo hotel: "Hotel Centro Sul"');
+
+    expect(hotelNameInput.value).toBe('Hotel Centro Sul');
+    changeInput(hotelNameInput, 'Hotel Centro Sul Norte');
+    expect(hotelNameInput.value).toBe('Hotel Centro Sul Norte');
+  });
+
+  it('allows selecting Portico (T0) and collapsing tower picker', async () => {
+    renderView(root);
+
+    await clickByText('Nova Vistoria');
+    const projectSelect = document.querySelector('.inspections-wizard-modal select');
+    const dateInputs = document.querySelectorAll('.inspections-wizard-modal input[type="date"]');
+    changeInput(projectSelect, 'P1');
+    changeInput(dateInputs[0], '2026-04-01');
+    changeInput(dateInputs[1], '2026-04-01');
+    await flush();
+
+    await clickByText('Avancar');
+
+    expect(getTowerPickerButton('Portico (T0)', document.body)).toBeTruthy();
+    await clickElement(getTowerPickerButton('Portico (T0)', document.body));
+    expect(document.body.textContent).toContain('Portico (T0)');
+
+    const toggleButton = document.querySelector('.inspections-day-tower-picker-toggle');
+    expect(toggleButton).toBeTruthy();
+    await clickElement(toggleButton);
+    expect(document.querySelector('.inspections-day-tower-picker-grid')).toBeFalsy();
+
+    await clickElement(document.querySelector('.inspections-day-tower-picker-toggle'));
+    expect(document.querySelector('.inspections-day-tower-picker-grid')).toBeTruthy();
   });
 });

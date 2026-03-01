@@ -2025,6 +2025,31 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
   resize: vertical;
 }
 
+.erosions-long-textarea {
+  width: 100%;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.erosions-long-textarea-medium {
+  min-height: 140px;
+}
+
+.erosions-long-textarea-links {
+  min-height: 180px;
+}
+
+.erosions-long-textarea-large {
+  min-height: 220px;
+}
+
+.erosions-long-textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
 .erosions-criticality-notice {
   margin: 0;
 }
@@ -2189,11 +2214,27 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
 }
 
 .inspections-inline-erosion-modal {
-  width: min(780px, 96vw);
+  width: min(860px, 96vw);
   max-height: 92vh;
   overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  gap: 10px;
+}
+
+.inspections-inline-erosion-head {
+  display: grid;
+  gap: 4px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
+}
+
+.inspections-inline-erosion-head h4 {
+  margin: 0;
+}
+
+.inspections-inline-erosion-head .muted {
+  margin: 0;
 }
 
 .inspections-inline-erosion-body {
@@ -2201,6 +2242,8 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
   gap: 8px;
   overflow-y: auto;
   min-height: 0;
+  padding-right: 4px;
+  padding-bottom: 4px;
 }
 
 .inspections-inline-erosion-coordinates {
@@ -2248,6 +2291,66 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
   gap: 6px;
   font-size: 0.84rem;
   color: #1e293b;
+}
+
+.inspections-inline-erosion-textarea {
+  width: 100%;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.inspections-inline-erosion-text-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+
+.inspections-inline-erosion-textarea-medium {
+  min-height: 140px;
+}
+
+.inspections-inline-erosion-textarea-links {
+  min-height: 180px;
+}
+
+.inspections-inline-erosion-textarea-large {
+  min-height: 220px;
+}
+
+.inspections-inline-erosion-textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+.inspections-inline-erosion-textarea-full {
+  grid-column: 1 / -1;
+}
+
+.inspections-inline-erosion-actions {
+  margin-top: 2px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.inspections-inline-erosion-draft-btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.inspections-inline-erosion-actions-main {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .hidden-input {
@@ -2384,6 +2487,45 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
 
   .projects-delete-actions {
     grid-template-columns: 1fr;
+  }
+
+  .inspections-inline-erosion-actions,
+  .inspections-inline-erosion-actions-main {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .inspections-inline-erosion-actions-main {
+    margin-left: 0;
+  }
+
+  .inspections-inline-erosion-actions-main > button,
+  .inspections-inline-erosion-draft-btn {
+    width: 100%;
+  }
+
+  .inspections-inline-erosion-text-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inspections-inline-erosion-textarea-full {
+    grid-column: auto;
+  }
+
+  .erosions-long-textarea-medium,
+  .inspections-inline-erosion-textarea-medium {
+    min-height: 124px;
+  }
+
+  .erosions-long-textarea-links,
+  .inspections-inline-erosion-textarea-links {
+    min-height: 156px;
+  }
+
+  .erosions-long-textarea-large,
+  .inspections-inline-erosion-textarea-large {
+    min-height: 188px;
   }
 }
 
@@ -3453,8 +3595,73 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
   width: 100%;
 }
 
-.inspections-tower-input-wrap {
-  min-width: 0;
+.inspections-day-tower-selected-summary {
+  align-content: center;
+}
+
+.inspections-day-tower-picker {
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.inspections-day-tower-picker-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: #334155;
+}
+
+.inspections-day-tower-picker-head-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.inspections-day-tower-picker-toggle {
+  min-height: 30px;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.inspections-day-tower-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.inspections-day-tower-picker-btn {
+  min-height: 34px;
+  border-radius: 9px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  font-size: 0.79rem;
+  font-weight: 600;
+  padding: 0 8px;
+}
+
+.inspections-day-tower-picker-btn:hover {
+  background: #f1f5f9;
+}
+
+.inspections-day-tower-picker-btn.is-active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.inspections-day-tower-picker-empty {
+  margin: 0;
 }
 
 .inspections-day-actions {
@@ -3467,12 +3674,122 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
 }
 
 .inspections-day-hotel-history-grid {
-  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(180px, 1fr));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
 }
 
 .inspections-day-hotel-history-grid > * {
   min-width: 0;
+}
+
+.inspections-day-hotel-picker {
+  position: relative;
+}
+
+.inspections-day-hotel-picker-trigger {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  justify-content: space-between;
+  box-shadow: none;
+}
+
+.inspections-day-hotel-picker-trigger:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.inspections-day-hotel-picker-trigger.is-open {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.14);
+}
+
+.inspections-day-hotel-picker-trigger-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.inspections-day-hotel-picker-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.16);
+  padding: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.inspections-day-hotel-picker-search {
+  border: 1px solid #dbe4ee;
+  border-radius: 8px;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+}
+
+.inspections-day-hotel-picker-search input {
+  border: 0;
+  background: transparent;
+  width: 100%;
+  min-height: 34px;
+  padding: 0;
+}
+
+.inspections-day-hotel-picker-search input:focus {
+  outline: none;
+}
+
+.inspections-day-hotel-picker-options {
+  max-height: 220px;
+  overflow-y: auto;
+  display: grid;
+  gap: 6px;
+}
+
+.inspections-day-hotel-picker-option {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #dbe4ee;
+  background: #fff;
+  color: #334155;
+  text-align: left;
+  justify-content: flex-start;
+  padding: 8px 10px;
+  min-height: 34px;
+  font-size: 0.8rem;
+}
+
+.inspections-day-hotel-picker-option:hover {
+  background: #f8fafc;
+}
+
+.inspections-day-hotel-picker-option.is-create {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.inspections-day-hotel-picker-empty {
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 0.8rem;
+  padding: 8px 10px;
+  background: #f8fafc;
 }
 
 .inspections-day-hotel-fields {
@@ -3649,7 +3966,7 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .inspections-day-hotel-history-grid > select:first-child {
+  .inspections-day-hotel-picker {
     grid-column: span 2;
   }
 
@@ -3665,10 +3982,12 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
 
 .inspections-inline-erosion-backdrop {
   z-index: 70;
+  padding: 16px;
+  overflow-y: auto;
 }
 
 .inspections-inline-erosion-modal {
-  width: min(780px, 96vw);
+  width: min(860px, 96vw);
 }
 
 .inspection-details-backdrop {
@@ -3855,6 +4174,24 @@ th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
   .inspections-day-hotel-history-grid,
   .inspections-day-hotel-fields {
     grid-template-columns: 1fr;
+  }
+
+  .inspections-day-tower-picker-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 240px;
+  }
+
+  .inspections-day-hotel-picker {
+    grid-column: auto;
+  }
+
+  .inspections-day-hotel-picker-menu {
+    position: static;
+    top: auto;
+    left: auto;
+    right: auto;
+    margin-top: 8px;
+    box-shadow: none;
   }
 
   .inspections-day-hotel-fields > :nth-child(1),

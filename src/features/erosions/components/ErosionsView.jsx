@@ -947,18 +947,6 @@ function ErosionsView({
         </button>
       </div>
 
-      <ErosionReportPanel
-        reportFilters={reportFilters}
-        reportYears={reportYears}
-        selectedReportYears={selectedReportYears}
-        onSetFilters={setReportFilters}
-        onExportCsv={handleExportCsv}
-        onExportPdf={handleExportPdf}
-        onPrintBatchFichasPdf={handlePrintBatchFichasPdf}
-        collapsed={isReportPanelCollapsed}
-        onToggleCollapsed={() => setIsReportPanelCollapsed((prev) => !prev)}
-      />
-
       <article className="erosions-reading-controls">
         <div className="erosions-reading-actions">
           <label className="erosions-field">
@@ -1076,6 +1064,18 @@ function ErosionsView({
           onOpenMaps={openGoogleMapsRoute}
         />
       ) : null}
+
+      <ErosionReportPanel
+        reportFilters={reportFilters}
+        reportYears={reportYears}
+        selectedReportYears={selectedReportYears}
+        onSetFilters={setReportFilters}
+        onExportCsv={handleExportCsv}
+        onExportPdf={handleExportPdf}
+        onPrintBatchFichasPdf={handlePrintBatchFichasPdf}
+        collapsed={isReportPanelCollapsed}
+        onToggleCollapsed={() => setIsReportPanelCollapsed((prev) => !prev)}
+      />
 
       <ErosionFormModal
         open={isFormOpen}

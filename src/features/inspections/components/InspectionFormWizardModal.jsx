@@ -195,26 +195,33 @@ function ensureDayShape(day) {
   const torresArray = Array.isArray(day?.torres)
     ? day.torres
     : parseTowerInput(sourceInput);
-  const torresDetalhadas = Array.isArray(day?.torresDetalhadas)
+  const torresDetalhadasRaw = Array.isArray(day?.torresDetalhadas)
     ? day.torresDetalhadas
     : torresArray.map((numero) => ({ numero, obs: '', temErosao: false }));
+  const torresDetalhadas = torresDetalhadasRaw
+    .map((tower) => ({
+      numero: String(tower?.numero || '').trim(),
+      obs: String(tower?.obs || '').trim(),
+      temErosao: !!tower?.temErosao,
+    }))
+    .filter((tower) => tower.numero)
+    .sort((a, b) => compareTowerNumbers(a.numero, b.numero));
+  const normalizedTowerNumbers = torresDetalhadas.map((tower) => tower.numero);
+  const hotelTorreBaseRaw = String(day?.hotelTorreBase || '').trim();
+  const hotelTorreBase = normalizedTowerNumbers.includes(hotelTorreBaseRaw) ? hotelTorreBaseRaw : '';
 
   return {
     data: String(day?.data || '').trim(),
     clima: String(day?.clima || '').trim(),
-    torres: torresArray,
-    torresInput: sourceInput || torresArray.join(', '),
-    torresDetalhadas: torresDetalhadas.map((tower) => ({
-      numero: String(tower?.numero || '').trim(),
-      obs: String(tower?.obs || '').trim(),
-      temErosao: !!tower?.temErosao,
-    })),
-    hotelNome: String(day?.hotelNome || '').trim(),
-    hotelMunicipio: String(day?.hotelMunicipio || '').trim(),
+    torres: normalizedTowerNumbers,
+    torresInput: normalizedTowerNumbers.join(', '),
+    torresDetalhadas,
+    hotelNome: String(day?.hotelNome ?? ''),
+    hotelMunicipio: String(day?.hotelMunicipio ?? ''),
     hotelLogisticaNota: String(day?.hotelLogisticaNota ?? '').trim(),
     hotelReservaNota: String(day?.hotelReservaNota ?? '').trim(),
     hotelEstadiaNota: String(day?.hotelEstadiaNota ?? '').trim(),
-    hotelTorreBase: String(day?.hotelTorreBase || '').trim(),
+    hotelTorreBase,
   };
 }
 
@@ -244,6 +251,10 @@ function formatHistoryOption(item) {
   return `${item.hotelNome}${item.hotelMunicipio ? ` (${item.hotelMunicipio})` : ''}${usageText}${dateText}`;
 }
 
+function normalizeSearchText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function InspectionFormWizardModal({
   open,
   isEditing,
@@ -262,13 +273,17 @@ function InspectionFormWizardModal({
   const [formData, setFormData] = useState(() => normalizeInspectionForm(initialData));
   const [expandedDay, setExpandedDay] = useState('');
   const [expandedTowerKey, setExpandedTowerKey] = useState('');
-  const [hotelHistorySelection, setHotelHistorySelection] = useState({});
+  const [collapsedTowerPickerDays, setCollapsedTowerPickerDays] = useState({});
+  const [openHotelPickerDayKey, setOpenHotelPickerDayKey] = useState('');
+  const [hotelPickerSearch, setHotelPickerSearch] = useState('');
   const [erosionModal, setErosionModal] = useState(null);
   const [erosionForm, setErosionForm] = useState(() => buildSafeInlineErosionFormState());
   const [inlineCoordinatesExpanded, setInlineCoordinatesExpanded] = useState(false);
   const [inlineUtmErrorToken, setInlineUtmErrorToken] = useState(0);
   const [saving, setSaving] = useState(false);
   const autoPendingCheckRef = useRef('');
+  const hotelPickerRef = useRef(null);
+  const hotelPickerSearchRef = useRef(null);
 
   const selectedProject = useMemo(
     () => (projects || []).find((item) => item.id === formData.projetoId) || null,
@@ -283,6 +298,30 @@ function InspectionFormWizardModal({
     }),
     [inspections, formData],
   );
+
+  const projectTowerOptions = useMemo(() => {
+    const totalTowers = Number(selectedProject?.torres || 0);
+    const withPortico = ['0'];
+    if (!Number.isFinite(totalTowers) || totalTowers <= 0) return withPortico;
+    const towers = Array.from({ length: Math.trunc(totalTowers) }, (_, index) => String(index + 1));
+    return [...withPortico, ...towers];
+  }, [selectedProject?.torres]);
+
+  const filteredHotelHistory = useMemo(() => {
+    const term = normalizeSearchText(hotelPickerSearch);
+    if (!term) return hotelHistory;
+    return hotelHistory.filter((item) => {
+      const hotelName = normalizeSearchText(item?.hotelNome);
+      const hotelCity = normalizeSearchText(item?.hotelMunicipio);
+      return hotelName.includes(term) || hotelCity.includes(term);
+    });
+  }, [hotelHistory, hotelPickerSearch]);
+
+  const hasExactHotelMatch = useMemo(() => {
+    const term = normalizeSearchText(hotelPickerSearch);
+    if (!term) return true;
+    return hotelHistory.some((item) => normalizeSearchText(item?.hotelNome) === term);
+  }, [hotelHistory, hotelPickerSearch]);
 
   const summary = useMemo(() => {
     const days = Array.isArray(formData.detalhesDias) ? formData.detalhesDias : [];
@@ -308,7 +347,9 @@ function InspectionFormWizardModal({
     setStep(1);
     setExpandedDay(normalized.detalhesDias?.[0]?.data || '');
     setExpandedTowerKey('');
-    setHotelHistorySelection({});
+    setCollapsedTowerPickerDays({});
+    setOpenHotelPickerDayKey('');
+    setHotelPickerSearch('');
     setErosionModal(null);
     setErosionForm(buildSafeInlineErosionFormState());
     setInlineCoordinatesExpanded(false);
@@ -347,6 +388,40 @@ function InspectionFormWizardModal({
       }
     })();
   }, [open, formData.id, formData.projetoId, formData.detalhesDias, erosions]);
+
+  useEffect(() => {
+    if (!openHotelPickerDayKey) return undefined;
+
+    function handlePointerDown(event) {
+      if (hotelPickerRef.current && !hotelPickerRef.current.contains(event.target)) {
+        setOpenHotelPickerDayKey('');
+        setHotelPickerSearch('');
+      }
+    }
+
+    function handleEscape(event) {
+      if (event.key !== 'Escape') return;
+      setOpenHotelPickerDayKey('');
+      setHotelPickerSearch('');
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [openHotelPickerDayKey]);
+
+  useEffect(() => {
+    if (!openHotelPickerDayKey) return undefined;
+    const timer = window.setTimeout(() => {
+      hotelPickerSearchRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [openHotelPickerDayKey]);
 
   if (!open) return null;
   const portalTarget = typeof document !== 'undefined' ? document.body : null;
@@ -431,36 +506,64 @@ function InspectionFormWizardModal({
     });
   }
 
-  function handleGenerateChecklist(dayIndex) {
-    const day = formData.detalhesDias?.[dayIndex];
-    if (!day) return;
+  function toggleDayTower(dayIndex, towerNumber) {
+    const towerKey = String(towerNumber || '').trim();
+    if (!towerKey) return;
+    setFormData((prev) => {
+      const days = [...(prev.detalhesDias || [])];
+      const day = days[dayIndex];
+      if (!day) return prev;
+      const normalizedDay = ensureDayShape(day);
+      const towersMap = new Map((normalizedDay.torresDetalhadas || []).map((item) => [String(item?.numero || '').trim(), item]));
 
-    let towers = parseTowerInput(day.torresInput || day.torres || '');
-    const maxTowers = Number(selectedProject?.torres || 0);
-    if (Number.isFinite(maxTowers) && maxTowers > 0) {
-      const valid = towers.filter((item) => item >= 0 && item <= maxTowers);
-      if (valid.length !== towers.length) {
-        show(`Algumas torres foram removidas por exceder o limite do empreendimento (${maxTowers}).`, 'error');
+      if (towersMap.has(towerKey)) {
+        towersMap.delete(towerKey);
+      } else {
+        const previousTower = (normalizedDay.torresDetalhadas || []).find((item) => String(item?.numero || '').trim() === towerKey) || {};
+        towersMap.set(towerKey, {
+          numero: towerKey,
+          obs: String(previousTower?.obs || '').trim(),
+          temErosao: !!previousTower?.temErosao,
+        });
       }
-      towers = valid;
-    }
 
-    const existing = new Map((day.torresDetalhadas || []).map((item) => [String(item?.numero || '').trim(), item]));
-    const detalhadas = towers.map((number) => {
-      const key = String(number);
-      const prev = existing.get(key) || {};
-      return {
-        numero: key,
-        obs: String(prev?.obs || '').trim(),
-        temErosao: !!prev?.temErosao,
-      };
-    });
+      const nextDetailed = [...towersMap.values()].sort((a, b) => compareTowerNumbers(a.numero, b.numero));
+      const nextTowerNumbers = nextDetailed.map((item) => String(item?.numero || '').trim()).filter(Boolean);
+      const currentHotelTowerBase = String(normalizedDay.hotelTorreBase || '').trim();
+      const nextHotelTowerBase = nextTowerNumbers.includes(currentHotelTowerBase) ? currentHotelTowerBase : '';
 
-    updateDayField(dayIndex, {
-      torres: towers,
-      torresInput: day.torresInput || towers.join(', '),
-      torresDetalhadas: detalhadas,
+      days[dayIndex] = ensureDayShape({
+        ...normalizedDay,
+        torres: nextTowerNumbers,
+        torresInput: nextTowerNumbers.join(', '),
+        torresDetalhadas: nextDetailed,
+        hotelTorreBase: nextHotelTowerBase,
+      });
+      return { ...prev, detalhesDias: days };
     });
+  }
+
+  function clearDayTowerSelection(dayIndex) {
+    setFormData((prev) => {
+      const days = [...(prev.detalhesDias || [])];
+      const day = days[dayIndex];
+      if (!day) return prev;
+      days[dayIndex] = ensureDayShape({
+        ...day,
+        torres: [],
+        torresInput: '',
+        torresDetalhadas: [],
+        hotelTorreBase: '',
+      });
+      return { ...prev, detalhesDias: days };
+    });
+  }
+
+  function toggleTowerPickerCollapse(dayKey) {
+    setCollapsedTowerPickerDays((prev) => ({
+      ...prev,
+      [dayKey]: !prev[dayKey],
+    }));
   }
 
   function applySuggestedTowersToDay(dayIndex) {
@@ -483,27 +586,36 @@ function InspectionFormWizardModal({
     });
     updateDayField(dayIndex, {
       torres: towers,
-      torresInput: suggestedTowerInput,
+      torresInput: towers.join(', '),
       torresDetalhadas: detalhadas,
     });
     show('Torres sugeridas aplicadas ao dia.', 'success');
   }
 
-  function applyHotelHistoryToDay(dayIndex) {
-    const day = formData.detalhesDias?.[dayIndex];
-    if (!day) return;
-    const selectionKey = String(hotelHistorySelection?.[day.data] || '').trim();
-    if (!selectionKey) {
-      show('Selecione um hotel do historico.', 'error');
-      return;
-    }
-    const selected = hotelHistory.find((item) => item.key === selectionKey);
-    if (!selected) {
-      show('Hotel selecionado nao encontrado no historico.', 'error');
-      return;
-    }
-    updateDayField(dayIndex, extractHotelFields(selected));
-    show('Dados de hospedagem aplicados ao dia.', 'success');
+  function toggleHotelPicker(dayKey, initialValue = '') {
+    setOpenHotelPickerDayKey((prev) => {
+      if (prev === dayKey) {
+        setHotelPickerSearch('');
+        return '';
+      }
+      setHotelPickerSearch(initialValue);
+      return dayKey;
+    });
+  }
+
+  function handleSelectHotelFromHistory(dayIndex, hotelItem) {
+    if (!hotelItem) return;
+    updateDayField(dayIndex, extractHotelFields(hotelItem));
+    setOpenHotelPickerDayKey('');
+    setHotelPickerSearch('');
+  }
+
+  function handleCreateNewHotel(dayIndex) {
+    const hotelName = String(hotelPickerSearch || '').trim();
+    if (!hotelName) return;
+    updateDayField(dayIndex, { hotelNome: hotelName });
+    setOpenHotelPickerDayKey('');
+    setHotelPickerSearch('');
   }
 
   function repeatPreviousDayHotel(dayIndex) {
@@ -540,6 +652,9 @@ function InspectionFormWizardModal({
             obs: String(tower?.obs || '').trim(),
             temErosao: !!tower?.temErosao,
           })),
+          hotelNome: String(day?.hotelNome ?? '').trim(),
+          hotelMunicipio: String(day?.hotelMunicipio ?? '').trim(),
+          hotelTorreBase: String(day?.hotelTorreBase || '').trim(),
         };
       }),
     };
@@ -1045,6 +1160,16 @@ function InspectionFormWizardModal({
               <div className="inspections-day-list">
                 {formData.detalhesDias.map((day, dayIndex) => {
                   const isDayExpanded = expandedDay === day.data;
+                  const dayKey = String(day?.data || `dia-${dayIndex}`);
+                  const isTowerPickerCollapsed = !!collapsedTowerPickerDays[dayKey];
+                  const isHotelPickerOpen = openHotelPickerDayKey === dayKey;
+                  const selectedDayTowers = [...(day.torresDetalhadas || [])]
+                    .filter((tower) => String(tower?.numero || '').trim())
+                    .sort((a, b) => compareTowerNumbers(a.numero, b.numero));
+                  const selectedDayTowerKeys = new Set(selectedDayTowers.map((tower) => String(tower?.numero || '').trim()));
+                  const canCreateHotelFromSearch = isHotelPickerOpen
+                    && String(hotelPickerSearch || '').trim() !== ''
+                    && !hasExactHotelMatch;
                   const previousHotel = findPreviousDayHotel(formData.detalhesDias, day.data);
                   return (
                     <article key={day.data || dayIndex} className="inspections-day-card">
@@ -1072,20 +1197,66 @@ function InspectionFormWizardModal({
                                 <option value="Chuva">Chuva</option>
                               </select>
                             </div>
-                            <div className="inspections-day-field inspections-tower-input-wrap">
-                              <label>Torres visitadas</label>
-                              <input
-                                value={day.torresInput || ''}
-                                onChange={(e) => updateDayField(dayIndex, { torresInput: e.target.value })}
-                                placeholder="Ex: 1-3, 5, 7"
-                              />
+                            <div className="inspections-day-field inspections-day-tower-selected-summary">
+                              <label>Torres selecionadas</label>
+                              <div className="muted">
+                                {selectedDayTowers.length > 0
+                                  ? selectedDayTowers.map((tower) => formatTowerLabel(tower.numero)).join(', ')
+                                  : 'Nenhuma torre selecionada.'}
+                              </div>
                             </div>
                           </div>
 
+                          <div className="inspections-day-tower-picker">
+                            <div className="inspections-day-tower-picker-head">
+                              <div className="inspections-day-tower-picker-head-copy">
+                                <strong>Selecionar torres do dia</strong>
+                                <span>{selectedDayTowers.length} selecionada(s)</span>
+                              </div>
+                              <button
+                                type="button"
+                                className="secondary inspections-day-tower-picker-toggle"
+                                onClick={() => toggleTowerPickerCollapse(dayKey)}
+                              >
+                                <AppIcon name={isTowerPickerCollapsed ? 'chevron-down' : 'chevron-up'} />
+                                {isTowerPickerCollapsed ? 'Expandir' : 'Ocultar'}
+                              </button>
+                            </div>
+                            {!isTowerPickerCollapsed ? (
+                              <>
+                                <div className="inspections-day-tower-picker-grid">
+                                  {projectTowerOptions.map((towerNumber) => {
+                                    const active = selectedDayTowerKeys.has(String(towerNumber));
+                                    return (
+                                      <button
+                                        key={`${dayKey}-picker-${towerNumber}`}
+                                        type="button"
+                                        className={`inspections-day-tower-picker-btn ${active ? 'is-active' : ''}`.trim()}
+                                        onClick={() => toggleDayTower(dayIndex, towerNumber)}
+                                      >
+                                        {formatTowerLabel(towerNumber)}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                {projectTowerOptions.length === 0 ? (
+                                  <p className="muted inspections-day-tower-picker-empty">
+                                    Este empreendimento nao possui total de torres valido para selecao.
+                                  </p>
+                                ) : null}
+                              </>
+                            ) : null}
+                          </div>
+
                           <div className="row-actions inspections-day-actions">
-                            <button type="button" className="secondary" onClick={() => handleGenerateChecklist(dayIndex)}>
-                              <AppIcon name="check" />
-                              Gerar checklist
+                            <button
+                              type="button"
+                              className="secondary"
+                              onClick={() => clearDayTowerSelection(dayIndex)}
+                              disabled={selectedDayTowers.length === 0}
+                            >
+                              <AppIcon name="close" />
+                              Limpar selecao do dia
                             </button>
                             {suggestedTowerInput ? (
                               <button type="button" className="secondary" onClick={() => applySuggestedTowersToDay(dayIndex)}>
@@ -1096,20 +1267,67 @@ function InspectionFormWizardModal({
                           </div>
 
                           <div className="panel nested inspections-day-hotel-history">
-                            <div className="grid-form hotel-actions-grid inspections-day-hotel-history-grid">
-                              <select
-                                value={hotelHistorySelection?.[day.data] || ''}
-                                onChange={(e) => setHotelHistorySelection((prev) => ({ ...prev, [day.data]: e.target.value }))}
+                            <div className="inspections-day-hotel-history-grid">
+                              <div
+                                className="inspections-day-hotel-picker"
+                                ref={isHotelPickerOpen ? hotelPickerRef : null}
                               >
-                                <option value="">Usar hotel do historico...</option>
-                                {hotelHistory.map((item) => (
-                                  <option key={item.key} value={item.key}>{formatHistoryOption(item)}</option>
-                                ))}
-                              </select>
-                              <button type="button" className="secondary" onClick={() => applyHotelHistoryToDay(dayIndex)}>
-                                <AppIcon name="clipboard" />
-                                Aplicar historico
-                              </button>
+                                <button
+                                  type="button"
+                                  className={`inspections-day-hotel-picker-trigger ${isHotelPickerOpen ? 'is-open' : ''}`.trim()}
+                                  aria-expanded={isHotelPickerOpen ? 'true' : 'false'}
+                                  aria-haspopup="listbox"
+                                  onClick={() => toggleHotelPicker(dayKey, String(day.hotelNome || ''))}
+                                >
+                                  <span className="inspections-day-hotel-picker-trigger-label">
+                                    {day.hotelNome
+                                      ? `${day.hotelNome}${day.hotelMunicipio ? ` (${day.hotelMunicipio})` : ''}`
+                                      : 'Selecionar hotel...'}
+                                  </span>
+                                  <AppIcon name={isHotelPickerOpen ? 'close' : 'details'} />
+                                </button>
+
+                                {isHotelPickerOpen ? (
+                                  <div className="inspections-day-hotel-picker-menu" role="dialog" aria-label="Selecionar hotel">
+                                    <label className="inspections-day-hotel-picker-search">
+                                      <AppIcon name="search" />
+                                      <input
+                                        ref={hotelPickerSearchRef}
+                                        type="search"
+                                        value={hotelPickerSearch}
+                                        placeholder="Buscar hotel por nome ou municipio..."
+                                        onChange={(e) => setHotelPickerSearch(e.target.value)}
+                                      />
+                                    </label>
+
+                                    <div className="inspections-day-hotel-picker-options" role="listbox" aria-label="Historico de hoteis">
+                                      {filteredHotelHistory.map((item) => (
+                                        <button
+                                          key={item.key}
+                                          type="button"
+                                          className="inspections-day-hotel-picker-option"
+                                          onClick={() => handleSelectHotelFromHistory(dayIndex, item)}
+                                        >
+                                          {formatHistoryOption(item)}
+                                        </button>
+                                      ))}
+                                      {canCreateHotelFromSearch ? (
+                                        <button
+                                          type="button"
+                                          className="inspections-day-hotel-picker-option is-create"
+                                          onClick={() => handleCreateNewHotel(dayIndex)}
+                                        >
+                                          Criar novo hotel: "{String(hotelPickerSearch || '').trim()}"
+                                        </button>
+                                      ) : null}
+                                      {filteredHotelHistory.length === 0 && !canCreateHotelFromSearch ? (
+                                        <div className="inspections-day-hotel-picker-empty">Nenhum hotel encontrado.</div>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
+
                               <button type="button" className="secondary" onClick={() => repeatPreviousDayHotel(dayIndex)} disabled={!previousHotel}>
                                 <AppIcon name="copy" />
                                 Repetir dia anterior
@@ -1149,9 +1367,17 @@ function InspectionFormWizardModal({
                               <option value="4">4</option>
                               <option value="5">5</option>
                             </select>
-                            <select value={day.hotelTorreBase || ''} onChange={(e) => updateDayField(dayIndex, { hotelTorreBase: e.target.value })}>
-                              <option value="">Torre base da hospedagem</option>
-                              {(day.torresDetalhadas || []).map((tower) => (
+                            <select
+                              value={day.hotelTorreBase || ''}
+                              onChange={(e) => updateDayField(dayIndex, { hotelTorreBase: e.target.value })}
+                              disabled={selectedDayTowers.length === 0}
+                            >
+                              <option value="">
+                                {selectedDayTowers.length === 0
+                                  ? 'Selecione torres visitadas no dia'
+                                  : 'Torre base da hospedagem'}
+                              </option>
+                              {selectedDayTowers.map((tower) => (
                                 <option key={`hotel-base-${dayIndex}-${tower.numero}`} value={tower.numero}>Torre {tower.numero}</option>
                               ))}
                             </select>
@@ -1311,10 +1537,12 @@ function InspectionFormWizardModal({
       {erosionModal ? (
         <div className="modal-backdrop inspections-inline-erosion-backdrop">
           <form className="modal inspections-inline-erosion-modal" onSubmit={handleSaveErosion}>
-            <h4>Erosao - {formatTowerLabel(erosionModal.towerNumber)}</h4>
-            {erosionModal.existingErosion?.id ? (
-              <p className="muted">Editando erosao existente: {erosionModal.existingErosion.id}</p>
-            ) : null}
+            <div className="inspections-inline-erosion-head">
+              <h4>Erosao - {formatTowerLabel(erosionModal.towerNumber)}</h4>
+              {erosionModal.existingErosion?.id ? (
+                <p className="muted">Editando erosao existente: {erosionModal.existingErosion.id}</p>
+              ) : null}
+            </div>
             <div className="inspections-inline-erosion-body">
               <select value={erosionForm.localTipo} onChange={(e) => setErosionForm((prev) => ({ ...prev, localTipo: e.target.value }))}>
                 <option value="">Local da erosao...</option>
@@ -1518,55 +1746,66 @@ function InspectionFormWizardModal({
                 />
               ) : null}
 
-              <textarea
-                rows="2"
-                placeholder="Medida preventiva"
-                value={erosionForm.medidaPreventiva || ''}
-                onChange={(e) => setErosionForm((prev) => ({ ...prev, medidaPreventiva: e.target.value }))}
-              />
-              <textarea
-                rows="2"
-                placeholder="Fotos (links, um por linha)"
-                value={Array.isArray(erosionForm.fotosLinks) ? erosionForm.fotosLinks.join('\n') : ''}
-                onChange={(e) => setErosionForm((prev) => ({
-                  ...prev,
-                  fotosLinks: String(e.target.value || '')
-                    .split('\n')
-                    .map((line) => line.trim())
-                    .filter(Boolean),
-                }))}
-              />
-              <textarea
-                rows="3"
-                placeholder="Descricao"
-                value={erosionForm.descricao}
-                onChange={(e) => setErosionForm((prev) => ({ ...prev, descricao: e.target.value }))}
-              />
+              <div className="inspections-inline-erosion-text-grid">
+                <textarea
+                  rows="2"
+                  className="inspections-inline-erosion-textarea inspections-inline-erosion-textarea-medium"
+                  placeholder="Medida preventiva"
+                  value={erosionForm.medidaPreventiva || ''}
+                  onChange={(e) => setErosionForm((prev) => ({ ...prev, medidaPreventiva: e.target.value }))}
+                />
+                <textarea
+                  rows="2"
+                  className="inspections-inline-erosion-textarea inspections-inline-erosion-textarea-links"
+                  placeholder="Fotos (links, um por linha)"
+                  value={Array.isArray(erosionForm.fotosLinks) ? erosionForm.fotosLinks.join('\n') : ''}
+                  onChange={(e) => setErosionForm((prev) => ({
+                    ...prev,
+                    fotosLinks: String(e.target.value || '')
+                      .split('\n')
+                      .map((line) => line.trim())
+                      .filter(Boolean),
+                  }))}
+                />
+                <textarea
+                  rows="3"
+                  className="inspections-inline-erosion-textarea inspections-inline-erosion-textarea-large inspections-inline-erosion-textarea-full"
+                  placeholder="Descricao"
+                  value={erosionForm.descricao}
+                  onChange={(e) => setErosionForm((prev) => ({ ...prev, descricao: e.target.value }))}
+                />
+              </div>
             </div>
-            <div className="row-actions">
+            <div className="row-actions inspections-inline-erosion-actions">
               {onOpenErosionDraft ? (
-                <button type="button" className="secondary" onClick={handleOpenErosionDraft}>
+                <button
+                  type="button"
+                  className="secondary inspections-inline-erosion-draft-btn"
+                  onClick={handleOpenErosionDraft}
+                >
                   <AppIcon name="details" />
                   Abrir cadastro completo na aba Erosoes
                 </button>
               ) : null}
-              <button type="submit">
+              <div className="inspections-inline-erosion-actions-main">
+                <button type="submit">
                   <AppIcon name="save" />
                   {erosionModal.existingErosion ? 'Salvar alteracoes' : 'Salvar erosao'}
                 </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  setErosionModal(null);
-                  setErosionForm(buildSafeInlineErosionFormState());
-                  setInlineCoordinatesExpanded(false);
-                  setInlineUtmErrorToken(0);
-                }}
-              >
-                <AppIcon name="close" />
-                Cancelar
-              </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => {
+                    setErosionModal(null);
+                    setErosionForm(buildSafeInlineErosionFormState());
+                    setInlineCoordinatesExpanded(false);
+                    setInlineUtmErrorToken(0);
+                  }}
+                >
+                  <AppIcon name="close" />
+                  Cancelar
+                </button>
+              </div>
             </div>
           </form>
         </div>
