@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import AppIcon from '../components/AppIcon';
 
 const DESKTOP_BREAKPOINT = 960;
+const isDesktopWidth = () => window.innerWidth > DESKTOP_BREAKPOINT;
 
 function AppShell({
   activeTab,
@@ -14,10 +15,11 @@ function AppShell({
   onSearchTermChange = () => {},
   children,
 }) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(isDesktopWidth);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(isDesktopWidth);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const [isDesktopViewport, setIsDesktopViewport] = useState(() => window.innerWidth > DESKTOP_BREAKPOINT);
   const sideNavRef = useRef(null);
+  const previousDesktopViewportRef = useRef(isDesktopViewport);
 
   const navigationTabs = [
     { id: 'dashboard', label: 'Monitorização', icon: 'monitor' },
@@ -36,10 +38,18 @@ function AppShell({
   const isCollapsedRailMode = sidebarCollapsed && isDesktopViewport;
 
   useEffect(() => {
-    const onResize = () => setIsDesktopViewport(window.innerWidth > DESKTOP_BREAKPOINT);
+    const onResize = () => setIsDesktopViewport(isDesktopWidth());
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    const wasDesktopViewport = previousDesktopViewportRef.current;
+    if (!wasDesktopViewport && isDesktopViewport) {
+      setSidebarCollapsed(true);
+    }
+    previousDesktopViewportRef.current = isDesktopViewport;
+  }, [isDesktopViewport]);
 
   useEffect(() => {
     if (!isMobileNavOpen) return undefined;

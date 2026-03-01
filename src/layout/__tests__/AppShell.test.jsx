@@ -35,6 +35,21 @@ describe('AppShell', () => {
     });
   };
 
+  const clickSidebarToggle = () => {
+    const sideNavToggle = container.querySelector('.side-nav-toggle');
+    act(() => {
+      sideNavToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+  };
+
+  const ensureSidebarExpanded = () => {
+    const sideNav = container.querySelector('.side-nav');
+    if (sideNav.classList.contains('is-collapsed')) {
+      clickSidebarToggle();
+    }
+    return sideNav;
+  };
+
   beforeEach(() => {
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
@@ -73,10 +88,17 @@ describe('AppShell', () => {
     expect(container.textContent).toContain('Conteúdo');
   });
 
+  it('starts with sidebar collapsed in desktop viewport', () => {
+    renderShell(buildProps());
+
+    const sideNav = container.querySelector('.side-nav');
+    expect(sideNav.classList.contains('is-collapsed')).toBe(true);
+  });
+
   it('renders navigation and utility sections, plus admin section for admin role', () => {
     renderShell(buildProps({ user: { nome: 'Admin', perfil: 'Administrador', role: 'admin' } }));
 
-    const sideNav = container.querySelector('.side-nav');
+    const sideNav = ensureSidebarExpanded();
     expect(sideNav.textContent).toContain('Navega');
     expect(sideNav.textContent).toContain('Utilidades');
     expect(sideNav.textContent).toContain('Administra');
@@ -151,10 +173,25 @@ describe('AppShell', () => {
     expect(appGrid.classList.contains('is-mobile-nav-open')).toBe(false);
   });
 
-  it('collapses sidebar when clicking outside in desktop mode', () => {
+  it('forces sidebar collapse when switching from mobile to desktop viewport', () => {
+    window.innerWidth = 768;
     renderShell(buildProps());
 
     const sideNav = container.querySelector('.side-nav');
+    expect(sideNav.classList.contains('is-collapsed')).toBe(false);
+
+    window.innerWidth = 1280;
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    expect(sideNav.classList.contains('is-collapsed')).toBe(true);
+  });
+
+  it('collapses sidebar when clicking outside in desktop mode', () => {
+    renderShell(buildProps());
+
+    const sideNav = ensureSidebarExpanded();
     const shellContent = container.querySelector('.shell-content');
 
     expect(sideNav.classList.contains('is-collapsed')).toBe(false);
@@ -169,7 +206,7 @@ describe('AppShell', () => {
   it('does not collapse sidebar when clicking inside it', () => {
     renderShell(buildProps());
 
-    const sideNav = container.querySelector('.side-nav');
+    const sideNav = ensureSidebarExpanded();
 
     act(() => {
       pointerDown(sideNav);
@@ -182,11 +219,6 @@ describe('AppShell', () => {
     renderShell(buildProps({ user: { nome: 'Admin', perfil: 'Administrador', role: 'admin' } }));
 
     const sideNav = container.querySelector('.side-nav');
-    const collapseToggle = sideNav.querySelector('.side-nav-toggle');
-
-    act(() => {
-      collapseToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
 
     expect(sideNav.classList.contains('is-collapsed')).toBe(true);
     expect(sideNav.querySelector('.side-nav-group-utilities')).toBeNull();
@@ -202,10 +234,12 @@ describe('AppShell', () => {
     renderShell(buildProps({ activeTab: 'dashboard' }));
 
     const dashboardTab = [...container.querySelectorAll('.side-nav-link')]
-      .find((button) => button.textContent.includes('Monitoriza'));
+      .find((button) => (button.getAttribute('aria-label') || '').includes('Monitoriza'));
     const projectsTab = [...container.querySelectorAll('.side-nav-link')]
-      .find((button) => button.textContent.includes('Empreendimentos'));
+      .find((button) => (button.getAttribute('aria-label') || '').includes('Empreendimentos'));
 
+    expect(dashboardTab).toBeTruthy();
+    expect(projectsTab).toBeTruthy();
     expect(dashboardTab.getAttribute('aria-current')).toBe('page');
     expect(projectsTab.getAttribute('aria-current')).toBeNull();
   });

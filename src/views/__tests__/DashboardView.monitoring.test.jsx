@@ -145,7 +145,10 @@ describe('DashboardView monitoring top notice', () => {
     expect(container.querySelector('.monitor-topbar-alert-trigger')).toBeTruthy();
 
     const projectTab = [...container.querySelectorAll('.side-nav-link')]
-      .find((button) => button.textContent.includes('Empreendimentos'));
+      .find((button) => {
+        const label = button.getAttribute('aria-label') || '';
+        return label.includes('Empreendimentos') || button.textContent.includes('Empreendimentos');
+      });
     expect(projectTab).toBeTruthy();
 
     await act(async () => {
