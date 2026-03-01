@@ -3,6 +3,15 @@ import AppIcon from '../components/AppIcon';
 
 const DESKTOP_BREAKPOINT = 960;
 const isDesktopWidth = () => window.innerWidth > DESKTOP_BREAKPOINT;
+const normalizeReviewVariant = (variant) => (
+  variant === 'a' || variant === 'b' || variant === 'current'
+    ? variant
+    : 'a'
+);
+const resolveInitialSidebarCollapsed = (initialSidebarCollapsed) => {
+  if (typeof initialSidebarCollapsed === 'boolean') return initialSidebarCollapsed;
+  return !isDesktopWidth();
+};
 
 function AppShell({
   activeTab,
@@ -13,25 +22,28 @@ function AppShell({
   topNotice = null,
   searchTerm = '',
   onSearchTermChange = () => {},
+  initialSidebarCollapsed,
+  sidebarReviewVariant = 'a',
   children,
 }) {
   const [isDesktopViewport, setIsDesktopViewport] = useState(isDesktopWidth);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(isDesktopWidth);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => resolveInitialSidebarCollapsed(initialSidebarCollapsed));
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const sideNavRef = useRef(null);
   const previousDesktopViewportRef = useRef(isDesktopViewport);
+  const normalizedSidebarReviewVariant = normalizeReviewVariant(sidebarReviewVariant);
 
   const navigationTabs = [
-    { id: 'dashboard', label: 'Monitorização', icon: 'monitor' },
-    { id: 'projects', label: 'Empreendimentos', icon: 'building' },
-    { id: 'licenses', label: 'Licenças LO', icon: 'license' },
-    { id: 'inspections', label: 'Vistorias', icon: 'clipboard' },
-    { id: 'erosions', label: 'Erosões', icon: 'alert' },
-    { id: 'visit-planning', label: 'Planejamento de Visita', icon: 'route' },
+    { id: 'dashboard', label: 'Monitorização', icon: 'dashboard-nav' },
+    { id: 'projects', label: 'Empreendimentos', icon: 'projects-nav' },
+    { id: 'licenses', label: 'Licenças LO', icon: 'licenses-nav' },
+    { id: 'inspections', label: 'Vistorias', icon: 'inspections-nav' },
+    { id: 'erosions', label: 'Erosões', icon: 'erosions-nav' },
+    { id: 'visit-planning', label: 'Planejamento de Visita', icon: 'visit-nav' },
   ];
 
   const adminTabs = user?.role === 'admin' || user?.role === 'manager'
-    ? [{ id: 'admin', label: 'Administração', icon: 'shield' }]
+    ? [{ id: 'admin', label: 'Administração', icon: 'admin-nav' }]
     : [];
   const iconRailTabs = [...navigationTabs, ...adminTabs];
 
@@ -82,6 +94,8 @@ function AppShell({
     'app-grid',
     isCollapsedRailMode ? 'is-sidebar-collapsed' : '',
     isMobileNavOpen ? 'is-mobile-nav-open' : '',
+    normalizedSidebarReviewVariant === 'a' ? 'is-sidebar-review-variant-a' : '',
+    normalizedSidebarReviewVariant === 'b' ? 'is-sidebar-review-variant-b' : '',
   ].filter(Boolean).join(' ');
 
   const sideNavClassName = [
@@ -96,7 +110,7 @@ function AppShell({
   };
 
   return (
-    <div className={appGridClassName}>
+    <div className={appGridClassName} data-sidebar-review-variant={normalizedSidebarReviewVariant}>
       <button
         type="button"
         className={`side-nav-overlay ${isMobileNavOpen ? 'is-visible' : ''}`.trim()}

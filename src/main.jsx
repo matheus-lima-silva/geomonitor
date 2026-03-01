@@ -5,12 +5,19 @@ import './styles.css';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 
+const searchParams = new URLSearchParams(window.location.search);
+const isSidebarReviewMode = searchParams.get('uiReview') === 'sidebar';
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <AuthProvider>
-      <ToastProvider>
-        <App />
-      </ToastProvider>
-    </AuthProvider>
+    {isSidebarReviewMode ? (
+      <App />
+    ) : (
+      <AuthProvider>
+        <ToastProvider>
+          <App />
+        </ToastProvider>
+      </AuthProvider>
+    )}
   </React.StrictMode>,
 );

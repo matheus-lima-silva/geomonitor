@@ -88,8 +88,15 @@ describe('AppShell', () => {
     expect(container.textContent).toContain('Conteúdo');
   });
 
-  it('starts with sidebar collapsed in desktop viewport', () => {
+  it('starts with sidebar expanded in desktop viewport', () => {
     renderShell(buildProps());
+
+    const sideNav = container.querySelector('.side-nav');
+    expect(sideNav.classList.contains('is-collapsed')).toBe(false);
+  });
+
+  it('respects initialSidebarCollapsed prop for deterministic render state', () => {
+    renderShell(buildProps({ initialSidebarCollapsed: true }));
 
     const sideNav = container.querySelector('.side-nav');
     expect(sideNav.classList.contains('is-collapsed')).toBe(true);
@@ -216,7 +223,10 @@ describe('AppShell', () => {
   });
 
   it('renders only fixed icon rail when collapsed', () => {
-    renderShell(buildProps({ user: { nome: 'Admin', perfil: 'Administrador', role: 'admin' } }));
+    renderShell(buildProps({
+      user: { nome: 'Admin', perfil: 'Administrador', role: 'admin' },
+      initialSidebarCollapsed: true,
+    }));
 
     const sideNav = container.querySelector('.side-nav');
 
@@ -234,9 +244,9 @@ describe('AppShell', () => {
     renderShell(buildProps({ activeTab: 'dashboard' }));
 
     const dashboardTab = [...container.querySelectorAll('.side-nav-link')]
-      .find((button) => (button.getAttribute('aria-label') || '').includes('Monitoriza'));
+      .find((button) => (button.textContent || '').includes('Monitoriza') || (button.getAttribute('aria-label') || '').includes('Monitoriza'));
     const projectsTab = [...container.querySelectorAll('.side-nav-link')]
-      .find((button) => (button.getAttribute('aria-label') || '').includes('Empreendimentos'));
+      .find((button) => (button.textContent || '').includes('Empreendimentos') || (button.getAttribute('aria-label') || '').includes('Empreendimentos'));
 
     expect(dashboardTab).toBeTruthy();
     expect(projectsTab).toBeTruthy();

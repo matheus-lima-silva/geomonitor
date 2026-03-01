@@ -151,6 +151,59 @@ const ICON_PATHS = {
       <path d="m9 12 2 2 4-4" />
     </>
   ),
+  'dashboard-nav': (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 8h4" />
+      <path d="M13 8h4" />
+      <path d="M7 12h4" />
+      <path d="M13 12h4" />
+      <path d="M13 16h4" />
+    </>
+  ),
+  'projects-nav': (
+    <>
+      <path d="M3 10a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <path d="M3 11h18" />
+    </>
+  ),
+  'licenses-nav': (
+    <>
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <path d="M8 9h8" />
+      <path d="M8 13h5" />
+      <circle cx="16.5" cy="13.5" r="1.5" />
+    </>
+  ),
+  'inspections-nav': (
+    <>
+      <rect x="6" y="4" width="12" height="17" rx="2" />
+      <path d="M9 4.5h6v3H9z" />
+      <path d="M9 12h6" />
+      <path d="m9 16 1.8 1.8L15 13.6" />
+    </>
+  ),
+  'erosions-nav': (
+    <>
+      <path d="M12 3 2.5 20h19L12 3z" />
+      <path d="M12 9v5" />
+      <path d="M12 17h.01" />
+    </>
+  ),
+  'visit-nav': (
+    <>
+      <circle cx="6" cy="6" r="2" />
+      <circle cx="18" cy="18" r="2" />
+      <path d="M8 6h3l2 3h3l2 3" />
+      <path d="M6 8v3l3 2v3" />
+    </>
+  ),
+  'admin-nav': (
+    <>
+      <path d="M12 3 5 6v6c0 5 3.5 8 7 9 3.5-1 7-4 7-9V6z" />
+      <path d="m9.5 12.5 2 2 3.5-3.5" />
+    </>
+  ),
   monitor: (
     <>
       <rect x="3" y="4" width="18" height="12" rx="2" />
