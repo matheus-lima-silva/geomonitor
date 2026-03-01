@@ -1,4 +1,15 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet';
 import AppIcon from '../components/AppIcon';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -32,15 +43,30 @@ const AdminView = lazy(() => import('../features/admin/components/AdminView'));
 function getImpactCardClassName(impact) {
   if (impact === 'Muito Alto') return 'monitor-impact-card is-critical';
   if (impact === 'Alto') return 'monitor-impact-card is-high';
-  if (impact === 'Médio') return 'monitor-impact-card is-medium';
+  if (impact === 'Medio' || impact === 'Médio') return 'monitor-impact-card is-medium';
   return 'monitor-impact-card is-low';
 }
 
 function getImpactChipClassName(impact) {
   if (impact === 'Muito Alto') return 'monitor-impact-chip is-critical';
   if (impact === 'Alto') return 'monitor-impact-chip is-high';
-  if (impact === 'Médio') return 'monitor-impact-chip is-medium';
+  if (impact === 'Medio' || impact === 'Médio') return 'monitor-impact-chip is-medium';
   return 'monitor-impact-chip is-low';
+}
+
+function getCriticalityBarColor(code) {
+  if (code === 'C4') return '#7f1d1d';
+  if (code === 'C3') return '#b45309';
+  if (code === 'C2') return '#0369a1';
+  return '#166534';
+}
+
+function getHeatColor(weight) {
+  if (weight >= 0.85) return '#7f1d1d';
+  if (weight >= 0.65) return '#b91c1c';
+  if (weight >= 0.45) return '#ea580c';
+  if (weight >= 0.25) return '#f59e0b';
+  return '#22c55e';
 }
 
 function DashboardMonitoring({ viewModel }) {
@@ -50,6 +76,10 @@ function DashboardMonitoring({ viewModel }) {
     reportMonthDetailsByKey,
     impactCounts,
     criticalCount,
+    criticalityDistributionRows,
+    stabilizationRate,
+    heatPoints,
+    heatPointsWithoutCoordinates,
     recentErosions,
     projectsById,
     projectCount,
@@ -105,6 +135,70 @@ function DashboardMonitoring({ viewModel }) {
             <div className="monitor-impact-value">{impactCounts[impact]}</div>
           </article>
         ))}
+      </div>
+
+      <div className="monitor-two-col">
+        <article className="panel nested">
+          <h3>Distribuicao por criticidade (C1-C4)</h3>
+          <div style={{ width: '100%', height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={criticalityDistributionRows}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="level" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="total" name="Erosoes">
+                  {criticalityDistributionRows.map((row) => (
+                    <Cell key={`criticality-bar-${row.level}`} fill={getCriticalityBarColor(row.level)} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="muted">Taxa de estabilizacao: {stabilizationRate.toFixed(1)}%</p>
+        </article>
+
+        <article className="panel nested">
+          <h3>Mapa de calor (coordenadas)</h3>
+          <div style={{ width: '100%', height: 260, borderRadius: 12, overflow: 'hidden' }}>
+            <MapContainer
+              center={heatPoints.length > 0 ? [heatPoints[0].latitude, heatPoints[0].longitude] : [-15.793889, -47.882778]}
+              zoom={heatPoints.length > 0 ? 10 : 4}
+              scrollWheelZoom={false}
+              style={{ width: '100%', height: '100%' }}
+            >
+              <TileLayer
+                attribution='&copy; OpenStreetMap contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              {heatPoints.map((point) => (
+                <CircleMarker
+                  key={`heat-point-${point.id}-${point.latitude}-${point.longitude}`}
+                  center={[point.latitude, point.longitude]}
+                  radius={6 + (point.peso * 8)}
+                  pathOptions={{
+                    color: getHeatColor(point.peso),
+                    fillColor: getHeatColor(point.peso),
+                    fillOpacity: 0.55 + (point.peso * 0.35),
+                  }}
+                >
+                  <Popup>
+                    <strong>{point.id || '-'}</strong>
+                    <br />
+                    Projeto: {point.projetoId || '-'}
+                    <br />
+                    Criticidade: {point.criticidade || '-'}
+                    <br />
+                    Score: {point.score}
+                  </Popup>
+                </CircleMarker>
+              ))}
+            </MapContainer>
+          </div>
+          <p className="muted">
+            Pontos no mapa: {heatPoints.length} | Erosoes sem coordenadas: {heatPointsWithoutCoordinates}
+          </p>
+        </article>
       </div>
 
       <div className="monitor-two-col">
@@ -423,7 +517,7 @@ function DashboardView() {
     }
 
     if (activeTab === 'admin') {
-      return <AdminView users={users} rulesConfig={rulesConfig} searchTerm={searchTerm} />;
+      return <AdminView users={users} rulesConfig={rulesConfig} searchTerm={searchTerm} erosions={erosions} />;
     }
 
     if (activeTab === 'dashboard') {

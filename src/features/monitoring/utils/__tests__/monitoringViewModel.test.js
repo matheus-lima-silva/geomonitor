@@ -29,7 +29,7 @@ describe('monitoringViewModel', () => {
     {
       id: 'ER-002',
       projetoId: 'P2',
-      impacto: 'Médio',
+      impacto: 'Medio',
       torreRef: '2',
       ultimaAtualizacao: '2026-01-09T00:00:00.000Z',
     },
@@ -57,7 +57,7 @@ describe('monitoringViewModel', () => {
     expect(model.erosionCount).toBe(2);
     expect(model.impactCounts['Muito Alto']).toBe(0);
     expect(model.impactCounts.Alto).toBe(1);
-    expect(model.impactCounts.Médio).toBe(1);
+    expect(model.impactCounts.Medio).toBe(1);
     expect(model.criticalCount).toBe(1);
     expect(model.recentErosions.map((item) => item.id)).toEqual(['ER-002', 'ER-003']);
   });
@@ -182,5 +182,47 @@ describe('monitoringViewModel', () => {
     });
 
     expect(model.recentErosions.map((item) => item.id)).toEqual(['ER-011', 'ER-010', 'ER-009']);
+  });
+
+  it('computes criticality distribution, stabilization rate and heat points', () => {
+    const model = buildMonitoringViewModel({
+      projects: [],
+      inspections: [],
+      erosions: [
+        {
+          id: 'ER-C1',
+          projetoId: 'P1',
+          status: 'Estabilizado',
+          criticalidadeV2: { codigo: 'C1', criticidade_score: 6, criticidade_classe: 'Baixo' },
+          locationCoordinates: { latitude: '-10.1', longitude: '-50.2' },
+        },
+        {
+          id: 'ER-C4',
+          projetoId: 'P1',
+          status: 'Ativo',
+          criticalidadeV2: { codigo: 'C4', criticidade_score: 25, criticidade_classe: 'Muito Alto' },
+          locationCoordinates: { latitude: '-10.2', longitude: '-50.3' },
+        },
+        {
+          id: 'ER-NOCOORD',
+          projetoId: 'P1',
+          status: 'Ativo',
+          criticalidadeV2: { codigo: 'C2', criticidade_score: 10, criticidade_classe: 'Medio' },
+        },
+      ],
+      operatingLicenses: [],
+      searchTerm: '',
+      nowMs,
+    });
+
+    expect(model.criticalityDistributionRows).toEqual([
+      { level: 'C1', total: 1 },
+      { level: 'C2', total: 1 },
+      { level: 'C3', total: 0 },
+      { level: 'C4', total: 1 },
+    ]);
+    expect(model.stabilizationRate).toBeCloseTo((1 / 3) * 100);
+    expect(model.heatPoints).toHaveLength(2);
+    expect(model.heatPointsWithoutCoordinates).toBe(1);
   });
 });

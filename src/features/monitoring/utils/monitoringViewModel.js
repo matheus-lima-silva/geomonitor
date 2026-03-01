@@ -2,7 +2,8 @@ import { buildEffectiveReportOccurrences } from '../../licenses/utils/scheduleRe
 import { MONTH_OPTIONS_PT } from '../../projects/utils/reportSchedule';
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
-export const IMPACT_LEVELS = ['Muito Alto', 'Alto', 'Médio', 'Baixo'];
+export const IMPACT_LEVELS = ['Muito Alto', 'Alto', 'Medio', 'Baixo'];
+export const CRITICALITY_LEVELS = ['C1', 'C2', 'C3', 'C4'];
 
 function toTimestamp(value) {
   const parsed = new Date(value);
@@ -20,9 +21,16 @@ function normalizeImpactLabel(rawValue) {
 
   if (normalized.includes('muito alto') || normalized.includes('critico')) return 'Muito Alto';
   if (normalized.includes('alto')) return 'Alto';
-  if (normalized.includes('medio')) return 'Médio';
+  if (normalized.includes('medio')) return 'Medio';
   if (normalized.includes('baixo')) return 'Baixo';
   return text;
+}
+
+function parseNumeric(value) {
+  const normalized = String(value ?? '').trim().replace(',', '.');
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function matchesDashboardSearch(erosion, searchTerm) {
@@ -48,8 +56,8 @@ export function getErosionSortTimestamp(erosion) {
 
 export function formatTowerLabel(value) {
   const tower = String(value ?? '').trim();
-  if (!tower) return 'Não informado';
-  if (tower === '0') return 'Pórtico (T0)';
+  if (!tower) return 'Nao informado';
+  if (tower === '0') return 'Portico (T0)';
   return `Torre ${tower}`;
 }
 
@@ -189,9 +197,21 @@ export function buildMonitoringViewModel({
   const impactCounts = {
     'Muito Alto': 0,
     Alto: 0,
-    Médio: 0,
+    Medio: 0,
     Baixo: 0,
   };
+
+  const criticalityDistribution = {
+    C1: 0,
+    C2: 0,
+    C3: 0,
+    C4: 0,
+  };
+
+  let stabilizedCount = 0;
+  let totalWithCriticality = 0;
+  const heatPoints = [];
+  let heatPointsWithoutCoordinates = 0;
 
   filteredErosions.forEach((item) => {
     const impact = getErosionImpact(item);
@@ -200,6 +220,36 @@ export function buildMonitoringViewModel({
     } else {
       impactCounts.Baixo += 1;
     }
+
+    const code = String(item?.criticalidadeV2?.codigo || '').trim().toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(criticalityDistribution, code)) {
+      criticalityDistribution[code] += 1;
+      totalWithCriticality += 1;
+    }
+
+    const situacao = String(item?.situacao || item?.status || '').trim().toLowerCase();
+    if (situacao === 'estabilizado' || situacao === 'estabilizada') {
+      stabilizedCount += 1;
+    }
+
+    const latitude = parseNumeric(item?.locationCoordinates?.latitude ?? item?.latitude);
+    const longitude = parseNumeric(item?.locationCoordinates?.longitude ?? item?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      heatPointsWithoutCoordinates += 1;
+      return;
+    }
+
+    const score = Number(item?.criticalidadeV2?.criticidade_score ?? item?.score ?? 0);
+    const safeScore = Number.isFinite(score) ? Math.max(0, Math.min(26, score)) : 0;
+    heatPoints.push({
+      id: String(item?.id || ''),
+      projetoId: String(item?.projetoId || ''),
+      latitude,
+      longitude,
+      score: safeScore,
+      peso: safeScore / 26,
+      criticidade: String(item?.criticalidadeV2?.criticidade_classe || item?.impacto || 'Baixo'),
+    });
   });
 
   const recentErosions = [...filteredErosions]
@@ -219,6 +269,14 @@ export function buildMonitoringViewModel({
     reportMonthDetailsByKey,
     impactCounts,
     criticalCount: impactCounts['Muito Alto'] + impactCounts.Alto,
+    criticalityDistribution,
+    criticalityDistributionRows: CRITICALITY_LEVELS.map((level) => ({
+      level,
+      total: criticalityDistribution[level] || 0,
+    })),
+    stabilizationRate: totalWithCriticality > 0 ? (stabilizedCount / totalWithCriticality) * 100 : 0,
+    heatPoints,
+    heatPointsWithoutCoordinates,
     recentErosions,
     projectsById,
     projectCount: projectsList.length,

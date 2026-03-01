@@ -1,32 +1,51 @@
 ﻿import { normalizeErosionStatus } from '../../shared/statusUtils';
 import { normalizeLocationCoordinates } from './erosionCoordinates';
 
-export const EROSION_LOCATION_OPTIONS = [
-  'Na faixa de servidao',
-  'Na via de acesso exclusiva',
-  'Fora da faixa de servidao',
-  'Base de torre',
-  'Outros',
+export const LOCAL_CONTEXTO_TIPO_OPTIONS = [
+  { value: 'faixa_servidao', label: 'Na faixa de servidao' },
+  { value: 'via_acesso_exclusiva', label: 'Na via de acesso exclusiva' },
+  { value: 'fora_faixa_servidao', label: 'Fora da faixa de servidao' },
+  { value: 'base_torre', label: 'Base de torre' },
+  { value: 'outros', label: 'Outros' },
 ];
 
+export const EROSION_LOCATION_OPTIONS = LOCAL_CONTEXTO_TIPO_OPTIONS.map((item) => item.label);
+
+const LOCAL_CONTEXTO_LABEL_BY_TIPO = LOCAL_CONTEXTO_TIPO_OPTIONS.reduce((acc, item) => {
+  acc[item.value] = item.label;
+  return acc;
+}, {});
+
 const EROSION_LOCATION_ALIASES = {
-  'na faixa de servidao': 'Na faixa de servidao',
-  'na faixa de servidão': 'Na faixa de servidao',
-  'na via de acesso exclusiva': 'Na via de acesso exclusiva',
-  'fora da faixa de servidao': 'Fora da faixa de servidao',
-  'fora da faixa de servidão': 'Fora da faixa de servidao',
-  'base de torre': 'Base de torre',
-  outros: 'Outros',
+  'na faixa de servidao': 'faixa_servidao',
+  'na faixa de servidão': 'faixa_servidao',
+  faixa_servidao: 'faixa_servidao',
+  'na via de acesso exclusiva': 'via_acesso_exclusiva',
+  via_acesso_exclusiva: 'via_acesso_exclusiva',
+  'fora da faixa de servidao': 'fora_faixa_servidao',
+  'fora da faixa de servidão': 'fora_faixa_servidao',
+  fora_faixa_servidao: 'fora_faixa_servidao',
+  'base de torre': 'base_torre',
+  base_torre: 'base_torre',
+  outros: 'outros',
+};
+
+export const LOCAL_CONTEXTO_DEFAULT = {
+  localTipo: '',
+  exposicao: '',
+  estruturaProxima: '',
+  localDescricao: '',
 };
 
 export const EROSION_TECHNICAL_ENUMS = {
   presencaAguaFundo: ['sim', 'nao', 'nao_verificado'],
   tiposFeicao: ['laminar', 'sulco', 'movimento_massa', 'escorregamento', 'ravina', 'vocoroca', 'deslizamento', 'fluxo_lama'],
-  caracteristicasFeicao: ['contato_materiais', 'alteracao_morfologia', 'sinais_avanco_recente', 'crescimento_vegetacao'],
-  larguraMaximaClasse: ['<1', '1-3', '3-5', '>5'],
-  declividadeClasse: ['<15', '15-30', '30-45', '>45'],
+  caracteristicasFeicao: ['contato_materiais', 'alteracao_morfologia'],
   usosSolo: ['pastagem', 'cultivo', 'campo', 'veg_arborea', 'curso_agua', 'cerca', 'acesso', 'tubulacao', 'outro'],
   saturacaoPorAgua: ['sim', 'nao'],
+  tipoSolo: ['lateritico', 'argiloso', 'solos_rasos', 'arenoso'],
+  localizacaoExposicao: ['faixa_servidao', 'area_terceiros'],
+  estruturaProxima: ['torre', 'fundacao', 'acesso', 'app', 'curso_agua', 'nenhuma'],
 };
 
 export const EROSION_TECHNICAL_OPTIONS = {
@@ -48,20 +67,6 @@ export const EROSION_TECHNICAL_OPTIONS = {
   caracteristicasFeicao: [
     { value: 'contato_materiais', label: 'Contato entre materiais' },
     { value: 'alteracao_morfologia', label: 'Alteracao de morfologia' },
-    { value: 'sinais_avanco_recente', label: 'Sinais de avanco recente' },
-    { value: 'crescimento_vegetacao', label: 'Crescimento de vegetacao' },
-  ],
-  larguraMaximaClasse: [
-    { value: '<1', label: '< 1 m' },
-    { value: '1-3', label: '1 m a 3 m' },
-    { value: '3-5', label: '3 m a 5 m' },
-    { value: '>5', label: '> 5 m' },
-  ],
-  declividadeClasse: [
-    { value: '<15', label: '< 15°' },
-    { value: '15-30', label: '15° a 30°' },
-    { value: '30-45', label: '30° a 45°' },
-    { value: '>45', label: '> 45°' },
   ],
   usosSolo: [
     { value: 'pastagem', label: 'Pastagem' },
@@ -78,30 +83,63 @@ export const EROSION_TECHNICAL_OPTIONS = {
     { value: 'sim', label: 'Sim' },
     { value: 'nao', label: 'Nao' },
   ],
+  tipoSolo: [
+    { value: 'lateritico', label: 'Lateritico' },
+    { value: 'argiloso', label: 'Argiloso' },
+    { value: 'solos_rasos', label: 'Solos rasos' },
+    { value: 'arenoso', label: 'Arenoso' },
+  ],
+  localizacaoExposicao: [
+    { value: 'faixa_servidao', label: 'Faixa de servidao' },
+    { value: 'area_terceiros', label: 'Area de terceiros' },
+  ],
+  estruturaProxima: [
+    { value: 'torre', label: 'Torre' },
+    { value: 'fundacao', label: 'Fundacao' },
+    { value: 'acesso', label: 'Acesso' },
+    { value: 'app', label: 'APP' },
+    { value: 'curso_agua', label: 'Curso de agua' },
+    { value: 'nenhuma', label: 'Nenhuma' },
+  ],
 };
 
 function normalizeText(value) {
   return String(value || '').trim();
 }
 
-const DECLIVIDADE_CLASS_ALIASES = {
-  'ate_10': '<15',
-  'até_10': '<15',
-  'de_10_a_25': '15-30',
-  'maior_25': '>45',
-};
+function normalizeBoolean(value) {
+  if (typeof value === 'boolean') return value;
+  const normalized = normalizeText(value).toLowerCase();
+  if (!normalized) return false;
+  return ['sim', 'true', '1', 'yes', 'y'].includes(normalized);
+}
 
-const LARGURA_CLASS_ALIASES = {
-  'ate_1m': '<1',
-  'até_1m': '<1',
-  'de_1_a_10m': '>5',
-  'maior_30m': '>5',
-};
+function parseDecimal(value) {
+  const normalized = normalizeText(value).replace(',', '.');
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export const EROSION_REMOVED_FIELDS = [
+  'profundidade',
+  'declividadeClasse',
+  'declividadeClassePdf',
+  'faixaServidao',
+  'areaTerceiros',
+  'usoSolo',
+  'soloSaturadoAgua',
+];
 
 function normalizeLocationValue(value) {
   const key = normalizeText(value).toLowerCase();
   if (!key) return '';
   return EROSION_LOCATION_ALIASES[key] || '';
+}
+
+export function getLocalContextLabel(localTipo) {
+  const normalized = normalizeLocationValue(localTipo);
+  return LOCAL_CONTEXTO_LABEL_BY_TIPO[normalized] || '';
 }
 
 function normalizeEnumValue(value, allowedValues = []) {
@@ -118,46 +156,160 @@ export function normalizeEnumArray(values, allowedValues = []) {
   return [...new Set(normalized)];
 }
 
-function normalizeDeclividadeClasseValue(input, fallbackDeclividade) {
-  const raw = normalizeText(input || fallbackDeclividade).toLowerCase();
-  if (!raw) return '';
-  if (EROSION_TECHNICAL_ENUMS.declividadeClasse.includes(raw)) return raw;
-  if (DECLIVIDADE_CLASS_ALIASES[raw]) return DECLIVIDADE_CLASS_ALIASES[raw];
+function inferLegacyExposicao(source = {}, localTipo) {
+  const explicit = normalizeEnumValue(
+    source.localizacaoExposicao || source.localizacao_exposicao,
+    EROSION_TECHNICAL_ENUMS.localizacaoExposicao,
+  );
+  if (explicit) return explicit;
+
+  const oldFaixaServidao = normalizeText(source.faixaServidao).toLowerCase();
+  if (oldFaixaServidao === 'sim') return 'faixa_servidao';
+  if (oldFaixaServidao === 'nao') return 'area_terceiros';
+
+  if (localTipo === 'fora_faixa_servidao') return 'area_terceiros';
+  if (localTipo) return 'faixa_servidao';
   return '';
 }
 
-function normalizeLarguraClasseValue(input, fallbackLargura) {
-  const raw = normalizeText(input || fallbackLargura).toLowerCase();
-  if (!raw) return '';
-  if (EROSION_TECHNICAL_ENUMS.larguraMaximaClasse.includes(raw)) return raw;
-  if (LARGURA_CLASS_ALIASES[raw]) return LARGURA_CLASS_ALIASES[raw];
+function inferLegacyEstrutura(source = {}, localTipo) {
+  const explicit = normalizeEnumValue(
+    source.estruturaProxima || source.estrutura_proxima,
+    EROSION_TECHNICAL_ENUMS.estruturaProxima,
+  );
+  if (explicit) return explicit;
+
+  if (localTipo === 'via_acesso_exclusiva') return 'acesso';
+  if (localTipo === 'base_torre') return 'torre';
+  if (localTipo === 'fora_faixa_servidao') return 'nenhuma';
   return '';
+}
+
+function applyLocalContextRules(localContexto) {
+  const base = {
+    ...LOCAL_CONTEXTO_DEFAULT,
+    ...(localContexto && typeof localContexto === 'object' ? localContexto : {}),
+  };
+  const localTipo = normalizeLocationValue(base.localTipo);
+  const localDescricao = normalizeText(base.localDescricao);
+  const exposicao = normalizeEnumValue(base.exposicao, EROSION_TECHNICAL_ENUMS.localizacaoExposicao);
+  const estruturaProxima = normalizeEnumValue(base.estruturaProxima, EROSION_TECHNICAL_ENUMS.estruturaProxima);
+
+  if (!localTipo) {
+    return {
+      localTipo: '',
+      exposicao: '',
+      estruturaProxima: '',
+      localDescricao,
+    };
+  }
+
+  if (localTipo === 'faixa_servidao') {
+    return {
+      localTipo,
+      exposicao: 'faixa_servidao',
+      estruturaProxima,
+      localDescricao: '',
+    };
+  }
+
+  if (localTipo === 'via_acesso_exclusiva') {
+    return {
+      localTipo,
+      exposicao: 'faixa_servidao',
+      estruturaProxima: 'acesso',
+      localDescricao: '',
+    };
+  }
+
+  if (localTipo === 'fora_faixa_servidao') {
+    return {
+      localTipo,
+      exposicao: 'area_terceiros',
+      estruturaProxima: estruturaProxima || 'nenhuma',
+      localDescricao: '',
+    };
+  }
+
+  if (localTipo === 'base_torre') {
+    return {
+      localTipo,
+      exposicao: 'faixa_servidao',
+      estruturaProxima: 'torre',
+      localDescricao: '',
+    };
+  }
+
+  return {
+    localTipo,
+    exposicao,
+    estruturaProxima,
+    localDescricao,
+  };
+}
+
+export function normalizeLocalContexto(data = {}) {
+  const source = data && typeof data === 'object' ? data : {};
+  const incoming = source.localContexto && typeof source.localContexto === 'object'
+    ? source.localContexto
+    : {};
+
+  const localTipo = normalizeLocationValue(incoming.localTipo || source.localTipo);
+  const localDescricao = normalizeText(incoming.localDescricao || source.localDescricao);
+  const exposicao = normalizeEnumValue(
+    incoming.exposicao || inferLegacyExposicao(source, localTipo),
+    EROSION_TECHNICAL_ENUMS.localizacaoExposicao,
+  );
+  const estruturaProxima = normalizeEnumValue(
+    incoming.estruturaProxima || inferLegacyEstrutura(source, localTipo),
+    EROSION_TECHNICAL_ENUMS.estruturaProxima,
+  );
+
+  return applyLocalContextRules({
+    localTipo,
+    exposicao,
+    estruturaProxima,
+    localDescricao,
+  });
+}
+
+function hasValue(value) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return normalizeText(value) !== '';
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.keys(value).length > 0;
+  return true;
+}
+
+export function stripRemovedErosionFields(data = {}) {
+  const source = data && typeof data === 'object' ? data : {};
+  const next = { ...source };
+  EROSION_REMOVED_FIELDS.forEach((field) => {
+    delete next[field];
+  });
+  return next;
 }
 
 export function normalizeErosionTechnicalFields(data = {}) {
-  const source = data && typeof data === 'object' ? data : {};
-  const saturacao = normalizeEnumValue(
-    source.saturacaoPorAgua || source.soloSaturadoAgua,
-    EROSION_TECHNICAL_ENUMS.saturacaoPorAgua,
-  );
-  const declividadeClasse = normalizeDeclividadeClasseValue(
-    source.declividadeClasse || source.declividadeClassePdf,
-    source.declividade,
-  );
-  const larguraMaximaClasse = normalizeLarguraClasseValue(
-    source.larguraMaximaClasse,
-    source.largura,
-  );
+  const source = stripRemovedErosionFields(data && typeof data === 'object' ? data : {});
+  const localContexto = normalizeLocalContexto(source);
 
   return {
     presencaAguaFundo: normalizeEnumValue(source.presencaAguaFundo, EROSION_TECHNICAL_ENUMS.presencaAguaFundo),
     tiposFeicao: normalizeEnumArray(source.tiposFeicao, EROSION_TECHNICAL_ENUMS.tiposFeicao),
     caracteristicasFeicao: normalizeEnumArray(source.caracteristicasFeicao, EROSION_TECHNICAL_ENUMS.caracteristicasFeicao),
-    larguraMaximaClasse,
-    declividadeClasse,
     usosSolo: normalizeEnumArray(source.usosSolo, EROSION_TECHNICAL_ENUMS.usosSolo),
     usoSoloOutro: normalizeText(source.usoSoloOutro),
-    saturacaoPorAgua: saturacao,
+    saturacaoPorAgua: normalizeEnumValue(source.saturacaoPorAgua, EROSION_TECHNICAL_ENUMS.saturacaoPorAgua),
+    tipoSolo: normalizeEnumValue(source.tipoSolo, EROSION_TECHNICAL_ENUMS.tipoSolo),
+    localContexto,
+    localizacaoExposicao: localContexto.exposicao,
+    estruturaProxima: localContexto.estruturaProxima,
+    profundidadeMetros: parseDecimal(source.profundidadeMetros),
+    declividadeGraus: parseDecimal(source.declividadeGraus),
+    distanciaEstruturaMetros: parseDecimal(source.distanciaEstruturaMetros),
+    sinaisAvanco: normalizeBoolean(source.sinaisAvanco),
+    vegetacaoInterior: normalizeBoolean(source.vegetacaoInterior),
   };
 }
 
@@ -183,21 +335,57 @@ export function deriveErosionTypeFromTechnicalFields(data = {}) {
   return '';
 }
 
-export function mapDeclividadeClasseToLegacyValue(value) {
-  return normalizeDeclividadeClasseValue(value, '');
+function mapDepthClass(value) {
+  if (!Number.isFinite(value)) return '';
+  if (value <= 1) return 'P1';
+  if (value <= 10) return 'P2';
+  if (value <= 30) return 'P3';
+  return 'P4';
 }
 
-export function mapLarguraClasseToLegacyValue(value) {
-  return normalizeLarguraClasseValue(value, '');
+function mapSlopeClass(value) {
+  if (!Number.isFinite(value)) return '';
+  if (value < 10) return 'D1';
+  if (value <= 25) return 'D2';
+  return 'D3';
+}
+
+function mapExposureClass(value) {
+  if (!Number.isFinite(value)) return '';
+  if (value > 50) return 'E1';
+  if (value >= 20) return 'E2';
+  if (value >= 5) return 'E3';
+  return 'E4';
+}
+
+export function deriveCriticalityDimensionClasses(data = {}) {
+  const technical = normalizeErosionTechnicalFields(data);
+  return {
+    profundidadeClasse: mapDepthClass(technical.profundidadeMetros),
+    declividadeClasse: mapSlopeClass(technical.declividadeGraus),
+    exposicaoClasse: mapExposureClass(technical.distanciaEstruturaMetros),
+  };
 }
 
 export function buildCriticalityInputFromErosion(data = {}) {
   const technical = normalizeErosionTechnicalFields(data);
+  const derivedType = deriveErosionTypeFromTechnicalFields({ ...data, tiposFeicao: technical.tiposFeicao });
+  const tipoErosao = derivedType === 'deslizamento' ? 'movimento_massa' : derivedType;
+  const localContexto = technical.localContexto || LOCAL_CONTEXTO_DEFAULT;
+
   return {
     ...data,
-    tipo: deriveErosionTypeFromTechnicalFields({ ...data, tiposFeicao: technical.tiposFeicao }),
-    declividade: mapDeclividadeClasseToLegacyValue(technical.declividadeClasse || data.declividade),
-    largura: mapLarguraClasseToLegacyValue(technical.larguraMaximaClasse || data.largura),
+    tipo: derivedType,
+    tipo_erosao: tipoErosao,
+    profundidade_m: technical.profundidadeMetros,
+    declividade_graus: technical.declividadeGraus,
+    distancia_estrutura_m: technical.distanciaEstruturaMetros,
+    tipo_solo: technical.tipoSolo,
+    estrutura_proxima: localContexto.estruturaProxima,
+    localizacao_exposicao: localContexto.exposicao,
+    localContexto,
+    sinais_avanco: technical.sinaisAvanco,
+    vegetacao_interior: technical.vegetacaoInterior,
   };
 }
 
@@ -206,19 +394,42 @@ export function normalizeFollowupHistory(value) {
 }
 
 export function validateErosionLocation(data) {
-  const localTipo = normalizeLocationValue(data?.localTipo);
-  const localDescricao = normalizeText(data?.localDescricao);
+  const localContexto = normalizeLocalContexto(data || {});
+  const localTipo = localContexto.localTipo;
+  const localDescricao = localContexto.localDescricao;
+  const exposicao = localContexto.exposicao;
+  const estruturaProxima = localContexto.estruturaProxima;
 
-  if (!localTipo) {
+  if (!localTipo || !LOCAL_CONTEXTO_LABEL_BY_TIPO[localTipo]) {
     return { ok: false, message: 'Selecione o local da erosao.' };
   }
 
-  if (!EROSION_LOCATION_OPTIONS.includes(localTipo)) {
-    return { ok: false, message: 'Opcao de local da erosao invalida.' };
+  if (localTipo === 'faixa_servidao' && !estruturaProxima) {
+    return { ok: false, message: 'Selecione a estrutura proxima para local na faixa de servidao.' };
   }
 
-  if (localTipo === 'Outros' && !localDescricao) {
-    return { ok: false, message: 'Informe a descricao do local quando selecionar "Outros".' };
+  if (localTipo === 'via_acesso_exclusiva' && estruturaProxima !== 'acesso') {
+    return { ok: false, message: 'Via de acesso exclusiva deve usar estrutura proxima igual a acesso.' };
+  }
+
+  if (localTipo === 'base_torre' && estruturaProxima !== 'torre') {
+    return { ok: false, message: 'Base de torre deve usar estrutura proxima igual a torre.' };
+  }
+
+  if (localTipo === 'outros') {
+    if (!localDescricao) {
+      return { ok: false, message: 'Informe a descricao do local quando selecionar "Outros".' };
+    }
+    if (!exposicao) {
+      return { ok: false, message: 'Selecione a exposicao para local "Outros".' };
+    }
+    if (!estruturaProxima) {
+      return { ok: false, message: 'Selecione a estrutura proxima para local "Outros".' };
+    }
+  }
+
+  if (!estruturaProxima) {
+    return { ok: false, message: 'Estrutura proxima e obrigatoria.' };
   }
 
   return { ok: true, message: '' };
@@ -226,23 +437,39 @@ export function validateErosionLocation(data) {
 
 export function validateErosionTechnicalFields(data = {}) {
   const raw = data && typeof data === 'object' ? data : {};
+  const removed = EROSION_REMOVED_FIELDS.filter((field) => hasValue(raw[field]));
+  if (removed.length > 0) {
+    return {
+      ok: false,
+      message: `Campos legados removidos no schema canônico: ${removed.join(', ')}.`,
+      value: normalizeErosionTechnicalFields(raw),
+    };
+  }
+
   const normalized = normalizeErosionTechnicalFields(raw);
+  const locationValidation = validateErosionLocation({
+    ...raw,
+    localContexto: normalized.localContexto,
+  });
+  if (!locationValidation.ok) {
+    return {
+      ok: false,
+      message: locationValidation.message,
+      value: normalized,
+    };
+  }
 
   const singleRules = [
     ['presencaAguaFundo', EROSION_TECHNICAL_ENUMS.presencaAguaFundo, 'Presenca de agua no fundo'],
-    ['larguraMaximaClasse', EROSION_TECHNICAL_ENUMS.larguraMaximaClasse, 'Classe tecnica de largura maxima (m)'],
-    ['declividadeClasse', EROSION_TECHNICAL_ENUMS.declividadeClasse, 'Classe tecnica de declividade (graus)'],
     ['saturacaoPorAgua', EROSION_TECHNICAL_ENUMS.saturacaoPorAgua, 'Saturacao por agua'],
+    ['tipoSolo', EROSION_TECHNICAL_ENUMS.tipoSolo, 'Tipo de solo'],
+    ['localizacaoExposicao', EROSION_TECHNICAL_ENUMS.localizacaoExposicao, 'Localizacao de exposicao'],
+    ['estruturaProxima', EROSION_TECHNICAL_ENUMS.estruturaProxima, 'Estrutura proxima'],
   ];
 
   for (let i = 0; i < singleRules.length; i += 1) {
     const [field, allowed, label] = singleRules[i];
-    const sourceValue = normalizeText(
-      raw[field]
-      || (field === 'declividadeClasse' ? (raw.declividadeClassePdf || raw.declividade) : '')
-      || (field === 'larguraMaximaClasse' ? raw.largura : '')
-      || (field === 'saturacaoPorAgua' ? raw.soloSaturadoAgua : ''),
-    );
+    const sourceValue = normalizeText(raw[field]);
     if (!sourceValue) continue;
     if (!allowed.includes(String(normalized[field] || '').toLowerCase())) {
       return {
@@ -282,6 +509,25 @@ export function validateErosionTechnicalFields(data = {}) {
     };
   }
 
+  const numericRules = [
+    ['profundidadeMetros', 'Profundidade (m)'],
+    ['declividadeGraus', 'Declividade (graus)'],
+    ['distanciaEstruturaMetros', 'Distancia da estrutura (m)'],
+  ];
+
+  for (let i = 0; i < numericRules.length; i += 1) {
+    const [field, label] = numericRules[i];
+    const sourceValue = raw[field];
+    if (sourceValue === null || sourceValue === undefined || String(sourceValue).trim() === '') continue;
+    if (!Number.isFinite(normalized[field])) {
+      return {
+        ok: false,
+        message: `${label} invalido(a).`,
+        value: normalized,
+      };
+    }
+  }
+
   return { ok: true, message: '', value: normalized };
 }
 
@@ -316,6 +562,11 @@ export function buildFollowupEvent(previous, next, meta = {}) {
   const nextStatus = normalizeErosionStatus(next?.status);
   const origem = meta.origem || (meta.isCreate ? 'cadastro' : 'edicao');
 
+  const previousLocalContexto = normalizeLocalContexto(previous || {});
+  const nextLocalContexto = normalizeLocalContexto(next || {});
+  const previousLocalTipoLabel = getLocalContextLabel(previousLocalContexto.localTipo) || normalizeText(previous?.localTipo);
+  const nextLocalTipoLabel = getLocalContextLabel(nextLocalContexto.localTipo) || normalizeText(next?.localTipo);
+
   const event = {
     timestamp: now,
     usuario: meta.updatedBy || '',
@@ -326,8 +577,8 @@ export function buildFollowupEvent(previous, next, meta = {}) {
     resumo: '',
     torreAnterior: previous?.torreRef,
     torreNova: next?.torreRef,
-    localTipoAnterior: previous?.localTipo,
-    localTipoNovo: next?.localTipo,
+    localTipoAnterior: previousLocalTipoLabel,
+    localTipoNovo: nextLocalTipoLabel,
     obsAnterior: previous?.obs,
     obsNovo: next?.obs,
   };
@@ -491,17 +742,20 @@ export function buildErosionReportRows(erosions) {
   return (erosions || []).map((item) => {
     const locationCoordinates = normalizeLocationCoordinates(item);
     const technical = normalizeErosionTechnicalFields(item);
+    const localContexto = technical.localContexto || LOCAL_CONTEXTO_DEFAULT;
 
     return {
       id: item.id || '',
       projetoId: item.projetoId || '',
       vistoriaId: item.vistoriaId || '',
       torreRef: item.torreRef || '',
-      localTipo: item.localTipo || '',
-      localDescricao: item.localDescricao || '',
+      'localContexto.localTipo': localContexto.localTipo || '',
+      'localContexto.localTipoLabel': getLocalContextLabel(localContexto.localTipo) || '',
+      'localContexto.localDescricao': localContexto.localDescricao || '',
+      'localContexto.exposicao': localContexto.exposicao || '',
+      'localContexto.estruturaProxima': localContexto.estruturaProxima || '',
       tipo: deriveErosionTypeFromTechnicalFields(item),
       estagio: item.estagio || '',
-      profundidade: item.profundidade || '',
       status: normalizeErosionStatus(item.status),
       impacto: item.impacto || '',
       score: item.score ?? '',
@@ -515,18 +769,23 @@ export function buildErosionReportRows(erosions) {
       utmHemisphere: locationCoordinates.utmHemisphere || '',
       altitude: locationCoordinates.altitude || '',
       reference: locationCoordinates.reference || '',
-      faixaServidao: item.faixaServidao || '',
-      areaTerceiros: item.areaTerceiros || '',
-      usoSolo: item.usoSolo || '',
       presencaAguaFundo: technical.presencaAguaFundo,
       tiposFeicao: technical.tiposFeicao.join('|'),
       caracteristicasFeicao: technical.caracteristicasFeicao.join('|'),
-      larguraMaximaClasse: technical.larguraMaximaClasse,
-      declividadeClasse: technical.declividadeClasse,
       usosSolo: technical.usosSolo.join('|'),
       usoSoloOutro: technical.usoSoloOutro,
       saturacaoPorAgua: technical.saturacaoPorAgua,
-      soloSaturadoAgua: technical.saturacaoPorAgua,
+      tipoSolo: technical.tipoSolo,
+      localizacaoExposicao: localContexto.exposicao,
+      estruturaProxima: localContexto.estruturaProxima,
+      profundidadeMetros: Number.isFinite(technical.profundidadeMetros) ? technical.profundidadeMetros : '',
+      declividadeGraus: Number.isFinite(technical.declividadeGraus) ? technical.declividadeGraus : '',
+      distanciaEstruturaMetros: Number.isFinite(technical.distanciaEstruturaMetros) ? technical.distanciaEstruturaMetros : '',
+      sinaisAvanco: technical.sinaisAvanco ? 'sim' : 'nao',
+      vegetacaoInterior: technical.vegetacaoInterior ? 'sim' : 'nao',
+      criticidadeCodigo: item?.criticalidadeV2?.codigo || '',
+      criticidadeClasse: item?.criticalidadeV2?.criticidade_classe || '',
+      criticidadeScore: item?.criticalidadeV2?.criticidade_score ?? '',
       medidaPreventiva: item.medidaPreventiva || '',
       fotosLinks: Array.isArray(item.fotosLinks) ? item.fotosLinks.join('|') : '',
       ultimaAtualizacao: item.ultimaAtualizacao || '',
@@ -543,15 +802,19 @@ function escapeCsv(value) {
 
 export function buildErosionsCsv(rows) {
   const headers = [
-    'id', 'projetoId', 'vistoriaId', 'torreRef', 'localTipo', 'localDescricao',
-    'tipo', 'estagio', 'profundidade',
+    'id', 'projetoId', 'vistoriaId', 'torreRef',
+    'localContexto.localTipo', 'localContexto.localTipoLabel', 'localContexto.localDescricao',
+    'localContexto.exposicao', 'localContexto.estruturaProxima',
+    'tipo', 'estagio',
     'status', 'impacto', 'score', 'frequencia', 'intervencao',
     'latitude', 'longitude',
     'utmEasting', 'utmNorthing', 'utmZone', 'utmHemisphere', 'altitude', 'reference',
-    'faixaServidao', 'areaTerceiros', 'usoSolo',
     'presencaAguaFundo', 'tiposFeicao', 'caracteristicasFeicao',
-    'larguraMaximaClasse', 'declividadeClasse',
     'usosSolo', 'usoSoloOutro', 'saturacaoPorAgua',
+    'tipoSolo', 'localizacaoExposicao', 'estruturaProxima',
+    'profundidadeMetros', 'declividadeGraus', 'distanciaEstruturaMetros',
+    'sinaisAvanco', 'vegetacaoInterior',
+    'criticidadeCodigo', 'criticidadeClasse', 'criticidadeScore',
     'medidaPreventiva', 'fotosLinks',
     'ultimaAtualizacao', 'atualizadoPor',
   ];

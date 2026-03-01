@@ -8,6 +8,24 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const logoutMock = vi.fn();
 const showMock = vi.fn();
 
+vi.mock('recharts', () => ({
+  ResponsiveContainer: ({ children }) => <div>{children}</div>,
+  BarChart: ({ children }) => <div>{children}</div>,
+  CartesianGrid: () => null,
+  XAxis: () => null,
+  YAxis: () => null,
+  Tooltip: () => null,
+  Bar: ({ children }) => <div>{children}</div>,
+  Cell: () => null,
+}));
+
+vi.mock('react-leaflet', () => ({
+  MapContainer: ({ children }) => <div>{children}</div>,
+  TileLayer: () => null,
+  CircleMarker: ({ children }) => <div>{children}</div>,
+  Popup: ({ children }) => <div>{children}</div>,
+}));
+
 vi.mock('../../context/AuthContext', () => ({
   useAuth: () => ({
     user: {

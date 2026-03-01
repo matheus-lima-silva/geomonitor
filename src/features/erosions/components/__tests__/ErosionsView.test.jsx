@@ -25,6 +25,23 @@ vi.mock('../../../../context/ToastContext', () => ({
 
 vi.mock('../../../../services/erosionService', () => ({
   deleteErosion: vi.fn(),
+  postCalculoErosao: vi.fn(async () => ({
+    campos_calculados: {
+      criticidade_score: 0,
+      criticidade_classe: 'Baixo',
+      codigo: 'C1',
+      pontos: { T: 0, P: 0, D: 0, S: 0, E: 0 },
+      tipo_erosao_classe: 'T1',
+      profundidade_classe: 'P1',
+      declividade_classe: 'D1',
+      solo_classe: 'S1',
+      exposicao_classe: 'E1',
+      tipo_medida_recomendada: 'preventiva',
+      lista_solucoes_sugeridas: [],
+      alertas_validacao: [],
+    },
+    alertas_validacao: [],
+  })),
   saveErosion: vi.fn(),
 }));
 
@@ -80,7 +97,12 @@ function renderView(root, props = {}) {
         id: 'ERS-2',
         projetoId: 'P1',
         torreRef: '10',
-        localTipo: 'Base de torre',
+        localContexto: {
+          localTipo: 'base_torre',
+          exposicao: 'faixa_servidao',
+          estruturaProxima: 'torre',
+          localDescricao: '',
+        },
         status: 'Ativo',
         impacto: 'Alto',
         acompanhamentosResumo: [],
@@ -89,7 +111,12 @@ function renderView(root, props = {}) {
         id: 'ERS-1',
         projetoId: 'P1',
         torreRef: '7',
-        localTipo: 'Base de torre',
+        localContexto: {
+          localTipo: 'base_torre',
+          exposicao: 'faixa_servidao',
+          estruturaProxima: 'torre',
+          localDescricao: '',
+        },
         status: 'Monitoramento',
         impacto: 'Medio',
         locationCoordinates: {
@@ -102,7 +129,12 @@ function renderView(root, props = {}) {
         id: 'ERS-9',
         projetoId: 'P2',
         torreRef: '1',
-        localTipo: 'Base de torre',
+        localContexto: {
+          localTipo: 'base_torre',
+          exposicao: 'faixa_servidao',
+          estruturaProxima: 'torre',
+          localDescricao: '',
+        },
         status: 'Ativo',
         impacto: 'Baixo',
         acompanhamentosResumo: [],
@@ -261,7 +293,12 @@ describe('ErosionsView', () => {
           id: 'ERS-Legado',
           projetoId: 'P1',
           torreRef: '5',
-          localTipo: 'Base de torre',
+          localContexto: {
+            localTipo: 'base_torre',
+            exposicao: 'faixa_servidao',
+            estruturaProxima: 'torre',
+            localDescricao: '',
+          },
           status: null,
           impacto: 'Baixo',
           fotosLinks: 'https://example.com/foto.jpg',

@@ -15,9 +15,16 @@ describe('validateErosionLocation', () => {
     expect(validateErosionLocation({ localTipo: '' }).ok).toBe(false);
   });
 
-  it('requires localDescricao when Outros', () => {
+  it('requires localDescricao/exposicao/estrutura when outros', () => {
     expect(validateErosionLocation({ localTipo: 'Outros', localDescricao: '' }).ok).toBe(false);
-    expect(validateErosionLocation({ localTipo: 'Outros', localDescricao: 'Talude lateral' }).ok).toBe(true);
+    expect(validateErosionLocation({
+      localContexto: {
+        localTipo: 'outros',
+        localDescricao: 'Talude lateral',
+        exposicao: 'area_terceiros',
+        estruturaProxima: 'nenhuma',
+      },
+    }).ok).toBe(true);
   });
 });
 
@@ -25,30 +32,33 @@ describe('validateErosionTechnicalFields', () => {
   it('normalizes null payload with defaults', () => {
     const normalized = normalizeErosionTechnicalFields(null);
     expect(normalized).toEqual({
+      localContexto: {
+        localTipo: '',
+        exposicao: '',
+        estruturaProxima: '',
+        localDescricao: '',
+      },
       presencaAguaFundo: '',
       tiposFeicao: [],
       caracteristicasFeicao: [],
-      larguraMaximaClasse: '',
-      declividadeClasse: '',
       usosSolo: [],
       usoSoloOutro: '',
       saturacaoPorAgua: '',
+      tipoSolo: '',
+      localizacaoExposicao: '',
+      estruturaProxima: '',
+      profundidadeMetros: null,
+      declividadeGraus: null,
+      distanciaEstruturaMetros: null,
+      sinaisAvanco: false,
+      vegetacaoInterior: false,
     });
   });
 
-  it('accepts null payload as optional technical fields', () => {
+  it('fails when localContexto is missing', () => {
     const out = validateErosionTechnicalFields(null);
-    expect(out.ok).toBe(true);
-    expect(out.value).toEqual({
-      presencaAguaFundo: '',
-      tiposFeicao: [],
-      caracteristicasFeicao: [],
-      larguraMaximaClasse: '',
-      declividadeClasse: '',
-      usosSolo: [],
-      usoSoloOutro: '',
-      saturacaoPorAgua: '',
-    });
+    expect(out.ok).toBe(false);
+    expect(out.message).toContain('Selecione o local da erosao');
   });
 
   it('requires usoSoloOutro when usosSolo includes outro', () => {
@@ -66,21 +76,34 @@ describe('validateErosionTechnicalFields', () => {
       presencaAguaFundo: 'sim',
       tiposFeicao: ['ravina', 'sulco'],
       caracteristicasFeicao: ['contato_materiais'],
-      larguraMaximaClasse: '3-5',
-      declividadeClasse: '>45',
       usosSolo: ['pastagem', 'outro'],
       usoSoloOutro: 'area urbana',
       saturacaoPorAgua: 'nao',
+      tipoSolo: 'argiloso',
+      localContexto: {
+        localTipo: 'faixa_servidao',
+        exposicao: 'faixa_servidao',
+        estruturaProxima: 'torre',
+        localDescricao: '',
+      },
+      profundidadeMetros: 1.1,
+      declividadeGraus: 20,
+      distanciaEstruturaMetros: 12,
+      sinaisAvanco: true,
+      vegetacaoInterior: false,
     });
     expect(out.ok).toBe(true);
     expect(out.value.usosSolo).toEqual(['pastagem', 'outro']);
+    expect(out.value.tipoSolo).toBe('argiloso');
+    expect(out.value.profundidadeMetros).toBe(1.1);
   });
 
-  it('normalizes legacy declividadeClassePdf into canonical declividadeClasse', () => {
-    const normalized = normalizeErosionTechnicalFields({
-      declividadeClassePdf: 'maior_25',
+  it('rejects legacy removed fields', () => {
+    const out = validateErosionTechnicalFields({
+      declividadeClasse: '>45',
     });
-    expect(normalized.declividadeClasse).toBe('>45');
+    expect(out.ok).toBe(false);
+    expect(out.message).toContain('Campos legados removidos');
   });
 });
 
@@ -93,8 +116,6 @@ describe('buildErosionReportRows/buildErosionsCsv', () => {
         presencaAguaFundo: 'sim',
         tiposFeicao: ['ravina', 'sulco'],
         caracteristicasFeicao: ['contato_materiais'],
-        larguraMaximaClasse: '>5',
-        declividadeClasse: '>45',
         usosSolo: ['pastagem', 'outro'],
         usoSoloOutro: 'estrada',
         saturacaoPorAgua: 'nao',
@@ -110,8 +131,9 @@ describe('buildErosionReportRows/buildErosionsCsv', () => {
     expect(csv).toContain('tiposFeicao');
     expect(csv).toContain('usoSoloOutro');
     expect(csv).toContain('saturacaoPorAgua');
-    expect(csv).toContain('declividadeClasse');
-    expect(csv).not.toContain('declividadeClassePdf');
+    expect(csv).toContain('tipoSolo');
+    expect(csv).toContain('criticidadeCodigo');
+    expect(csv).not.toContain('declividadeClasse');
   });
 });
 

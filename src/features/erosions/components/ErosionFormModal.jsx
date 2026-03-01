@@ -1,14 +1,11 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import {
-  EROSION_LOCATION_OPTIONS,
-  EROSION_TECHNICAL_OPTIONS,
-} from '../utils/erosionUtils';
-import {
   isCompleteUtmCoordinates,
   isPartialUtmCoordinates,
   parseCoordinateNumber,
 } from '../utils/erosionCoordinates';
+import ErosionTechnicalFields from './ErosionTechnicalFields';
 
 function hasAnyLocationValue(locationCoordinates = {}) {
   return [
@@ -34,10 +31,6 @@ function getCoordinatesStatus(locationCoordinates = {}) {
   return 'Nao preenchido';
 }
 
-function normalizeArrayField(value) {
-  return Array.isArray(value) ? value : [];
-}
-
 function ErosionFormModal({
   open,
   isEditing,
@@ -56,10 +49,23 @@ function ErosionFormModal({
   const safeInspections = Array.isArray(inspections) ? inspections.filter((item) => item && typeof item === 'object') : [];
   const safeCriticality = criticality || {
     impacto: 'Baixo',
-    score: 1,
+    score: 0,
     frequencia: '24 meses',
     intervencao: 'Monitoramento visual',
+    breakdown: null,
   };
+  const criticalityBreakdown = safeCriticality.breakdown && typeof safeCriticality.breakdown === 'object'
+    ? safeCriticality.breakdown
+    : null;
+  const suggestedSolutions = Array.isArray(criticalityBreakdown?.lista_solucoes_sugeridas)
+    ? criticalityBreakdown.lista_solucoes_sugeridas
+    : [];
+  const optionalInterventionSolutions = Array.isArray(criticalityBreakdown?.lista_solucoes_possiveis_intervencao)
+    ? criticalityBreakdown.lista_solucoes_possiveis_intervencao
+    : [];
+  const validationAlerts = Array.isArray(criticalityBreakdown?.alertas_validacao)
+    ? criticalityBreakdown.alertas_validacao
+    : [];
 
   const locationCoordinates = {
     latitude: '',
@@ -97,9 +103,13 @@ function ErosionFormModal({
     setCoordinatesExpanded(true);
   }, [open, utmErrorToken]);
 
-  const tiposFeicao = normalizeArrayField(safeFormData.tiposFeicao);
-  const caracteristicasFeicao = normalizeArrayField(safeFormData.caracteristicasFeicao);
-  const usosSolo = normalizeArrayField(safeFormData.usosSolo);
+  const readOnlyClasses = criticalityBreakdown
+    ? {
+      profundidadeClasse: criticalityBreakdown.profundidade_classe || '',
+      declividadeClasse: criticalityBreakdown.declividade_classe || '',
+      exposicaoClasse: criticalityBreakdown.exposicao_classe || '',
+    }
+    : null;
   const selectedProject = useMemo(
     () => safeProjects.find((project) => String(project?.id || '').trim() === String(safeFormData.projetoId || '').trim()) || null,
     [safeProjects, safeFormData.projetoId],
@@ -141,30 +151,6 @@ function ErosionFormModal({
         [field]: value,
       },
     }));
-  }
-
-  function toggleMultiField(field, optionValue, checked) {
-    setFormData((prev) => {
-      const prevSafe = (prev && typeof prev === 'object') ? prev : {};
-      const source = normalizeArrayField(prevSafe[field]);
-      const nextSet = new Set(source.map((item) => String(item || '').trim()).filter(Boolean));
-      if (checked) {
-        nextSet.add(optionValue);
-      } else {
-        nextSet.delete(optionValue);
-      }
-      const nextArray = [...nextSet];
-      const patch = {
-        [field]: nextArray,
-      };
-      if (field === 'usosSolo' && !nextSet.has('outro')) {
-        patch.usoSoloOutro = '';
-      }
-      return {
-        ...prevSafe,
-        ...patch,
-      };
-    });
   }
 
   return (
@@ -243,37 +229,6 @@ function ErosionFormModal({
                 )}
               </label>
               <label className="erosions-field">
-                <span>Local da erosao *</span>
-                <select
-                  value={safeFormData.localTipo || ''}
-                  onChange={(e) => {
-                    const nextValue = e.target.value;
-                    setFormData((prev) => ({
-                      ...((prev && typeof prev === 'object') ? prev : {}),
-                      localTipo: nextValue,
-                      localDescricao: nextValue === 'Outros' ? (((prev && typeof prev === 'object') ? prev : {}).localDescricao || '') : '',
-                    }));
-                  }}
-                >
-                  <option value="">Selecione...</option>
-                  {EROSION_LOCATION_OPTIONS.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="erosions-field">
-                <span>Detalhe do local</span>
-                <input
-                  value={safeFormData.localDescricao || ''}
-                  onChange={(e) => updateField('localDescricao', e.target.value)}
-                  disabled={safeFormData.localTipo !== 'Outros'}
-                  placeholder={safeFormData.localTipo === 'Outros' ? 'Obrigatorio para Outros' : 'Opcional'}
-                />
-              </label>
-            </div>
-
-            <div className="erosions-form-grid is-three">
-              <label className="erosions-field">
                 <span>Estagio (grau erosivo)</span>
                 <select value={safeFormData.estagio || ''} onChange={(e) => updateField('estagio', e.target.value)}>
                   <option value="">Selecione...</option>
@@ -291,131 +246,18 @@ function ErosionFormModal({
                   <option value="Estabilizado">Estabilizado</option>
                 </select>
               </label>
-              <label className="erosions-field">
-                <span>Profundidade (m)</span>
-                <select value={safeFormData.profundidade || ''} onChange={(e) => updateField('profundidade', e.target.value)}>
-                  <option value="">Selecione...</option>
-                  <option value="<0.5">&lt; 0.5m</option>
-                  <option value="0.5-1.5">0.5 - 1.5m</option>
-                  <option value="1.5-3.0">1.5 - 3.0m</option>
-                  <option value=">3.0">&gt; 3.0m</option>
-                </select>
-              </label>
-            </div>
-            <div className="erosions-form-grid is-four">
-              <label className="erosions-field">
-                <span>Classe tecnica de declividade (graus)</span>
-                <select value={safeFormData.declividadeClasse || ''} onChange={(e) => updateField('declividadeClasse', e.target.value)}>
-                  <option value="">Nao informado</option>
-                  {EROSION_TECHNICAL_OPTIONS.declividadeClasse.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="erosions-field">
-                <span>Classe tecnica de largura maxima (m)</span>
-                <select value={safeFormData.larguraMaximaClasse || ''} onChange={(e) => updateField('larguraMaximaClasse', e.target.value)}>
-                  <option value="">Nao informado</option>
-                  {EROSION_TECHNICAL_OPTIONS.larguraMaximaClasse.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="erosions-field">
-                <span>Presenca de agua no fundo</span>
-                <select value={safeFormData.presencaAguaFundo || ''} onChange={(e) => updateField('presencaAguaFundo', e.target.value)}>
-                  <option value="">Nao informado</option>
-                  {EROSION_TECHNICAL_OPTIONS.presencaAguaFundo.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="erosions-field">
-                <span>Saturacao por agua</span>
-                <select value={safeFormData.saturacaoPorAgua || ''} onChange={(e) => updateField('saturacaoPorAgua', e.target.value)}>
-                  <option value="">Nao informado</option>
-                  {EROSION_TECHNICAL_OPTIONS.saturacaoPorAgua.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </label>
             </div>
 
-            <div className="erosions-form-grid is-two">
-              <fieldset className="erosions-checkbox-fieldset">
-                <legend>Tipos de feicao adicionais</legend>
-                <div className="erosions-checkbox-grid">
-                  {EROSION_TECHNICAL_OPTIONS.tiposFeicao.map((option) => (
-                    <label key={option.value} className="erosions-checkbox-option">
-                      <input
-                        type="checkbox"
-                        checked={tiposFeicao.includes(option.value)}
-                        onChange={(e) => toggleMultiField('tiposFeicao', option.value, e.target.checked)}
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-
-              <fieldset className="erosions-checkbox-fieldset">
-                <legend>Caracteristicas da feicao</legend>
-                <div className="erosions-checkbox-grid">
-                  {EROSION_TECHNICAL_OPTIONS.caracteristicasFeicao.map((option) => (
-                    <label key={option.value} className="erosions-checkbox-option">
-                      <input
-                        type="checkbox"
-                        checked={caracteristicasFeicao.includes(option.value)}
-                        onChange={(e) => toggleMultiField('caracteristicasFeicao', option.value, e.target.checked)}
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            </div>
-
-            <fieldset className="erosions-checkbox-fieldset">
-              <legend>Usos do solo</legend>
-              <div className="erosions-checkbox-grid">
-                {EROSION_TECHNICAL_OPTIONS.usosSolo.map((option) => (
-                  <label key={option.value} className="erosions-checkbox-option">
-                    <input
-                      type="checkbox"
-                      checked={usosSolo.includes(option.value)}
-                      onChange={(e) => toggleMultiField('usosSolo', option.value, e.target.checked)}
-                    />
-                    <span>{option.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            {usosSolo.includes('outro') ? (
-              <label className="erosions-field">
-                <span>Uso do solo - outro *</span>
-                <input value={safeFormData.usoSoloOutro || ''} onChange={(e) => updateField('usoSoloOutro', e.target.value)} />
-              </label>
-            ) : null}
-
-            <div className="erosions-form-grid is-three">
-              <label className="erosions-field">
-                <span>Faixa de servidao</span>
-                <select value={safeFormData.faixaServidao || ''} onChange={(e) => updateField('faixaServidao', e.target.value)}>
-                  <option value="">Nao informado</option>
-                  <option value="sim">Sim</option>
-                  <option value="nao">Nao</option>
-                </select>
-              </label>
-              <label className="erosions-field">
-                <span>Area de terceiros</span>
-                <select value={safeFormData.areaTerceiros || ''} onChange={(e) => updateField('areaTerceiros', e.target.value)}>
-                  <option value="">Nao informado</option>
-                  <option value="sim">Sim</option>
-                  <option value="nao">Nao</option>
-                </select>
-              </label>
-            </div>
+            <ErosionTechnicalFields
+              formData={safeFormData}
+              readOnlyClasses={readOnlyClasses}
+              onPatch={(patch) => {
+                setFormData((prev) => ({
+                  ...((prev && typeof prev === 'object') ? prev : {}),
+                  ...patch,
+                }));
+              }}
+            />
           </section>
 
           <section className="erosions-form-section">
@@ -494,15 +336,6 @@ function ErosionFormModal({
             <h4>Medidas e anexos</h4>
             <div className="erosions-form-grid is-two">
               <label className="erosions-field">
-                <span>Medida preventiva</span>
-                <textarea
-                  rows="2"
-                  className="erosions-long-textarea erosions-long-textarea-medium"
-                  value={safeFormData.medidaPreventiva || ''}
-                  onChange={(e) => updateField('medidaPreventiva', e.target.value)}
-                />
-              </label>
-              <label className="erosions-field">
                 <span>Fotos (links, um por linha)</span>
                 <textarea
                   rows="2"
@@ -535,8 +368,30 @@ function ErosionFormModal({
 
           <div className="notice erosions-criticality-notice">
             <strong>Impacto:</strong> {safeCriticality.impacto} | <strong>Score:</strong> {safeCriticality.score} | <strong>Frequencia:</strong> {safeCriticality.frequencia}
-            <br />
-            <strong>Intervencao:</strong> {safeCriticality.intervencao}
+            {criticalityBreakdown ? (
+              <>
+                <br />
+                <strong>Criticidade:</strong> {criticalityBreakdown.criticidade_classe || '-'} ({criticalityBreakdown.codigo || '-'}) | Pontos T/P/D/S/E: {criticalityBreakdown.pontos?.T ?? 0}/{criticalityBreakdown.pontos?.P ?? 0}/{criticalityBreakdown.pontos?.D ?? 0}/{criticalityBreakdown.pontos?.S ?? 0}/{criticalityBreakdown.pontos?.E ?? 0}
+              </>
+            ) : null}
+            {suggestedSolutions.length > 0 ? (
+              <>
+                <br />
+                <strong>Solucoes sugeridas:</strong> {suggestedSolutions.join(' | ')}
+              </>
+            ) : null}
+            {optionalInterventionSolutions.length > 0 ? (
+              <>
+                <br />
+                <strong>Sugestoes de intervencao (opcional):</strong> {optionalInterventionSolutions.join(' | ')}
+              </>
+            ) : null}
+            {validationAlerts.length > 0 ? (
+              <>
+                <br />
+                <strong>Alertas:</strong> {validationAlerts.join(' | ')}
+              </>
+            ) : null}
           </div>
         </div>
 
@@ -556,3 +411,4 @@ function ErosionFormModal({
 }
 
 export default ErosionFormModal;
+

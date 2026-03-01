@@ -1,5 +1,6 @@
 import AppIcon from '../../../components/AppIcon';
 import { erosionStatusClass, normalizeErosionStatus } from '../../shared/statusUtils';
+import { getLocalContextLabel, normalizeErosionTechnicalFields } from '../utils/erosionUtils';
 
 function getImpactClassName(impact) {
   if (impact === 'Muito Alto') return 'erosions-impact-chip is-critical';
@@ -25,6 +26,9 @@ function ErosionCardGrid({
         const projectId = String(erosion?.projetoId || '').trim();
         const project = projectsById.get(projectId);
         const normalizedStatus = normalizeErosionStatus(erosion.status);
+        const technical = normalizeErosionTechnicalFields(erosion || {});
+        const localContexto = technical.localContexto || {};
+        const localLabel = getLocalContextLabel(localContexto.localTipo) || '-';
         return (
           <article key={erosion.id} className="erosions-card">
             <div className="erosions-card-head">
@@ -62,12 +66,12 @@ function ErosionCardGrid({
               </div>
               <div className="erosions-card-meta-row">
                 <span>Local</span>
-                <strong>{erosion.localTipo || '-'}</strong>
+                <strong>{localLabel}</strong>
               </div>
-              {erosion.localTipo === 'Outros' ? (
+              {localContexto.localTipo === 'outros' ? (
                 <div className="erosions-card-meta-row">
                   <span>Detalhe local</span>
-                  <strong>{erosion.localDescricao || '-'}</strong>
+                  <strong>{localContexto.localDescricao || '-'}</strong>
                 </div>
               ) : null}
             </div>

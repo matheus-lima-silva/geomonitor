@@ -11,14 +11,45 @@ vi.mock('../../features/shared/statusUtils', () => ({
   normalizeErosionStatus: vi.fn(),
 }));
 
+vi.mock('firebase/firestore', () => ({
+  deleteField: vi.fn(() => '__DELETE__'),
+}));
+
 vi.mock('../../features/erosions/utils/erosionUtils', () => ({
+  EROSION_REMOVED_FIELDS: [
+    'profundidade',
+    'declividadeClasse',
+    'declividadeClassePdf',
+    'faixaServidao',
+    'areaTerceiros',
+    'usoSolo',
+    'soloSaturadoAgua',
+  ],
   appendFollowupEvent: vi.fn(),
   buildCriticalityInputFromErosion: vi.fn(),
   deriveErosionTypeFromTechnicalFields: vi.fn(),
   buildFollowupEvent: vi.fn(),
   normalizeErosionTechnicalFields: vi.fn(),
   normalizeFollowupHistory: vi.fn(),
+  stripRemovedErosionFields: vi.fn((payload) => ({ ...(payload || {}) })),
   validateErosionTechnicalFields: vi.fn(),
+}));
+
+vi.mock('../../features/erosions/utils/criticalityV2', () => ({
+  buildCriticalityTrend: vi.fn(() => 'estavel'),
+  calcular_criticidade: vi.fn(() => ({
+    criticidade_score: 10,
+    criticidade_classe: 'Medio',
+    codigo: 'C2',
+    alertas_validacao: [],
+    legacy: {
+      impacto: 'Medio',
+      score: 10,
+      frequencia: '12 meses',
+      intervencao: 'Canaletas vegetadas',
+    },
+  })),
+  normalizeCriticalityHistory: vi.fn(() => []),
 }));
 
 import { deleteDocById, loadDoc, saveDoc, subscribeCollection } from '../firestoreClient';
@@ -41,29 +72,51 @@ describe('erosionService', () => {
       ok: true,
       message: '',
       value: {
+        localContexto: {
+          localTipo: '',
+          exposicao: '',
+          estruturaProxima: '',
+          localDescricao: '',
+        },
         presencaAguaFundo: '',
         tiposFeicao: [],
         caracteristicasFeicao: [],
-        larguraMaximaClasse: '',
-        declividadeClasse: '',
         usosSolo: [],
         usoSoloOutro: '',
         saturacaoPorAgua: '',
+        tipoSolo: '',
+        localizacaoExposicao: '',
+        estruturaProxima: '',
+        profundidadeMetros: null,
+        declividadeGraus: null,
+        distanciaEstruturaMetros: null,
+        sinaisAvanco: false,
+        vegetacaoInterior: false,
       },
     });
     vi.mocked(normalizeErosionTechnicalFields).mockReturnValue({
+      localContexto: {
+        localTipo: '',
+        exposicao: '',
+        estruturaProxima: '',
+        localDescricao: '',
+      },
       presencaAguaFundo: '',
       tiposFeicao: [],
       caracteristicasFeicao: [],
-      larguraMaximaClasse: '',
-      declividadeClasse: '',
       usosSolo: [],
       usoSoloOutro: '',
       saturacaoPorAgua: '',
+      tipoSolo: '',
+      localizacaoExposicao: '',
+      estruturaProxima: '',
+      profundidadeMetros: null,
+      declividadeGraus: null,
+      distanciaEstruturaMetros: null,
+      sinaisAvanco: false,
+      vegetacaoInterior: false,
     });
     vi.mocked(buildCriticalityInputFromErosion).mockReturnValue({
-      declividade: '',
-      largura: '',
       tipo: '',
     });
     vi.mocked(deriveErosionTypeFromTechnicalFields).mockReturnValue('');
@@ -118,8 +171,12 @@ describe('erosionService', () => {
         score: 4,
         frequencia: '3 meses',
         intervencao: 'Obra emergencial',
-        localTipo: '',
-        localDescricao: '',
+        localContexto: {
+          localTipo: '',
+          exposicao: '',
+          estruturaProxima: '',
+          localDescricao: '',
+        },
       }),
       {
         updatedBy: 'eng@empresa.com',
@@ -138,10 +195,22 @@ describe('erosionService', () => {
         score: 4,
         frequencia: '3 meses',
         intervencao: 'Obra emergencial',
-        localTipo: '',
-        localDescricao: '',
-        declividadeClasse: '',
-        declividadeClassePdf: '',
+        localContexto: {
+          localTipo: '',
+          exposicao: '',
+          estruturaProxima: '',
+          localDescricao: '',
+        },
+        localTipo: '__DELETE__',
+        localDescricao: '__DELETE__',
+        localizacaoExposicao: '__DELETE__',
+        estruturaProxima: '__DELETE__',
+        declividadeClasse: '__DELETE__',
+        declividadeClassePdf: '__DELETE__',
+        criticalidadeV2: expect.objectContaining({
+          codigo: 'C2',
+        }),
+        historicoCriticidade: expect.any(Array),
         acompanhamentosResumo: [{ tipo: 'FINAL' }],
       }),
       {
@@ -177,12 +246,15 @@ describe('erosionService', () => {
       expect.objectContaining({
         id,
         status: 'Monitoramento',
-        impacto: 'Baixo',
-        score: 1,
-        frequencia: '24 meses',
-        intervencao: 'Monitoramento visual',
-        declividadeClasse: '',
-        declividadeClassePdf: '',
+        impacto: 'Medio',
+        score: 10,
+        frequencia: '12 meses',
+        intervencao: 'Canaletas vegetadas',
+        declividadeClasse: '__DELETE__',
+        declividadeClassePdf: '__DELETE__',
+        criticalidadeV2: expect.objectContaining({
+          codigo: 'C2',
+        }),
       }),
       {
         skipAutoFollowup: true,

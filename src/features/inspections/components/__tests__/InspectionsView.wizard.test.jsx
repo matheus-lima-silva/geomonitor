@@ -231,21 +231,32 @@ describe('InspectionsView wizard flow', () => {
     const erosionButton = document.querySelector('.inspections-tower-btn-erosion');
     await clickElement(erosionButton);
 
-    const localSelect = document.querySelector('.inspections-inline-erosion-modal select');
-    changeInput(localSelect, 'Base de torre');
+    const localSelect = [...document.querySelectorAll('.inspections-inline-erosion-modal select')]
+      .find((element) => [...element.options].some((option) => option.value === 'base_torre'));
+    expect(localSelect).toBeTruthy();
+    changeInput(localSelect, 'base_torre');
     await clickByText('Abrir cadastro completo na aba Erosoes');
 
     expect(onOpenErosionDraft).toHaveBeenCalledTimes(1);
     expect(onOpenErosionDraft).toHaveBeenCalledWith(expect.objectContaining({
       projetoId: 'P1',
       torreRef: '1',
+      localContexto: {
+        localTipo: 'base_torre',
+        exposicao: 'faixa_servidao',
+        estruturaProxima: 'torre',
+        localDescricao: '',
+      },
       presencaAguaFundo: '',
       tiposFeicao: [],
-      declividadeClasse: '',
       usosSolo: [],
       saturacaoPorAgua: '',
+      profundidadeMetros: null,
+      declividadeGraus: null,
+      distanciaEstruturaMetros: null,
     }));
     expect(onOpenErosionDraft.mock.calls[0][0]).not.toHaveProperty('alturaMaximaClasse');
+    expect(onOpenErosionDraft.mock.calls[0][0]).not.toHaveProperty('declividadeClasse');
   });
 
   it('limits torre base to selected day towers and clears when deselected', async () => {

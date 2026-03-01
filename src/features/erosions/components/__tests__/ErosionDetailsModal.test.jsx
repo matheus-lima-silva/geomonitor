@@ -19,11 +19,12 @@ function renderModal(root, overrides = {}) {
       presencaAguaFundo: 'sim',
       tiposFeicao: ['ravina', 'sulco'],
       caracteristicasFeicao: ['contato_materiais'],
-      larguraMaximaClasse: '3-5',
-      declividadeClassePdf: 'maior_25',
       usosSolo: ['pastagem', 'outro'],
       usoSoloOutro: 'acesso rural',
       saturacaoPorAgua: 'nao',
+      profundidadeMetros: 1.2,
+      declividadeGraus: 18,
+      distanciaEstruturaMetros: 7,
       medidaPreventiva: 'Instalar drenagem',
       acompanhamentosResumo: [],
       fotosLinks: ['https://example.com/foto-1.jpg'],
@@ -73,8 +74,8 @@ describe('ErosionDetailsModal', () => {
     renderModal(root);
 
     expect(container.textContent).toContain('Classificacao e caracterizacao consolidada');
-    expect(container.textContent).toContain('Classe de declividade (graus):');
-    expect(container.textContent).toContain('Classe de largura maxima (m):');
+    expect(container.textContent).toContain('Declividade real (graus):');
+    expect(container.textContent).toContain('Distancia da estrutura (m):');
     expect(container.textContent).not.toContain('Altura maxima');
     expect(container.textContent).toContain('Presenca de agua no fundo:');
     expect(container.textContent).toContain('ravina, sulco');
@@ -82,6 +83,9 @@ describe('ErosionDetailsModal', () => {
     expect(container.textContent).toContain('pastagem, outro');
     expect(container.textContent).toContain('Uso do solo - outro:');
     expect(container.textContent).toContain('acesso rural');
+    expect(container.textContent).not.toContain('Intervencao:');
+    expect(container.textContent).not.toContain('Criticidade V2');
+    expect(container.textContent).not.toContain('Score V2');
   });
 
   it('shows empty history state when no followup data exists', () => {

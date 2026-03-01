@@ -3,6 +3,7 @@ import AppIcon from '../../../components/AppIcon';
 import { erosionStatusClass, normalizeErosionStatus } from '../../shared/statusUtils';
 import {
   deriveErosionTypeFromTechnicalFields,
+  getLocalContextLabel,
   normalizeErosionTechnicalFields,
   normalizeFollowupEventType,
   normalizeFollowupHistory,
@@ -52,14 +53,25 @@ function ErosionDetailsModal({
       .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || ''))),
     [erosion?.acompanhamentosResumo],
   );
+  const criticalityHistory = useMemo(
+    () => (Array.isArray(erosion?.historicoCriticidade) ? erosion.historicoCriticidade : [])
+      .slice()
+      .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || ''))),
+    [erosion?.historicoCriticidade],
+  );
 
-  const saturacaoPorAgua = String(erosion?.saturacaoPorAgua || erosion?.soloSaturadoAgua || '').trim();
+  const saturacaoPorAgua = String(erosion?.saturacaoPorAgua || '').trim();
   const technical = normalizeErosionTechnicalFields(erosion || {});
+  const localContexto = technical.localContexto || {};
+  const localTipoLabel = getLocalContextLabel(localContexto.localTipo) || '-';
   const usosSolo = technical.usosSolo;
   const tiposFeicao = technical.tiposFeicao;
   const caracteristicasFeicao = technical.caracteristicasFeicao;
   const derivedTipo = deriveErosionTypeFromTechnicalFields({ ...erosion, tiposFeicao });
-  const legacyUsoSolo = String(erosion?.usoSolo || '').trim();
+  const criticalidadeV2 = erosion?.criticalidadeV2 && typeof erosion.criticalidadeV2 === 'object'
+    ? erosion.criticalidadeV2
+    : null;
+  const alertasAtivos = Array.isArray(erosion?.alertsAtivos) ? erosion.alertsAtivos : [];
 
   async function handleSaveEvent() {
     const tipo = String(eventForm.tipoEvento || '').trim();
@@ -121,28 +133,62 @@ function ErosionDetailsModal({
             <div className="erosions-details-grid is-two">
               <div><strong>Tipo (derivado):</strong> {derivedTipo || '-'}</div>
               <div><strong>Estagio:</strong> {erosion.estagio || '-'}</div>
-              <div><strong>Local:</strong> {erosion.localTipo || '-'}</div>
-              {erosion.localTipo === 'Outros' ? (
-                <div className="erosions-details-span-all"><strong>Detalhe local:</strong> {erosion.localDescricao || '-'}</div>
+              <div><strong>Local:</strong> {localTipoLabel}</div>
+              {localContexto.localTipo === 'outros' ? (
+                <div className="erosions-details-span-all"><strong>Detalhe local:</strong> {localContexto.localDescricao || '-'}</div>
               ) : null}
-              <div><strong>Profundidade:</strong> {erosion.profundidade || '-'}</div>
-              <div><strong>Classe de declividade (graus):</strong> {technical.declividadeClasse || erosion.declividade || erosion.declividadeClassePdf || '-'}</div>
-              <div><strong>Classe de largura maxima (m):</strong> {technical.larguraMaximaClasse || erosion.largura || '-'}</div>
+              <div><strong>Profundidade real (m):</strong> {Number.isFinite(technical.profundidadeMetros) ? technical.profundidadeMetros : '-'}</div>
+              <div><strong>Declividade real (graus):</strong> {Number.isFinite(technical.declividadeGraus) ? technical.declividadeGraus : '-'}</div>
+              <div><strong>Distancia da estrutura (m):</strong> {Number.isFinite(technical.distanciaEstruturaMetros) ? technical.distanciaEstruturaMetros : '-'}</div>
               <div><strong>Presenca de agua no fundo:</strong> {technical.presencaAguaFundo || '-'}</div>
               <div><strong>Saturacao por agua:</strong> {saturacaoPorAgua || '-'}</div>
+              <div><strong>Tipo de solo:</strong> {technical.tipoSolo || '-'}</div>
+              <div><strong>Localizacao de exposicao:</strong> {localContexto.exposicao || '-'}</div>
+              <div><strong>Estrutura proxima:</strong> {localContexto.estruturaProxima || '-'}</div>
+              <div><strong>Sinais de avanco:</strong> {technical.sinaisAvanco ? 'sim' : 'nao'}</div>
+              <div><strong>Vegetacao interior:</strong> {technical.vegetacaoInterior ? 'sim' : 'nao'}</div>
               <div className="erosions-details-span-all"><strong>Tipos de feicao:</strong> {listValue(tiposFeicao)}</div>
               <div className="erosions-details-span-all"><strong>Caracteristicas da feicao:</strong> {listValue(caracteristicasFeicao)}</div>
               <div className="erosions-details-span-all"><strong>Usos do solo:</strong> {listValue(usosSolo)}</div>
               {usosSolo.includes('outro') ? (
                 <div className="erosions-details-span-all"><strong>Uso do solo - outro:</strong> {erosion.usoSoloOutro || '-'}</div>
               ) : null}
-              {usosSolo.length === 0 && legacyUsoSolo ? (
-                <div className="erosions-details-span-all"><strong>Uso do solo (legado):</strong> {legacyUsoSolo}</div>
-              ) : null}
               <div><strong>Score:</strong> {erosion.score ?? '-'}</div>
               <div><strong>Frequencia:</strong> {erosion.frequencia || '-'}</div>
-              <div className="erosions-details-span-all"><strong>Intervencao:</strong> {erosion.intervencao || '-'}</div>
-              <div className="erosions-details-span-all"><strong>Medida preventiva:</strong> {erosion.medidaPreventiva || '-'}</div>
+              {criticalidadeV2 ? (
+                <>
+                  <div><strong>Criticidade:</strong> {criticalidadeV2.criticidade_classe || '-'} ({criticalidadeV2.codigo || '-'})</div>
+                  <div><strong>Score:</strong> {criticalidadeV2.criticidade_score ?? '-'}</div>
+                  <div className="erosions-details-span-all">
+                    <strong>Pontos T/P/D/S/E:</strong>{' '}
+                    {criticalidadeV2.pontos?.T ?? 0}/{criticalidadeV2.pontos?.P ?? 0}/{criticalidadeV2.pontos?.D ?? 0}/{criticalidadeV2.pontos?.S ?? 0}/{criticalidadeV2.pontos?.E ?? 0}
+                  </div>
+                  <div><strong>Classe tipo erosao:</strong> {criticalidadeV2.tipo_erosao_classe || '-'}</div>
+                  <div><strong>Classe profundidade:</strong> {criticalidadeV2.profundidade_classe || '-'}</div>
+                  <div><strong>Classe declividade:</strong> {criticalidadeV2.declividade_classe || '-'}</div>
+                  <div><strong>Classe solo:</strong> {criticalidadeV2.solo_classe || '-'}</div>
+                  <div><strong>Classe exposicao:</strong> {criticalidadeV2.exposicao_classe || '-'}</div>
+                  <div className="erosions-details-span-all">
+                    <strong>Tipo de medida recomendada:</strong> {criticalidadeV2.tipo_medida_recomendada || '-'}
+                  </div>
+                  <div className="erosions-details-span-all">
+                    <strong>Solucoes sugeridas:</strong> {Array.isArray(criticalidadeV2.lista_solucoes_sugeridas) && criticalidadeV2.lista_solucoes_sugeridas.length > 0 ? criticalidadeV2.lista_solucoes_sugeridas.join(' | ') : '-'}
+                  </div>
+                  {Array.isArray(criticalidadeV2.lista_solucoes_possiveis_intervencao) && criticalidadeV2.lista_solucoes_possiveis_intervencao.length > 0 ? (
+                    <div className="erosions-details-span-all">
+                      <strong>Sugestoes de intervencao (opcional):</strong> {criticalidadeV2.lista_solucoes_possiveis_intervencao.join(' | ')}
+                    </div>
+                  ) : null}
+                  {criticalidadeV2.recomendacao_contextual ? (
+                    <div className="erosions-details-span-all">
+                      <strong>Regra contextual:</strong> {criticalidadeV2.recomendacao_contextual}
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+              {alertasAtivos.length > 0 ? (
+                <div className="erosions-details-span-all"><strong>Alertas ativos:</strong> {alertasAtivos.join(' | ')}</div>
+              ) : null}
               <div className="erosions-details-span-all"><strong>Observacoes:</strong> {erosion.obs || '-'}</div>
             </div>
             <div className="erosions-details-links">
@@ -172,8 +218,6 @@ function ErosionDetailsModal({
               <div><strong>Hemisferio:</strong> {locationCoordinates.utmHemisphere || '-'}</div>
               <div><strong>Altitude:</strong> {locationCoordinates.altitude || '-'}</div>
               <div><strong>Referencia:</strong> {locationCoordinates.reference || '-'}</div>
-              <div><strong>Faixa de servidao:</strong> {erosion.faixaServidao || '-'}</div>
-              <div><strong>Area de terceiros:</strong> {erosion.areaTerceiros || '-'}</div>
             </div>
             <div className="erosions-details-links">
               {hasCoordinates(erosion) ? (
@@ -202,6 +246,30 @@ function ErosionDetailsModal({
               </div>
             </section>
           ) : null}
+
+          <section className="erosions-details-section">
+            <h4>Historico tecnico de criticidade</h4>
+            <div className="erosions-history-list">
+              {criticalityHistory.map((item, index, array) => (
+                <article key={`${item.timestamp || 'criticality'}-${index}`} className="erosions-history-item is-sistema">
+                  {index < array.length - 1 ? <div className="erosions-history-line" /> : null}
+                  <div className="erosions-history-content">
+                    <div className="erosions-history-meta">
+                      <strong>{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : '-'}</strong>
+                      <span className="status-chip">{item.situacao || '-'}</span>
+                    </div>
+                    <div>
+                      Data vistoria: {item.data_vistoria || '-'} | Score anterior: {item.score_anterior ?? '-'} | Score atual: {item.score_atual ?? '-'}
+                    </div>
+                    <div className="muted">
+                      Tendencia: {item.tendencia || '-'} | Intervencao realizada: {item.intervencao_realizada || '-'}
+                    </div>
+                  </div>
+                </article>
+              ))}
+              {criticalityHistory.length === 0 ? <p className="muted">Sem historico tecnico de criticidade.</p> : null}
+            </div>
+          </section>
 
           <section className="erosions-details-section">
             <div className="erosions-history-head">

@@ -4,7 +4,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { calculateCriticality } from '../../shared/rulesConfig';
 import { normalizeErosionStatus } from '../../shared/statusUtils';
-import { deleteErosion, saveErosion } from '../../../services/erosionService';
+import { deleteErosion, postCalculoErosao, saveErosion } from '../../../services/erosionService';
 import {
   appendFollowupEvent,
   buildCriticalityInputFromErosion,
@@ -41,10 +41,13 @@ const BASE_FORM = {
   vistoriaId: '',
   vistoriaIds: [],
   torreRef: '',
-  localTipo: '',
-  localDescricao: '',
+  localContexto: {
+    localTipo: '',
+    exposicao: '',
+    estruturaProxima: '',
+    localDescricao: '',
+  },
   estagio: '',
-  profundidade: '',
   latitude: '',
   longitude: '',
   locationCoordinates: {
@@ -57,20 +60,18 @@ const BASE_FORM = {
     altitude: '',
     reference: '',
   },
-  faixaServidao: '',
-  areaTerceiros: '',
-  usoSolo: '',
   presencaAguaFundo: '',
   tiposFeicao: [],
   caracteristicasFeicao: [],
-  larguraMaximaClasse: '',
-  declividadeClasse: '',
   usosSolo: [],
   usoSoloOutro: '',
   saturacaoPorAgua: '',
-  // Backward compatibility for legacy consumers.
-  soloSaturadoAgua: '',
-  medidaPreventiva: '',
+  tipoSolo: '',
+  profundidadeMetros: '',
+  declividadeGraus: '',
+  distanciaEstruturaMetros: '',
+  sinaisAvanco: false,
+  vegetacaoInterior: false,
   fotosLinks: [],
   status: 'Ativo',
   obs: '',
@@ -166,16 +167,16 @@ function buildSafeErosionFormState(source, mode = 'new', inspections = []) {
 
   return {
     ...BASE_FORM,
-    ...(raw && typeof raw === 'object' ? raw : {}),
     id,
     projetoId: String(raw.projetoId || '').trim(),
     vistoriaId: primaryInspectionId || '',
     vistoriaIds: resolvedInspectionIds,
     torreRef: String(raw.torreRef || '').trim(),
-    localTipo: String(raw.localTipo || '').trim(),
-    localDescricao: String(raw.localDescricao || '').trim(),
+    localContexto: {
+      ...BASE_FORM.localContexto,
+      ...(technical.localContexto || {}),
+    },
     estagio: String(raw.estagio || '').trim(),
-    profundidade: String(raw.profundidade || '').trim(),
     status: normalizeErosionStatus(raw.status || BASE_FORM.status),
     latitude: locationCoordinates.latitude,
     longitude: locationCoordinates.longitude,
@@ -183,21 +184,19 @@ function buildSafeErosionFormState(source, mode = 'new', inspections = []) {
       ...BASE_FORM.locationCoordinates,
       ...locationCoordinates,
     },
-    faixaServidao: String(raw.faixaServidao || '').trim(),
-    areaTerceiros: String(raw.areaTerceiros || '').trim(),
-    usoSolo: String(raw.usoSolo || '').trim(),
     obs: String(raw.obs || '').trim(),
     presencaAguaFundo: technical.presencaAguaFundo,
     tiposFeicao: Array.isArray(technical.tiposFeicao) ? technical.tiposFeicao : [],
     caracteristicasFeicao: Array.isArray(technical.caracteristicasFeicao) ? technical.caracteristicasFeicao : [],
-    larguraMaximaClasse: String(technical.larguraMaximaClasse || '').trim(),
-    declividadeClasse: String(technical.declividadeClasse || '').trim(),
     usosSolo: Array.isArray(technical.usosSolo) ? technical.usosSolo : [],
     usoSoloOutro: String(technical.usoSoloOutro || '').trim(),
     saturacaoPorAgua: String(technical.saturacaoPorAgua || '').trim(),
-    // Backward compatibility for legacy consumers.
-    soloSaturadoAgua: String(technical.saturacaoPorAgua || '').trim(),
-    medidaPreventiva: String(raw.medidaPreventiva || '').trim(),
+    tipoSolo: String(technical.tipoSolo || '').trim(),
+    profundidadeMetros: Number.isFinite(technical.profundidadeMetros) ? String(technical.profundidadeMetros) : '',
+    declividadeGraus: Number.isFinite(technical.declividadeGraus) ? String(technical.declividadeGraus) : '',
+    distanciaEstruturaMetros: Number.isFinite(technical.distanciaEstruturaMetros) ? String(technical.distanciaEstruturaMetros) : '',
+    sinaisAvanco: Boolean(technical.sinaisAvanco),
+    vegetacaoInterior: Boolean(technical.vegetacaoInterior),
     fotosLinks: sanitizePhotoLinksInput(raw.fotosLinks),
     acompanhamentosResumo: normalizeFollowupHistory(raw.acompanhamentosResumo),
   };
@@ -283,7 +282,7 @@ function openReportPdfWindow({ projectId, rows, selectedYears }) {
         <td>${row.id}</td>
         <td>${row.vistoriaId || '-'}</td>
         <td>${row.torreRef || '-'}</td>
-        <td>${row.localTipo || '-'}</td>
+        <td>${row['localContexto.localTipoLabel'] || row['localContexto.localTipo'] || '-'}</td>
         <td>${row.status || '-'}</td>
         <td>${row.impacto || '-'}</td>
         <td>${row.ultimaAtualizacao || '-'}</td>
@@ -693,16 +692,36 @@ function ErosionsView({
         ...formData,
         tiposFeicao: technicalValidation.value.tiposFeicao,
         caracteristicasFeicao: technicalValidation.value.caracteristicasFeicao,
-        larguraMaximaClasse: technicalValidation.value.larguraMaximaClasse,
-        declividadeClasse: technicalValidation.value.declividadeClasse,
+        usosSolo: technicalValidation.value.usosSolo,
+        usoSoloOutro: technicalValidation.value.usoSoloOutro,
+        saturacaoPorAgua: technicalValidation.value.saturacaoPorAgua,
+        tipoSolo: technicalValidation.value.tipoSolo,
+        localContexto: technicalValidation.value.localContexto,
+        profundidadeMetros: technicalValidation.value.profundidadeMetros,
+        declividadeGraus: technicalValidation.value.declividadeGraus,
+        distanciaEstruturaMetros: technicalValidation.value.distanciaEstruturaMetros,
+        sinaisAvanco: technicalValidation.value.sinaisAvanco,
+        vegetacaoInterior: technicalValidation.value.vegetacaoInterior,
       };
       const criticalityInput = buildCriticalityInputFromErosion(normalizedTechnicalData);
+      const calculoResponse = await postCalculoErosao(criticalityInput, {
+        rulesConfig: rulesConfig?.criticalityV2 || rulesConfig,
+      });
+      const criticalidadeV2 = calculoResponse.campos_calculados;
+      const alertasValidacao = Array.isArray(calculoResponse.alertas_validacao)
+        ? calculoResponse.alertas_validacao
+        : [];
+
+      if (alertasValidacao.length > 0) {
+        const shouldContinue = window.confirm(
+          `Foram encontrados alertas tecnicos:\\n\\n- ${alertasValidacao.join('\\n- ')}\\n\\nDeseja salvar mesmo assim?`,
+        );
+        if (!shouldContinue) return;
+      }
 
       const nextPayload = {
         ...formData,
         tipo: deriveErosionTypeFromTechnicalFields(normalizedTechnicalData),
-        declividade: criticalityInput.declividade,
-        largura: criticalityInput.largura,
         status: normalizeErosionStatus(formData.status),
         locationCoordinates: locationResult.locationCoordinates,
         latitude: locationResult.latitude || '',
@@ -710,30 +729,35 @@ function ErosionsView({
         presencaAguaFundo: technicalValidation.value.presencaAguaFundo,
         tiposFeicao: technicalValidation.value.tiposFeicao,
         caracteristicasFeicao: technicalValidation.value.caracteristicasFeicao,
-        larguraMaximaClasse: technicalValidation.value.larguraMaximaClasse,
-        declividadeClasse: technicalValidation.value.declividadeClasse,
-        // Backward compatibility for legacy consumers.
-        declividadeClassePdf: technicalValidation.value.declividadeClasse,
         usosSolo: technicalValidation.value.usosSolo,
         usoSoloOutro: technicalValidation.value.usoSoloOutro,
         saturacaoPorAgua: technicalValidation.value.saturacaoPorAgua,
-        // Backward compatibility for legacy consumers.
-        soloSaturadoAgua: technicalValidation.value.saturacaoPorAgua,
+        tipoSolo: technicalValidation.value.tipoSolo,
+        localContexto: technicalValidation.value.localContexto,
+        profundidadeMetros: technicalValidation.value.profundidadeMetros,
+        declividadeGraus: technicalValidation.value.declividadeGraus,
+        distanciaEstruturaMetros: technicalValidation.value.distanciaEstruturaMetros,
+        sinaisAvanco: technicalValidation.value.sinaisAvanco,
+        vegetacaoInterior: technicalValidation.value.vegetacaoInterior,
+        medidaPreventiva: Array.isArray(criticalidadeV2?.lista_solucoes_sugeridas)
+          ? (criticalidadeV2.lista_solucoes_sugeridas[0] || '')
+          : '',
         fotosLinks: photos,
         vistoriaId: primaryInspectionId || '',
         vistoriaIds: primaryInspectionId ? mergedInspectionIds : [],
+        criticalidadeV2,
+        alertsAtivos: alertasValidacao,
       };
-
-      const criticality = calculateCriticality(criticalityInput, rulesConfig);
 
       await saveErosion(
         {
           ...nextPayload,
-          criticality,
+          criticality: criticalidadeV2?.legacy,
         },
         {
           updatedBy: actorName,
           merge: true,
+          rulesConfig: rulesConfig?.criticalityV2 || rulesConfig,
         },
       );
 
@@ -927,9 +951,10 @@ function ErosionsView({
     } catch {
       return {
         impacto: 'Baixo',
-        score: 1,
+        score: 0,
         frequencia: '24 meses',
         intervencao: 'Monitoramento visual',
+        breakdown: null,
       };
     }
   }, [formData, rulesConfig]);

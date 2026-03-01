@@ -2,6 +2,7 @@ import { normalizeErosionStatus } from '../../shared/statusUtils';
 import { normalizeLocationCoordinates } from './erosionCoordinates';
 import {
   deriveErosionTypeFromTechnicalFields,
+  getLocalContextLabel,
   normalizeErosionTechnicalFields,
   normalizeFollowupEventType,
   normalizeFollowupHistory,
@@ -123,6 +124,8 @@ function renderFicha({
 }) {
   const locationCoordinates = normalizeLocationCoordinates(erosion || {});
   const technical = normalizeErosionTechnicalFields(erosion || {});
+  const localContexto = technical.localContexto || {};
+  const localTipoLabel = getLocalContextLabel(localContexto.localTipo) || '-';
   const saturacaoPorAgua = technical.saturacaoPorAgua || String(erosion?.soloSaturadoAgua || '').trim();
   const derivedTipo = deriveErosionTypeFromTechnicalFields({ ...erosion, tiposFeicao: technical.tiposFeicao });
 
@@ -154,8 +157,8 @@ function renderFicha({
         <div><strong>UTM Northing:</strong> ${escapeHtml(locationCoordinates.utmNorthing || '-')}</div>
         <div><strong>UTM Zona/Hemisferio:</strong> ${escapeHtml(`${locationCoordinates.utmZone || '-'} ${locationCoordinates.utmHemisphere || '-'}`)}</div>
         <div><strong>Referencia:</strong> ${escapeHtml(locationCoordinates.reference || '-')}</div>
-        <div><strong>Faixa de servidao:</strong> ${escapeHtml(erosion?.faixaServidao || '-')}</div>
-        <div><strong>Area de terceiros:</strong> ${escapeHtml(erosion?.areaTerceiros || '-')}</div>
+        <div><strong>Exposicao:</strong> ${escapeHtml(localContexto.exposicao || '-')}</div>
+        <div><strong>Estrutura proxima:</strong> ${escapeHtml(localContexto.estruturaProxima || '-')}</div>
       </div>
     </section>
 
@@ -164,8 +167,8 @@ function renderFicha({
       <div class="ficha-grid-two">
         <div><strong>Tipo (derivado):</strong> ${escapeHtml(derivedTipo || '-')}</div>
         <div><strong>Estagio:</strong> ${escapeHtml(erosion?.estagio || '-')}</div>
-        <div><strong>Local:</strong> ${escapeHtml(erosion?.localTipo || '-')}</div>
-        ${String(erosion?.localTipo || '') === 'Outros' ? `<div><strong>Detalhe local:</strong> ${escapeHtml(erosion?.localDescricao || '-')}</div>` : '<div><strong>Detalhe local:</strong> -</div>'}
+        <div><strong>Local:</strong> ${escapeHtml(localTipoLabel)}</div>
+        ${String(localContexto.localTipo || '') === 'outros' ? `<div><strong>Detalhe local:</strong> ${escapeHtml(localContexto.localDescricao || '-')}</div>` : '<div><strong>Detalhe local:</strong> -</div>'}
         <div><strong>Profundidade:</strong> ${escapeHtml(erosion?.profundidade || '-')}</div>
         <div><strong>Classe de declividade (graus):</strong> ${escapeHtml(technical.declividadeClasse || erosion?.declividade || erosion?.declividadeClassePdf || '-')}</div>
         <div><strong>Classe de largura maxima (m):</strong> ${escapeHtml(technical.larguraMaximaClasse || erosion?.largura || '-')}</div>
@@ -178,7 +181,6 @@ function renderFicha({
         ${technical.usosSolo.length === 0 && String(erosion?.usoSolo || '').trim() ? `<div class="ficha-full"><strong>Uso do solo (legado):</strong> ${escapeHtml(erosion?.usoSolo || '-')}</div>` : ''}
         <div><strong>Score:</strong> ${escapeHtml(erosion?.score ?? '-')}</div>
         <div><strong>Frequencia:</strong> ${escapeHtml(erosion?.frequencia || '-')}</div>
-        <div class="ficha-full"><strong>Intervencao:</strong> ${escapeHtml(erosion?.intervencao || '-')}</div>
         <div class="ficha-full"><strong>Medida preventiva:</strong> ${escapeHtml(erosion?.medidaPreventiva || '-')}</div>
         <div class="ficha-full"><strong>Fotos:</strong> ${renderPhotoLinks(erosion?.fotosLinks)}</div>
       </div>

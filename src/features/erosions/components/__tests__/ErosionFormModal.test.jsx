@@ -15,13 +15,14 @@ function renderModal(root, overrides = {}) {
       vistoriaId: '',
       vistoriaIds: [],
       torreRef: '',
-      localTipo: '',
-      localDescricao: '',
+      localContexto: {
+        localTipo: '',
+        exposicao: '',
+        estruturaProxima: '',
+        localDescricao: '',
+      },
       tipo: '',
       estagio: '',
-      profundidade: '',
-      declividade: '',
-      largura: '',
       locationCoordinates: {
         latitude: '',
         longitude: '',
@@ -85,9 +86,21 @@ describe('ErosionFormModal', () => {
 
     expect(container.textContent).toContain('Classificacao e caracterizacao da erosao');
     expect(container.textContent).toContain('Presenca de agua no fundo');
-    expect(container.textContent).toContain('Classe tecnica de declividade (graus)');
-    expect(container.textContent).toContain('Classe tecnica de largura maxima (m)');
+    expect(container.textContent).toContain('Classe D (derivada)');
+    expect(container.textContent).toContain('Classe E (derivada)');
+    expect(container.textContent).toContain('Profundidade');
+    expect(container.textContent).toContain('Declividade');
+    expect(container.textContent).toContain('Distancia da estrutura');
+    expect(container.textContent).toContain('10 a 30 m');
+    expect(container.textContent).toContain('> 30 m');
+    expect(container.textContent).toContain('25 a 45 graus');
+    expect(container.textContent).toContain('> 45 graus');
+    expect(container.textContent).not.toContain('janela');
+    expect(container.textContent).not.toContain('Criticidade V2');
+    expect(container.textContent).not.toContain('Intervencao:');
     expect(container.textContent).not.toContain('PDF');
+    expect(container.textContent).not.toContain('Profundidade (m)');
+    expect(container.textContent).not.toContain('Classe tecnica de declividade (graus)');
     expect(container.textContent).not.toContain('Uso do solo (legado)');
     expect(container.textContent).not.toContain('Caracteristicas fisicas');
     expect(container.textContent).toContain('Usos do solo');
