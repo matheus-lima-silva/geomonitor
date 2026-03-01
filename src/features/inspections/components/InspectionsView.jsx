@@ -26,6 +26,7 @@ function InspectionsView({
   searchTerm,
   planningDraft,
   onPlanningDraftConsumed,
+  onOpenErosionDraft,
 }) {
   const { user } = useAuth();
   const { show } = useToast();
@@ -216,6 +217,7 @@ function InspectionsView({
           erosions={erosions}
           actorName={actorName}
           suggestedTowerInput={suggestedTowerInput}
+          onOpenErosionDraft={onOpenErosionDraft}
           onCancel={() => {
             setIsFormOpen(false);
             setSuggestedTowerInput('');

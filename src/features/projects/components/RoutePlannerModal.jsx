@@ -5,8 +5,8 @@ import { compareTowerNumbers, validateTowerCoordinatesAsString } from '../utils/
 
 function formatTowerLabel(towerRef) {
   const ref = String(towerRef ?? '').trim();
-  if (!ref) return 'Não informado';
-  if (ref === '0') return 'Pórtico (T0)';
+  if (!ref) return 'Nao informado';
+  if (ref === '0') return 'Portico (T0)';
   return `Torre ${ref}`;
 }
 
@@ -32,7 +32,7 @@ function RoutePlannerModal({ project, routeSelection, setRouteSelection, onClose
 
   function handleOpenRoute() {
     if (selectedRoutePoints.length < 2) {
-      alert('Selecione pelo menos 2 torres para traçar a rota.');
+      alert('Selecione pelo menos 2 torres para tracar a rota.');
       return;
     }
     const chunks = chunkRoutePoints(selectedRoutePoints, 8);
@@ -51,38 +51,51 @@ function RoutePlannerModal({ project, routeSelection, setRouteSelection, onClose
 
   return (
     <div className="modal-backdrop">
-      <div className="modal wide">
-        <h3>Traçar rota - {project.nome || project.id}</h3>
-        <p className="muted">Selecione torres na ordem desejada.</p>
-
-        <div className="tower-grid">
-          {routeProjectTowers.map((tower) => {
-            const active = routeSelection.includes(String(tower.numero));
-            const order = routeSelection.findIndex((n) => n === String(tower.numero));
-            return (
-              <button
-                key={`route-${tower.numero}`}
-                type="button"
-                className={active ? 'chip-active' : ''}
-                onClick={() => toggleRouteTower(tower.numero)}
-              >
-                {formatTowerLabel(tower.numero)} {active ? `#${order + 1}` : ''}
-              </button>
-            );
-          })}
+      <div className="modal projects-modal projects-modal-route">
+        <div className="projects-modal-head">
+          <h3 className="projects-modal-title">Tracar rota - {project.nome || project.id}</h3>
+          <button type="button" className="projects-modal-close" aria-label="Fechar" onClick={onClose}>
+            <AppIcon name="close" />
+          </button>
         </div>
 
-        {routeProjectTowers.length === 0 && <p className="muted">Este empreendimento não possui torres com coordenadas válidas.</p>}
+        <div className="projects-modal-body">
+          <p className="projects-route-helper">
+            Selecione torres na ordem desejada. A rota sera aberta no Google Maps com origem na sua localizacao.
+          </p>
 
-        <div className="row-actions">
-          <button type="button" onClick={handleOpenRoute}>
-            <AppIcon name="route" />
-            Abrir rota
-          </button>
-          <button type="button" className="secondary" onClick={onClose}>
-            <AppIcon name="close" />
-            Fechar
-          </button>
+          <div className="projects-route-grid">
+            {routeProjectTowers.map((tower) => {
+              const active = routeSelection.includes(String(tower.numero));
+              const order = routeSelection.findIndex((n) => n === String(tower.numero));
+              return (
+                <button
+                  key={`route-${tower.numero}`}
+                  type="button"
+                  className={`projects-route-tower-btn ${active ? 'is-active' : ''}`.trim()}
+                  onClick={() => toggleRouteTower(tower.numero)}
+                >
+                  <span>{formatTowerLabel(tower.numero)}</span>
+                  {active && <strong>#{order + 1}</strong>}
+                </button>
+              );
+            })}
+          </div>
+
+          {routeProjectTowers.length === 0 && (
+            <p className="projects-route-empty">Este empreendimento nao possui torres com coordenadas validas.</p>
+          )}
+        </div>
+
+        <div className="projects-modal-foot projects-route-foot">
+          <div className="projects-route-count">{selectedRoutePoints.length} torre(s) selecionada(s)</div>
+          <div className="projects-route-actions">
+            <button type="button" className="projects-cancel-btn" onClick={onClose}>Fechar</button>
+            <button type="button" className="projects-open-route-btn" onClick={handleOpenRoute}>
+              <AppIcon name="route" />
+              Abrir rota
+            </button>
+          </div>
         </div>
       </div>
     </div>

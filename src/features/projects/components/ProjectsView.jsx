@@ -52,7 +52,7 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
   }
 
   return (
-    <section className="panel">
+    <section className="panel projects-panel">
       <input
         ref={mergeInputRef}
         type="file"
@@ -68,18 +68,18 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
         onChange={handleCreateInputChange}
       />
 
-      <div className="topbar">
-        <div>
+      <div className="topbar projects-topbar">
+        <div className="projects-topbar-copy">
           <h2>Empreendimentos</h2>
-          <p className="muted">Cadastre e mantenha os dados base das linhas de transmissão.</p>
+          <p className="muted">Cadastre e mantenha os dados base das linhas de transmissao.</p>
         </div>
-        <button type="button" onClick={state.openNew}>
+        <button type="button" className="projects-primary-action" onClick={state.openNew}>
           <AppIcon name="plus" />
           Novo
         </button>
       </div>
 
-      <div className="project-cards">
+      <div className="projects-grid">
         {filtered.map((p) => {
           const stats = getProjectInspectionStats(p.id, inspections);
           const reportConfig = getProjectReportConfig(p);
@@ -89,67 +89,79 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
           const hasExportGeometry = gpsCount > 0 || lineCount >= 2;
 
           return (
-            <article key={p.id} className="project-card">
-              <header className="project-card-header">
-                <div>
-                  <h3>{p.nome || p.id}</h3>
-                  <small>Código: {p.id}</small>
+            <article key={p.id} className="projects-card">
+              <header className="projects-card-head">
+                <div className="projects-card-identity">
+                  <h3 className="projects-card-title">{p.nome || p.id}</h3>
+                  <p className="projects-card-code">Codigo: {p.id}</p>
+                  <p className="projects-card-date">{p.dataCadastro || 'S/D'}</p>
                 </div>
-                <div className="inline-row">
-                  <button type="button" onClick={() => state.openEdit(p)}>
+                <div className="projects-card-icon-actions">
+                  <button
+                    type="button"
+                    className="projects-icon-btn is-edit"
+                    aria-label={`Editar empreendimento ${p.id}`}
+                    onClick={() => state.openEdit(p)}
+                  >
                     <AppIcon name="edit" />
-                    Editar
                   </button>
-                  <button type="button" className="danger" onClick={() => state.setConfirmDelete(p.id)}>
+                  <button
+                    type="button"
+                    className="projects-icon-btn is-delete"
+                    aria-label={`Excluir empreendimento ${p.id}`}
+                    onClick={() => state.setConfirmDelete(p.id)}
+                  >
                     <AppIcon name="trash" />
-                    Excluir
                   </button>
                 </div>
               </header>
 
-              <div className="muted">
-                <div>Vistorias: {stats.count}</div>
-                <div>Tempo de vistoria: {stats.spanDays ? `${stats.spanDays} dia(s)` : 'S/D'}</div>
-                <div>Dias efetivamente vistoriados: {stats.visitedDays}</div>
-                <div>Torres com GPS: {gpsCount}</div>
-                <div>Periodicidade: {reportConfig.periodicidadeRelatorio}</div>
-                <div>Meses de entrega: {formatReportMonths(reportConfig.mesesEntregaRelatorio)}</div>
+              <div className="projects-chip-row">
+                <span className="projects-chip">{p.tipo || 'Sem tipo'}</span>
+                {p.tensao && <span className="projects-chip is-tension">{p.tensao} kV</span>}
+                {p.extensao && <span className="projects-chip is-distance">{p.extensao} km</span>}
               </div>
 
-              <div className={hasKmlData ? 'row-actions two' : 'row-actions one'}>
-                <button type="button" className="secondary" onClick={() => onOpenProjectInspections?.(p.id)}>
+              <div className="projects-stats">
+                <div><strong>Vistorias:</strong> {stats.count}</div>
+                <div><strong>Tempo de vistoria:</strong> {stats.spanDays ? `${stats.spanDays} dia(s)` : 'S/D'}</div>
+                <div><strong>Dias efetivamente vistoriados:</strong> {stats.visitedDays}</div>
+                <div><strong>Torres com GPS:</strong> {gpsCount}</div>
+                <div><strong>Periodicidade:</strong> {reportConfig.periodicidadeRelatorio}</div>
+                <div><strong>Meses de entrega:</strong> {formatReportMonths(reportConfig.mesesEntregaRelatorio)}</div>
+                {reportConfig.periodicidadeRelatorio === 'Bienal' && (
+                  <div><strong>Ano base (bienal):</strong> {reportConfig.anoBaseBienal || 'Nao definido'}</div>
+                )}
+              </div>
+
+              <div className={`projects-main-actions ${hasKmlData ? 'is-two' : 'is-one'}`}>
+                <button
+                  type="button"
+                  className="projects-main-btn is-neutral"
+                  onClick={() => onOpenProjectInspections?.(p.id)}
+                >
                   <AppIcon name="clipboard" />
                   Vistorias
                 </button>
                 {hasKmlData && (
                   <button
                     type="button"
+                    className="projects-main-btn is-route"
                     onClick={() => {
                       state.setRouteModalProject(p);
                       state.setRouteSelection([]);
                     }}
                   >
                     <AppIcon name="route" />
-                    Traçar rota
+                    Tracar rota
                   </button>
                 )}
               </div>
 
-              {hasExportGeometry && (
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => safeRun(() => downloadProjectKml(p))}
-                >
-                  <AppIcon name="map" />
-                  Exportar KML
-                </button>
-              )}
-
               {!hasKmlData && (
                 <button
                   type="button"
-                  className="secondary"
+                  className="projects-secondary-btn is-import"
                   onClick={() => {
                     mergeTargetProjectRef.current = p;
                     mergeInputRef.current?.click();
@@ -159,9 +171,24 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
                   Importar KML neste empreendimento
                 </button>
               )}
+
+              {hasExportGeometry && (
+                <button
+                  type="button"
+                  className="projects-secondary-btn is-export"
+                  onClick={() => safeRun(() => downloadProjectKml(p))}
+                >
+                  <AppIcon name="map" />
+                  Exportar KML
+                </button>
+              )}
             </article>
           );
         })}
+
+        {filtered.length === 0 && (
+          <p className="projects-empty-state">Nenhum empreendimento encontrado.</p>
+        )}
       </div>
 
       <ProjectFormModal

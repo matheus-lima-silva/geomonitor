@@ -19,93 +19,151 @@ function ProjectFormModal({ open, isEditing, formData, setFormData, onSave, onCa
   }
 
   const gpsCount = Array.isArray(formData.torresCoordenadas) ? formData.torresCoordenadas.length : 0;
+  const periodicidade = normalizeReportPeriodicity(formData.periodicidadeRelatorio);
+  const isLinhaTransmissao = String(formData.tipo || '').toLowerCase().includes('linha de transmiss');
 
   return (
     <div className="modal-backdrop">
-      <div className="modal xwide">
-        <h3>{isEditing ? 'Editar' : 'Novo'} Empreendimento</h3>
+      <div className="modal projects-modal projects-modal-form">
+        <div className="projects-modal-head">
+          <h3 className="projects-modal-title">{isEditing ? 'Editar' : 'Novo'} Empreendimento</h3>
+          <button type="button" className="projects-modal-close" aria-label="Fechar" onClick={onCancel}>
+            <AppIcon name="close" />
+          </button>
+        </div>
 
-        <div className="grid-form">
-          <input
-            placeholder="ID (Sigla)"
-            value={formData.id}
-            onChange={(e) => setFormData({ ...formData, id: e.target.value.toUpperCase() })}
-            disabled={isEditing}
-          />
-          <select value={formData.tipo} onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}>
-            <option>Linha de Transmissão</option>
-            <option>Reservatório de Represa</option>
-          </select>
-          <input placeholder="Nome" value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} />
+        <div className="projects-modal-body">
+          <div className="projects-form-grid is-two">
+            <label className="projects-field">
+              <span>ID (Sigla)</span>
+              <input
+                value={formData.id}
+                onChange={(e) => setFormData({ ...formData, id: e.target.value.toUpperCase() })}
+                disabled={isEditing}
+                placeholder="ID"
+              />
+            </label>
 
-          <div className="inline-row">
-            <small>Torres georreferenciadas: <strong>{gpsCount}</strong></small>
-            <button type="button" onClick={onImportKml}>
+            <label className="projects-field">
+              <span>Tipo</span>
+              <select value={formData.tipo} onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}>
+                <option>Linha de Transmissão</option>
+                <option>Reservatório de Represa</option>
+              </select>
+            </label>
+          </div>
+
+          <label className="projects-field">
+            <span>Nome</span>
+            <input
+              value={formData.nome}
+              onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+              placeholder="Nome"
+            />
+          </label>
+
+          <div className="projects-kml-box">
+            <div className="projects-kml-box-copy">
+              Torres georreferenciadas: <strong>{gpsCount}</strong>
+            </div>
+            <button type="button" className="projects-kml-btn" onClick={onImportKml}>
               <AppIcon name="upload" />
               Importar KML
             </button>
           </div>
 
-          <select
-            value={normalizeReportPeriodicity(formData.periodicidadeRelatorio)}
-            onChange={(e) => setFormData({
-              ...formData,
-              periodicidadeRelatorio: normalizeReportPeriodicity(e.target.value),
-              mesesEntregaRelatorio: [],
-              anoBaseBienal: '',
-            })}
-          >
-            <option value="Trimestral">Trimestral</option>
-            <option value="Semestral">Semestral</option>
-            <option value="Anual">Anual</option>
-            <option value="Bienal">Bienal (2 anos)</option>
-          </select>
+          <label className="projects-field">
+            <span>Periodicidade do relatorio</span>
+            <select
+              value={periodicidade}
+              onChange={(e) => setFormData({
+                ...formData,
+                periodicidadeRelatorio: normalizeReportPeriodicity(e.target.value),
+                mesesEntregaRelatorio: [],
+                anoBaseBienal: '',
+              })}
+            >
+              <option value="Trimestral">Trimestral</option>
+              <option value="Semestral">Semestral</option>
+              <option value="Anual">Anual</option>
+              <option value="Bienal">Bienal (2 anos)</option>
+            </select>
+          </label>
 
-          <div className="month-row">
-            {MONTH_OPTIONS_PT.map((m) => {
-              const selected = normalizeReportMonths(formData.mesesEntregaRelatorio).includes(m.value);
-              return (
-                <button key={m.value} type="button" className={selected ? 'chip-active' : ''} onClick={() => toggleMonth(m.value)}>
-                  {m.label}
-                </button>
-              );
-            })}
+          <div className="projects-month-section">
+            <div className="projects-month-head">
+              <span>Meses de entrega</span>
+              <small>{normalizeReportMonths(formData.mesesEntregaRelatorio).length}/{requiredMonthCount(periodicidade)}</small>
+            </div>
+            <div className="projects-month-grid">
+              {MONTH_OPTIONS_PT.map((m) => {
+                const selected = normalizeReportMonths(formData.mesesEntregaRelatorio).includes(m.value);
+                return (
+                  <button
+                    key={m.value}
+                    type="button"
+                    className={`projects-month-btn ${selected ? 'is-selected' : ''}`.trim()}
+                    onClick={() => toggleMonth(m.value)}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <small>
-            {normalizeReportMonths(formData.mesesEntregaRelatorio).length}/{requiredMonthCount(formData.periodicidadeRelatorio)}
-          </small>
 
-          {normalizeReportPeriodicity(formData.periodicidadeRelatorio) === 'Bienal' && (
-            <input
-              type="number"
-              min="2000"
-              placeholder="Ano base (bienal)"
-              value={formData.anoBaseBienal ?? ''}
-              onChange={(e) => setFormData({ ...formData, anoBaseBienal: e.target.value })}
-            />
+          {periodicidade === 'Bienal' && (
+            <label className="projects-field">
+              <span>Ano base (bienal)</span>
+              <input
+                type="number"
+                min="2000"
+                value={formData.anoBaseBienal ?? ''}
+                onChange={(e) => setFormData({ ...formData, anoBaseBienal: e.target.value })}
+                placeholder="Ex.: 2026"
+              />
+            </label>
           )}
 
-          {formData.tipo === 'Linha de Transmissão' && (
-            <>
-              <select value={formData.tensao || ''} onChange={(e) => setFormData({ ...formData, tensao: e.target.value })}>
-                <option value="">Selecione a tensão (kV)</option>
-                {TRANSMISSION_VOLTAGE_OPTIONS.map((kv) => (
-                  <option key={kv} value={kv}>{kv} kV</option>
-                ))}
-              </select>
-              <input placeholder="Extensão (km)" value={formData.extensao} onChange={(e) => setFormData({ ...formData, extensao: e.target.value })} />
-              <input placeholder="Torres (qtd)" value={formData.torres} onChange={(e) => setFormData({ ...formData, torres: e.target.value })} />
-            </>
+          {isLinhaTransmissao && (
+            <div className="projects-form-grid is-three">
+              <label className="projects-field">
+                <span>kV</span>
+                <select value={formData.tensao || ''} onChange={(e) => setFormData({ ...formData, tensao: e.target.value })}>
+                  <option value="">Selecione a tensao (kV)</option>
+                  {TRANSMISSION_VOLTAGE_OPTIONS.map((kv) => (
+                    <option key={kv} value={kv}>{kv} kV</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="projects-field">
+                <span>Extensao (km)</span>
+                <input
+                  type="number"
+                  value={formData.extensao}
+                  onChange={(e) => setFormData({ ...formData, extensao: e.target.value })}
+                />
+              </label>
+
+              <label className="projects-field">
+                <span>Torres (qtd)</span>
+                <input
+                  type="number"
+                  value={formData.torres}
+                  onChange={(e) => setFormData({ ...formData, torres: e.target.value })}
+                />
+              </label>
+            </div>
           )}
         </div>
 
-        <div className="row-actions">
-          <button type="button" onClick={onSave}>
+        <div className="projects-modal-foot">
+          <button type="button" className="projects-save-btn" onClick={onSave}>
             <AppIcon name="save" />
             Salvar
           </button>
-          <button type="button" className="secondary" onClick={onCancel}>
-            <AppIcon name="close" />
+          <button type="button" className="projects-cancel-btn" onClick={onCancel}>
             Cancelar
           </button>
         </div>

@@ -1,24 +1,41 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { calculateCriticality } from '../../shared/rulesConfig';
-import { erosionStatusClass, normalizeErosionStatus } from '../../shared/statusUtils';
+import { normalizeErosionStatus } from '../../shared/statusUtils';
 import { deleteErosion, saveErosion } from '../../../services/erosionService';
 import {
   appendFollowupEvent,
+  buildCriticalityInputFromErosion,
   buildManualFollowupEvent,
   buildErosionReportRows,
   buildErosionsCsv,
   buildImpactSummary,
-  EROSION_LOCATION_OPTIONS,
+  deriveErosionTypeFromTechnicalFields,
   filterErosionsForReport,
-  normalizeFollowupEventType,
+  normalizeErosionTechnicalFields,
   normalizeFollowupHistory,
   validateErosionLocation,
+  validateErosionTechnicalFields,
 } from '../utils/erosionUtils';
+import {
+  hasValidDecimalCoordinates,
+  normalizeLocationCoordinates,
+  parseCoordinateNumber,
+  resolveLocationCoordinatesForSave,
+} from '../utils/erosionCoordinates';
+import {
+  buildBatchErosionFichasPdfDocument,
+  buildSingleErosionFichaPdfDocument,
+} from '../utils/erosionPdfTemplates';
+import ErosionReportPanel from './ErosionReportPanel';
+import ErosionCardGrid from './ErosionCardGrid';
+import ErosionFormModal from './ErosionFormModal';
+import ErosionDetailsModal from './ErosionDetailsModal';
+import ErosionConfirmDeleteModal from './ErosionConfirmDeleteModal';
 
-const baseForm = {
+const BASE_FORM = {
   id: '',
   projetoId: '',
   vistoriaId: '',
@@ -26,13 +43,35 @@ const baseForm = {
   torreRef: '',
   localTipo: '',
   localDescricao: '',
-  tipo: '',
   estagio: '',
   profundidade: '',
-  declividade: '',
-  largura: '',
   latitude: '',
   longitude: '',
+  locationCoordinates: {
+    latitude: '',
+    longitude: '',
+    utmEasting: '',
+    utmNorthing: '',
+    utmZone: '',
+    utmHemisphere: '',
+    altitude: '',
+    reference: '',
+  },
+  faixaServidao: '',
+  areaTerceiros: '',
+  usoSolo: '',
+  presencaAguaFundo: '',
+  tiposFeicao: [],
+  caracteristicasFeicao: [],
+  larguraMaximaClasse: '',
+  declividadeClasse: '',
+  usosSolo: [],
+  usoSoloOutro: '',
+  saturacaoPorAgua: '',
+  // Backward compatibility for legacy consumers.
+  soloSaturadoAgua: '',
+  medidaPreventiva: '',
+  fotosLinks: [],
   status: 'Ativo',
   obs: '',
   acompanhamentosResumo: [],
@@ -41,8 +80,8 @@ const baseForm = {
 function getInspectionDateScore(inspection) {
   const candidates = [inspection?.dataFim, inspection?.dataInicio, inspection?.data];
   for (let i = 0; i < candidates.length; i += 1) {
-    const d = new Date(candidates[i]);
-    if (!Number.isNaN(d.getTime())) return d.getTime();
+    const date = new Date(candidates[i]);
+    if (!Number.isNaN(date.getTime())) return date.getTime();
   }
   return null;
 }
@@ -59,15 +98,109 @@ function resolvePrimaryInspectionId(inspectionIds, inspections) {
   if (!inspectionIds || inspectionIds.length === 0) return '';
   const inspectionById = new Map((inspections || []).map((item) => [String(item?.id || '').trim(), item]));
   return [...inspectionIds].sort((a, b) => {
-    const ia = inspectionById.get(String(a || '').trim());
-    const ib = inspectionById.get(String(b || '').trim());
-    const da = getInspectionDateScore(ia);
-    const db = getInspectionDateScore(ib);
-    if (da !== null && db !== null) return db - da;
-    if (da !== null) return -1;
-    if (db !== null) return 1;
+    const inspectionA = inspectionById.get(String(a || '').trim());
+    const inspectionB = inspectionById.get(String(b || '').trim());
+    const dateA = getInspectionDateScore(inspectionA);
+    const dateB = getInspectionDateScore(inspectionB);
+    if (dateA !== null && dateB !== null) return dateB - dateA;
+    if (dateA !== null) return -1;
+    if (dateB !== null) return 1;
     return String(b || '').localeCompare(String(a || ''));
   })[0];
+}
+
+function sanitizePhotoLinks(input = []) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+}
+
+function validatePhotoLinks(links = []) {
+  const invalid = links.find((link) => !/^https?:\/\//i.test(String(link || '').trim()));
+  if (!invalid) return { ok: true, message: '' };
+  return {
+    ok: false,
+    message: `Link de foto invalido: ${invalid}`,
+  };
+}
+
+function sanitizeArrayOfStrings(input) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+}
+
+function sanitizePhotoLinksInput(input) {
+  if (Array.isArray(input)) {
+    return input
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  }
+
+  const text = String(input || '').trim();
+  if (!text) return [];
+  return text
+    .split(/[\n|]/)
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+}
+
+function buildSafeErosionFormState(source, mode = 'new', inspections = []) {
+  const raw = source && typeof source === 'object' ? source : {};
+  const technical = normalizeErosionTechnicalFields(raw);
+  const locationCoordinates = normalizeLocationCoordinates(raw);
+  const inspectionIds = normalizeErosionInspectionIds(raw);
+  const normalizedInspectionIds = sanitizeArrayOfStrings(inspectionIds);
+  const fallbackInspectionId = resolvePrimaryInspectionId(normalizedInspectionIds, inspections);
+  const explicitInspectionId = String(raw.vistoriaId || '').trim();
+  const primaryInspectionId = explicitInspectionId || fallbackInspectionId;
+  const resolvedInspectionIds = primaryInspectionId
+    ? [...new Set([primaryInspectionId, ...normalizedInspectionIds])]
+    : normalizedInspectionIds;
+
+  const normalizedId = String(raw.id || '').trim();
+  const generatedId = mode === 'new' || mode === 'draft' ? `ERS-${Date.now()}` : '';
+  const id = normalizedId || generatedId;
+
+  return {
+    ...BASE_FORM,
+    ...(raw && typeof raw === 'object' ? raw : {}),
+    id,
+    projetoId: String(raw.projetoId || '').trim(),
+    vistoriaId: primaryInspectionId || '',
+    vistoriaIds: resolvedInspectionIds,
+    torreRef: String(raw.torreRef || '').trim(),
+    localTipo: String(raw.localTipo || '').trim(),
+    localDescricao: String(raw.localDescricao || '').trim(),
+    estagio: String(raw.estagio || '').trim(),
+    profundidade: String(raw.profundidade || '').trim(),
+    status: normalizeErosionStatus(raw.status || BASE_FORM.status),
+    latitude: locationCoordinates.latitude,
+    longitude: locationCoordinates.longitude,
+    locationCoordinates: {
+      ...BASE_FORM.locationCoordinates,
+      ...locationCoordinates,
+    },
+    faixaServidao: String(raw.faixaServidao || '').trim(),
+    areaTerceiros: String(raw.areaTerceiros || '').trim(),
+    usoSolo: String(raw.usoSolo || '').trim(),
+    obs: String(raw.obs || '').trim(),
+    presencaAguaFundo: technical.presencaAguaFundo,
+    tiposFeicao: Array.isArray(technical.tiposFeicao) ? technical.tiposFeicao : [],
+    caracteristicasFeicao: Array.isArray(technical.caracteristicasFeicao) ? technical.caracteristicasFeicao : [],
+    larguraMaximaClasse: String(technical.larguraMaximaClasse || '').trim(),
+    declividadeClasse: String(technical.declividadeClasse || '').trim(),
+    usosSolo: Array.isArray(technical.usosSolo) ? technical.usosSolo : [],
+    usoSoloOutro: String(technical.usoSoloOutro || '').trim(),
+    saturacaoPorAgua: String(technical.saturacaoPorAgua || '').trim(),
+    // Backward compatibility for legacy consumers.
+    soloSaturadoAgua: String(technical.saturacaoPorAgua || '').trim(),
+    medidaPreventiva: String(raw.medidaPreventiva || '').trim(),
+    fotosLinks: sanitizePhotoLinksInput(raw.fotosLinks),
+    acompanhamentosResumo: normalizeFollowupHistory(raw.acompanhamentosResumo),
+  };
 }
 
 function downloadTextFile(filename, content, mimeType) {
@@ -82,35 +215,86 @@ function downloadTextFile(filename, content, mimeType) {
   URL.revokeObjectURL(url);
 }
 
+function parseTowerNumber(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const normalized = text.toLowerCase();
+  if (/^t-?\d+$/.test(normalized)) {
+    const parsed = Number(normalized.slice(1));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (/^-?\d+$/.test(normalized)) {
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  const match = normalized.match(/-?\d+/);
+  if (!match) return null;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatTowerGroupLabel(value) {
+  const raw = String(value || '').trim();
+  const parsed = parseTowerNumber(raw);
+  if (Number.isFinite(parsed)) return parsed === 0 ? 'Portico (T0)' : `Torre ${parsed}`;
+  if (raw) return `Torre ${raw}`;
+  return 'Torre nao informada';
+}
+
+function compareRowsByTowerAndId(a, b) {
+  const parsedA = parseTowerNumber(a?.torreRef);
+  const parsedB = parseTowerNumber(b?.torreRef);
+  const hasNumericA = Number.isFinite(parsedA);
+  const hasNumericB = Number.isFinite(parsedB);
+
+  if (hasNumericA && hasNumericB && parsedA !== parsedB) return parsedA - parsedB;
+  if (hasNumericA && !hasNumericB) return -1;
+  if (!hasNumericA && hasNumericB) return 1;
+
+  const textA = String(a?.torreRef || '').trim().toLowerCase();
+  const textB = String(b?.torreRef || '').trim().toLowerCase();
+  if (textA !== textB) return textA.localeCompare(textB, 'pt-BR', { sensitivity: 'base', numeric: true });
+
+  return String(a?.id || '').localeCompare(String(b?.id || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+}
+
 function openReportPdfWindow({ projectId, rows, selectedYears }) {
   const summary = buildImpactSummary(rows);
   const now = new Date();
-  const win = window.open('', '_blank', 'noopener,noreferrer,width=1024,height=768');
-  if (!win) throw new Error('Permita pop-up para exportar PDF.');
-
   const statusRows = Object.entries(summary.byStatus)
-    .map(([k, v]) => `<li><strong>${k}</strong>: ${v}</li>`)
+    .map(([key, value]) => `<li><strong>${key}</strong>: ${value}</li>`)
     .join('');
   const impactRows = Object.entries(summary.byImpact)
-    .map(([k, v]) => `<li><strong>${k}</strong>: ${v}</li>`)
+    .map(([key, value]) => `<li><strong>${key}</strong>: ${value}</li>`)
     .join('');
 
-  const tableRows = rows.map((row) => `
-    <tr>
-      <td>${row.id}</td>
-      <td>${row.vistoriaId || '-'}</td>
-      <td>${row.torreRef || '-'}</td>
-      <td>${row.localTipo || '-'}</td>
-      <td>${row.status || '-'}</td>
-      <td>${row.impacto || '-'}</td>
-      <td>${row.ultimaAtualizacao || '-'}</td>
-    </tr>
-  `).join('');
+  const sortedRows = [...(rows || [])].sort(compareRowsByTowerAndId);
+  let previousTowerGroup = null;
+  const tableRows = sortedRows.map((row) => {
+    const currentTowerGroup = formatTowerGroupLabel(row?.torreRef);
+    const groupRow = currentTowerGroup !== previousTowerGroup
+      ? `<tr><td colspan="7" style="background:#e2e8f0;font-weight:700;">Grupo da torre: ${currentTowerGroup}</td></tr>`
+      : '';
+    previousTowerGroup = currentTowerGroup;
 
-  win.document.write(`
+    return `
+      ${groupRow}
+      <tr>
+        <td>${row.id}</td>
+        <td>${row.vistoriaId || '-'}</td>
+        <td>${row.torreRef || '-'}</td>
+        <td>${row.localTipo || '-'}</td>
+        <td>${row.status || '-'}</td>
+        <td>${row.impacto || '-'}</td>
+        <td>${row.ultimaAtualizacao || '-'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const documentHtml = `
     <html>
       <head>
-        <title>Relatório de Erosões - ${projectId}</title>
+        <title>Relatorio de Erosoes - ${projectId}</title>
         <style>
           body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; }
           h1 { margin: 0 0 8px; }
@@ -123,13 +307,13 @@ function openReportPdfWindow({ projectId, rows, selectedYears }) {
         </style>
       </head>
       <body>
-        <h1>Relatório de Processos Erosivos</h1>
+        <h1>Relatorio de Processos Erosivos</h1>
         <div class="meta">
           <div><strong>Empreendimento:</strong> ${projectId}</div>
           <div><strong>Ano(s):</strong> ${selectedYears.length > 0 ? selectedYears.join(', ') : 'Todos'}</div>
-          <div><strong>Período consolidado:</strong> ${selectedYears.length > 0 ? `${selectedYears[0]}-01-01 até ${selectedYears[selectedYears.length - 1]}-12-31` : 'Histórico completo do empreendimento'}</div>
+          <div><strong>Periodo consolidado:</strong> ${selectedYears.length > 0 ? `${selectedYears[0]}-01-01 ate ${selectedYears[selectedYears.length - 1]}-12-31` : 'Historico completo do empreendimento'}</div>
           <div><strong>Gerado em:</strong> ${now.toLocaleString('pt-BR')}</div>
-          <div><strong>Total de erosões:</strong> ${rows.length}</div>
+          <div><strong>Total de erosoes:</strong> ${rows.length}</div>
         </div>
         <div class="grid">
           <div class="box">
@@ -150,7 +334,7 @@ function openReportPdfWindow({ projectId, rows, selectedYears }) {
               <th>Local</th>
               <th>Status</th>
               <th>Impacto</th>
-              <th>Atualização</th>
+              <th>Atualizacao</th>
             </tr>
           </thead>
           <tbody>
@@ -159,153 +343,87 @@ function openReportPdfWindow({ projectId, rows, selectedYears }) {
         </table>
       </body>
     </html>
-  `);
-  win.document.close();
-  win.focus();
-  win.print();
+  `;
+
+  openPrintableWindow(documentHtml);
 }
 
-function openErosionDetailsPdfWindow({ erosion, project, history }) {
-  const win = window.open('', '_blank', 'noopener,noreferrer,width=1024,height=768');
+function openPrintableWindow(documentHtml) {
+  const win = window.open('', '_blank', 'width=1120,height=820');
   if (!win) throw new Error('Permita pop-up para exportar PDF.');
 
-  const escapeHtml = (value) => String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  let printed = false;
+  const printOnce = () => {
+    if (printed) return;
+    printed = true;
+    win.focus();
+    win.print();
+  };
 
-  const historyHtml = (history || []).map((item) => {
-    const itemType = normalizeFollowupEventType(item);
-    const typeLabel = itemType === 'obra' ? 'Obra' : (itemType === 'autuacao' ? 'Autuação' : 'Sistema');
-    const toneClass = itemType === 'obra' ? 'tone-obra' : (itemType === 'autuacao' ? 'tone-autuacao' : 'tone-sistema');
-    const details = itemType === 'obra'
-      ? `Etapa: ${escapeHtml(item.obraEtapa || '-')} | Descrição: ${escapeHtml(item.descricao || '-')}`
-      : (itemType === 'autuacao'
-        ? `Órgão: ${escapeHtml(item.orgao || '-')} | Nº/Descrição: ${escapeHtml(item.numeroOuDescricao || '-')} | Status: ${escapeHtml(item.autuacaoStatus || '-')}`
-        : `Status da erosão: ${escapeHtml(item.statusNovo || '-')}`);
-    return `
-      <div class="timeline-item ${toneClass} avoid-break">
-        <div class="timeline-head">
-          <span class="badge">${escapeHtml(typeLabel)}</span>
-          <span class="date">${escapeHtml(item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : '-')}</span>
-        </div>
-        <div class="timeline-summary">${escapeHtml(item.resumo || '-')}</div>
-        <div class="timeline-details">${details}</div>
-        <div class="timeline-meta">Usuário: ${escapeHtml(item.usuario || '-')} | Origem: ${escapeHtml(item.origem || '-')}</div>
-      </div>
-    `;
-  }).join('');
+  const doc = win.document;
+  if (typeof doc?.open === 'function') doc.open();
+  if (typeof doc?.write === 'function') doc.write(documentHtml);
+  if (typeof doc?.close === 'function') doc.close();
 
-  const obs = escapeHtml(String(erosion?.obs || '').trim() || '-').replace(/\n/g, '<br />');
+  win.onload = () => {
+    setTimeout(printOnce, 120);
+  };
 
-  win.document.write(`
-    <html>
-      <head>
-        <title>Detalhes da Erosão ${escapeHtml(erosion?.id || '-')}</title>
-        <style>
-          @page { size: A4; margin: 12mm; }
-          * { box-sizing: border-box; }
-          body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; background: #f8fafc; }
-          .wrapper { max-width: 100%; }
-          .header { background: linear-gradient(135deg, #dbeafe 0%, #e2e8f0 100%); border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px; }
-          .title { font-size: 19px; font-weight: 700; margin: 0 0 4px 0; color: #1e3a8a; }
-          .meta { color: #475569; font-size: 11px; }
-          .section { margin-top: 12px; border: 1px solid #dbe4ee; border-radius: 10px; background: #ffffff; padding: 12px; }
-          .section-title { font-size: 13px; font-weight: 700; margin: 0 0 8px 0; color: #0f172a; }
-          .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-          .row { line-height: 1.4; color: #1f2937; }
-          .label { color: #475569; font-weight: 600; }
-          .crit-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-          .crit-card { border: 1px solid #fdba74; border-radius: 8px; background: #fff7ed; padding: 8px; }
-          .crit-card .k { color: #9a3412; font-size: 11px; font-weight: 600; }
-          .crit-card .v { color: #7c2d12; font-size: 13px; font-weight: 700; margin-top: 2px; }
-          .timeline-item { border: 1px solid #e2e8f0; border-left: 4px solid #94a3b8; border-radius: 8px; padding: 8px; margin-bottom: 8px; background: #fff; }
-          .tone-obra { border-left-color: #3b82f6; background: #f8fbff; }
-          .tone-autuacao { border-left-color: #f59e0b; background: #fffbeb; }
-          .tone-sistema { border-left-color: #64748b; background: #f8fafc; }
-          .timeline-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
-          .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #e2e8f0; color: #334155; }
-          .date { font-size: 10px; color: #64748b; }
-          .timeline-summary { font-weight: 600; color: #1f2937; margin-bottom: 2px; }
-          .timeline-details { font-size: 11px; color: #334155; margin-bottom: 2px; }
-          .timeline-meta { font-size: 10px; color: #64748b; }
-          .empty { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; color: #64748b; background: #f8fafc; }
-          .avoid-break { page-break-inside: avoid; }
-        </style>
-      </head>
-      <body>
-        <div class="wrapper">
-          <div class="header avoid-break">
-            <h1 class="title">Detalhes da Erosão ${escapeHtml(erosion?.id || '-')}</h1>
-            <div class="meta">Empreendimento: ${escapeHtml(erosion?.projetoId || '-')} ${project?.nome ? `(${escapeHtml(project.nome)})` : ''}</div>
-            <div class="meta">Gerado em: ${new Date().toLocaleString('pt-BR')}</div>
-          </div>
-
-          <div class="section avoid-break">
-            <h2 class="section-title">Resumo</h2>
-            <div class="summary-grid">
-              <div class="row"><span class="label">ID:</span> ${escapeHtml(erosion?.id || '-')}</div>
-              <div class="row"><span class="label">Torre:</span> ${escapeHtml(erosion?.torreRef || '-')}</div>
-              <div class="row"><span class="label">Status:</span> ${escapeHtml(erosion?.status || '-')}</div>
-              <div class="row"><span class="label">Impacto:</span> ${escapeHtml(erosion?.impacto || '-')}</div>
-              <div class="row"><span class="label">Coordenadas:</span> ${escapeHtml(`${erosion?.latitude || '-'}, ${erosion?.longitude || '-'}`)}</div>
-              <div class="row"><span class="label">Última atualização:</span> ${escapeHtml(erosion?.ultimaAtualizacao ? new Date(erosion.ultimaAtualizacao).toLocaleString('pt-BR') : '-')}</div>
-              <div class="row"><span class="label">Atualizado por:</span> ${escapeHtml(erosion?.atualizadoPor || '-')}</div>
-              <div class="row"><span class="label">Local:</span> ${escapeHtml(erosion?.localTipo || '-')}</div>
-            </div>
-            <div class="row" style="margin-top:8px;"><span class="label">Observações:</span> ${obs}</div>
-          </div>
-
-          <div class="section avoid-break">
-            <h2 class="section-title">Análise de Criticidade</h2>
-            <div class="crit-grid">
-              <div class="crit-card">
-                <div class="k">Score de risco</div>
-                <div class="v">${escapeHtml(erosion?.score ?? 'N/A')}</div>
-              </div>
-              <div class="crit-card">
-                <div class="k">Frequência de revisita</div>
-                <div class="v">${escapeHtml(erosion?.frequencia || '-')}</div>
-              </div>
-              <div class="crit-card">
-                <div class="k">Intervenção recomendada</div>
-                <div class="v">${escapeHtml(erosion?.intervencao || '-')}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2 class="section-title">Histórico de Acompanhamento</h2>
-            ${historyHtml || '<div class="empty">Sem histórico de acompanhamento.</div>'}
-          </div>
-        </div>
-      </body>
-    </html>
-  `);
-  win.document.close();
-  win.focus();
-  win.print();
+  // Fallback para navegadores que nao disparam onload como esperado em about:blank.
+  setTimeout(printOnce, 450);
 }
 
-function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm }) {
+function openErosionDetailsPdfWindow({
+  erosion,
+  project,
+  history,
+  relatedInspections,
+}) {
+  const documentHtml = buildSingleErosionFichaPdfDocument({
+    erosion,
+    project,
+    history,
+    relatedInspections,
+  });
+  openPrintableWindow(documentHtml);
+}
+
+function openBatchErosionFichasPdfWindow({
+  projectId,
+  project,
+  rows,
+}) {
+  const documentHtml = buildBatchErosionFichasPdfDocument({
+    projectId,
+    project,
+    rows,
+  });
+  openPrintableWindow(documentHtml);
+}
+
+function ErosionsView({
+  erosions = [],
+  projects = [],
+  inspections = [],
+  rulesConfig,
+  searchTerm = '',
+  pendingDraft = null,
+  onDraftConsumed,
+}) {
   const { user } = useAuth();
   const { show } = useToast();
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [formData, setFormData] = useState(baseForm);
+  const [formData, setFormData] = useState(BASE_FORM);
   const [editingId, setEditingId] = useState('');
   const [detailsModal, setDetailsModal] = useState(null);
-  const [showAddEventForm, setShowAddEventForm] = useState(false);
-  const [savingEvent, setSavingEvent] = useState(false);
-  const [eventForm, setEventForm] = useState({
-    tipoEvento: 'obra',
-    obraEtapa: 'Projeto',
-    descricao: '',
-    orgao: '',
-    numeroOuDescricao: '',
-    autuacaoStatus: 'Aberta',
-  });
+  const [deleteModal, setDeleteModal] = useState(null);
+  const [utmErrorToken, setUtmErrorToken] = useState(0);
+  const [isCardsVisible, setIsCardsVisible] = useState(false);
+  const [isReportPanelCollapsed, setIsReportPanelCollapsed] = useState(true);
+  const [projectSearchTerm, setProjectSearchTerm] = useState('');
+  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
+  const projectDropdownRef = useRef(null);
+  const projectDropdownSearchRef = useRef(null);
   const currentYear = new Date().getFullYear();
   const [reportFilters, setReportFilters] = useState({
     projetoId: '',
@@ -314,30 +432,56 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
     anosExtras: [],
   });
 
-  const sorted = useMemo(() => {
-    const t = String(searchTerm || '').toLowerCase();
-    const base = [...erosions].sort((a, b) => String(b.id).localeCompare(String(a.id)));
-    if (!t) return base;
-    return base.filter((e) =>
-      String(e.id || '').toLowerCase().includes(t)
-      || String(e.projetoId || '').toLowerCase().includes(t)
-      || String(e.torreRef || '').toLowerCase().includes(t)
-      || String(e.impacto || '').toLowerCase().includes(t),
-    );
-  }, [erosions, searchTerm]);
-
   const actorName = String(user?.displayName || user?.email || user?.uid || '').trim();
+
+  const selectedProject = useMemo(
+    () => (projects || []).find((item) => String(item?.id || '').trim() === String(reportFilters.projetoId || '').trim()) || null,
+    [projects, reportFilters.projetoId],
+  );
+
+  const filteredProjects = useMemo(() => {
+    const term = String(projectSearchTerm || '').trim().toLowerCase();
+    if (!term) return projects || [];
+    return (projects || []).filter((project) => {
+      const id = String(project?.id || '').toLowerCase();
+      const name = String(project?.nome || '').toLowerCase();
+      return id.includes(term) || name.includes(term);
+    });
+  }, [projects, projectSearchTerm]);
+
+  const filteredCards = useMemo(() => {
+    const selectedProjectKey = String(reportFilters.projetoId || '').trim().toLowerCase();
+    if (!selectedProjectKey) return [];
+
+    const term = String(searchTerm || '').toLowerCase();
+    const base = (erosions || [])
+      .filter((item) => item && typeof item === 'object')
+      .map((item) => ({
+        ...item,
+        tipo: deriveErosionTypeFromTechnicalFields(item),
+      }))
+      .filter((item) => String(item?.projetoId || '').trim().toLowerCase() === selectedProjectKey)
+      .sort(compareRowsByTowerAndId);
+    if (!term) return base;
+    return base.filter((erosion) => String(erosion.id || '').toLowerCase().includes(term)
+      || String(erosion.projetoId || '').toLowerCase().includes(term)
+      || String(erosion.torreRef || '').toLowerCase().includes(term)
+      || String(erosion.impacto || '').toLowerCase().includes(term));
+  }, [erosions, reportFilters.projetoId, searchTerm]);
 
   const reportYears = useMemo(() => {
     if (!reportFilters.projetoId) return [currentYear];
-    const inspectionsById = new Map((inspections || []).map((item) => [String(item?.id || '').trim(), item]));
+    const inspectionsById = new Map((inspections || []).map((inspection) => [String(inspection?.id || '').trim(), inspection]));
     const yearsSet = new Set();
+
     (erosions || []).forEach((item) => {
       const linkedInspectionIds = normalizeErosionInspectionIds(item);
       const fallbackProjectId = linkedInspectionIds
         .map((inspectionId) => inspectionsById.get(inspectionId)?.projetoId)
         .find(Boolean);
+
       if (String((item?.projetoId || fallbackProjectId || '')).trim().toLowerCase() !== String(reportFilters.projetoId || '').trim().toLowerCase()) return;
+
       const candidates = [
         item?.ultimaAtualizacao,
         item?.updatedAt,
@@ -345,22 +489,22 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
         item?.dataCadastro,
         item?.data,
       ];
+
       linkedInspectionIds.forEach((inspectionId) => {
         const inspection = inspectionsById.get(inspectionId);
-        candidates.push(inspection?.dataFim, inspection?.dataInicio);
+        candidates.push(inspection?.dataFim, inspection?.dataInicio, inspection?.data);
       });
-      let parsedYear = null;
+
       for (let i = 0; i < candidates.length; i += 1) {
-        const d = new Date(candidates[i]);
-        if (!Number.isNaN(d.getTime())) {
-          parsedYear = d.getFullYear();
-          break;
-        }
+        const date = new Date(candidates[i]);
+        if (Number.isNaN(date.getTime())) continue;
+        yearsSet.add(date.getFullYear());
+        break;
       }
-      if (Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= 9999) yearsSet.add(parsedYear);
     });
-    const sortedYears = [...yearsSet].sort((a, b) => b - a);
-    return sortedYears.length > 0 ? sortedYears : [currentYear];
+
+    const years = [...yearsSet].sort((a, b) => b - a);
+    return years.length > 0 ? years : [currentYear];
   }, [erosions, inspections, reportFilters.projetoId, currentYear]);
 
   const selectedReportYears = useMemo(() => {
@@ -370,60 +514,137 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
     const extras = (reportFilters.anosExtras || [])
       .map((year) => Number(year))
       .filter((year) => Number.isInteger(year) && year >= 1900 && year <= 9999 && year !== baseYear);
+
     if (!reportFilters.mostrarMultiAno) {
       if (!hasBaseYear) return [];
       return [baseYear];
     }
+
     if (!hasBaseYear) return [...new Set(extras)].sort((a, b) => a - b);
     return [...new Set([baseYear, ...extras])].sort((a, b) => a - b);
   }, [reportFilters]);
 
+  const activeDetailsErosion = useMemo(() => {
+    if (!detailsModal) return null;
+    return erosions.find((item) => item.id === detailsModal.id) || detailsModal;
+  }, [detailsModal, erosions]);
+
   const relatedInspectionsInDetails = useMemo(() => {
-    if (!detailsModal) return [];
-    const ids = normalizeErosionInspectionIds(detailsModal);
-    const byId = new Map((inspections || []).map((item) => [String(item?.id || '').trim(), item]));
+    if (!activeDetailsErosion) return [];
+    const ids = normalizeErosionInspectionIds(activeDetailsErosion);
+    const inspectionsById = new Map((inspections || []).map((item) => [String(item?.id || '').trim(), item]));
     return ids.map((id) => ({
       id,
-      inspection: byId.get(id) || null,
+      inspection: inspectionsById.get(id) || null,
     }));
-  }, [detailsModal, inspections]);
+  }, [activeDetailsErosion, inspections]);
+
+  useEffect(() => {
+    if (!pendingDraft) return;
+    const safeState = buildSafeErosionFormState({
+      ...pendingDraft,
+      id: `ERS-${Date.now()}`,
+      obs: pendingDraft.obs || (pendingDraft.origemDia ? `Origem da vistoria (${pendingDraft.origemDia}).` : ''),
+    }, 'draft', inspections);
+    setFormData(safeState);
+    setUtmErrorToken(0);
+    setEditingId('');
+    setIsFormOpen(true);
+    onDraftConsumed?.();
+  }, [pendingDraft, onDraftConsumed, inspections]);
+
+  useEffect(() => {
+    if (!isProjectDropdownOpen) return undefined;
+
+    function handlePointerDown(event) {
+      if (!projectDropdownRef.current?.contains(event.target)) {
+        setIsProjectDropdownOpen(false);
+        setProjectSearchTerm('');
+      }
+    }
+
+    function handleEscape(event) {
+      if (event.key !== 'Escape') return;
+      setIsProjectDropdownOpen(false);
+      setProjectSearchTerm('');
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isProjectDropdownOpen]);
+
+  useEffect(() => {
+    if (!isProjectDropdownOpen) return undefined;
+    const timer = window.setTimeout(() => {
+      projectDropdownSearchRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isProjectDropdownOpen]);
+
+  function handleProjectSelectionChange(nextProjectId) {
+    const normalizedProjectId = String(nextProjectId || '').trim();
+    const hasProjectChanged = String(reportFilters.projetoId || '').trim() !== normalizedProjectId;
+    setReportFilters((prev) => ({
+      ...prev,
+      projetoId: normalizedProjectId,
+      ano: hasProjectChanged ? '' : prev.ano,
+      mostrarMultiAno: hasProjectChanged ? false : prev.mostrarMultiAno,
+      anosExtras: hasProjectChanged ? [] : prev.anosExtras,
+    }));
+    if (hasProjectChanged) setIsCardsVisible(!!normalizedProjectId);
+  }
+
+  function formatProjectOptionLabel(project) {
+    const id = String(project?.id || '').trim();
+    const name = String(project?.nome || '').trim();
+    if (!id && !name) return '-';
+    if (!name) return id;
+    if (!id) return name;
+    return `${id} - ${name}`;
+  }
+
+  function handleSelectProjectFromDropdown(nextProjectId) {
+    handleProjectSelectionChange(nextProjectId);
+    setIsProjectDropdownOpen(false);
+    setProjectSearchTerm('');
+  }
 
   function openNew() {
-    setFormData({ ...baseForm, id: `ERS-${Date.now()}` });
+    const safeState = buildSafeErosionFormState({}, 'new', inspections);
+    setFormData(safeState);
+    setUtmErrorToken(0);
     setEditingId('');
     setIsFormOpen(true);
   }
 
   function openEdit(erosion) {
-    const inspectionIds = normalizeErosionInspectionIds(erosion);
-    setFormData({
-      ...baseForm,
-      ...erosion,
-      status: normalizeErosionStatus(erosion?.status),
-      vistoriaId: resolvePrimaryInspectionId(inspectionIds, inspections),
-      vistoriaIds: inspectionIds,
-      localTipo: erosion?.localTipo || '',
-      localDescricao: erosion?.localDescricao || '',
-      acompanhamentosResumo: normalizeFollowupHistory(erosion?.acompanhamentosResumo),
-    });
-    setEditingId(erosion.id);
+    const safeState = buildSafeErosionFormState(erosion, 'edit', inspections);
+    setFormData(safeState);
+    setUtmErrorToken(0);
+    setEditingId(String(safeState.id || ''));
     setIsFormOpen(true);
   }
 
   function hasCoordinates(erosion) {
-    const lat = Number(erosion?.latitude);
-    const lng = Number(erosion?.longitude);
-    return Number.isFinite(lat) && Number.isFinite(lng);
+    return hasValidDecimalCoordinates(erosion);
   }
 
-  function openGoogleMapsRoute(lat, lng) {
-    const latNum = Number(lat);
-    const lngNum = Number(lng);
-    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
-      show('Coordenadas inválidas para navegação.', 'error');
+  function openGoogleMapsRoute(erosion) {
+    const coordinates = normalizeLocationCoordinates(erosion || {});
+    const latitude = parseCoordinateNumber(coordinates.latitude);
+    const longitude = parseCoordinateNumber(coordinates.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      show('Coordenadas invalidas para navegacao.', 'error');
       return;
     }
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${latNum},${lngNum}&travelmode=driving`;
+
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
@@ -440,45 +661,100 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
         return;
       }
 
-      const nextPayload = {
-        ...formData,
-        status: normalizeErosionStatus(formData.status),
-      };
+      const photos = sanitizePhotoLinks(formData.fotosLinks);
+      const photosValidation = validatePhotoLinks(photos);
+      if (!photosValidation.ok) {
+        show(photosValidation.message, 'error');
+        return;
+      }
+
+      const technicalValidation = validateErosionTechnicalFields(formData);
+      if (!technicalValidation.ok) {
+        show(technicalValidation.message, 'error');
+        return;
+      }
+
+      const locationResult = resolveLocationCoordinatesForSave(formData);
+      if (!locationResult.ok) {
+        if (String(locationResult.error || '').toLowerCase().includes('utm')) {
+          setUtmErrorToken((prev) => prev + 1);
+        }
+        show(locationResult.error, 'error');
+        return;
+      }
+
       const persisted = erosions.find((item) => item.id === formData.id) || null;
       const mergedInspectionIds = [...new Set([
         ...normalizeErosionInspectionIds(formData),
         ...normalizeErosionInspectionIds(persisted),
       ])];
       const primaryInspectionId = resolvePrimaryInspectionId(mergedInspectionIds, inspections);
-      if (primaryInspectionId) {
-        nextPayload.vistoriaId = primaryInspectionId;
-        nextPayload.vistoriaIds = mergedInspectionIds;
-      } else {
-        nextPayload.vistoriaId = '';
-        nextPayload.vistoriaIds = [];
-      }
+      const normalizedTechnicalData = {
+        ...formData,
+        tiposFeicao: technicalValidation.value.tiposFeicao,
+        caracteristicasFeicao: technicalValidation.value.caracteristicasFeicao,
+        larguraMaximaClasse: technicalValidation.value.larguraMaximaClasse,
+        declividadeClasse: technicalValidation.value.declividadeClasse,
+      };
+      const criticalityInput = buildCriticalityInputFromErosion(normalizedTechnicalData);
 
-      const criticality = calculateCriticality(nextPayload, rulesConfig);
+      const nextPayload = {
+        ...formData,
+        tipo: deriveErosionTypeFromTechnicalFields(normalizedTechnicalData),
+        declividade: criticalityInput.declividade,
+        largura: criticalityInput.largura,
+        status: normalizeErosionStatus(formData.status),
+        locationCoordinates: locationResult.locationCoordinates,
+        latitude: locationResult.latitude || '',
+        longitude: locationResult.longitude || '',
+        presencaAguaFundo: technicalValidation.value.presencaAguaFundo,
+        tiposFeicao: technicalValidation.value.tiposFeicao,
+        caracteristicasFeicao: technicalValidation.value.caracteristicasFeicao,
+        larguraMaximaClasse: technicalValidation.value.larguraMaximaClasse,
+        declividadeClasse: technicalValidation.value.declividadeClasse,
+        // Backward compatibility for legacy consumers.
+        declividadeClassePdf: technicalValidation.value.declividadeClasse,
+        usosSolo: technicalValidation.value.usosSolo,
+        usoSoloOutro: technicalValidation.value.usoSoloOutro,
+        saturacaoPorAgua: technicalValidation.value.saturacaoPorAgua,
+        // Backward compatibility for legacy consumers.
+        soloSaturadoAgua: technicalValidation.value.saturacaoPorAgua,
+        fotosLinks: photos,
+        vistoriaId: primaryInspectionId || '',
+        vistoriaIds: primaryInspectionId ? mergedInspectionIds : [],
+      };
+
+      const criticality = calculateCriticality(criticalityInput, rulesConfig);
 
       await saveErosion(
         {
           ...nextPayload,
           criticality,
         },
-        { updatedBy: actorName, merge: true },
+        {
+          updatedBy: actorName,
+          merge: true,
+        },
       );
 
       setIsFormOpen(false);
-      show('Erosão salva com sucesso.', 'success');
-    } catch (e) {
-      show(e.message || 'Erro ao salvar erosão.', 'error');
+      setUtmErrorToken(0);
+      show('Erosao salva com sucesso.', 'success');
+    } catch (err) {
+      show(err.message || 'Erro ao salvar erosao.', 'error');
     }
   }
 
-  async function handleDelete(id) {
-    if (!window.confirm(`Excluir erosão ${id}?`)) return;
-    await deleteErosion(id);
-    show('Erosão excluída.', 'success');
+  async function handleConfirmDelete() {
+    if (!deleteModal?.id) return;
+    try {
+      await deleteErosion(deleteModal.id);
+      setDeleteModal(null);
+      if (detailsModal?.id === deleteModal.id) setDetailsModal(null);
+      show('Erosao excluida.', 'success');
+    } catch (err) {
+      show(err.message || 'Erro ao excluir erosao.', 'error');
+    }
   }
 
   function handleExportCsv() {
@@ -487,10 +763,15 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
       return;
     }
 
-    const filteredRows = filterErosionsForReport(erosions, {
-      ...reportFilters,
-      anos: selectedReportYears,
-    }, inspections);
+    const filteredRows = filterErosionsForReport(
+      erosions,
+      {
+        ...reportFilters,
+        anos: selectedReportYears,
+      },
+      inspections,
+    );
+
     const rows = buildErosionReportRows(filteredRows);
     const csv = buildErosionsCsv(rows);
     const yearLabel = selectedReportYears.length > 0 ? selectedReportYears.join('-') : 'todos-os-anos';
@@ -505,448 +786,331 @@ function ErosionsView({ erosions, projects, inspections, rulesConfig, searchTerm
       return;
     }
 
-    const filteredRows = filterErosionsForReport(erosions, {
-      ...reportFilters,
-      anos: selectedReportYears,
-    }, inspections);
+    const filteredRows = filterErosionsForReport(
+      erosions,
+      {
+        ...reportFilters,
+        anos: selectedReportYears,
+      },
+      inspections,
+    );
+
     const rows = buildErosionReportRows(filteredRows);
-    openReportPdfWindow({ projectId: reportFilters.projetoId, rows, selectedYears: selectedReportYears });
-    show('PDF preparado para impressão.', 'success');
+    openReportPdfWindow({
+      projectId: reportFilters.projetoId,
+      rows,
+      selectedYears: selectedReportYears,
+    });
+    show('PDF preparado para impressao.', 'success');
   }
 
-  async function handleAddManualHistoryEvent() {
-    if (!detailsModal) return;
-    const tipo = String(eventForm.tipoEvento || '').trim();
-    if (tipo === 'obra') {
-      if (!String(eventForm.obraEtapa || '').trim()) {
-        show('Selecione a etapa da obra.', 'error');
-        return;
-      }
-      if (!String(eventForm.descricao || '').trim()) {
-        show('Descreva a obra para registrar no histórico.', 'error');
-        return;
-      }
-    } else if (tipo === 'autuacao') {
-      if (!String(eventForm.orgao || '').trim()) {
-        show('Informe o órgão público.', 'error');
-        return;
-      }
-      if (!String(eventForm.numeroOuDescricao || '').trim()) {
-        show('Informe o número ou descrição da autuação.', 'error');
-        return;
-      }
-      if (!String(eventForm.autuacaoStatus || '').trim()) {
-        show('Selecione o status da autuação.', 'error');
-        return;
-      }
-    } else {
-      show('Tipo de evento inválido.', 'error');
+  function buildPdfRowsByProject(projectId) {
+    return filterErosionsForReport(
+      erosions,
+      {
+        projetoId: projectId,
+        anos: [],
+      },
+      inspections,
+    )
+      .filter((item) => item && typeof item === 'object')
+      .sort(compareRowsByTowerAndId);
+  }
+
+  function getRelatedInspections(erosion) {
+    const ids = normalizeErosionInspectionIds(erosion);
+    const inspectionsById = new Map((inspections || []).map((item) => [String(item?.id || '').trim(), item]));
+    return ids.map((id) => ({
+      id,
+      inspection: inspectionsById.get(id) || null,
+    }));
+  }
+
+  function getSortedHistory(erosion) {
+    return normalizeFollowupHistory(erosion?.acompanhamentosResumo)
+      .slice()
+      .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+  }
+
+  function handlePrintBatchFichasPdf() {
+    if (!reportFilters.projetoId) {
+      show('Selecione um empreendimento para imprimir fichas.', 'error');
       return;
     }
 
-    const target = erosions.find((item) => item.id === detailsModal.id) || detailsModal;
-    const manualEvent = buildManualFollowupEvent(eventForm, { updatedBy: actorName });
+    const projectErosions = buildPdfRowsByProject(reportFilters.projetoId);
+    if (projectErosions.length === 0) {
+      show('Nenhuma erosao encontrada para o empreendimento selecionado.', 'error');
+      return;
+    }
+
+    const project = (projects || []).find(
+      (item) => String(item?.id || '').trim().toLowerCase() === String(reportFilters.projetoId || '').trim().toLowerCase(),
+    ) || null;
+
+    const rows = projectErosions.map((erosion) => ({
+      erosion,
+      project,
+      history: getSortedHistory(erosion),
+      relatedInspections: getRelatedInspections(erosion),
+    }));
+
+    openBatchErosionFichasPdfWindow({
+      projectId: reportFilters.projetoId,
+      project,
+      rows,
+    });
+    show('Fichas em lote preparadas para impressao.', 'success');
+  }
+
+  async function handleSaveManualHistoryEvent(eventData) {
+    if (!activeDetailsErosion) return false;
+
+    const manualEvent = buildManualFollowupEvent(eventData, { updatedBy: actorName });
     if (!manualEvent) {
-      show('Dados do evento inválidos.', 'error');
-      return;
+      show('Dados do evento invalidos.', 'error');
+      return false;
     }
 
-    setSavingEvent(true);
     try {
-      const manualStep = String(manualEvent.obraEtapa || '').trim().toLowerCase();
-      const shouldStabilize = manualEvent.tipoEvento === 'obra'
-        && (manualStep === 'concluída' || manualStep === 'concluida');
-      const nextStatus = shouldStabilize ? 'Estabilizado' : normalizeErosionStatus(target?.status);
-      const nextInspectionIds = normalizeErosionInspectionIds(target);
-      await saveErosion({
-        ...target,
-        status: nextStatus,
-        vistoriaId: resolvePrimaryInspectionId(nextInspectionIds, inspections),
-        vistoriaIds: nextInspectionIds,
-        acompanhamentosResumo: appendFollowupEvent(target?.acompanhamentosResumo, manualEvent),
-      }, {
-        updatedBy: actorName,
-        merge: true,
-        skipAutoFollowup: true,
+      const etapa = String(manualEvent.obraEtapa || '').trim().toLowerCase();
+      const shouldStabilize = manualEvent.tipoEvento === 'obra' && (etapa === 'concluida' || etapa === 'concluída');
+      const nextStatus = shouldStabilize ? 'Estabilizado' : normalizeErosionStatus(activeDetailsErosion.status);
+      const nextInspectionIds = normalizeErosionInspectionIds(activeDetailsErosion);
+
+      await saveErosion(
+        {
+          ...activeDetailsErosion,
+          status: nextStatus,
+          vistoriaId: resolvePrimaryInspectionId(nextInspectionIds, inspections),
+          vistoriaIds: nextInspectionIds,
+          acompanhamentosResumo: appendFollowupEvent(activeDetailsErosion.acompanhamentosResumo, manualEvent),
+        },
+        {
+          updatedBy: actorName,
+          merge: true,
+          skipAutoFollowup: true,
+        },
+      );
+
+      setDetailsModal((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          status: nextStatus,
+          acompanhamentosResumo: appendFollowupEvent(prev.acompanhamentosResumo, manualEvent),
+        };
       });
-      setDetailsModal((prev) => (prev ? {
-        ...prev,
-        status: nextStatus,
-        acompanhamentosResumo: appendFollowupEvent(prev?.acompanhamentosResumo, manualEvent),
-      } : prev));
-      setShowAddEventForm(false);
-      setEventForm({
-        tipoEvento: 'obra',
-        obraEtapa: 'Projeto',
-        descricao: '',
-        orgao: '',
-        numeroOuDescricao: '',
-        autuacaoStatus: 'Aberta',
-      });
-      show('Evento registado no histórico.', 'success');
-    } catch (e) {
-      show(e.message || 'Erro ao registar evento.', 'error');
-    } finally {
-      setSavingEvent(false);
+
+      show('Evento registrado no historico.', 'success');
+      return true;
+    } catch (err) {
+      show(err.message || 'Erro ao registrar evento.', 'error');
+      return false;
     }
   }
 
-  const calc = calculateCriticality(formData, rulesConfig);
+  function handleExportDetailsPdf() {
+    if (!activeDetailsErosion) return;
+    openErosionDetailsPdfWindow({
+      erosion: activeDetailsErosion,
+      project: projects.find((project) => project.id === activeDetailsErosion.projetoId),
+      history: getSortedHistory(activeDetailsErosion),
+      relatedInspections: relatedInspectionsInDetails,
+    });
+    show('PDF de detalhes preparado para impressao.', 'success');
+  }
+
+  const criticality = useMemo(() => {
+    try {
+      return calculateCriticality(buildCriticalityInputFromErosion(formData || {}), rulesConfig);
+    } catch {
+      return {
+        impacto: 'Baixo',
+        score: 1,
+        frequencia: '24 meses',
+        intervencao: 'Monitoramento visual',
+      };
+    }
+  }, [formData, rulesConfig]);
 
   return (
-    <section className="panel">
-      <div className="topbar">
+    <section className="panel erosions-panel">
+      <div className="topbar erosions-topbar">
         <div>
-          <h2>Erosões</h2>
-          <p className="muted">Cadastro e acompanhamento das erosões identificadas.</p>
+          <h2>Erosoes</h2>
+          <p className="muted">Cadastro e acompanhamento dos focos erosivos.</p>
         </div>
         <button type="button" onClick={openNew}>
           <AppIcon name="plus" />
-          Nova Erosão
+          Nova Erosao
         </button>
       </div>
 
-      <div className="panel nested">
-        <h3>Exportar relatório de erosões</h3>
-        <div className="grid-form">
-          <select value={reportFilters.projetoId} onChange={(e) => setReportFilters((prev) => ({ ...prev, projetoId: e.target.value, anosExtras: [] }))}>
-            <option value="">Empreendimento...</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.id} - {p.nome}</option>)}
-          </select>
-          <select value={String(reportFilters.ano)} onChange={(e) => setReportFilters((prev) => ({ ...prev, ano: e.target.value, anosExtras: (prev.anosExtras || []).filter((y) => Number(y) !== Number(e.target.value)) }))}>
-            <option value="">Todos os anos</option>
-            {reportYears.map((year) => <option key={year} value={year}>{year}</option>)}
-          </select>
-          <button type="button" className="secondary" onClick={() => setReportFilters((prev) => ({ ...prev, mostrarMultiAno: !prev.mostrarMultiAno }))}>
-            <AppIcon name={reportFilters.mostrarMultiAno ? 'close' : 'details'} />
-            {reportFilters.mostrarMultiAno ? 'Ocultar seleção de mais anos' : 'Selecionar mais de um ano'}
-          </button>
-        </div>
-        {reportFilters.mostrarMultiAno && (
-          <div className="panel nested" style={{ marginTop: 10 }}>
-            <div className="muted">Anos adicionais (além do ano principal)</div>
-            <div className="chips">
-              {reportYears.filter((year) => String(reportFilters.ano || '') === '' || Number(year) !== Number(reportFilters.ano)).map((year) => {
-                const checked = (reportFilters.anosExtras || []).includes(year);
-                return (
-                  <label key={year} className="inline-row" style={{ border: '1px solid #cbd5e1', padding: '6px 8px', borderRadius: 8, background: '#fff' }}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => {
-                        setReportFilters((prev) => {
-                          const current = new Set((prev.anosExtras || []).map((y) => Number(y)));
-                          if (e.target.checked) current.add(year);
-                          else current.delete(year);
-                          return { ...prev, anosExtras: [...current].sort((a, b) => a - b) };
-                        });
-                      }}
-                    />
-                    <span>{year}</span>
-                  </label>
-                );
-              })}
-              {reportYears.filter((year) => Number(year) !== Number(reportFilters.ano)).length === 0 && (
-                <span className="muted">Sem outros anos disponíveis para este empreendimento.</span>
-              )}
-            </div>
-          </div>
-        )}
-        <div className="row-actions">
-          <button type="button" className="secondary" onClick={handleExportCsv}>
-            <AppIcon name="csv" />
-            Exportar CSV
-          </button>
-          <button type="button" onClick={handleExportPdf}>
-            <AppIcon name="pdf" />
-            Exportar PDF
-          </button>
-        </div>
-        <div className="muted">
-          Filtro ativo: empreendimento <strong>{reportFilters.projetoId || '-'}</strong> | ano(s) <strong>{selectedReportYears.length > 0 ? selectedReportYears.join(', ') : 'Todos'}</strong>.
-        </div>
-      </div>
+      <ErosionReportPanel
+        reportFilters={reportFilters}
+        reportYears={reportYears}
+        selectedReportYears={selectedReportYears}
+        onSetFilters={setReportFilters}
+        onExportCsv={handleExportCsv}
+        onExportPdf={handleExportPdf}
+        onPrintBatchFichasPdf={handlePrintBatchFichasPdf}
+        collapsed={isReportPanelCollapsed}
+        onToggleCollapsed={() => setIsReportPanelCollapsed((prev) => !prev)}
+      />
 
-      <div className="project-cards">
-        {sorted.map((e) => (
-          <article key={e.id} className="project-card">
-            <h3>{e.id}</h3>
-            <div className="muted">
-              <div><strong>Projeto:</strong> {e.projetoId || '-'}</div>
-              <div><strong>Torre:</strong> {e.torreRef || '-'}</div>
-              <div><strong>Local:</strong> {e.localTipo || '-'}</div>
-              {e.localTipo === 'Outros' && <div><strong>Detalhe local:</strong> {e.localDescricao || '-'}</div>}
-              <div><strong>Impacto:</strong> {e.impacto || '-'}</div>
-              <div><strong>Status:</strong> <span className={erosionStatusClass(e.status)}>{normalizeErosionStatus(e.status)}</span></div>
-            </div>
-            <div className="row-actions two">
-              <button type="button" className="secondary" onClick={() => setDetailsModal(e)}>
-                <AppIcon name="details" />
-                Detalhes
-              </button>
-              <button type="button" className="secondary" onClick={() => openEdit(e)}>
-                <AppIcon name="edit" />
-                Editar
-              </button>
-              {hasCoordinates(e) && (
-                <button type="button" onClick={() => openGoogleMapsRoute(e.latitude, e.longitude)}>
-                  <AppIcon name="map" />
-                  Navegar
-                </button>
-              )}
-              <button type="button" className="danger" onClick={() => handleDelete(e.id)}>
-                <AppIcon name="trash" />
-                Excluir
-              </button>
-            </div>
-          </article>
-        ))}
-        {sorted.length === 0 && (
-          <article className="project-card">
-            <p className="muted">Nenhuma erosão encontrada.</p>
-          </article>
-        )}
-      </div>
-
-      {isFormOpen && (
-        <div className="modal-backdrop">
-          <div className="modal xwide">
-            <h3>{editingId ? 'Editar' : 'Nova'} Erosão</h3>
-            <div className="grid-form">
-              <input value={formData.id} onChange={(e) => setFormData({ ...formData, id: e.target.value })} placeholder="ID" />
-              <select value={formData.projetoId} onChange={(e) => setFormData({ ...formData, projetoId: e.target.value })}>
-                <option value="">Empreendimento...</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
-              </select>
-              <select
-                value={formData.vistoriaId}
-                onChange={(e) => {
-                  const nextInspection = String(e.target.value || '').trim();
-                  const nextIds = [...new Set([
-                    ...normalizeErosionInspectionIds(formData),
-                    nextInspection,
-                  ].filter(Boolean))];
-                  setFormData({ ...formData, vistoriaId: nextInspection, vistoriaIds: nextIds });
-                }}
-              >
-                <option value="">Vistoria...</option>
-                {inspections.filter((i) => i.projetoId === formData.projetoId).map((i) => <option key={i.id} value={i.id}>{i.id}</option>)}
-              </select>
-
-              <input value={formData.torreRef} onChange={(e) => setFormData({ ...formData, torreRef: e.target.value })} placeholder="Torre" />
-              <select value={formData.localTipo} onChange={(e) => setFormData({ ...formData, localTipo: e.target.value, localDescricao: e.target.value === 'Outros' ? formData.localDescricao : '' })}>
-                <option value="">Local da erosão...</option>
-                {EROSION_LOCATION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-              {formData.localTipo === 'Outros' ? (
-                <input value={formData.localDescricao} onChange={(e) => setFormData({ ...formData, localDescricao: e.target.value })} placeholder="Descreva o local" />
-              ) : <div />}
-
-              <select value={formData.tipo} onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}>
-                <option value="">Tipo...</option>
-                <option value="sulco">Sulco</option>
-                <option value="ravina">Ravina</option>
-                <option value="voçoroca">Voçoroca</option>
-                <option value="deslizamento">Deslizamento</option>
-              </select>
-              <select value={formData.estagio} onChange={(e) => setFormData({ ...formData, estagio: e.target.value })}>
-                <option value="">Estágio...</option>
-                <option value="inicial">Inicial</option>
-                <option value="intermediario">Intermediário</option>
-                <option value="avancado">Avançado</option>
-                <option value="critico">Crítico</option>
-              </select>
-              <select value={formData.profundidade} onChange={(e) => setFormData({ ...formData, profundidade: e.target.value })}>
-                <option value="">Profundidade...</option>
-                <option value="<0.5">&lt; 0.5m</option>
-                <option value="0.5-1.5">0.5-1.5m</option>
-                <option value="1.5-3.0">1.5-3.0m</option>
-                <option value=">3.0">&gt; 3.0m</option>
-              </select>
-              <select value={formData.declividade} onChange={(e) => setFormData({ ...formData, declividade: e.target.value })}>
-                <option value="">Declividade...</option>
-                <option value="<15">&lt; 15°</option>
-                <option value="15-30">15-30°</option>
-                <option value="30-45">30-45°</option>
-                <option value=">45">&gt; 45°</option>
-              </select>
-              <select value={formData.largura} onChange={(e) => setFormData({ ...formData, largura: e.target.value })}>
-                <option value="">Largura...</option>
-                <option value="<1">&lt; 1m</option>
-                <option value="1-3">1-3m</option>
-                <option value="3-5">3-5m</option>
-                <option value=">5">&gt; 5m</option>
-              </select>
-              <input value={formData.latitude} onChange={(e) => setFormData({ ...formData, latitude: e.target.value })} placeholder="Latitude" />
-              <input value={formData.longitude} onChange={(e) => setFormData({ ...formData, longitude: e.target.value })} placeholder="Longitude" />
-              <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })}>
-                <option>Ativo</option>
-                <option>Monitoramento</option>
-                <option>Estabilizado</option>
-              </select>
-              <textarea value={formData.obs} onChange={(e) => setFormData({ ...formData, obs: e.target.value })} placeholder="Observações" rows="3" />
-            </div>
-
-            <div className="notice">
-              <strong>Impacto:</strong> {calc.impacto} | <strong>Score:</strong> {calc.score} | <strong>Frequência:</strong> {calc.frequencia}
-              <br />
-              <strong>Intervenção:</strong> {calc.intervencao}
-            </div>
-
-            <div className="row-actions">
-              <button type="button" onClick={handleSave}>
-                <AppIcon name="save" />
-                Salvar
-              </button>
-              <button type="button" className="secondary" onClick={() => setIsFormOpen(false)}>
-                <AppIcon name="close" />
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {detailsModal && (
-        <div className="modal-backdrop">
-          <div className="modal wide">
-            <h3>Detalhes da Erosão</h3>
-            <div className="muted">
-              <div><strong>ID:</strong> {detailsModal.id}</div>
-              <div><strong>Projeto:</strong> {detailsModal.projetoId || '-'}</div>
-              <div><strong>Vistoria:</strong> {detailsModal.vistoriaId || '-'}</div>
-              <div><strong>Vistorias vinculadas:</strong> {normalizeErosionInspectionIds(detailsModal).join(', ') || '-'}</div>
-              {relatedInspectionsInDetails.length > 0 && (
-                <div>
-                  <strong>Vistorias que abordaram esta erosão:</strong>
-                  {relatedInspectionsInDetails.map((row) => (
-                    <div key={`related-ins-${row.id}`}>
-                      {row.id}
-                      {row.inspection?.dataInicio ? ` | início: ${row.inspection.dataInicio}` : ''}
-                      {row.inspection?.dataFim ? ` | fim: ${row.inspection.dataFim}` : ''}
-                      {row.inspection?.responsavel ? ` | resp.: ${row.inspection.responsavel}` : ''}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div><strong>Torre:</strong> {detailsModal.torreRef || '-'}</div>
-              <div><strong>Local:</strong> {detailsModal.localTipo || '-'}</div>
-              {detailsModal.localTipo === 'Outros' && <div><strong>Descrição local:</strong> {detailsModal.localDescricao || '-'}</div>}
-              <div><strong>Tipo:</strong> {detailsModal.tipo || '-'}</div>
-              <div><strong>Estágio:</strong> {detailsModal.estagio || '-'}</div>
-              <div><strong>Impacto:</strong> {detailsModal.impacto || '-'}</div>
-              <div><strong>Score:</strong> {detailsModal.score || '-'}</div>
-              <div><strong>Frequência:</strong> {detailsModal.frequencia || '-'}</div>
-              <div><strong>Intervenção:</strong> {detailsModal.intervencao || '-'}</div>
-              <div><strong>Status:</strong> <span className={erosionStatusClass(detailsModal.status)}>{normalizeErosionStatus(detailsModal.status)}</span></div>
-              <div><strong>Latitude:</strong> {detailsModal.latitude || '-'}</div>
-              <div><strong>Longitude:</strong> {detailsModal.longitude || '-'}</div>
-              <div><strong>Observações:</strong> {detailsModal.obs || '-'}</div>
-            </div>
-
-            <div className="panel nested">
-              <h4>Histórico de acompanhamento</h4>
-              <div className="row-actions">
-                <button type="button" onClick={() => setShowAddEventForm((prev) => !prev)}>
-                  <AppIcon name={showAddEventForm ? 'close' : 'plus'} />
-                  {showAddEventForm ? 'Cancelar evento' : 'Adicionar evento'}
-                </button>
-              </div>
-              {showAddEventForm && (
-                <div className="panel nested">
-                  <div className="grid-form">
-                    <select value={eventForm.tipoEvento} onChange={(e) => setEventForm((prev) => ({ ...prev, tipoEvento: e.target.value }))}>
-                      <option value="obra">Obra</option>
-                      <option value="autuacao">Autuação por órgão público</option>
-                    </select>
-                    {eventForm.tipoEvento === 'obra' && (
-                      <select value={eventForm.obraEtapa} onChange={(e) => setEventForm((prev) => ({ ...prev, obraEtapa: e.target.value }))}>
-                        <option value="Projeto">Projeto</option>
-                        <option value="Em andamento">Em andamento</option>
-                        <option value="Concluída">Concluída</option>
-                      </select>
-                    )}
-                    {eventForm.tipoEvento === 'autuacao' && (
-                      <select value={eventForm.autuacaoStatus} onChange={(e) => setEventForm((prev) => ({ ...prev, autuacaoStatus: e.target.value }))}>
-                        <option value="Aberta">Aberta</option>
-                        <option value="Recorrida">Recorrida</option>
-                        <option value="Encerrada">Encerrada</option>
-                      </select>
-                    )}
-                  </div>
-                  {eventForm.tipoEvento === 'obra' && (
-                    <textarea rows="2" value={eventForm.descricao} onChange={(e) => setEventForm((prev) => ({ ...prev, descricao: e.target.value }))} placeholder="Descrição da obra..." />
-                  )}
-                  {eventForm.tipoEvento === 'autuacao' && (
-                    <div className="grid-form">
-                      <input value={eventForm.orgao} onChange={(e) => setEventForm((prev) => ({ ...prev, orgao: e.target.value }))} placeholder="Órgão público..." />
-                      <input value={eventForm.numeroOuDescricao} onChange={(e) => setEventForm((prev) => ({ ...prev, numeroOuDescricao: e.target.value }))} placeholder="Nº/Descrição..." />
-                    </div>
-                  )}
-                  <div className="row-actions">
-                    <button type="button" disabled={savingEvent} onClick={handleAddManualHistoryEvent}>
-                      <AppIcon name="save" />
-                      {savingEvent ? 'Salvando...' : 'Salvar evento'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {normalizeFollowupHistory(detailsModal.acompanhamentosResumo)
-                .slice()
-                .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')))
-                .map((event, idx, arr) => {
-                  const type = normalizeFollowupEventType(event);
-                  const badge = type === 'obra' ? 'Obra' : (type === 'autuacao' ? 'Autuação' : 'Sistema');
-                  const toneClass = type === 'obra' ? 'status-ok' : (type === 'autuacao' ? 'status-warn' : 'status-chip');
-                  return (
-                    <div key={`${event.timestamp}-${event.resumo || idx}`} className="project-card" style={{ position: 'relative', paddingLeft: 22 }}>
-                      {idx < arr.length - 1 && <div style={{ position: 'absolute', left: 10, top: 20, bottom: -14, width: 1, background: '#cbd5e1' }} />}
-                      <div style={{ position: 'absolute', left: 5, top: 10, width: 10, height: 10, borderRadius: '50%', background: type === 'obra' ? '#3b82f6' : (type === 'autuacao' ? '#f59e0b' : '#64748b') }} />
-                      <div className="inline-row" style={{ justifyContent: 'space-between' }}>
-                        <strong>{event.timestamp ? new Date(event.timestamp).toLocaleString('pt-BR') : '-'}</strong>
-                        <span className={toneClass} style={{ padding: '2px 8px', borderRadius: 999 }}>{badge}</span>
-                      </div>
-                      <div>{event.resumo || '-'}</div>
-                      {type === 'obra' && <div className="muted">Etapa: {event.obraEtapa || '-'} | Descrição: {event.descricao || '-'}</div>}
-                      {type === 'autuacao' && <div className="muted">Órgão: {event.orgao || '-'} | Nº/Descrição: {event.numeroOuDescricao || '-'} | Status: {event.autuacaoStatus || '-'}</div>}
-                      <div className="muted">Origem: {event.origem || '-'} | Usuário: {event.usuario || '-'} | Status: {event.statusNovo || '-'}</div>
-                    </div>
-                  );
-                })}
-              {normalizeFollowupHistory(detailsModal.acompanhamentosResumo).length === 0 && (
-                <p className="muted">Sem histórico de acompanhamento registrado.</p>
-              )}
-            </div>
-
-            <div className="row-actions">
+      <article className="erosions-reading-controls">
+        <div className="erosions-reading-actions">
+          <label className="erosions-field">
+            <span>Empreendimento para leitura</span>
+            <div className="erosions-project-dropdown" ref={projectDropdownRef}>
               <button
                 type="button"
-                onClick={() => openErosionDetailsPdfWindow({
-                  erosion: detailsModal,
-                  project: projects.find((p) => p.id === detailsModal.projetoId),
-                  history: normalizeFollowupHistory(detailsModal.acompanhamentosResumo)
-                    .slice()
-                    .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || ''))),
-                })}
+                className={`erosions-project-dropdown-trigger ${isProjectDropdownOpen ? 'is-open' : ''}`.trim()}
+                aria-expanded={isProjectDropdownOpen ? 'true' : 'false'}
+                aria-haspopup="listbox"
+                onClick={() => {
+                  setIsProjectDropdownOpen((prev) => {
+                    const nextOpen = !prev;
+                    if (!nextOpen) setProjectSearchTerm('');
+                    return nextOpen;
+                  });
+                }}
               >
-                <AppIcon name="pdf" />
-                Gerar PDF
+                <span className="erosions-project-dropdown-trigger-label">
+                  {reportFilters.projetoId ? formatProjectOptionLabel(selectedProject || { id: reportFilters.projetoId, nome: '' }) : 'Selecione...'}
+                </span>
+                <AppIcon name={isProjectDropdownOpen ? 'close' : 'details'} />
               </button>
-              {hasCoordinates(detailsModal) && (
-                <button type="button" onClick={() => openGoogleMapsRoute(detailsModal.latitude, detailsModal.longitude)}>
-                  <AppIcon name="map" />
-                  Navegar no Google Maps
-                </button>
-              )}
-              <button type="button" className="secondary" onClick={() => setDetailsModal(null)}>
-                <AppIcon name="close" />
-                Fechar
-              </button>
+
+              {isProjectDropdownOpen ? (
+                <div className="erosions-project-dropdown-menu" role="dialog" aria-label="Selecionar empreendimento">
+                  <label className="erosions-project-dropdown-search">
+                    <AppIcon name="search" />
+                    <input
+                      ref={projectDropdownSearchRef}
+                      type="search"
+                      value={projectSearchTerm}
+                      placeholder="Buscar por ID ou nome..."
+                      onChange={(e) => setProjectSearchTerm(e.target.value)}
+                    />
+                  </label>
+
+                  <div className="erosions-project-dropdown-options" role="listbox" aria-label="Empreendimentos">
+                    <button
+                      type="button"
+                      className={`erosions-project-dropdown-option ${!reportFilters.projetoId ? 'is-selected' : ''}`.trim()}
+                      data-project-id=""
+                      onClick={() => handleSelectProjectFromDropdown('')}
+                    >
+                      Selecione...
+                    </button>
+                    {filteredProjects.map((project, index) => {
+                      const projectId = String(project?.id || '').trim();
+                      const isSelected = String(reportFilters.projetoId || '').trim() === projectId;
+                      return (
+                        <button
+                          key={projectId || `project-${index}`}
+                          type="button"
+                          className={`erosions-project-dropdown-option ${isSelected ? 'is-selected' : ''}`.trim()}
+                          data-project-id={projectId}
+                          onClick={() => handleSelectProjectFromDropdown(projectId)}
+                        >
+                          {formatProjectOptionLabel(project)}
+                        </button>
+                      );
+                    })}
+                    {filteredProjects.length === 0 ? (
+                      <div className="erosions-project-dropdown-empty">
+                        Nenhum empreendimento encontrado.
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
-          </div>
+          </label>
+
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setIsCardsVisible((prev) => !prev)}
+            disabled={!reportFilters.projetoId}
+          >
+            <AppIcon name={isCardsVisible ? 'close' : 'details'} />
+            {isCardsVisible ? 'Ocultar cards' : 'Mostrar cards'}
+          </button>
         </div>
-      )}
+
+        <div className="muted erosions-reading-summary">
+          {!reportFilters.projetoId
+            ? 'Selecione um empreendimento para iniciar a leitura de erosoes.'
+            : (
+              isCardsVisible
+                ? `Exibindo ${filteredCards.length} erosao(oes) em ${selectedProject?.nome || reportFilters.projetoId}.`
+                : `Empreendimento ${selectedProject?.nome || reportFilters.projetoId} selecionado. Cards ocultos.`
+            )}
+        </div>
+      </article>
+
+      {!reportFilters.projetoId ? (
+        <article className="erosions-card erosions-card-empty">
+          <p className="muted">Selecione um empreendimento para visualizar erosoes.</p>
+        </article>
+      ) : null}
+
+      {reportFilters.projetoId && !isCardsVisible ? (
+        <article className="erosions-card erosions-card-empty">
+          <p className="muted">Cards ocultos. Clique em "Mostrar cards" para exibir.</p>
+        </article>
+      ) : null}
+
+      {reportFilters.projetoId && isCardsVisible ? (
+        <ErosionCardGrid
+          erosions={filteredCards}
+          projects={projects}
+          hasCoordinates={hasCoordinates}
+          onOpenDetails={(erosion) => setDetailsModal(erosion)}
+          onOpenEdit={openEdit}
+          onRequestDelete={(erosion) => setDeleteModal(erosion)}
+          onOpenMaps={openGoogleMapsRoute}
+        />
+      ) : null}
+
+      <ErosionFormModal
+        open={isFormOpen}
+        isEditing={!!editingId}
+        formData={formData}
+        setFormData={setFormData}
+        projects={projects}
+        inspections={inspections}
+        criticality={criticality}
+        utmErrorToken={utmErrorToken}
+        onCancel={() => {
+          setIsFormOpen(false);
+          setUtmErrorToken(0);
+        }}
+        onSave={handleSave}
+      />
+
+      <ErosionDetailsModal
+        open={!!activeDetailsErosion}
+        erosion={activeDetailsErosion}
+        project={(projects || []).find((project) => String(project?.id || '').trim() === String(activeDetailsErosion?.projetoId || '').trim())}
+        relatedInspections={relatedInspectionsInDetails}
+        hasCoordinates={hasCoordinates}
+        onClose={() => setDetailsModal(null)}
+        onOpenMaps={openGoogleMapsRoute}
+        onSaveManualEvent={handleSaveManualHistoryEvent}
+        onExportPdf={handleExportDetailsPdf}
+      />
+
+      <ErosionConfirmDeleteModal
+        open={!!deleteModal}
+        erosionId={deleteModal?.id}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteModal(null)}
+      />
     </section>
   );
 }

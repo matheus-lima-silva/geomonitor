@@ -252,6 +252,7 @@ function DashboardView() {
   const [searchTerm, setSearchTerm] = useState('');
   const [inspectionProjectFilterId, setInspectionProjectFilterId] = useState(null);
   const [inspectionPlanningDraft, setInspectionPlanningDraft] = useState(null);
+  const [pendingErosionDraft, setPendingErosionDraft] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const dashboardViewModel = useMemo(() => buildMonitoringViewModel({
     projects,
@@ -384,6 +385,10 @@ function DashboardView() {
           onClearForcedProjectFilter={() => setInspectionProjectFilterId(null)}
           planningDraft={inspectionPlanningDraft}
           onPlanningDraftConsumed={() => setInspectionPlanningDraft(null)}
+          onOpenErosionDraft={(draft) => {
+            setPendingErosionDraft(draft);
+            setActiveTab('erosions');
+          }}
         />
       );
     }
@@ -396,6 +401,8 @@ function DashboardView() {
           inspections={inspections}
           rulesConfig={rulesConfig}
           searchTerm={searchTerm}
+          pendingDraft={pendingErosionDraft}
+          onDraftConsumed={() => setPendingErosionDraft(null)}
         />
       );
     }

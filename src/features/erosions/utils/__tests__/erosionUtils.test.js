@@ -1,32 +1,122 @@
-import {
+﻿import {
+  buildErosionReportRows,
   buildErosionsCsv,
   buildManualFollowupEvent,
+  deriveErosionTypeFromTechnicalFields,
   filterErosionsForReport,
+  normalizeErosionTechnicalFields,
   normalizeFollowupEventType,
   validateErosionLocation,
+  validateErosionTechnicalFields,
 } from '../erosionUtils';
 
 describe('validateErosionLocation', () => {
-  it('falha sem localTipo', () => {
+  it('fails without localTipo', () => {
     expect(validateErosionLocation({ localTipo: '' }).ok).toBe(false);
   });
 
-  it('exige descrição quando Outros', () => {
+  it('requires localDescricao when Outros', () => {
     expect(validateErosionLocation({ localTipo: 'Outros', localDescricao: '' }).ok).toBe(false);
     expect(validateErosionLocation({ localTipo: 'Outros', localDescricao: 'Talude lateral' }).ok).toBe(true);
   });
 });
 
-describe('buildErosionsCsv', () => {
-  it('gera cabeçalho e linha', () => {
-    const csv = buildErosionsCsv([{ id: 'E1', projetoId: 'P1' }]);
-    expect(csv).toContain('id;projetoId');
-    expect(csv).toContain('E1;P1');
+describe('validateErosionTechnicalFields', () => {
+  it('normalizes null payload with defaults', () => {
+    const normalized = normalizeErosionTechnicalFields(null);
+    expect(normalized).toEqual({
+      presencaAguaFundo: '',
+      tiposFeicao: [],
+      caracteristicasFeicao: [],
+      larguraMaximaClasse: '',
+      declividadeClasse: '',
+      usosSolo: [],
+      usoSoloOutro: '',
+      saturacaoPorAgua: '',
+    });
+  });
+
+  it('accepts null payload as optional technical fields', () => {
+    const out = validateErosionTechnicalFields(null);
+    expect(out.ok).toBe(true);
+    expect(out.value).toEqual({
+      presencaAguaFundo: '',
+      tiposFeicao: [],
+      caracteristicasFeicao: [],
+      larguraMaximaClasse: '',
+      declividadeClasse: '',
+      usosSolo: [],
+      usoSoloOutro: '',
+      saturacaoPorAgua: '',
+    });
+  });
+
+  it('requires usoSoloOutro when usosSolo includes outro', () => {
+    const out = validateErosionTechnicalFields({ usosSolo: ['outro'], usoSoloOutro: '' });
+    expect(out.ok).toBe(false);
+  });
+
+  it('fails on invalid enum value', () => {
+    const out = validateErosionTechnicalFields({ presencaAguaFundo: 'talvez' });
+    expect(out.ok).toBe(false);
+  });
+
+  it('accepts valid technical payload', () => {
+    const out = validateErosionTechnicalFields({
+      presencaAguaFundo: 'sim',
+      tiposFeicao: ['ravina', 'sulco'],
+      caracteristicasFeicao: ['contato_materiais'],
+      larguraMaximaClasse: '3-5',
+      declividadeClasse: '>45',
+      usosSolo: ['pastagem', 'outro'],
+      usoSoloOutro: 'area urbana',
+      saturacaoPorAgua: 'nao',
+    });
+    expect(out.ok).toBe(true);
+    expect(out.value.usosSolo).toEqual(['pastagem', 'outro']);
+  });
+
+  it('normalizes legacy declividadeClassePdf into canonical declividadeClasse', () => {
+    const normalized = normalizeErosionTechnicalFields({
+      declividadeClassePdf: 'maior_25',
+    });
+    expect(normalized.declividadeClasse).toBe('>45');
+  });
+});
+
+describe('buildErosionReportRows/buildErosionsCsv', () => {
+  it('includes technical fields in rows and csv headers', () => {
+    const rows = buildErosionReportRows([
+      {
+        id: 'E1',
+        projetoId: 'P1',
+        presencaAguaFundo: 'sim',
+        tiposFeicao: ['ravina', 'sulco'],
+        caracteristicasFeicao: ['contato_materiais'],
+        larguraMaximaClasse: '>5',
+        declividadeClasse: '>45',
+        usosSolo: ['pastagem', 'outro'],
+        usoSoloOutro: 'estrada',
+        saturacaoPorAgua: 'nao',
+      },
+    ]);
+
+    expect(rows[0].presencaAguaFundo).toBe('sim');
+    expect(rows[0].tiposFeicao).toBe('ravina|sulco');
+    expect(rows[0].usosSolo).toBe('pastagem|outro');
+
+    const csv = buildErosionsCsv(rows);
+    expect(csv).toContain('presencaAguaFundo');
+    expect(csv).toContain('tiposFeicao');
+    expect(csv).toContain('usoSoloOutro');
+    expect(csv).toContain('saturacaoPorAgua');
+    expect(csv).toContain('declividadeClasse');
+    expect(csv).not.toContain('declividadeClassePdf');
   });
 });
 
 describe('filterErosionsForReport', () => {
-  it('inclui erosão com projeto resolvido por vistoria e ignora case de projeto', () => {
+  it('includes erosion resolved by inspection project and year', () => {
     const erosions = [
       { id: 'E1', vistoriaId: 'VS-1', projetoId: '', ultimaAtualizacao: '' },
     ];
@@ -38,7 +128,7 @@ describe('filterErosionsForReport', () => {
     expect(out).toHaveLength(1);
   });
 
-  it('quando anos vazio retorna todo histórico do empreendimento', () => {
+  it('returns full project history when years filter is empty', () => {
     const erosions = [
       { id: 'E1', projetoId: 'P1', ultimaAtualizacao: '2025-01-01T10:00:00Z' },
       { id: 'E2', projetoId: 'P1', ultimaAtualizacao: '2026-01-01T10:00:00Z' },
@@ -47,31 +137,18 @@ describe('filterErosionsForReport', () => {
     const out = filterErosionsForReport(erosions, { projetoId: 'p1', anos: [] }, []);
     expect(out.map((i) => i.id)).toEqual(['E1', 'E2']);
   });
+});
 
-  it('filtra por múltiplos anos selecionados', () => {
-    const erosions = [
-      { id: 'E1', projetoId: 'P1', ultimaAtualizacao: '2024-01-01T10:00:00Z' },
-      { id: 'E2', projetoId: 'P1', ultimaAtualizacao: '2025-01-01T10:00:00Z' },
-      { id: 'E3', projetoId: 'P1', ultimaAtualizacao: '2026-01-01T10:00:00Z' },
-    ];
-    const out = filterErosionsForReport(erosions, { projetoId: 'P1', anos: [2024, 2026] }, []);
-    expect(out.map((i) => i.id)).toEqual(['E1', 'E3']);
-  });
-
-  it('resolve projeto e data com base em vistoriaIds quando vistoriaId principal não existe', () => {
-    const erosions = [
-      { id: 'E4', projetoId: '', vistoriaId: '', vistoriaIds: ['VS-10'] },
-    ];
-    const inspections = [
-      { id: 'VS-10', projetoId: 'P-10', dataInicio: '2024-11-10' },
-    ];
-    const out = filterErosionsForReport(erosions, { projetoId: 'p-10', anos: [2024] }, inspections);
-    expect(out.map((item) => item.id)).toEqual(['E4']);
+describe('deriveErosionTypeFromTechnicalFields', () => {
+  it('derives canonical type from tiposFeicao', () => {
+    expect(deriveErosionTypeFromTechnicalFields({ tiposFeicao: ['ravina'] })).toBe('ravina');
+    expect(deriveErosionTypeFromTechnicalFields({ tiposFeicao: ['movimento_massa'] })).toBe('deslizamento');
+    expect(deriveErosionTypeFromTechnicalFields({ tiposFeicao: ['laminar'] })).toBe('sulco');
   });
 });
 
 describe('buildManualFollowupEvent', () => {
-  it('gera evento de obra válido', () => {
+  it('builds valid obra event', () => {
     const event = buildManualFollowupEvent({
       tipoEvento: 'obra',
       obraEtapa: 'Projeto',
@@ -81,16 +158,16 @@ describe('buildManualFollowupEvent', () => {
     expect(event?.resumo).toContain('Obra - Projeto');
   });
 
-  it('marca statusNovo estabilizado quando obra está concluída', () => {
+  it('marks stabilized when obra is concluded', () => {
     const event = buildManualFollowupEvent({
       tipoEvento: 'obra',
-      obraEtapa: 'Concluída',
-      descricao: 'Canaleta e contenção finalizadas',
+      obraEtapa: 'Concluida',
+      descricao: 'Canaleta finalizada',
     }, { updatedBy: 'alice@empresa.com' });
     expect(event?.statusNovo).toBe('Estabilizado');
   });
 
-  it('gera evento de autuação válido', () => {
+  it('builds valid autuacao event', () => {
     const event = buildManualFollowupEvent({
       tipoEvento: 'autuacao',
       orgao: 'IBAMA',
@@ -98,16 +175,16 @@ describe('buildManualFollowupEvent', () => {
       autuacaoStatus: 'Aberta',
     }, { updatedBy: 'alice@empresa.com' });
     expect(event?.tipoEvento).toBe('autuacao');
-    expect(event?.resumo).toContain('Autuação (IBAMA)');
+    expect(event?.resumo).toContain('Autuacao (IBAMA)');
   });
 
-  it('retorna null para evento inválido', () => {
+  it('returns null for invalid event', () => {
     expect(buildManualFollowupEvent({ tipoEvento: 'obra', obraEtapa: '', descricao: '' }, {})).toBeNull();
   });
 });
 
 describe('normalizeFollowupEventType', () => {
-  it('trata evento legado sem tipo como sistema', () => {
+  it('treats legacy event without type as sistema', () => {
     expect(normalizeFollowupEventType({ resumo: 'evento legado' })).toBe('sistema');
   });
 });

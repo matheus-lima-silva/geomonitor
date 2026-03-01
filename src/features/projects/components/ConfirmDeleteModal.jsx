@@ -5,16 +5,23 @@ function ConfirmDeleteModal({ projectId, onCancel, onConfirm }) {
 
   return (
     <div className="modal-backdrop">
-      <div className="modal wide">
-        <h3>Confirmar exclusão</h3>
-        <p>Tem certeza que deseja excluir o empreendimento <strong>{projectId}</strong>?</p>
-        <div className="row-actions">
-          <button type="button" className="danger" onClick={onConfirm}>
-            <AppIcon name="trash" />
+      <div className="modal projects-modal projects-modal-delete">
+        <div className="projects-delete-head">
+          <h3>
+            <AppIcon name="alert" />
+            Confirmar exclusao
+          </h3>
+        </div>
+
+        <p className="projects-delete-message">
+          Tem certeza que deseja excluir o empreendimento <strong>{projectId}</strong>?
+        </p>
+
+        <div className="projects-delete-actions">
+          <button type="button" className="projects-delete-btn" onClick={onConfirm}>
             Excluir
           </button>
-          <button type="button" className="secondary" onClick={onCancel}>
-            <AppIcon name="close" />
+          <button type="button" className="projects-cancel-btn" onClick={onCancel}>
             Cancelar
           </button>
         </div>

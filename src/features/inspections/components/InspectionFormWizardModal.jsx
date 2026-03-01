@@ -6,7 +6,23 @@ import { saveErosion } from '../../../services/erosionService';
 import { useToast } from '../../../context/ToastContext';
 import { gerarPeriodoDias, preservarDetalhesDias } from '../../../utils/dateUtils';
 import { parseTowerInput } from '../../../utils/parseTowerInput';
-import { EROSION_LOCATION_OPTIONS, validateErosionLocation } from '../../erosions/utils/erosionUtils';
+import { calculateCriticality } from '../../shared/rulesConfig';
+import {
+  EROSION_LOCATION_OPTIONS,
+  EROSION_TECHNICAL_OPTIONS,
+  buildCriticalityInputFromErosion,
+  deriveErosionTypeFromTechnicalFields,
+  normalizeErosionTechnicalFields,
+  validateErosionLocation,
+  validateErosionTechnicalFields,
+} from '../../erosions/utils/erosionUtils';
+import {
+  isCompleteUtmCoordinates,
+  isPartialUtmCoordinates,
+  normalizeLocationCoordinates,
+  parseCoordinateNumber,
+  resolveLocationCoordinatesForSave,
+} from '../../erosions/utils/erosionCoordinates';
 import { buildHotelHistory, extractHotelFields, findPreviousDayHotel } from '../utils/hotelHistory';
 import {
   buildInspectionId,
@@ -33,18 +49,115 @@ const BASE_FORM = {
 };
 
 const EMPTY_EROSION_FORM = {
+  estagio: '',
+  profundidade: '',
+  status: 'Ativo',
   localTipo: '',
   localDescricao: '',
-  latitude: '',
-  longitude: '',
+  locationCoordinates: {
+    latitude: '',
+    longitude: '',
+    utmEasting: '',
+    utmNorthing: '',
+    utmZone: '',
+    utmHemisphere: '',
+    altitude: '',
+    reference: '',
+  },
+  faixaServidao: '',
+  areaTerceiros: '',
+  usoSolo: '',
+  presencaAguaFundo: '',
+  tiposFeicao: [],
+  caracteristicasFeicao: [],
+  larguraMaximaClasse: '',
+  declividadeClasse: '',
+  usosSolo: [],
+  usoSoloOutro: '',
+  saturacaoPorAgua: '',
+  // Backward compatibility for legacy consumers.
+  soloSaturadoAgua: '',
+  medidaPreventiva: '',
+  fotosLinks: [],
   descricao: '',
 };
+
+function sanitizeInlineStringArray(input) {
+  if (Array.isArray(input)) {
+    return input
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  }
+
+  const text = String(input || '').trim();
+  if (!text) return [];
+  return text
+    .split(/[\n|]/)
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+}
+
+function buildSafeInlineErosionFormState(source = {}) {
+  const raw = source && typeof source === 'object' ? source : {};
+  const locationCoordinates = normalizeLocationCoordinates(raw);
+  const technical = normalizeErosionTechnicalFields(raw);
+
+  return {
+    ...EMPTY_EROSION_FORM,
+    estagio: String(raw.estagio || '').trim(),
+    profundidade: String(raw.profundidade || '').trim(),
+    status: String(raw.status || 'Ativo').trim() || 'Ativo',
+    localTipo: String(raw.localTipo || '').trim(),
+    localDescricao: String(raw.localDescricao || '').trim(),
+    locationCoordinates: {
+      ...EMPTY_EROSION_FORM.locationCoordinates,
+      ...locationCoordinates,
+    },
+    faixaServidao: String(raw.faixaServidao || '').trim(),
+    areaTerceiros: String(raw.areaTerceiros || '').trim(),
+    usoSolo: String(raw.usoSolo || '').trim(),
+    presencaAguaFundo: technical.presencaAguaFundo,
+    tiposFeicao: Array.isArray(technical.tiposFeicao) ? technical.tiposFeicao : [],
+    caracteristicasFeicao: Array.isArray(technical.caracteristicasFeicao) ? technical.caracteristicasFeicao : [],
+    larguraMaximaClasse: String(technical.larguraMaximaClasse || '').trim(),
+    declividadeClasse: String(technical.declividadeClasse || '').trim(),
+    usosSolo: Array.isArray(technical.usosSolo) ? technical.usosSolo : [],
+    usoSoloOutro: String(technical.usoSoloOutro || '').trim(),
+    saturacaoPorAgua: String(technical.saturacaoPorAgua || '').trim(),
+    soloSaturadoAgua: String(technical.saturacaoPorAgua || '').trim(),
+    medidaPreventiva: String(raw.medidaPreventiva || '').trim(),
+    fotosLinks: sanitizeInlineStringArray(raw.fotosLinks),
+    descricao: String(raw.obs || raw.descricao || '').trim(),
+  };
+}
 
 function formatTowerLabel(towerRef) {
   const ref = String(towerRef ?? '').trim();
   if (!ref) return 'Nao informado';
   if (ref === '0') return 'Portico (T0)';
   return `Torre ${ref}`;
+}
+
+function hasAnyLocationValue(locationCoordinates = {}) {
+  return [
+    locationCoordinates.latitude,
+    locationCoordinates.longitude,
+    locationCoordinates.utmEasting,
+    locationCoordinates.utmNorthing,
+    locationCoordinates.utmZone,
+    locationCoordinates.utmHemisphere,
+    locationCoordinates.altitude,
+    locationCoordinates.reference,
+  ].some((value) => String(value || '').trim() !== '');
+}
+
+function getInlineCoordinatesStatus(locationCoordinates = {}) {
+  if (isCompleteUtmCoordinates(locationCoordinates)) return 'UTM completo';
+  if (isPartialUtmCoordinates(locationCoordinates)) return 'UTM incompleto';
+  const latitude = parseCoordinateNumber(locationCoordinates.latitude);
+  const longitude = parseCoordinateNumber(locationCoordinates.longitude);
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) return 'Decimal';
+  return 'Nao preenchido';
 }
 
 function getDateScore(value) {
@@ -140,6 +253,7 @@ function InspectionFormWizardModal({
   erosions,
   actorName,
   suggestedTowerInput,
+  onOpenErosionDraft,
   onCancel,
   onSaved,
 }) {
@@ -150,7 +264,9 @@ function InspectionFormWizardModal({
   const [expandedTowerKey, setExpandedTowerKey] = useState('');
   const [hotelHistorySelection, setHotelHistorySelection] = useState({});
   const [erosionModal, setErosionModal] = useState(null);
-  const [erosionForm, setErosionForm] = useState(EMPTY_EROSION_FORM);
+  const [erosionForm, setErosionForm] = useState(() => buildSafeInlineErosionFormState());
+  const [inlineCoordinatesExpanded, setInlineCoordinatesExpanded] = useState(false);
+  const [inlineUtmErrorToken, setInlineUtmErrorToken] = useState(0);
   const [saving, setSaving] = useState(false);
   const autoPendingCheckRef = useRef('');
 
@@ -194,7 +310,9 @@ function InspectionFormWizardModal({
     setExpandedTowerKey('');
     setHotelHistorySelection({});
     setErosionModal(null);
-    setErosionForm(EMPTY_EROSION_FORM);
+    setErosionForm(buildSafeInlineErosionFormState());
+    setInlineCoordinatesExpanded(false);
+    setInlineUtmErrorToken(0);
     autoPendingCheckRef.current = '';
   }, [open, initialData]);
 
@@ -233,6 +351,10 @@ function InspectionFormWizardModal({
   if (!open) return null;
   const portalTarget = typeof document !== 'undefined' ? document.body : null;
   if (!portalTarget) return null;
+  const inlineCoordinatesStatus = getInlineCoordinatesStatus(erosionForm.locationCoordinates || {});
+  const inlineTiposFeicao = Array.isArray(erosionForm.tiposFeicao) ? erosionForm.tiposFeicao : [];
+  const inlineCaracteristicasFeicao = Array.isArray(erosionForm.caracteristicasFeicao) ? erosionForm.caracteristicasFeicao : [];
+  const inlineUsosSolo = Array.isArray(erosionForm.usosSolo) ? erosionForm.usosSolo : [];
 
   function syncDays(next) {
     const source = normalizeInspectionForm(next);
@@ -275,6 +397,37 @@ function InspectionFormWizardModal({
       };
       days[dayIndex] = ensureDayShape({ ...day, torresDetalhadas: towers });
       return { ...prev, detalhesDias: days };
+    });
+  }
+
+  function updateInlineLocationField(field, value) {
+    setErosionForm((prev) => ({
+      ...prev,
+      locationCoordinates: {
+        ...(prev.locationCoordinates || {}),
+        [field]: value,
+      },
+    }));
+  }
+
+  function updateInlineMultiField(field, optionValue, checked) {
+    setErosionForm((prev) => {
+      const source = Array.isArray(prev[field]) ? prev[field] : [];
+      const nextSet = new Set(source.map((item) => String(item || '').trim()).filter(Boolean));
+      if (checked) {
+        nextSet.add(optionValue);
+      } else {
+        nextSet.delete(optionValue);
+      }
+      const nextArray = [...nextSet];
+      const patch = { [field]: nextArray };
+      if (field === 'usosSolo' && !nextSet.has('outro')) {
+        patch.usoSoloOutro = '';
+      }
+      return {
+        ...prev,
+        ...patch,
+      };
     });
   }
 
@@ -469,13 +622,10 @@ function InspectionFormWizardModal({
         towerNumber: String(towerNumber || '').trim(),
         existingErosion: latest,
       });
-      setErosionForm({
-        localTipo: String(latest?.localTipo || '').trim(),
-        localDescricao: String(latest?.localDescricao || '').trim(),
-        latitude: String(latest?.latitude || '').trim(),
-        longitude: String(latest?.longitude || '').trim(),
-        descricao: String(latest?.obs || '').trim(),
-      });
+      const locationCoordinates = normalizeLocationCoordinates(latest || {});
+      setErosionForm(buildSafeInlineErosionFormState(latest));
+      setInlineCoordinatesExpanded(hasAnyLocationValue(locationCoordinates));
+      setInlineUtmErrorToken(0);
     } catch (err) {
       show(err.message || 'Nao foi possivel salvar vistoria antes de abrir erosao.', 'error');
     }
@@ -543,6 +693,42 @@ function InspectionFormWizardModal({
 
       const inspectionId = String(formData.id || '').trim() || await ensureInspectionSavedForInlineActions();
       const existing = erosionModal.existingErosion || null;
+      const photos = Array.isArray(erosionForm.fotosLinks)
+        ? erosionForm.fotosLinks.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+      const invalidPhoto = photos.find((item) => !/^https?:\/\//i.test(item));
+      if (invalidPhoto) {
+        show(`Link de foto invalido: ${invalidPhoto}`, 'error');
+        return;
+      }
+
+      const technicalValidation = validateErosionTechnicalFields(erosionForm);
+      if (!technicalValidation.ok) {
+        show(technicalValidation.message, 'error');
+        return;
+      }
+
+      const locationResult = resolveLocationCoordinatesForSave({
+        locationCoordinates: erosionForm.locationCoordinates,
+      });
+      if (!locationResult.ok) {
+        if (String(locationResult.error || '').toLowerCase().includes('utm')) {
+          setInlineCoordinatesExpanded(true);
+          setInlineUtmErrorToken((prev) => prev + 1);
+        }
+        show(locationResult.error, 'error');
+        return;
+      }
+
+      const normalizedTechnicalData = {
+        ...erosionForm,
+        tiposFeicao: technicalValidation.value.tiposFeicao,
+        caracteristicasFeicao: technicalValidation.value.caracteristicasFeicao,
+        larguraMaximaClasse: technicalValidation.value.larguraMaximaClasse,
+        declividadeClasse: technicalValidation.value.declividadeClasse,
+      };
+      const criticalityInput = buildCriticalityInputFromErosion(normalizedTechnicalData);
+      const criticality = calculateCriticality(criticalityInput);
 
       const payload = {
         ...(existing || {}),
@@ -553,11 +739,36 @@ function InspectionFormWizardModal({
           : [inspectionId],
         projetoId: formData.projetoId,
         torreRef: String(erosionModal.towerNumber),
-        latitude: String(erosionForm.latitude || '').trim(),
-        longitude: String(erosionForm.longitude || '').trim(),
+        tipo: deriveErosionTypeFromTechnicalFields(normalizedTechnicalData),
+        estagio: String(erosionForm.estagio || '').trim(),
+        profundidade: String(erosionForm.profundidade || '').trim(),
+        status: String(erosionForm.status || 'Ativo').trim() || 'Ativo',
+        declividade: criticalityInput.declividade,
+        largura: criticalityInput.largura,
+        latitude: locationResult.latitude || '',
+        longitude: locationResult.longitude || '',
+        locationCoordinates: locationResult.locationCoordinates,
         localTipo,
         localDescricao,
+        faixaServidao: String(erosionForm.faixaServidao || '').trim(),
+        areaTerceiros: String(erosionForm.areaTerceiros || '').trim(),
+        usoSolo: String(erosionForm.usoSolo || '').trim(),
+        presencaAguaFundo: technicalValidation.value.presencaAguaFundo,
+        tiposFeicao: technicalValidation.value.tiposFeicao,
+        caracteristicasFeicao: technicalValidation.value.caracteristicasFeicao,
+        larguraMaximaClasse: technicalValidation.value.larguraMaximaClasse,
+        declividadeClasse: technicalValidation.value.declividadeClasse,
+        // Backward compatibility during transition to canonical field name.
+        declividadeClassePdf: technicalValidation.value.declividadeClasse,
+        usosSolo: technicalValidation.value.usosSolo,
+        usoSoloOutro: technicalValidation.value.usoSoloOutro,
+        saturacaoPorAgua: technicalValidation.value.saturacaoPorAgua,
+        // Backward compatibility for legacy consumers.
+        soloSaturadoAgua: technicalValidation.value.saturacaoPorAgua,
+        medidaPreventiva: String(erosionForm.medidaPreventiva || '').trim(),
+        fotosLinks: photos,
         obs: String(erosionForm.descricao || '').trim(),
+        criticality,
       };
 
       await saveErosion(payload, {
@@ -579,10 +790,96 @@ function InspectionFormWizardModal({
       });
 
       setErosionModal(null);
-      setErosionForm(EMPTY_EROSION_FORM);
+      setErosionForm(buildSafeInlineErosionFormState());
+      setInlineCoordinatesExpanded(false);
+      setInlineUtmErrorToken(0);
       show(existing ? 'Erosao atualizada com sucesso.' : 'Erosao cadastrada com sucesso.', 'success');
     } catch {
       show('Erro ao salvar erosao.', 'error');
+    }
+  }
+
+  async function handleOpenErosionDraft() {
+    if (!onOpenErosionDraft) {
+      show('Fluxo de rascunho de erosao indisponivel.', 'error');
+      return;
+    }
+    if (!erosionModal?.towerNumber) {
+      show('Torre nao definida para erosao.', 'error');
+      return;
+    }
+
+    try {
+      const inspectionId = String(formData.id || '').trim() || await ensureInspectionSavedForInlineActions();
+      const technicalValidation = validateErosionTechnicalFields(erosionForm);
+      if (!technicalValidation.ok) {
+        show(technicalValidation.message, 'error');
+        return;
+      }
+      const locationResult = resolveLocationCoordinatesForSave({
+        locationCoordinates: erosionForm.locationCoordinates,
+      });
+      if (!locationResult.ok) {
+        if (String(locationResult.error || '').toLowerCase().includes('utm')) {
+          setInlineCoordinatesExpanded(true);
+          setInlineUtmErrorToken((prev) => prev + 1);
+        }
+        show(locationResult.error, 'error');
+        return;
+      }
+      const photos = Array.isArray(erosionForm.fotosLinks)
+        ? erosionForm.fotosLinks.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+      const normalizedTechnicalData = {
+        ...erosionForm,
+        tiposFeicao: technicalValidation.value.tiposFeicao,
+        caracteristicasFeicao: technicalValidation.value.caracteristicasFeicao,
+        larguraMaximaClasse: technicalValidation.value.larguraMaximaClasse,
+        declividadeClasse: technicalValidation.value.declividadeClasse,
+      };
+      const criticalityInput = buildCriticalityInputFromErosion(normalizedTechnicalData);
+
+      onOpenErosionDraft({
+        projetoId: formData.projetoId,
+        vistoriaId: inspectionId,
+        torreRef: String(erosionModal.towerNumber || '').trim(),
+        tipo: deriveErosionTypeFromTechnicalFields(normalizedTechnicalData),
+        estagio: String(erosionForm.estagio || '').trim(),
+        profundidade: String(erosionForm.profundidade || '').trim(),
+        status: String(erosionForm.status || 'Ativo').trim() || 'Ativo',
+        declividade: criticalityInput.declividade,
+        largura: criticalityInput.largura,
+        locationCoordinates: locationResult.locationCoordinates,
+        latitude: locationResult.latitude || '',
+        longitude: locationResult.longitude || '',
+        localTipo: String(erosionForm.localTipo || '').trim(),
+        localDescricao: String(erosionForm.localDescricao || '').trim(),
+        faixaServidao: String(erosionForm.faixaServidao || '').trim(),
+        areaTerceiros: String(erosionForm.areaTerceiros || '').trim(),
+        usoSolo: String(erosionForm.usoSolo || '').trim(),
+        presencaAguaFundo: technicalValidation.value.presencaAguaFundo,
+        tiposFeicao: technicalValidation.value.tiposFeicao,
+        caracteristicasFeicao: technicalValidation.value.caracteristicasFeicao,
+        larguraMaximaClasse: technicalValidation.value.larguraMaximaClasse,
+        declividadeClasse: technicalValidation.value.declividadeClasse,
+        // Backward compatibility during transition to canonical field name.
+        declividadeClassePdf: technicalValidation.value.declividadeClasse,
+        usosSolo: technicalValidation.value.usosSolo,
+        usoSoloOutro: technicalValidation.value.usoSoloOutro,
+        saturacaoPorAgua: technicalValidation.value.saturacaoPorAgua,
+        // Backward compatibility for legacy consumers.
+        soloSaturadoAgua: technicalValidation.value.saturacaoPorAgua,
+        medidaPreventiva: String(erosionForm.medidaPreventiva || '').trim(),
+        fotosLinks: photos,
+        obs: String(erosionForm.descricao || '').trim(),
+      });
+
+      setErosionModal(null);
+      setErosionForm(buildSafeInlineErosionFormState());
+      setInlineCoordinatesExpanded(false);
+      setInlineUtmErrorToken(0);
+    } catch (err) {
+      show(err.message || 'Nao foi possivel abrir cadastro completo de erosao.', 'error');
     }
   }
 
@@ -1018,39 +1315,255 @@ function InspectionFormWizardModal({
             {erosionModal.existingErosion?.id ? (
               <p className="muted">Editando erosao existente: {erosionModal.existingErosion.id}</p>
             ) : null}
-            <select value={erosionForm.localTipo} onChange={(e) => setErosionForm((prev) => ({ ...prev, localTipo: e.target.value }))}>
-              <option value="">Local da erosao...</option>
-              {EROSION_LOCATION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-            <input
-              placeholder="Detalhe do local (obrigatorio se Outros)"
-              value={erosionForm.localDescricao}
-              onChange={(e) => setErosionForm((prev) => ({ ...prev, localDescricao: e.target.value }))}
-            />
-            <div className="grid-form">
+            <div className="inspections-inline-erosion-body">
+              <select value={erosionForm.localTipo} onChange={(e) => setErosionForm((prev) => ({ ...prev, localTipo: e.target.value }))}>
+                <option value="">Local da erosao...</option>
+                {EROSION_LOCATION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
               <input
-                placeholder="Latitude"
-                value={erosionForm.latitude}
-                onChange={(e) => setErosionForm((prev) => ({ ...prev, latitude: e.target.value }))}
+                placeholder="Detalhe do local (obrigatorio se Outros)"
+                value={erosionForm.localDescricao}
+                onChange={(e) => setErosionForm((prev) => ({ ...prev, localDescricao: e.target.value }))}
+                disabled={erosionForm.localTipo !== 'Outros'}
               />
-              <input
-                placeholder="Longitude"
-                value={erosionForm.longitude}
-                onChange={(e) => setErosionForm((prev) => ({ ...prev, longitude: e.target.value }))}
+              <div className="grid-form">
+                <select value={erosionForm.estagio || ''} onChange={(e) => setErosionForm((prev) => ({ ...prev, estagio: e.target.value }))}>
+                  <option value="">Estagio (grau erosivo)...</option>
+                  <option value="inicial">Inicial</option>
+                  <option value="intermediario">Intermediario</option>
+                  <option value="avancado">Avancado</option>
+                  <option value="critico">Critico</option>
+                </select>
+                <select value={erosionForm.status || 'Ativo'} onChange={(e) => setErosionForm((prev) => ({ ...prev, status: e.target.value }))}>
+                  <option value="Ativo">Status: Ativo</option>
+                  <option value="Monitoramento">Status: Monitoramento</option>
+                  <option value="Estabilizado">Status: Estabilizado</option>
+                </select>
+              </div>
+              <div className="grid-form">
+                <select value={erosionForm.profundidade || ''} onChange={(e) => setErosionForm((prev) => ({ ...prev, profundidade: e.target.value }))}>
+                  <option value="">Profundidade (m)...</option>
+                  <option value="<0.5">&lt; 0.5m</option>
+                  <option value="0.5-1.5">0.5 - 1.5m</option>
+                  <option value="1.5-3.0">1.5 - 3.0m</option>
+                  <option value=">3.0">&gt; 3.0m</option>
+                </select>
+              </div>
+              <div className="inspections-inline-erosion-coordinates">
+                <div className="inspections-inline-erosion-coordinates-head">
+                  <strong>Coordenadas / UTM</strong>
+                  <button
+                    type="button"
+                    className="secondary erosions-coordinates-toggle"
+                    onClick={() => setInlineCoordinatesExpanded((prev) => !prev)}
+                    aria-expanded={inlineCoordinatesExpanded ? 'true' : 'false'}
+                    data-utm-error-token={inlineUtmErrorToken}
+                  >
+                    <span>{inlineCoordinatesStatus}</span>
+                    <AppIcon name={inlineCoordinatesExpanded ? 'chevron-up' : 'chevron-down'} />
+                  </button>
+                </div>
+                {inlineCoordinatesExpanded ? (
+                  <>
+                    <div className="grid-form">
+                      <input
+                        placeholder="Latitude (centesimal)"
+                        value={erosionForm.locationCoordinates?.latitude || ''}
+                        onChange={(e) => updateInlineLocationField('latitude', e.target.value)}
+                      />
+                      <input
+                        placeholder="Longitude (centesimal)"
+                        value={erosionForm.locationCoordinates?.longitude || ''}
+                        onChange={(e) => updateInlineLocationField('longitude', e.target.value)}
+                      />
+                    </div>
+                    <div className="grid-form">
+                      <input
+                        placeholder="UTM Easting"
+                        value={erosionForm.locationCoordinates?.utmEasting || ''}
+                        onChange={(e) => updateInlineLocationField('utmEasting', e.target.value)}
+                      />
+                      <input
+                        placeholder="UTM Northing"
+                        value={erosionForm.locationCoordinates?.utmNorthing || ''}
+                        onChange={(e) => updateInlineLocationField('utmNorthing', e.target.value)}
+                      />
+                    </div>
+                    <div className="grid-form">
+                      <input
+                        placeholder="UTM Zona"
+                        value={erosionForm.locationCoordinates?.utmZone || ''}
+                        onChange={(e) => updateInlineLocationField('utmZone', e.target.value)}
+                      />
+                      <select
+                        value={erosionForm.locationCoordinates?.utmHemisphere || ''}
+                        onChange={(e) => updateInlineLocationField('utmHemisphere', e.target.value)}
+                      >
+                        <option value="">Hemisferio UTM...</option>
+                        <option value="N">N</option>
+                        <option value="S">S</option>
+                      </select>
+                    </div>
+                    <div className="grid-form">
+                      <input
+                        placeholder="Altitude"
+                        value={erosionForm.locationCoordinates?.altitude || ''}
+                        onChange={(e) => updateInlineLocationField('altitude', e.target.value)}
+                      />
+                      <input
+                        placeholder="Referencia"
+                        value={erosionForm.locationCoordinates?.reference || ''}
+                        onChange={(e) => updateInlineLocationField('reference', e.target.value)}
+                      />
+                    </div>
+                  </>
+                ) : null}
+              </div>
+              <div className="grid-form">
+                <select value={erosionForm.faixaServidao || ''} onChange={(e) => setErosionForm((prev) => ({ ...prev, faixaServidao: e.target.value }))}>
+                  <option value="">Faixa de servidao...</option>
+                  <option value="sim">Sim</option>
+                  <option value="nao">Nao</option>
+                </select>
+                <select value={erosionForm.areaTerceiros || ''} onChange={(e) => setErosionForm((prev) => ({ ...prev, areaTerceiros: e.target.value }))}>
+                  <option value="">Area de terceiros...</option>
+                  <option value="sim">Sim</option>
+                  <option value="nao">Nao</option>
+                </select>
+              </div>
+
+              <div className="grid-form">
+                <select value={erosionForm.presencaAguaFundo || ''} onChange={(e) => setErosionForm((prev) => ({ ...prev, presencaAguaFundo: e.target.value }))}>
+                  <option value="">Presenca de agua no fundo...</option>
+                  {EROSION_TECHNICAL_OPTIONS.presencaAguaFundo.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <select value={erosionForm.saturacaoPorAgua || ''} onChange={(e) => setErosionForm((prev) => ({ ...prev, saturacaoPorAgua: e.target.value }))}>
+                  <option value="">Saturacao por agua...</option>
+                  {EROSION_TECHNICAL_OPTIONS.saturacaoPorAgua.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid-form">
+                <select value={erosionForm.larguraMaximaClasse || ''} onChange={(e) => setErosionForm((prev) => ({ ...prev, larguraMaximaClasse: e.target.value }))}>
+                  <option value="">Classe tecnica de largura maxima (m)...</option>
+                  {EROSION_TECHNICAL_OPTIONS.larguraMaximaClasse.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <select value={erosionForm.declividadeClasse || ''} onChange={(e) => setErosionForm((prev) => ({ ...prev, declividadeClasse: e.target.value }))}>
+                  <option value="">Classe tecnica de declividade (graus)...</option>
+                  {EROSION_TECHNICAL_OPTIONS.declividadeClasse.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <fieldset className="inspections-inline-erosion-fieldset">
+                <legend>Tipos de feicao adicionais</legend>
+                <div className="inspections-inline-erosion-check-grid">
+                  {EROSION_TECHNICAL_OPTIONS.tiposFeicao.map((option) => (
+                    <label key={option.value} className="inspections-inline-erosion-check-item">
+                      <input
+                        type="checkbox"
+                        checked={inlineTiposFeicao.includes(option.value)}
+                        onChange={(e) => updateInlineMultiField('tiposFeicao', option.value, e.target.checked)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <fieldset className="inspections-inline-erosion-fieldset">
+                <legend>Caracteristicas da feicao</legend>
+                <div className="inspections-inline-erosion-check-grid">
+                  {EROSION_TECHNICAL_OPTIONS.caracteristicasFeicao.map((option) => (
+                    <label key={option.value} className="inspections-inline-erosion-check-item">
+                      <input
+                        type="checkbox"
+                        checked={inlineCaracteristicasFeicao.includes(option.value)}
+                        onChange={(e) => updateInlineMultiField('caracteristicasFeicao', option.value, e.target.checked)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <fieldset className="inspections-inline-erosion-fieldset">
+                <legend>Usos do solo</legend>
+                <div className="inspections-inline-erosion-check-grid">
+                  {EROSION_TECHNICAL_OPTIONS.usosSolo.map((option) => (
+                    <label key={option.value} className="inspections-inline-erosion-check-item">
+                      <input
+                        type="checkbox"
+                        checked={inlineUsosSolo.includes(option.value)}
+                        onChange={(e) => updateInlineMultiField('usosSolo', option.value, e.target.checked)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              {inlineUsosSolo.includes('outro') ? (
+                <input
+                  placeholder="Uso do solo - outro (obrigatorio)"
+                  value={erosionForm.usoSoloOutro || ''}
+                  onChange={(e) => setErosionForm((prev) => ({ ...prev, usoSoloOutro: e.target.value }))}
+                />
+              ) : null}
+
+              <textarea
+                rows="2"
+                placeholder="Medida preventiva"
+                value={erosionForm.medidaPreventiva || ''}
+                onChange={(e) => setErosionForm((prev) => ({ ...prev, medidaPreventiva: e.target.value }))}
+              />
+              <textarea
+                rows="2"
+                placeholder="Fotos (links, um por linha)"
+                value={Array.isArray(erosionForm.fotosLinks) ? erosionForm.fotosLinks.join('\n') : ''}
+                onChange={(e) => setErosionForm((prev) => ({
+                  ...prev,
+                  fotosLinks: String(e.target.value || '')
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .filter(Boolean),
+                }))}
+              />
+              <textarea
+                rows="3"
+                placeholder="Descricao"
+                value={erosionForm.descricao}
+                onChange={(e) => setErosionForm((prev) => ({ ...prev, descricao: e.target.value }))}
               />
             </div>
-            <textarea
-              rows="4"
-              placeholder="Descricao"
-              value={erosionForm.descricao}
-              onChange={(e) => setErosionForm((prev) => ({ ...prev, descricao: e.target.value }))}
-            />
             <div className="row-actions">
+              {onOpenErosionDraft ? (
+                <button type="button" className="secondary" onClick={handleOpenErosionDraft}>
+                  <AppIcon name="details" />
+                  Abrir cadastro completo na aba Erosoes
+                </button>
+              ) : null}
               <button type="submit">
-                <AppIcon name="save" />
-                {erosionModal.existingErosion ? 'Salvar alteracoes' : 'Salvar erosao'}
-              </button>
-              <button type="button" className="secondary" onClick={() => setErosionModal(null)}>
+                  <AppIcon name="save" />
+                  {erosionModal.existingErosion ? 'Salvar alteracoes' : 'Salvar erosao'}
+                </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setErosionModal(null);
+                  setErosionForm(buildSafeInlineErosionFormState());
+                  setInlineCoordinatesExpanded(false);
+                  setInlineUtmErrorToken(0);
+                }}
+              >
                 <AppIcon name="close" />
                 Cancelar
               </button>

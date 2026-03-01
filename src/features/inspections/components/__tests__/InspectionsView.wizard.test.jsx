@@ -85,6 +85,14 @@ async function clickByText(text, scope = document.body) {
   return button;
 }
 
+async function clickElement(element) {
+  expect(element).toBeTruthy();
+  await act(async () => {
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 describe('InspectionsView wizard flow', () => {
   let container;
   let root;
@@ -190,5 +198,46 @@ describe('InspectionsView wizard flow', () => {
 
     expect(document.body.textContent).toContain('Torre 5');
     expect(document.body.textContent).toContain('Torre 6');
+  });
+
+  it('opens full erosion draft from inline modal and forwards technical payload', async () => {
+    const onOpenErosionDraft = vi.fn();
+    renderView(root, {
+      onOpenErosionDraft,
+    });
+
+    await clickByText('Nova Vistoria');
+
+    const projectSelect = document.querySelector('.inspections-wizard-modal select');
+    const dateInputs = document.querySelectorAll('.inspections-wizard-modal input[type="date"]');
+    changeInput(projectSelect, 'P1');
+    changeInput(dateInputs[0], '2026-03-10');
+    changeInput(dateInputs[1], '2026-03-10');
+    await flush();
+
+    await clickByText('Avancar');
+
+    const towerInput = document.querySelector('.inspections-wizard-modal input[placeholder="Ex: 1-3, 5, 7"]');
+    changeInput(towerInput, '1');
+    await clickByText('Gerar checklist');
+
+    const erosionButton = document.querySelector('.inspections-tower-btn-erosion');
+    await clickElement(erosionButton);
+
+    const localSelect = document.querySelector('.inspections-inline-erosion-modal select');
+    changeInput(localSelect, 'Base de torre');
+    await clickByText('Abrir cadastro completo na aba Erosoes');
+
+    expect(onOpenErosionDraft).toHaveBeenCalledTimes(1);
+    expect(onOpenErosionDraft).toHaveBeenCalledWith(expect.objectContaining({
+      projetoId: 'P1',
+      torreRef: '1',
+      presencaAguaFundo: '',
+      tiposFeicao: [],
+      declividadeClasse: '',
+      usosSolo: [],
+      saturacaoPorAgua: '',
+    }));
+    expect(onOpenErosionDraft.mock.calls[0][0]).not.toHaveProperty('alturaMaximaClasse');
   });
 });

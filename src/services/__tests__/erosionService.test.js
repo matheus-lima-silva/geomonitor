@@ -13,22 +13,60 @@ vi.mock('../../features/shared/statusUtils', () => ({
 
 vi.mock('../../features/erosions/utils/erosionUtils', () => ({
   appendFollowupEvent: vi.fn(),
+  buildCriticalityInputFromErosion: vi.fn(),
+  deriveErosionTypeFromTechnicalFields: vi.fn(),
   buildFollowupEvent: vi.fn(),
+  normalizeErosionTechnicalFields: vi.fn(),
   normalizeFollowupHistory: vi.fn(),
+  validateErosionTechnicalFields: vi.fn(),
 }));
 
 import { deleteDocById, loadDoc, saveDoc, subscribeCollection } from '../firestoreClient';
 import { normalizeErosionStatus } from '../../features/shared/statusUtils';
 import {
   appendFollowupEvent,
+  buildCriticalityInputFromErosion,
+  deriveErosionTypeFromTechnicalFields,
   buildFollowupEvent,
+  normalizeErosionTechnicalFields,
   normalizeFollowupHistory,
+  validateErosionTechnicalFields,
 } from '../../features/erosions/utils/erosionUtils';
 import { deleteErosion, saveErosion, subscribeErosions } from '../erosionService';
 
 describe('erosionService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(validateErosionTechnicalFields).mockReturnValue({
+      ok: true,
+      message: '',
+      value: {
+        presencaAguaFundo: '',
+        tiposFeicao: [],
+        caracteristicasFeicao: [],
+        larguraMaximaClasse: '',
+        declividadeClasse: '',
+        usosSolo: [],
+        usoSoloOutro: '',
+        saturacaoPorAgua: '',
+      },
+    });
+    vi.mocked(normalizeErosionTechnicalFields).mockReturnValue({
+      presencaAguaFundo: '',
+      tiposFeicao: [],
+      caracteristicasFeicao: [],
+      larguraMaximaClasse: '',
+      declividadeClasse: '',
+      usosSolo: [],
+      usoSoloOutro: '',
+      saturacaoPorAgua: '',
+    });
+    vi.mocked(buildCriticalityInputFromErosion).mockReturnValue({
+      declividade: '',
+      largura: '',
+      tipo: '',
+    });
+    vi.mocked(deriveErosionTypeFromTechnicalFields).mockReturnValue('');
   });
 
   it('subscribeErosions delega para coleção erosions', () => {
@@ -102,6 +140,8 @@ describe('erosionService', () => {
         intervencao: 'Obra emergencial',
         localTipo: '',
         localDescricao: '',
+        declividadeClasse: '',
+        declividadeClassePdf: '',
         acompanhamentosResumo: [{ tipo: 'FINAL' }],
       }),
       {
@@ -141,6 +181,8 @@ describe('erosionService', () => {
         score: 1,
         frequencia: '24 meses',
         intervencao: 'Monitoramento visual',
+        declividadeClasse: '',
+        declividadeClassePdf: '',
       }),
       {
         skipAutoFollowup: true,
