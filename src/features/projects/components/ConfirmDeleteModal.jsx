@@ -6,7 +6,7 @@ function ConfirmDeleteModal({ projectId, onCancel, onConfirm }) {
   return (
     <div className="modal-backdrop">
       <div className="modal wide">
-        <h3>Confirmar exclusÃ£o</h3>
+        <h3>Confirmar exclusão</h3>
         <p>Tem certeza que deseja excluir o empreendimento <strong>{projectId}</strong>?</p>
         <div className="row-actions">
           <button type="button" className="danger" onClick={onConfirm}>

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import AppIcon from '../components/AppIcon';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -13,7 +13,14 @@ import { subscribeRulesConfig } from '../services/rulesService';
 import { subscribeOperatingLicenses } from '../services/licenseService';
 import { normalizeRulesConfig, RULES_DATABASE } from '../features/shared/rulesConfig';
 import { normalizeUserStatus } from '../features/shared/statusUtils';
-import { buildEffectiveReportOccurrences } from '../features/licenses/utils/scheduleResolver';
+import TopPlanningAlert from '../features/monitoring/components/TopPlanningAlert';
+import {
+  IMPACT_LEVELS,
+  buildMonitoringViewModel,
+  formatMonitoringMonthLabel,
+  formatTowerLabel,
+  getErosionImpact,
+} from '../features/monitoring/utils/monitoringViewModel';
 
 const ProjectsView = lazy(() => import('../features/projects/components/ProjectsView'));
 const LicensesView = lazy(() => import('../features/licenses/components/LicensesView'));
@@ -22,70 +29,212 @@ const ErosionsView = lazy(() => import('../features/erosions/components/Erosions
 const VisitPlanningView = lazy(() => import('../features/inspections/components/VisitPlanningView'));
 const AdminView = lazy(() => import('../features/admin/components/AdminView'));
 
-function Placeholder({ title, text }) {
-  return (
-    <section className="panel">
-      <h2>{title}</h2>
-      <p className="muted">{text}</p>
-    </section>
-  );
+function getImpactCardClassName(impact) {
+  if (impact === 'Muito Alto') return 'monitor-impact-card is-critical';
+  if (impact === 'Alto') return 'monitor-impact-card is-high';
+  if (impact === 'Médio') return 'monitor-impact-card is-medium';
+  return 'monitor-impact-card is-low';
 }
 
-function DashboardAlerts({ projects, operatingLicenses }) {
-  const currentYear = new Date().getFullYear();
-  const now = new Date();
-  const occurrences = buildEffectiveReportOccurrences({
-    projects,
-    operatingLicenses,
-    startYear: currentYear,
-    endYear: currentYear + 1,
-  })
-    .sort((a, b) => a.sortDate - b.sortDate);
+function getImpactChipClassName(impact) {
+  if (impact === 'Muito Alto') return 'monitor-impact-chip is-critical';
+  if (impact === 'Alto') return 'monitor-impact-chip is-high';
+  if (impact === 'Médio') return 'monitor-impact-chip is-medium';
+  return 'monitor-impact-chip is-low';
+}
 
-  const nextByScope = new Map();
-  occurrences.forEach((occ) => {
-    if (!nextByScope.has(occ.scopeId) && occ.sortDate >= now.getTime()) {
-      nextByScope.set(occ.scopeId, occ);
-    }
-  });
-
-  const alerts = [...nextByScope.values()]
-    .map((item) => {
-      const target = new Date(item.year, item.month - 1, 1);
-      const days = Math.ceil((target.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
-      return { ...item, days };
-    })
-    .filter((item) => item.days >= 0 && item.days <= 45)
-    .sort((a, b) => a.days - b.days);
+function DashboardMonitoring({ viewModel }) {
+  const {
+    reportOccurrences,
+    reportMonthRows,
+    reportMonthDetailsByKey,
+    impactCounts,
+    criticalCount,
+    recentErosions,
+    projectsById,
+    projectCount,
+    inspectionCount,
+    erosionCount,
+  } = viewModel;
+  const [expandedMonthKey, setExpandedMonthKey] = useState(null);
 
   return (
-    <section className="panel">
-      <h2>MonitorizaÃ§Ã£o</h2>
-      <p className="muted">Empreendimentos com entrega de relatÃ³rio em atÃ© 45 dias.</p>
-      {alerts.length === 0 && <p className="muted">Nenhum empreendimento nesta janela.</p>}
-      {alerts.length > 0 && (
-        <div className="project-cards">
-          {alerts.map((alert) => (
-            <article key={`${alert.scopeId}-${alert.monthKey}`} className="project-card">
-              <h3>{alert.scopeType === 'lo' ? `LO ${alert.loNumero || alert.loId || '-'}` : (alert.projectNames?.[0] || '-')}</h3>
-              <div className="muted">
-                <div><strong>Origem:</strong> {alert.scopeType === 'lo' ? 'LO' : 'Empreendimento vinculado'}</div>
-                <div><strong>Escopo:</strong> {alert.scopeSummary || '-'}</div>
-                {alert.scopeType === 'lo' && (
-                  <div>
-                    <strong>Ã“rgÃ£o:</strong> {alert.orgaoAmbiental || '-'}
-                    {' | '}
-                    <strong>Esfera:</strong> {alert.esfera || '-'}
-                    {alert.uf ? ` (${alert.uf})` : ''}
-                  </div>
+    <section className="panel monitor-dashboard">
+      
+
+      <div className="monitor-dashboard-header">
+        <h2>Dashboard de Monitorização</h2>
+        <p className="muted">Resumo de entregas, riscos e evolução recente das erosões.</p>
+      </div>
+
+      <div className="monitor-kpi-grid">
+        <article className="project-card monitor-kpi-card">
+          <div className="monitor-kpi-title">
+            <AppIcon name="building" />
+            Empreendimentos
+          </div>
+          <div className="monitor-kpi-value">{projectCount}</div>
+        </article>
+        <article className="project-card monitor-kpi-card">
+          <div className="monitor-kpi-title">
+            <AppIcon name="clipboard" />
+            Vistorias
+          </div>
+          <div className="monitor-kpi-value">{inspectionCount}</div>
+        </article>
+        <article className="project-card monitor-kpi-card">
+          <div className="monitor-kpi-title">
+            <AppIcon name="alert" />
+            Erosões
+          </div>
+          <div className="monitor-kpi-value">{erosionCount}</div>
+        </article>
+        <article className="project-card monitor-kpi-card">
+          <div className="monitor-kpi-title">
+            <AppIcon name="alert" />
+            Críticas
+          </div>
+          <div className="monitor-kpi-value is-critical">{criticalCount}</div>
+        </article>
+      </div>
+
+      <div className="monitor-impact-grid">
+        {IMPACT_LEVELS.map((impact) => (
+          <article key={impact} className={getImpactCardClassName(impact)}>
+            <div className="monitor-impact-label">{impact}</div>
+            <div className="monitor-impact-value">{impactCounts[impact]}</div>
+          </article>
+        ))}
+      </div>
+
+      <div className="monitor-two-col">
+        <article className="monitor-report-card">
+          <div className="monitor-report-card-head">
+            <h3>Entregas de Relatórios (próximas)</h3>
+          </div>
+          <div className="table-scroll">
+            <table className="monitor-table">
+              <thead className="monitor-report-card-table-head">
+                <tr>
+                  <th>Origem</th>
+                  <th>Escopo</th>
+                  <th>Mês/ano entrega</th>
+                </tr>
+              </thead>
+              <tbody className="monitor-report-card-body">
+                {reportOccurrences.slice(0, 8).map((item, idx) => (
+                  <tr key={`${item.scopeId}-${item.monthKey}-${idx}`}>
+                    <td className="monitor-report-main-cell">{item.scopeType === 'lo' ? `LO ${item.loNumero || item.loId || '-'}` : 'Empreendimento vinculado'}</td>
+                    <td>{item.scopeSummary || '-'}</td>
+                    <td>{formatMonitoringMonthLabel(item.month)}/{item.year}</td>
+                  </tr>
+                ))}
+                {reportOccurrences.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="monitor-report-empty-cell">Sem periodicidades de entrega cadastradas.</td>
+                  </tr>
                 )}
-                <div><strong>Entrega:</strong> {String(alert.month).padStart(2, '0')}/{alert.year}</div>
-                <div><strong>Faltam:</strong> {alert.days} dia(s)</div>
-              </div>
-            </article>
-          ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article className="panel nested monitor-month-card">
+          <h3>Acompanhamento mensal de entregas</h3>
+          <div className="monitor-month-list">
+            {reportMonthRows.map(([monthKey, count]) => {
+              const [year, monthNumber] = monthKey.split('-');
+              const detailsId = `monitor-month-details-${monthKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+              const isExpanded = expandedMonthKey === monthKey;
+              const details = Array.isArray(reportMonthDetailsByKey?.[monthKey]) ? reportMonthDetailsByKey[monthKey] : [];
+              return (
+                <div key={monthKey} className="monitor-month-entry">
+                  <button
+                    type="button"
+                    className={`monitor-month-button${isExpanded ? ' is-expanded' : ''}`}
+                    aria-expanded={isExpanded ? 'true' : 'false'}
+                    aria-controls={detailsId}
+                    onClick={() => setExpandedMonthKey((prev) => (prev === monthKey ? null : monthKey))}
+                  >
+                    <span className="monitor-month-button-main">
+                      <span className="monitor-month-button-label">{formatMonitoringMonthLabel(monthNumber)}/{year}</span>
+                    </span>
+                    <strong className="monitor-month-button-count">{count}</strong>
+                  </button>
+
+                  {isExpanded ? (
+                    <div
+                      id={detailsId}
+                      className="monitor-month-details"
+                      role="region"
+                      aria-label={`Detalhes de ${formatMonitoringMonthLabel(monthNumber)}/${year}`}
+                    >
+                      {details.map((item) => {
+                        const projectId = String(item?.projectId || '').trim();
+                        const projectName = String(item?.projectName || '').trim();
+                        const projectLabel = projectName && projectName !== projectId
+                          ? `${projectId} - ${projectName}`
+                          : (projectId || projectName || '-');
+
+                        return (
+                          <article key={`${monthKey}-${projectId || projectLabel}`} className="monitor-month-detail-item">
+                            <strong className="monitor-month-detail-title">{projectLabel}</strong>
+                            <span className="monitor-month-detail-meta"><strong>Origem:</strong> {item?.sourceSummary || '-'}</span>
+                            <span className="monitor-month-detail-meta"><strong>Escopo:</strong> {item?.scopeSummary || '-'}</span>
+                          </article>
+                        );
+                      })}
+                      {details.length === 0 && (
+                        <p className="monitor-month-detail-empty">Nenhum empreendimento encontrado para este mês.</p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+            {reportMonthRows.length === 0 && <p className="muted">Sem entregas por mês para acompanhar.</p>}
+          </div>
+        </article>
+      </div>
+
+      <article className="panel nested monitor-table-card">
+        <h3>Erosões recentes</h3>
+        <div className="table-scroll">
+          <table className="monitor-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Projeto</th>
+                <th>Torre</th>
+                <th>Impacto</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentErosions.map((item) => {
+                const projectId = String(item?.projetoId || '').trim();
+                const project = projectsById.get(projectId);
+                const projectLabel = project ? `${projectId} - ${project.nome || projectId}` : (projectId || '-');
+                const impact = getErosionImpact(item);
+                return (
+                  <tr key={item.id}>
+                    <td>{item.id}</td>
+                    <td>{projectLabel}</td>
+                    <td>{formatTowerLabel(item?.torreRef)}</td>
+                    <td><span className={getImpactChipClassName(impact)}>{impact}</span></td>
+                    <td>{item.status || '-'}</td>
+                  </tr>
+                );
+              })}
+              {recentErosions.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="muted">Nenhuma erosão registrada.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </article>
     </section>
   );
 }
@@ -99,11 +248,21 @@ function DashboardView() {
   const [erosions, setErosions] = useState([]);
   const [users, setUsers] = useState([]);
   const [rulesConfig, setRulesConfig] = useState(() => normalizeRulesConfig(RULES_DATABASE));
-  const [activeTab, setActiveTab] = useState('projects');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
   const [inspectionProjectFilterId, setInspectionProjectFilterId] = useState(null);
   const [inspectionPlanningDraft, setInspectionPlanningDraft] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const dashboardViewModel = useMemo(() => buildMonitoringViewModel({
+    projects,
+    inspections,
+    erosions,
+    operatingLicenses,
+    searchTerm,
+  }), [projects, inspections, erosions, operatingLicenses, searchTerm]);
+  const topNotice = activeTab === 'dashboard' && dashboardViewModel.reportPlanningAlerts.length > 0
+    ? <TopPlanningAlert alerts={dashboardViewModel.reportPlanningAlerts} />
+    : null;
 
   useEffect(() => {
     const unsubProjects = subscribeProjects(
@@ -113,7 +272,7 @@ function DashboardView() {
 
     const unsubLicenses = subscribeOperatingLicenses(
       (data) => setOperatingLicenses(data),
-      () => show('Erro ao carregar licenÃ§as de operaÃ§Ã£o.', 'error'),
+      () => show('Erro ao carregar licenças de operação.', 'error'),
     );
 
     const unsubInspections = subscribeInspections(
@@ -123,7 +282,7 @@ function DashboardView() {
 
     const unsubErosions = subscribeErosions(
       (data) => setErosions(data),
-      () => show('Erro ao carregar erosÃµes.', 'error'),
+      () => show('Erro ao carregar erosões.', 'error'),
     );
 
     return () => {
@@ -169,8 +328,8 @@ function DashboardView() {
         <h2>Acesso restrito</h2>
         <p className="muted">
           {accessStatus === 'Pendente'
-            ? 'A sua conta estÃ¡ aguardando aprovaÃ§Ã£o de um administrador.'
-            : 'A sua conta estÃ¡ inativa. Entre em contato com um administrador.'}
+            ? 'A sua conta está aguardando aprovação de um administrador.'
+            : 'A sua conta está inativa. Entre em contato com um administrador.'}
         </p>
         <button type="button" onClick={logout}>
           <AppIcon name="logout" />
@@ -261,7 +420,11 @@ function DashboardView() {
     }
 
     if (activeTab === 'dashboard') {
-      return <DashboardAlerts projects={projects} operatingLicenses={operatingLicenses} />;
+      return (
+        <DashboardMonitoring
+          viewModel={dashboardViewModel}
+        />
+      );
     }
 
     return null;
@@ -275,16 +438,11 @@ function DashboardView() {
         user={user}
         onLogout={logout}
         onOpenProfile={() => setShowProfileModal(true)}
+        topNotice={topNotice}
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
       >
-        <section className="panel search-panel">
-          <input
-            type="search"
-            placeholder="Buscar por ID, nome ou email"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </section>
-        <Suspense fallback={<section className="panel">A carregar mÃ³dulo...</section>}>
+        <Suspense fallback={<section className="panel">A carregar módulo...</section>}>
           {renderTab()}
         </Suspense>
       </AppShell>

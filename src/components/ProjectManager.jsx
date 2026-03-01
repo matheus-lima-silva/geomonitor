@@ -29,11 +29,11 @@ function ProjectManager({ onProjectsChange }) {
   return (
     <section className="panel">
       <h2>Empreendimentos</h2>
-      <p className="muted">Cadastre e mantenha os dados base das linhas de transmissÃ£o.</p>
+      <p className="muted">Cadastre e mantenha os dados base das linhas de transmissão.</p>
 
       <form onSubmit={handleSubmit} className="grid-form">
         <input placeholder="Nome" value={form.nome} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} required />
-        <input placeholder="CÃ³digo" value={form.codigo} onChange={(e) => setForm((p) => ({ ...p, codigo: e.target.value }))} required />
+        <input placeholder="Código" value={form.codigo} onChange={(e) => setForm((p) => ({ ...p, codigo: e.target.value }))} required />
         <input
           placeholder="Total de torres"
           type="number"
@@ -59,7 +59,7 @@ function ProjectManager({ onProjectsChange }) {
           <thead>
             <tr>
               <th>Nome</th>
-              <th>CÃ³digo</th>
+              <th>Código</th>
               <th>Total de torres</th>
             </tr>
           </thead>

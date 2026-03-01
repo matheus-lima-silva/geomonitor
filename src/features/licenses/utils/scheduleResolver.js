@@ -29,9 +29,15 @@ function shouldIncludeBienal(year, anoBaseBienal) {
   return (year - base) % 2 === 0;
 }
 
-function buildCoverageSummary(coverage) {
+function buildCoverageSummary(coverage, projectsById) {
   return coverage
-    .map((item) => `${item.projetoId}: ${item.torres.join(', ')}`)
+    .map((item) => {
+      const projectId = String(item?.projetoId || '').trim();
+      const projectName = String(projectsById?.get(projectId)?.nome || '').trim();
+      const projectLabel = projectName ? `${projectId}: ${projectName}` : projectId;
+      const description = String(item?.descricaoEscopo || '').trim();
+      return description ? `${projectLabel} - ${description}` : projectLabel;
+    })
     .join(' | ');
 }
 
@@ -46,7 +52,7 @@ export function buildLicenseReportOccurrences(license, projectsById, startYear, 
 
   const projectIds = [...new Set(coverage.map((item) => item.projetoId))];
   const projectNames = projectIds.map((id) => projectsById.get(id)?.nome || id);
-  const scopeSummary = buildCoverageSummary(coverage);
+  const scopeSummary = buildCoverageSummary(coverage, projectsById);
 
   const occurrences = [];
   for (let year = startYear; year <= endYear; year += 1) {

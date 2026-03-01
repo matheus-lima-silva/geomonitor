@@ -1,0 +1,48 @@
+GUIA RAPIDO - GEO MONITOR EM SERVIDOR LOCAL (WINDOWS/POWERSHELL)
+
+1) Abra o PowerShell na pasta do projeto:
+   cd "c:\Users\l1ma\OneDrive\Documentos\projgeo\geomonitor"
+
+2) (Opcional) Criar .env a partir do exemplo, se ainda nao existir:
+   Copy-Item .env.example .env
+
+3) Instale as dependencias do frontend:
+   npm install
+
+4) Suba o servidor local principal (Vite):
+   npm run dev
+
+5) Acesse no navegador:
+   http://localhost:5173
+
+6) Para encerrar o servidor:
+   Ctrl + C no terminal
+
+
+OPCAO LEGADO (servir app.html com Python + Uvicorn)
+
+1) Instale dependencias Python:
+   pip install -r requirements-uvicorn.txt
+
+2) Inicie o servidor legado:
+   uvicorn uvicorn_server:app --reload --host 127.0.0.1 --port 8000
+
+3) Acesse:
+   http://127.0.0.1:8000
+
+
+OPCAO COM DOCKER (RECOMENDADO PARA EXECUCAO ISOLADA)
+
+1) Preencha o arquivo .env com as variaveis VITE_FIREBASE_*.
+
+2) Construa e suba o container:
+   docker compose up --build -d
+
+3) Acesse no navegador:
+   http://localhost:8080
+
+4) Ver logs:
+   docker compose logs -f
+
+5) Parar o container:
+   docker compose down

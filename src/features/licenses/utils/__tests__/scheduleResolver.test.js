@@ -31,6 +31,7 @@ describe('scheduleResolver', () => {
     const fallbackP2 = rows.find((item) => item.scopeType === 'project_fallback' && item.scopeId === 'P2');
 
     expect(loRow).toBeTruthy();
+    expect(loRow.scopeSummary).toBe('P1: Projeto 1');
     expect(fallbackP1).toBeFalsy();
     expect(fallbackP2).toBeTruthy();
   });

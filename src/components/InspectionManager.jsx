@@ -433,7 +433,7 @@ function InspectionManager({
   function alertPendingTowers(pendingErosions) {
     const towers = [...new Set((pendingErosions || []).map((item) => String(item?.torreRef || '').trim()).filter(Boolean))]
       .sort((a, b) => Number(a) - Number(b));
-    show(`PendÃªncias de visita em erosÃµes: ${towers.join(', ') || '-'}. As torres jÃ¡ foram carregadas para marcaÃ§Ã£o da data.`, 'error');
+    show(`Pendências de visita em erosões: ${towers.join(', ') || '-'}. As torres já foram carregadas para marcação da data.`, 'error');
   }
 
   async function checkInspectionPendencies({
@@ -466,7 +466,7 @@ function InspectionManager({
       if (typed === null) return;
       const visitDate = String(typed || '').trim();
       if (!isBrDateValid(visitDate)) {
-        show('Data invÃ¡lida. Use o formato DD/MM/AAAA.', 'error');
+        show('Data inválida. Use o formato DD/MM/AAAA.', 'error');
         return;
       }
       const inspectionId = await ensureSaved({
@@ -480,7 +480,7 @@ function InspectionManager({
         String(item?.projetoId || '').trim() === projectId
         && String(item?.torreRef || '').trim() === towerKey);
       if (targetErosions.length === 0) {
-        show('NÃ£o hÃ¡ erosÃ£o cadastrada nessa torre para marcar visita.', 'error');
+        show('Não há erosão cadastrada nessa torre para marcar visita.', 'error');
         return;
       }
       await Promise.all(targetErosions.map((erosion) => saveErosion({
@@ -496,9 +496,9 @@ function InspectionManager({
         skipAutoFollowup: true,
         updatedBy: actorName,
       })));
-      show(`Visita da erosÃ£o marcada para ${visitDate}.`, 'success');
+      show(`Visita da erosão marcada para ${visitDate}.`, 'success');
     } catch {
-      show('Erro ao marcar visita da erosÃ£o.', 'error');
+      show('Erro ao marcar visita da erosão.', 'error');
     }
   }
 
@@ -538,7 +538,7 @@ function InspectionManager({
           notifyWhenPending: true,
         });
       } catch {
-        show('Erro ao verificar pendÃªncias de erosÃ£o nesta vistoria.', 'error');
+        show('Erro ao verificar pendências de erosão nesta vistoria.', 'error');
       }
     })();
   }, [inspection.id, inspection.projetoId, inspection.detalhesDias, erosions]);
@@ -551,7 +551,7 @@ function InspectionManager({
   async function handleSaveInspection() {
     try {
       if (!inspection.projetoId || !inspection.dataInicio) {
-        show('Selecione empreendimento e data de inÃ­cio.', 'error');
+        show('Selecione empreendimento e data de início.', 'error');
         return;
       }
 
@@ -563,10 +563,10 @@ function InspectionManager({
           .join('\n');
         const overflow = duplicateTowers.length > 8 ? `\n... e mais ${duplicateTowers.length - 8} torre(s).` : '';
         const confirmed = window.confirm(
-          `HÃ¡ torres registradas em mais de um dia nesta vistoria:\n${sample}${overflow}\n\nIsso pode estar correto em caso de revisita.\nClique em OK para continuar ou Cancelar para revisar.`,
+          `Há torres registradas em mais de um dia nesta vistoria:\n${sample}${overflow}\n\nIsso pode estar correto em caso de revisita.\nClique em OK para continuar ou Cancelar para revisar.`,
         );
         if (!confirmed) {
-          show('Salvamento cancelado para revisÃ£o das torres repetidas.', 'error');
+          show('Salvamento cancelado para revisão das torres repetidas.', 'error');
           return;
         }
       }

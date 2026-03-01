@@ -171,11 +171,11 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
               Hotel sugerido: <strong>{item.hotelSugeridoNome}</strong>
               {item.hotelSugeridoMunicipio ? ` (${item.hotelSugeridoMunicipio})` : ''}
               {item.hotelSugeridoTorreBase ? ` | Torre base: ${item.hotelSugeridoTorreBase}` : ''}
-              {item.hotelSugeridoDistanciaTorreAlvo !== '' ? ` | DistÃ¢ncia da torre-alvo: ${formatHotelDistance(item.hotelSugeridoDistanciaTorreAlvo)}` : ''}
+              {item.hotelSugeridoDistanciaTorreAlvo !== '' ? ` | Distância da torre-alvo: ${formatHotelDistance(item.hotelSugeridoDistanciaTorreAlvo)}` : ''}
             </small>
             <div>
               <small>
-                Notas - LogÃ­stica: {formatHotelNote(item.hotelSugeridoLogisticaNota)}
+                Notas - Logística: {formatHotelNote(item.hotelSugeridoLogisticaNota)}
                 {' | '}
                 Reserva: {formatHotelNote(item.hotelSugeridoReservaNota)}
                 {' | '}
@@ -184,7 +184,7 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
             </div>
           </div>
         ) : (
-          <div><small>Sem histÃ³rico de hospedagem para esta torre.</small></div>
+          <div><small>Sem histórico de hospedagem para esta torre.</small></div>
         )}
       </div>
     );
@@ -195,7 +195,7 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
       <div className="topbar">
         <div>
           <h2>Planejamento de Visita</h2>
-          <p className="muted">Planejamento anual por amostragem, com torres obrigatÃ³rias e guia de campo.</p>
+          <p className="muted">Planejamento anual por amostragem, com torres obrigatórias e guia de campo.</p>
         </div>
       </div>
 
@@ -213,26 +213,26 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
           <div className="notice">
             <div><strong>Total torres:</strong> {planning.totalTorres}</div>
             <div><strong>Meta anual:</strong> {planning.metaAmostragem}</div>
-            <div><strong>ObrigatÃ³rias:</strong> {planning.obrigatorias.length}</div>
+            <div><strong>Obrigatórias:</strong> {planning.obrigatorias.length}</div>
             <div><strong>Amostragem selecionada (auto):</strong> {planning.amostragemSelecionada.length}</div>
-            <div><strong>NÃ£o priorizar:</strong> {planning.naoPriorizar.length}</div>
+            <div><strong>Não priorizar:</strong> {planning.naoPriorizar.length}</div>
             <div><strong>Seed:</strong> {planning.seed}</div>
           </div>
 
           <div className="notice">
-            <strong>SeleÃ§Ã£o atual:</strong> {selectedItems.length} torre(s)
-            <div><strong>Torre-alvo (Ãºltima da sequÃªncia):</strong> {targetTower || 'N/D'}</div>
+            <strong>Seleção atual:</strong> {selectedItems.length} torre(s)
+            <div><strong>Torre-alvo (última da sequência):</strong> {targetTower || 'N/D'}</div>
             {priorityHotel ? (
               <div>
-                <strong>Hotel prioritÃ¡rio da Ãºltima torre{targetTower ? ` (T${targetTower})` : ''}:</strong>
+                <strong>Hotel prioritário da última torre{targetTower ? ` (T${targetTower})` : ''}:</strong>
                 {' '}
                 {priorityHotel.hotelSugeridoNome}
                 {priorityHotel.hotelSugeridoMunicipio ? ` (${priorityHotel.hotelSugeridoMunicipio})` : ''}
                 {priorityHotel.hotelSugeridoTorreBase ? ` | Torre base ${priorityHotel.hotelSugeridoTorreBase}` : ''}
-                {priorityHotel.hotelSugeridoDistanciaTorreAlvo !== '' ? ` | DistÃ¢ncia ${formatHotelDistance(priorityHotel.hotelSugeridoDistanciaTorreAlvo)}` : ''}
+                {priorityHotel.hotelSugeridoDistanciaTorreAlvo !== '' ? ` | Distância ${formatHotelDistance(priorityHotel.hotelSugeridoDistanciaTorreAlvo)}` : ''}
               </div>
             ) : (
-              <div>Sem histÃ³rico de hotel para priorizaÃ§Ã£o da torre-alvo.</div>
+              <div>Sem histórico de hotel para priorização da torre-alvo.</div>
             )}
             <div className="row-actions">
               <button type="button" className="secondary" onClick={() => setSelectedTowers(allSelectable.map((item) => item.torre))}>
@@ -241,11 +241,11 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
               </button>
               <button type="button" className="secondary" onClick={() => setSelectedTowers([...planning.obrigatorias, ...planning.amostragemSelecionada].map((item) => item.torre))}>
                 <AppIcon name="reset" />
-                Reset padrÃ£o
+                Reset padrão
               </button>
               <button type="button" className="secondary" onClick={() => setSelectedTowers([])}>
                 <AppIcon name="close" />
-                Limpar seleÃ§Ã£o
+                Limpar seleção
               </button>
             </div>
           </div>
@@ -257,7 +257,7 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
               disabled={!serialized}
             >
               <AppIcon name="clipboard" />
-              Aplicar seleÃ§Ã£o na nova vistoria
+              Aplicar seleção na nova vistoria
             </button>
             <button type="button" className="secondary" onClick={() => setShowGuidePreview(true)} disabled={!serialized}>
               <AppIcon name="details" />
@@ -271,21 +271,21 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
 
           <div className="project-cards">
             <article className="project-card">
-              <h3>ObrigatÃ³rias</h3>
+              <h3>Obrigatórias</h3>
               <div className="muted">
                 {obrigatoriasItems.map((item) => renderTowerItem(item, true))}
-                {obrigatoriasItems.length === 0 && <div>Nenhuma torre obrigatÃ³ria.</div>}
+                {obrigatoriasItems.length === 0 && <div>Nenhuma torre obrigatória.</div>}
               </div>
             </article>
             <article className="project-card">
               <h3>Selecionadas por amostragem</h3>
               <div className="muted">
                 {amostragemItems.map((item) => renderTowerItem(item, true))}
-                {amostragemItems.length === 0 && <div>Nenhuma torre em amostragem automÃ¡tica.</div>}
+                {amostragemItems.length === 0 && <div>Nenhuma torre em amostragem automática.</div>}
               </div>
             </article>
             <article className="project-card">
-              <h3>NÃ£o priorizar</h3>
+              <h3>Não priorizar</h3>
               <div className="muted">
                 {naoPriorizarItems.map((item) => renderTowerItem(item, true))}
                 {naoPriorizarItems.length === 0 && <div>Nenhuma torre nesta categoria.</div>}
@@ -306,7 +306,7 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
               <div><strong>Torre-alvo:</strong> {targetTower || 'N/D'}</div>
               {priorityHotel && (
                 <div>
-                  <strong>Hotel prioritÃ¡rio da Ãºltima torre{targetTower ? ` (T${targetTower})` : ''}:</strong>
+                  <strong>Hotel prioritário da última torre{targetTower ? ` (T${targetTower})` : ''}:</strong>
                   {' '}
                   {priorityHotel.hotelSugeridoNome}
                   {priorityHotel.hotelSugeridoMunicipio ? ` (${priorityHotel.hotelSugeridoMunicipio})` : ''}
@@ -321,12 +321,12 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
                     <th>Categoria</th>
                     <th>Motivo</th>
                     <th>Hotel sugerido</th>
-                    <th>MunicÃ­pio</th>
-                    <th>LogÃ­stica</th>
+                    <th>Município</th>
+                    <th>Logística</th>
                     <th>Reserva</th>
                     <th>Estadia</th>
                     <th>Torre base</th>
-                    <th>DistÃ¢ncia alvo</th>
+                    <th>Distância alvo</th>
                     <th>Link Maps</th>
                   </tr>
                 </thead>

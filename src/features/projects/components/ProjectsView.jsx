@@ -71,7 +71,7 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
       <div className="topbar">
         <div>
           <h2>Empreendimentos</h2>
-          <p className="muted">Cadastre e mantenha os dados base das linhas de transmissÃ£o.</p>
+          <p className="muted">Cadastre e mantenha os dados base das linhas de transmissão.</p>
         </div>
         <button type="button" onClick={state.openNew}>
           <AppIcon name="plus" />
@@ -93,7 +93,7 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
               <header className="project-card-header">
                 <div>
                   <h3>{p.nome || p.id}</h3>
-                  <small>CÃ³digo: {p.id}</small>
+                  <small>Código: {p.id}</small>
                 </div>
                 <div className="inline-row">
                   <button type="button" onClick={() => state.openEdit(p)}>
@@ -130,7 +130,7 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
                     }}
                   >
                     <AppIcon name="route" />
-                    TraÃ§ar rota
+                    Traçar rota
                   </button>
                 )}
               </div>

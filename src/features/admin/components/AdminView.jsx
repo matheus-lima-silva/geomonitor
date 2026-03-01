@@ -51,7 +51,7 @@ function AdminView({ users, rulesConfig, searchTerm }) {
   async function handleDeleteUser(uid) {
     if (!window.confirm(`Excluir utilizador ${uid}?`)) return;
     await deleteUser(uid);
-    show('Utilizador excluÃ­do.', 'success');
+    show('Utilizador excluído.', 'success');
   }
 
   function openNewUser() {
@@ -112,7 +112,7 @@ function AdminView({ users, rulesConfig, searchTerm }) {
   }
 
   const criterios = {
-    tipo: ['sulco', 'ravina', 'voÃ§oroca', 'deslizamento'],
+    tipo: ['sulco', 'ravina', 'voçoroca', 'deslizamento'],
     estagio: ['inicial', 'intermediario', 'avancado', 'critico'],
     profundidade: ['<0.5', '0.5-1.5', '1.5-3.0', '>3.0'],
     declividade: ['<15', '15-30', '30-45', '>45'],
@@ -124,8 +124,8 @@ function AdminView({ users, rulesConfig, searchTerm }) {
     <section className="panel">
       <div className="topbar">
         <div>
-          <h2>AdministraÃ§Ã£o</h2>
-          <p className="muted">GestÃ£o de utilizadores e regras de criticidade.</p>
+          <h2>Administração</h2>
+          <p className="muted">Gestão de utilizadores e regras de criticidade.</p>
         </div>
       </div>
 
@@ -152,7 +152,7 @@ function AdminView({ users, rulesConfig, searchTerm }) {
                   <th>Cargo</th>
                   <th>Perfil</th>
                   <th>Status</th>
-                  <th>AÃ§Ãµes</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -217,8 +217,8 @@ function AdminView({ users, rulesConfig, searchTerm }) {
                   <th>Valor</th>
                   <th>Impacto</th>
                   <th>Score</th>
-                  <th>FrequÃªncia</th>
-                  <th>IntervenÃ§Ã£o</th>
+                  <th>Frequência</th>
+                  <th>Intervenção</th>
                 </tr>
               </thead>
               <tbody>
@@ -242,7 +242,7 @@ function AdminView({ users, rulesConfig, searchTerm }) {
           <div className="row-actions">
             <button type="button" className="secondary" onClick={() => setDraftRules(normalizeRulesConfig(RULES_DATABASE))}>
               <AppIcon name="reset" />
-              Restaurar padrÃ£o
+              Restaurar padrão
             </button>
             <button type="button" onClick={handleSaveRules}>
               <AppIcon name="save" />

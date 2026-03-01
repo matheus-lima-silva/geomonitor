@@ -1,0 +1,14 @@
+src/components/AppIcon.jsx
+src/components/InspectionManager.jsx
+src/features/admin/components/AdminView.jsx
+src/features/erosions/components/ErosionsView.jsx
+src/features/erosions/utils/__tests__/erosionUtils.test.js
+src/features/erosions/utils/erosionUtils.js
+src/features/inspections/components/InspectionsView.jsx
+src/features/shared/__tests__/rulesConfig.test.js
+src/features/shared/__tests__/statusUtils.test.js
+src/features/shared/rulesConfig.js
+src/features/shared/statusUtils.js
+src/services/__tests__/erosionService.test.js
+src/services/erosionService.js
+src/views/DashboardView.jsx

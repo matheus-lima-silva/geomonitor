@@ -121,6 +121,12 @@ const ICON_PATHS = {
       <path d="M12 17h.01" />
     </>
   ),
+  bell: (
+    <>
+      <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V10a6 6 0 1 0-12 0v4.2a2 2 0 0 1-.6 1.4L4 17h5" />
+      <path d="M9.5 19a2.5 2.5 0 0 0 5 0" />
+    </>
+  ),
   planning: (
     <>
       <path d="M4 6h16" />
@@ -151,6 +157,29 @@ const ICON_PATHS = {
       <path d="M8 20h8" />
       <path d="M12 16v4" />
       <path d="m7 12 3-3 2 2 3-3" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4-4" />
+    </>
+  ),
+  'chevron-left': (
+    <>
+      <path d="m15 18-6-6 6-6" />
+    </>
+  ),
+  'chevron-right': (
+    <>
+      <path d="m9 18 6-6-6-6" />
+    </>
+  ),
+  menu: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
     </>
   ),
   building: (

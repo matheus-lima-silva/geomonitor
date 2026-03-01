@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import InspectionManager from '../../../components/InspectionManager';
 import { deleteInspection, saveInspection } from '../../../services/inspectionService';
@@ -162,11 +162,11 @@ function InspectionsView({
   async function handleSave() {
     try {
       if (!formData.id || !formData.projetoId || !formData.dataInicio) {
-        show('Preencha ID, empreendimento e data de inÃƒÂ­cio.', 'error');
+        show('Preencha ID, empreendimento e data de início.', 'error');
         return;
       }
       if (formData.dataFim && formData.dataFim < formData.dataInicio) {
-        show('Data fim nÃƒÂ£o pode ser anterior ÃƒÂ  data inÃƒÂ­cio.', 'error');
+        show('Data fim não pode ser anterior à data início.', 'error');
         return;
       }
 
@@ -187,7 +187,7 @@ function InspectionsView({
   async function handleDelete(id) {
     if (!window.confirm(`Excluir vistoria ${id}?`)) return;
     await deleteInspection(id);
-    show('Vistoria excluÃƒÂ­da.', 'success');
+    show('Vistoria excluída.', 'success');
   }
   function handleExportDetailsPdf() {
     if (!detailsModal) return;
@@ -288,7 +288,7 @@ function InspectionsView({
       <div className="topbar">
         <div>
           <h2>Vistorias</h2>
-          <p className="muted">DiÃƒÂ¡rio multi-dia e checklist por torre.</p>
+          <p className="muted">Diário multi-dia e checklist por torre.</p>
         </div>
         <button type="button" onClick={openNew}>
           <AppIcon name="plus" />
@@ -323,11 +323,11 @@ function InspectionsView({
             <tr>
               <th>ID</th>
               <th>Projeto</th>
-              <th>InÃƒÂ­cio</th>
+              <th>Início</th>
               <th>Fim</th>
-              <th>ResponsÃƒÂ¡vel</th>
-              <th>PendÃƒÂªncias</th>
-              <th>AÃƒÂ§ÃƒÂµes</th>
+              <th>Responsável</th>
+              <th>Pendências</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -345,12 +345,12 @@ function InspectionsView({
                     {pendingCount > 0 ? (
                       <span
                         className="status-chip status-warn"
-                        title={pendingSummary.towers.length > 0 ? `Torres pendentes: ${pendingSummary.towers.join(', ')}` : 'Existem erosÃƒÂµes pendentes sem data de visita'}
+                        title={pendingSummary.towers.length > 0 ? `Torres pendentes: ${pendingSummary.towers.join(', ')}` : 'Existem erosões pendentes sem data de visita'}
                       >
                         {pendingCount} pendente(s)
                       </span>
                     ) : (
-                      <span className="status-chip status-ok">Sem pendÃƒÂªncias</span>
+                      <span className="status-chip status-ok">Sem pendências</span>
                     )}
                   </td>
                   <td>
@@ -393,8 +393,8 @@ function InspectionsView({
               </select>
               <input type="date" value={formData.dataInicio} onChange={(e) => setFormData({ ...formData, dataInicio: e.target.value })} />
               <input type="date" value={formData.dataFim || ''} onChange={(e) => setFormData({ ...formData, dataFim: e.target.value })} />
-              <input value={formData.responsavel || ''} onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })} placeholder="ResponsÃƒÂ¡vel" />
-              <input value={formData.obs || ''} onChange={(e) => setFormData({ ...formData, obs: e.target.value })} placeholder="ObservaÃƒÂ§ÃƒÂµes" />
+              <input value={formData.responsavel || ''} onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })} placeholder="Responsável" />
+              <input value={formData.obs || ''} onChange={(e) => setFormData({ ...formData, obs: e.target.value })} placeholder="Observações" />
             </div>
             <div className="row-actions">
               <button type="button" onClick={handleSave}>
@@ -417,10 +417,10 @@ function InspectionsView({
             <div className="muted">
               <div><strong>ID:</strong> {detailsModal.id}</div>
               <div><strong>Empreendimento:</strong> {detailsModal.projetoId}</div>
-              <div><strong>InÃƒÂ­cio:</strong> {detailsModal.dataInicio || '-'}</div>
+              <div><strong>Início:</strong> {detailsModal.dataInicio || '-'}</div>
               <div><strong>Fim:</strong> {detailsModal.dataFim || '-'}</div>
-              <div><strong>ResponsÃƒÂ¡vel:</strong> {detailsModal.responsavel || '-'}</div>
-              <div><strong>ObservaÃƒÂ§ÃƒÂµes:</strong> {detailsModal.obs || '-'}</div>
+              <div><strong>Responsável:</strong> {detailsModal.responsavel || '-'}</div>
+              <div><strong>Observações:</strong> {detailsModal.obs || '-'}</div>
               <div><strong>Dias registados:</strong> {Array.isArray(detailsModal.detalhesDias) ? detailsModal.detalhesDias.length : 0}</div>
             </div>
 
@@ -428,9 +428,9 @@ function InspectionsView({
               <div className="panel nested inspection-hotel-section">
                 <h4 className="inline-row">
                   <AppIcon name="building" />
-                  SeÃ§Ã£o de Hospedagem por Dia
+                  Seção de Hospedagem por Dia
                 </h4>
-                <p className="muted">Este bloco mostra somente informaÃ§Ãµes de hotel/hospedagem da vistoria.</p>
+                <p className="muted">Este bloco mostra somente informações de hotel/hospedagem da vistoria.</p>
                 {detailsModal.detalhesDias.map((day, idx) => (
                   <div key={`hotel-day-${day?.data || idx}`} className="project-card inspection-hotel-card">
                     <div><strong>Data:</strong> {day?.data || '-'}</div>
@@ -454,12 +454,12 @@ function InspectionsView({
                     {hasHotelData(day) ? (
                       <>
                         <div><strong>Hotel:</strong> {day?.hotelNome || '-'}</div>
-                        <div><strong>MunicÃƒÂ­pio:</strong> {day?.hotelMunicipio || '-'}</div>
+                        <div><strong>Município:</strong> {day?.hotelMunicipio || '-'}</div>
                         <div><strong>Torre base:</strong> {day?.hotelTorreBase || '-'}</div>
                         <div>
                           <strong>Notas:</strong>
                           {' '}
-                          LogÃƒÂ­stica {formatHotelNote(day?.hotelLogisticaNota)}
+                          Logística {formatHotelNote(day?.hotelLogisticaNota)}
                           {' | '}
                           Reserva {formatHotelNote(day?.hotelReservaNota)}
                           {' | '}
@@ -491,5 +491,4 @@ function InspectionsView({
 }
 
 export default InspectionsView;
-
 

@@ -68,7 +68,7 @@ function LicenseFormModal({
   return (
     <div className="modal-backdrop">
       <div className="modal xwide">
-        <h3>{isEditing ? 'Editar' : 'Nova'} LicenÃ§a de OperaÃ§Ã£o</h3>
+        <h3>{isEditing ? 'Editar' : 'Nova'} Licença de Operação</h3>
         <div className="grid-form">
           <select
             value={formData.esfera}
@@ -91,7 +91,7 @@ function LicenseFormModal({
               list="agency-options"
               value={formData.orgaoAmbiental || ''}
               onChange={(e) => setFormData((prev) => ({ ...prev, orgaoAmbiental: e.target.value }))}
-              placeholder="Ã“rgÃ£o ambiental"
+              placeholder="Órgão ambiental"
             />
             <datalist id="agency-options">
               {agencyOptions.map((item) => <option key={item.value} value={item.value} />)}
@@ -99,17 +99,17 @@ function LicenseFormModal({
           </div>
 
           <input
-            placeholder="CÃ³digo interno (opcional)"
+            placeholder="Código interno (opcional)"
             value={formData.id || ''}
             onChange={(e) => setFormData((prev) => ({ ...prev, id: e.target.value.toUpperCase() }))}
           />
           <input
-            placeholder="NÃºmero da LO"
+            placeholder="Número da LO"
             value={formData.numero || ''}
             onChange={(e) => setFormData((prev) => ({ ...prev, numero: e.target.value }))}
           />
           <input
-            placeholder="DescriÃ§Ã£o"
+            placeholder="Descrição"
             value={formData.descricao || ''}
             onChange={(e) => setFormData((prev) => ({ ...prev, descricao: e.target.value }))}
           />
@@ -192,7 +192,7 @@ function LicenseFormModal({
                 }))}
               />
               <input
-                placeholder="DescriÃ§Ã£o escopo (opcional)"
+                placeholder="Descrição escopo (opcional)"
                 value={item.descricaoEscopo || ''}
                 onChange={(e) => setFormData((prev) => ({
                   ...prev,
@@ -228,7 +228,7 @@ function LicenseFormModal({
 
         <textarea
           rows="3"
-          placeholder="ObservaÃ§Ãµes"
+          placeholder="Observações"
           value={formData.observacoes || ''}
           onChange={(e) => setFormData((prev) => ({ ...prev, observacoes: e.target.value }))}
         />
@@ -282,7 +282,7 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast }) {
   async function handleDelete(id) {
     if (!window.confirm(`Excluir LO ${id}?`)) return;
     await deleteOperatingLicense(id);
-    showToast?.('LO excluÃ­da.', 'success');
+    showToast?.('LO excluída.', 'success');
   }
 
   function openNew() {
@@ -308,7 +308,7 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast }) {
     <section className="panel">
       <div className="topbar">
         <div>
-          <h2>LicenÃ§as de OperaÃ§Ã£o (LO)</h2>
+          <h2>Licenças de Operação (LO)</h2>
           <p className="muted">Cadastro centralizado de LO com escopo por empreendimento e torres.</p>
         </div>
         <button type="button" onClick={openNew}>
@@ -339,8 +339,8 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast }) {
             <div className="muted">
               <div><strong>Esfera:</strong> {item.esfera || '-'}</div>
               {item.esfera === 'Estadual' && <div><strong>UF:</strong> {item.uf || '-'}</div>}
-              <div><strong>Ã“rgÃ£o:</strong> {item.orgaoAmbiental || '-'}</div>
-              <div><strong>VigÃªncia:</strong> {item.inicioVigencia || '-'} atÃ© {item.fimVigencia || 'indeterminada'}</div>
+              <div><strong>Órgão:</strong> {item.orgaoAmbiental || '-'}</div>
+              <div><strong>Vigência:</strong> {item.inicioVigencia || '-'} até {item.fimVigencia || 'indeterminada'}</div>
               <div><strong>Cobertura:</strong> {(item.cobertura || []).length} escopo(s)</div>
               <div><strong>Acompanhamento erosivo:</strong> Sim</div>
             </div>

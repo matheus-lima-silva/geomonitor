@@ -18,7 +18,7 @@ function MandatoryProfileUpdateView() {
   async function handleSave(e) {
     e.preventDefault();
     if (!formData.nome || !formData.cargo || !formData.departamento || !formData.telefone) {
-      show('Preencha todos os campos obrigatÃ³rios.', 'error');
+      show('Preencha todos os campos obrigatórios.', 'error');
       return;
     }
 
@@ -48,7 +48,7 @@ function MandatoryProfileUpdateView() {
   return (
     <section className="panel auth">
       <h2>Complete seu perfil</h2>
-      <p className="muted">Antes de acessar o sistema, atualize seus dados obrigatÃ³rios.</p>
+      <p className="muted">Antes de acessar o sistema, atualize seus dados obrigatórios.</p>
       <form onSubmit={handleSave} className="grid-form">
         <input value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} placeholder="Nome" required />
         <input value={formData.cargo} onChange={(e) => setFormData({ ...formData, cargo: e.target.value })} placeholder="Cargo" required />
