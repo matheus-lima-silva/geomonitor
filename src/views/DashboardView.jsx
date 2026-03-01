@@ -16,15 +16,16 @@ import { useToast } from '../context/ToastContext';
 import AppShell from '../layout/AppShell';
 import MandatoryProfileUpdateView from '../features/auth/components/MandatoryProfileUpdateView';
 import ProfileModal from '../features/auth/components/ProfileModal';
+import TopPlanningAlert from '../features/monitoring/components/TopPlanningAlert';
 import { subscribeProjects } from '../services/projectService';
 import { subscribeInspections } from '../services/inspectionService';
 import { subscribeErosions } from '../services/erosionService';
 import { subscribeUsers } from '../services/userService';
 import { subscribeRulesConfig } from '../services/rulesService';
 import { subscribeOperatingLicenses } from '../services/licenseService';
+import { subscribeReportDeliveryTracking } from '../services/reportDeliveryTrackingService';
 import { normalizeRulesConfig, RULES_DATABASE } from '../features/shared/rulesConfig';
 import { normalizeUserStatus } from '../features/shared/statusUtils';
-import TopPlanningAlert from '../features/monitoring/components/TopPlanningAlert';
 import {
   IMPACT_LEVELS,
   buildMonitoringViewModel,
@@ -39,6 +40,7 @@ const InspectionsView = lazy(() => import('../features/inspections/components/In
 const ErosionsView = lazy(() => import('../features/erosions/components/ErosionsView'));
 const VisitPlanningView = lazy(() => import('../features/inspections/components/VisitPlanningView'));
 const AdminView = lazy(() => import('../features/admin/components/AdminView'));
+const FollowupsView = lazy(() => import('../features/followups/components/FollowupsView'));
 
 function getImpactCardClassName(impact) {
   if (impact === 'Muito Alto') return 'monitor-impact-card is-critical';
@@ -69,11 +71,37 @@ function getHeatColor(weight) {
   return '#22c55e';
 }
 
+function getStatusChipClassName(tone) {
+  if (tone === 'danger') return 'monitor-report-status-chip is-danger';
+  if (tone === 'critical') return 'monitor-report-status-chip is-critical';
+  if (tone === 'warning') return 'monitor-report-status-chip is-warning';
+  if (tone === 'ok') return 'monitor-report-status-chip is-ok';
+  return 'monitor-report-status-chip is-neutral';
+}
+
+function formatReportDueDays(days) {
+  const safeDays = Number(days);
+  if (!Number.isFinite(safeDays)) return 'Sem prazo definido';
+  if (safeDays < 0) return `${Math.abs(safeDays)} dia(s) em atraso`;
+  if (safeDays === 0) return 'Vence hoje';
+  return `${safeDays} dia(s)`;
+}
+
+function getReportSourceLabel(item) {
+  const sourceApplied = String(item?.sourceApplied || '').toUpperCase();
+  if (sourceApplied === 'LO' || String(item?.scopeType || '').toLowerCase() === 'lo') {
+    const loLabel = String(item?.loNumero || item?.loId || item?.scopeId || '').trim();
+    return loLabel ? `LO ${loLabel}` : 'LO';
+  }
+  return 'Empreendimento vinculado';
+}
+
 function DashboardMonitoring({ viewModel }) {
   const {
     reportOccurrences,
     reportMonthRows,
     reportMonthDetailsByKey,
+    workTrackingRows,
     impactCounts,
     criticalCount,
     criticalityDistributionRows,
@@ -87,23 +115,29 @@ function DashboardMonitoring({ viewModel }) {
     erosionCount,
   } = viewModel;
   const [expandedMonthKey, setExpandedMonthKey] = useState(null);
+  const [expandedReportRowKey, setExpandedReportRowKey] = useState('');
 
   return (
     <section className="panel monitor-dashboard">
-      
-
       <div className="monitor-dashboard-header">
-        <h2>Dashboard de Monitorização</h2>
-        <p className="muted">Resumo de entregas, riscos e evolução recente das erosões.</p>
+        <h2>Dashboard de Monitorizacao</h2>
+        <p className="muted">Resumo de entregas, riscos, obras em curso e evolucao recente das erosoes.</p>
       </div>
 
       <div className="monitor-kpi-grid">
         <article className="project-card monitor-kpi-card">
           <div className="monitor-kpi-title">
-            <AppIcon name="building" />
-            Empreendimentos
+            <AppIcon name="alert" />
+            Criticas
           </div>
-          <div className="monitor-kpi-value">{projectCount}</div>
+          <div className="monitor-kpi-value is-critical">{criticalCount}</div>
+        </article>
+        <article className="project-card monitor-kpi-card">
+          <div className="monitor-kpi-title">
+            <AppIcon name="alert" />
+            Erosoes
+          </div>
+          <div className="monitor-kpi-value">{erosionCount}</div>
         </article>
         <article className="project-card monitor-kpi-card">
           <div className="monitor-kpi-title">
@@ -114,17 +148,10 @@ function DashboardMonitoring({ viewModel }) {
         </article>
         <article className="project-card monitor-kpi-card">
           <div className="monitor-kpi-title">
-            <AppIcon name="alert" />
-            Erosões
+            <AppIcon name="building" />
+            Empreendimentos
           </div>
-          <div className="monitor-kpi-value">{erosionCount}</div>
-        </article>
-        <article className="project-card monitor-kpi-card">
-          <div className="monitor-kpi-title">
-            <AppIcon name="alert" />
-            Críticas
-          </div>
-          <div className="monitor-kpi-value is-critical">{criticalCount}</div>
+          <div className="monitor-kpi-value">{projectCount}</div>
         </article>
       </div>
 
@@ -137,7 +164,8 @@ function DashboardMonitoring({ viewModel }) {
         ))}
       </div>
 
-      <div className="monitor-two-col">
+      <div className="monitor-postit-grid">
+        <div className="monitor-postit-column">
         <article className="panel nested">
           <h3>Distribuicao por criticidade (C1-C4)</h3>
           <div style={{ width: '100%', height: 260 }}>
@@ -158,6 +186,116 @@ function DashboardMonitoring({ viewModel }) {
           <p className="muted">Taxa de estabilizacao: {stabilizationRate.toFixed(1)}%</p>
         </article>
 
+        <article className="panel nested monitor-report-card">
+          <h3>Entregas de Relatorios (proximas)</h3>
+          <div className="table-scroll">
+            <table className="monitor-table">
+              <thead className="monitor-report-card-table-head">
+                <tr>
+                  <th>Origem</th>
+                  <th>Escopo</th>
+                  <th>Mes/ano entrega</th>
+                  <th>Prazo</th>
+                  <th>Status prazo</th>
+                  <th>Status operacional</th>
+                </tr>
+              </thead>
+              <tbody className="monitor-report-card-body">
+                {reportOccurrences.slice(0, 8).map((item, idx) => {
+                  const rowKey = `${item.scopeId || item.projectId || 'scope'}-${item.monthKey}-${idx}`;
+                  const isExpanded = expandedReportRowKey === rowKey;
+                  const projectBreakdown = Array.isArray(item.projectBreakdown) ? item.projectBreakdown : [];
+                  const canExpand = projectBreakdown.length > 0;
+
+                  return (
+                    <tr key={rowKey}>
+                      <td className="monitor-report-main-cell">{getReportSourceLabel(item)}</td>
+                      <td>
+                        <div className="monitor-report-scope-cell">
+                          <span>{item.scopeSummary || '-'}</span>
+                          {canExpand ? (
+                            <button
+                              type="button"
+                              className="monitor-report-expand-button"
+                              aria-expanded={isExpanded ? 'true' : 'false'}
+                              onClick={() => setExpandedReportRowKey((prev) => (prev === rowKey ? '' : rowKey))}
+                            >
+                              {isExpanded ? 'Ocultar projetos' : `Projetos (${projectBreakdown.length})`}
+                            </button>
+                          ) : null}
+                        </div>
+                        {isExpanded && canExpand ? (
+                          <div className="monitor-report-breakdown" role="region" aria-label="Detalhes por projeto">
+                            <table className="monitor-table monitor-report-breakdown-table">
+                              <thead>
+                                <tr>
+                                  <th>Projeto</th>
+                                  <th>Origem aplicada</th>
+                                  <th>Prazo</th>
+                                  <th>Status prazo</th>
+                                  <th>Status operacional</th>
+                                  <th>Override</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {projectBreakdown.map((projectItem) => {
+                                  const projectLabel = projectItem.projectName
+                                    ? `${projectItem.projectId} - ${projectItem.projectName}`
+                                    : projectItem.projectId;
+                                  const sourceLabel = projectItem.sourceApplied === 'LO'
+                                    ? 'LO'
+                                    : 'Empreendimento';
+                                  return (
+                                    <tr key={`${rowKey}-${projectItem.projectId}`}>
+                                      <td>{projectLabel}</td>
+                                      <td>{sourceLabel}</td>
+                                      <td>{formatReportDueDays(projectItem.daysUntilDue)}</td>
+                                      <td>
+                                        <span className={getStatusChipClassName(projectItem.deadlineStatusTone)}>
+                                          {projectItem.deadlineStatusLabel || 'Sem prazo'}
+                                        </span>
+                                      </td>
+                                      <td>
+                                        <span className={getStatusChipClassName(projectItem.operationalStatusTone)}>
+                                          {projectItem.operationalStatusLabel || 'Nao iniciado'}
+                                        </span>
+                                      </td>
+                                      <td>{projectItem.sourceOverrideLabel || 'Automatico'}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : null}
+                      </td>
+                      <td>{formatMonitoringMonthLabel(item.month)}/{item.year}</td>
+                      <td>{formatReportDueDays(item?.daysUntilDue)}</td>
+                      <td>
+                        <span className={getStatusChipClassName(item?.deadlineStatusTone || item?.trackingStatusTone)}>
+                          {item?.deadlineStatusLabel || item?.trackingStatusLabel || 'Sem prazo'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={getStatusChipClassName(item?.operationalStatusTone)}>
+                          {item?.operationalStatusLabel || 'Nao iniciado'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {reportOccurrences.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="monitor-report-empty-cell">Sem periodicidades de entrega cadastradas.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+        </div>
+
+        <div className="monitor-postit-column">
         <article className="panel nested">
           <h3>Mapa de calor (coordenadas)</h3>
           <div style={{ width: '100%', height: 260, borderRadius: 12, overflow: 'hidden' }}>
@@ -168,7 +306,7 @@ function DashboardMonitoring({ viewModel }) {
               style={{ width: '100%', height: '100%' }}
             >
               <TileLayer
-                attribution='&copy; OpenStreetMap contributors'
+                attribution="&copy; OpenStreetMap contributors"
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
               {heatPoints.map((point) => (
@@ -199,40 +337,6 @@ function DashboardMonitoring({ viewModel }) {
             Pontos no mapa: {heatPoints.length} | Erosoes sem coordenadas: {heatPointsWithoutCoordinates}
           </p>
         </article>
-      </div>
-
-      <div className="monitor-two-col">
-        <article className="monitor-report-card">
-          <div className="monitor-report-card-head">
-            <h3>Entregas de Relatórios (próximas)</h3>
-          </div>
-          <div className="table-scroll">
-            <table className="monitor-table">
-              <thead className="monitor-report-card-table-head">
-                <tr>
-                  <th>Origem</th>
-                  <th>Escopo</th>
-                  <th>Mês/ano entrega</th>
-                </tr>
-              </thead>
-              <tbody className="monitor-report-card-body">
-                {reportOccurrences.slice(0, 8).map((item, idx) => (
-                  <tr key={`${item.scopeId}-${item.monthKey}-${idx}`}>
-                    <td className="monitor-report-main-cell">{item.scopeType === 'lo' ? `LO ${item.loNumero || item.loId || '-'}` : 'Empreendimento vinculado'}</td>
-                    <td>{item.scopeSummary || '-'}</td>
-                    <td>{formatMonitoringMonthLabel(item.month)}/{item.year}</td>
-                  </tr>
-                ))}
-                {reportOccurrences.length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="monitor-report-empty-cell">Sem periodicidades de entrega cadastradas.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </article>
-
         <article className="panel nested monitor-month-card">
           <h3>Acompanhamento mensal de entregas</h3>
           <div className="monitor-month-list">
@@ -275,60 +379,106 @@ function DashboardMonitoring({ viewModel }) {
                             <strong className="monitor-month-detail-title">{projectLabel}</strong>
                             <span className="monitor-month-detail-meta"><strong>Origem:</strong> {item?.sourceSummary || '-'}</span>
                             <span className="monitor-month-detail-meta"><strong>Escopo:</strong> {item?.scopeSummary || '-'}</span>
+                            <span className="monitor-month-detail-meta"><strong>Prazo:</strong> {formatReportDueDays(item?.dueInDays)}</span>
+                            <span className="monitor-month-detail-meta">
+                              <strong>Status prazo:</strong>{' '}
+                              <span className={getStatusChipClassName(item?.deadlineStatusTone)}>
+                                {item?.deadlineStatusLabel || 'Sem prazo'}
+                              </span>
+                            </span>
+                            <span className="monitor-month-detail-meta">
+                              <strong>Status operacional:</strong>{' '}
+                              <span className={getStatusChipClassName(item?.operationalStatusTone)}>
+                                {item?.operationalStatusLabel || 'Nao iniciado'}
+                              </span>
+                            </span>
                           </article>
                         );
                       })}
                       {details.length === 0 && (
-                        <p className="monitor-month-detail-empty">Nenhum empreendimento encontrado para este mês.</p>
+                        <p className="monitor-month-detail-empty">Nenhum empreendimento encontrado para este mes.</p>
                       )}
                     </div>
                   ) : null}
                 </div>
               );
             })}
-            {reportMonthRows.length === 0 && <p className="muted">Sem entregas por mês para acompanhar.</p>}
+            {reportMonthRows.length === 0 && <p className="muted">Sem entregas por mes para acompanhar.</p>}
           </div>
         </article>
-      </div>
-
-      <article className="panel nested monitor-table-card">
-        <h3>Erosões recentes</h3>
-        <div className="table-scroll">
-          <table className="monitor-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Projeto</th>
-                <th>Torre</th>
-                <th>Impacto</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentErosions.map((item) => {
-                const projectId = String(item?.projetoId || '').trim();
-                const project = projectsById.get(projectId);
-                const projectLabel = project ? `${projectId} - ${project.nome || projectId}` : (projectId || '-');
-                const impact = getErosionImpact(item);
-                return (
-                  <tr key={item.id}>
-                    <td>{item.id}</td>
-                    <td>{projectLabel}</td>
-                    <td>{formatTowerLabel(item?.torreRef)}</td>
-                    <td><span className={getImpactChipClassName(impact)}>{impact}</span></td>
-                    <td>{item.status || '-'}</td>
-                  </tr>
-                );
-              })}
-              {recentErosions.length === 0 && (
+        <article className="panel nested monitor-work-card">
+          <h3>Acompanhamento de Obras</h3>
+          <div className="table-scroll">
+            <table className="monitor-table">
+              <thead>
                 <tr>
-                  <td colSpan={5} className="muted">Nenhuma erosão registrada.</td>
+                  <th>Erosao</th>
+                  <th>Projeto</th>
+                  <th>Torre</th>
+                  <th>Etapa</th>
+                  <th>Atualizacao</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {workTrackingRows.slice(0, 8).map((row) => (
+                  <tr key={`monitor-work-${row.erosionId}`}>
+                    <td>{row.erosionId}</td>
+                    <td>{row.projectName ? `${row.projectId} - ${row.projectName}` : row.projectId}</td>
+                    <td>{formatTowerLabel(row.towerRef)}</td>
+                    <td>{row.stage || '-'}</td>
+                    <td>{row.timestamp ? new Date(row.timestamp).toLocaleString('pt-BR') : '-'}</td>
+                  </tr>
+                ))}
+                {workTrackingRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="muted">Sem obras ativas em Projeto ou Em andamento.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article className="panel nested monitor-table-card">
+          <h3>Erosoes recentes</h3>
+          <div className="table-scroll">
+            <table className="monitor-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Projeto</th>
+                  <th>Torre</th>
+                  <th>Impacto</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentErosions.map((item) => {
+                  const projectId = String(item?.projetoId || '').trim();
+                  const project = projectsById.get(projectId);
+                  const projectLabel = project ? `${projectId} - ${project.nome || projectId}` : (projectId || '-');
+                  const impact = getErosionImpact(item);
+                  return (
+                    <tr key={item.id}>
+                      <td>{item.id}</td>
+                      <td>{projectLabel}</td>
+                      <td>{formatTowerLabel(item?.torreRef)}</td>
+                      <td><span className={getImpactChipClassName(impact)}>{impact}</span></td>
+                      <td>{item.status || '-'}</td>
+                    </tr>
+                  );
+                })}
+                {recentErosions.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="muted">Nenhuma erosao registrada.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
         </div>
-      </article>
+      </div>
     </section>
   );
 }
@@ -340,6 +490,7 @@ function DashboardView() {
   const [operatingLicenses, setOperatingLicenses] = useState([]);
   const [inspections, setInspections] = useState([]);
   const [erosions, setErosions] = useState([]);
+  const [deliveryTracking, setDeliveryTracking] = useState([]);
   const [users, setUsers] = useState([]);
   const [rulesConfig, setRulesConfig] = useState(() => normalizeRulesConfig(RULES_DATABASE));
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -348,13 +499,16 @@ function DashboardView() {
   const [inspectionPlanningDraft, setInspectionPlanningDraft] = useState(null);
   const [pendingErosionDraft, setPendingErosionDraft] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+
   const dashboardViewModel = useMemo(() => buildMonitoringViewModel({
     projects,
     inspections,
     erosions,
     operatingLicenses,
+    deliveryTracking,
     searchTerm,
-  }), [projects, inspections, erosions, operatingLicenses, searchTerm]);
+  }), [projects, inspections, erosions, operatingLicenses, deliveryTracking, searchTerm]);
+
   const topNotice = activeTab === 'dashboard' && dashboardViewModel.reportPlanningAlerts.length > 0
     ? <TopPlanningAlert alerts={dashboardViewModel.reportPlanningAlerts} />
     : null;
@@ -367,7 +521,7 @@ function DashboardView() {
 
     const unsubLicenses = subscribeOperatingLicenses(
       (data) => setOperatingLicenses(data),
-      () => show('Erro ao carregar licenças de operação.', 'error'),
+      () => show('Erro ao carregar licencas de operacao.', 'error'),
     );
 
     const unsubInspections = subscribeInspections(
@@ -377,7 +531,12 @@ function DashboardView() {
 
     const unsubErosions = subscribeErosions(
       (data) => setErosions(data),
-      () => show('Erro ao carregar erosões.', 'error'),
+      () => show('Erro ao carregar erosoes.', 'error'),
+    );
+
+    const unsubTracking = subscribeReportDeliveryTracking(
+      (data) => setDeliveryTracking(data),
+      () => show('Erro ao carregar acompanhamentos de entrega.', 'error'),
     );
 
     return () => {
@@ -385,6 +544,7 @@ function DashboardView() {
       unsubLicenses?.();
       unsubInspections?.();
       unsubErosions?.();
+      unsubTracking?.();
     };
   }, [show]);
 
@@ -423,8 +583,8 @@ function DashboardView() {
         <h2>Acesso restrito</h2>
         <p className="muted">
           {accessStatus === 'Pendente'
-            ? 'A sua conta está aguardando aprovação de um administrador.'
-            : 'A sua conta está inativa. Entre em contato com um administrador.'}
+            ? 'A sua conta esta aguardando aprovacao de um administrador.'
+            : 'A sua conta esta inativa. Entre em contato com um administrador.'}
         </p>
         <button type="button" onClick={logout}>
           <AppIcon name="logout" />
@@ -501,6 +661,21 @@ function DashboardView() {
       );
     }
 
+    if (activeTab === 'followups') {
+      return (
+        <FollowupsView
+          reportRows={dashboardViewModel.reportProjectMonthRows}
+          workRows={dashboardViewModel.workTrackingRows}
+          erosions={erosions}
+          inspections={inspections}
+          projects={projects}
+          invalidOverrides={dashboardViewModel.reportInvalidOverrides}
+          userActor={String(user?.nome || user?.displayName || user?.email || user?.uid || '').trim()}
+          showToast={show}
+        />
+      );
+    }
+
     if (activeTab === 'visit-planning') {
       return (
         <VisitPlanningView
@@ -543,7 +718,7 @@ function DashboardView() {
         searchTerm={searchTerm}
         onSearchTermChange={setSearchTerm}
       >
-        <Suspense fallback={<section className="panel">A carregar módulo...</section>}>
+        <Suspense fallback={<section className="panel">A carregar modulo...</section>}>
           {renderTab()}
         </Suspense>
       </AppShell>

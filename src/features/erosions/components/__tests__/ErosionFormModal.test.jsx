@@ -85,6 +85,7 @@ describe('ErosionFormModal', () => {
     renderModal(root);
 
     expect(container.textContent).toContain('Classificacao e caracterizacao da erosao');
+    expect(container.textContent).toContain('Resumo de criticidade calculada');
     expect(container.textContent).toContain('Presenca de agua no fundo');
     expect(container.textContent).toContain('Classe D (derivada)');
     expect(container.textContent).toContain('Classe E (derivada)');

@@ -253,4 +253,20 @@ describe('AppShell', () => {
     expect(dashboardTab.getAttribute('aria-current')).toBe('page');
     expect(projectsTab.getAttribute('aria-current')).toBeNull();
   });
+
+  it('renders followups tab and routes click to followups id', () => {
+    const props = buildProps();
+    renderShell(props);
+
+    const followupsTab = [...container.querySelectorAll('.side-nav-link')]
+      .find((button) => (button.textContent || '').includes('Acompanhamentos') || (button.getAttribute('aria-label') || '').includes('Acompanhamentos'));
+
+    expect(followupsTab).toBeTruthy();
+
+    act(() => {
+      followupsTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(props.onChangeTab).toHaveBeenCalledWith('followups');
+  });
 });

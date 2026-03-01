@@ -150,20 +150,173 @@ describe('monitoringViewModel', () => {
         projectId: 'P1',
         projectName: 'Projeto 1',
         sourceSummary: 'LO 001 | LO 002',
-        scopeSummary: 'P1: Projeto 1 | P2: Projeto 2 | P1: Projeto 1',
+        scopeSummary: 'P1: Projeto 1',
+        dueInDays: 1,
+        deadlineStatusLabel: 'Urgente',
+        deadlineStatusTone: 'critical',
+        operationalStatusLabel: 'Nao iniciado',
+        operationalStatusTone: 'neutral',
+        sourceApplied: 'LO',
+        sourceOverride: 'AUTO',
+        sourceOverrideLabel: 'Automatico',
+        isOverridden: false,
+        notes: '',
+        deliveredAt: '',
       },
       {
         projectId: 'P2',
         projectName: 'Projeto 2',
         sourceSummary: 'LO 001',
-        scopeSummary: 'P1: Projeto 1 | P2: Projeto 2',
+        scopeSummary: 'P2: Projeto 2',
+        dueInDays: 1,
+        deadlineStatusLabel: 'Urgente',
+        deadlineStatusTone: 'critical',
+        operationalStatusLabel: 'Nao iniciado',
+        operationalStatusTone: 'neutral',
+        sourceApplied: 'LO',
+        sourceOverride: 'AUTO',
+        sourceOverrideLabel: 'Automatico',
+        isOverridden: false,
+        notes: '',
+        deliveredAt: '',
       },
       {
         projectId: 'P3',
         projectName: 'Projeto 3',
         sourceSummary: 'Empreendimento vinculado',
         scopeSummary: 'P3: Projeto 3',
+        dueInDays: 1,
+        deadlineStatusLabel: 'Urgente',
+        deadlineStatusTone: 'critical',
+        operationalStatusLabel: 'Nao iniciado',
+        operationalStatusTone: 'neutral',
+        sourceApplied: 'PROJECT',
+        sourceOverride: 'AUTO',
+        sourceOverrideLabel: 'Automatico',
+        isOverridden: false,
+        notes: '',
+        deliveredAt: '',
       },
+    ]);
+    const january2026 = model.reportOccurrences.find((item) => item.monthKey === '2026-01');
+    expect(january2026).toBeTruthy();
+    expect(january2026).toMatchObject({
+      trackingStatusLabel: 'Urgente',
+      trackingStatusTone: 'critical',
+    });
+    expect(january2026.daysUntilDue).toBeGreaterThanOrEqual(0);
+    expect(january2026.daysUntilDue).toBeLessThanOrEqual(1);
+    expect(Array.isArray(january2026.projectBreakdown)).toBe(true);
+    expect(january2026.operationalStatusLabel).toBeTruthy();
+  });
+
+  it('marks report deliveries as overdue when due date is in the past', () => {
+    const model = buildMonitoringViewModel({
+      projects: [{
+        id: 'P-OVERDUE',
+        nome: 'Projeto Atrasado',
+        periodicidadeRelatorio: 'Anual',
+        mesesEntregaRelatorio: [1],
+      }],
+      inspections: [],
+      erosions: [],
+      operatingLicenses: [],
+      searchTerm: '',
+      nowMs: new Date('2026-02-10T00:00:00Z').getTime(),
+    });
+
+    expect(model.reportOccurrences[0]).toMatchObject({
+      daysUntilDue: -39,
+      trackingStatusLabel: 'Atrasado',
+      trackingStatusTone: 'danger',
+    });
+  });
+
+  it('applies operational status and source override from delivery tracking', () => {
+    const model = buildMonitoringViewModel({
+      projects: [{
+        id: 'P1',
+        nome: 'Projeto 1',
+        periodicidadeRelatorio: 'Anual',
+        mesesEntregaRelatorio: [3],
+      }],
+      inspections: [],
+      erosions: [],
+      operatingLicenses: [{
+        id: 'LO-1',
+        numero: '001',
+        orgaoAmbiental: 'IBAMA',
+        periodicidadeRelatorio: 'Anual',
+        mesesEntregaRelatorio: [3],
+        inicioVigencia: '2020-01-01',
+        cobertura: [{ projetoId: 'P1' }],
+      }],
+      deliveryTracking: [{
+        projectId: 'P1',
+        monthKey: '2026-03',
+        operationalStatus: 'ENTREGUE',
+        sourceOverride: 'PROJECT',
+        deliveredAt: '2026-03-15',
+        notes: 'Entregue ao orgao',
+      }],
+      searchTerm: '',
+      nowMs,
+    });
+
+    const trackedRow = model.reportProjectMonthRows.find((row) => row.monthKey === '2026-03' && row.projectId === 'P1');
+    expect(trackedRow).toBeTruthy();
+    expect(trackedRow).toMatchObject({
+      projectId: 'P1',
+      monthKey: '2026-03',
+      sourceApplied: 'PROJECT',
+      sourceOverride: 'PROJECT',
+      isOverridden: true,
+      operationalStatusLabel: 'Entregue',
+      deliveredAt: '2026-03-15',
+      notes: 'Entregue ao orgao',
+    });
+    const trackedOccurrence = model.reportOccurrences.find((row) => row.monthKey === '2026-03');
+    expect(trackedOccurrence).toBeTruthy();
+    expect(trackedOccurrence).toMatchObject({
+      monthKey: '2026-03',
+      operationalStatusLabel: 'Entregue',
+      isOverridden: true,
+    });
+  });
+
+  it('builds active work tracking rows from erosion follow-up events', () => {
+    const model = buildMonitoringViewModel({
+      projects: [{ id: 'P1', nome: 'Projeto 1' }],
+      inspections: [],
+      erosions: [
+        {
+          id: 'ER-1',
+          projetoId: 'P1',
+          torreRef: '12',
+          acompanhamentosResumo: [
+            { tipoEvento: 'obra', obraEtapa: 'Projeto', descricao: 'Projeto executivo', timestamp: '2026-02-10T12:00:00.000Z' },
+          ],
+        },
+        {
+          id: 'ER-2',
+          projetoId: 'P1',
+          acompanhamentosResumo: [
+            { tipoEvento: 'obra', obraEtapa: 'Concluida', descricao: 'Finalizada', timestamp: '2026-02-11T12:00:00.000Z' },
+          ],
+        },
+      ],
+      operatingLicenses: [],
+      searchTerm: '',
+      nowMs,
+    });
+
+    expect(model.workTrackingRows).toEqual([
+      expect.objectContaining({
+        erosionId: 'ER-1',
+        projectId: 'P1',
+        projectName: 'Projeto 1',
+        stage: 'Projeto',
+      }),
     ]);
   });
 

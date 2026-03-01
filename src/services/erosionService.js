@@ -6,6 +6,7 @@ import { normalizeErosionStatus } from '../features/shared/statusUtils';
 import {
   EROSION_REMOVED_FIELDS,
   appendFollowupEvent,
+  buildManualFollowupEvent,
   buildCriticalityInputFromErosion,
   deriveErosionTypeFromTechnicalFields,
   buildFollowupEvent,
@@ -23,6 +24,37 @@ import {
 
 export function subscribeErosions(onData, onError) {
   return subscribeCollection('erosions', onData, onError);
+}
+
+function getInspectionDateScore(inspection) {
+  const candidates = [inspection?.dataFim, inspection?.dataInicio, inspection?.data];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const parsed = new Date(candidates[i]);
+    if (!Number.isNaN(parsed.getTime())) return parsed.getTime();
+  }
+  return null;
+}
+
+function normalizeErosionInspectionIds(erosion) {
+  const primary = String(erosion?.vistoriaId || '').trim();
+  const list = Array.isArray(erosion?.vistoriaIds) ? erosion.vistoriaIds : [];
+  return [...new Set([primary, ...list.map((value) => String(value || '').trim())].filter(Boolean))];
+}
+
+function resolvePrimaryInspectionId(inspectionIds, inspections) {
+  if (!Array.isArray(inspectionIds) || inspectionIds.length === 0) return '';
+  const inspectionById = new Map((Array.isArray(inspections) ? inspections : [])
+    .map((inspection) => [String(inspection?.id || '').trim(), inspection]));
+  return [...inspectionIds].sort((a, b) => {
+    const inspectionA = inspectionById.get(String(a || '').trim());
+    const inspectionB = inspectionById.get(String(b || '').trim());
+    const scoreA = getInspectionDateScore(inspectionA);
+    const scoreB = getInspectionDateScore(inspectionB);
+    if (scoreA !== null && scoreB !== null) return scoreB - scoreA;
+    if (scoreA !== null) return -1;
+    if (scoreB !== null) return 1;
+    return String(b || '').localeCompare(String(a || ''));
+  })[0];
 }
 
 function buildSituacaoFromStatus(status) {
@@ -189,6 +221,42 @@ export async function saveErosion(payload, meta = {}) {
   }, { ...meta, merge: true });
 
   return id;
+}
+
+export async function saveErosionManualFollowupEvent(erosion, eventData, meta = {}) {
+  const source = erosion && typeof erosion === 'object' ? erosion : null;
+  if (!source?.id) {
+    throw new Error('Erosao invalida para registro de evento manual.');
+  }
+
+  const manualEvent = buildManualFollowupEvent(eventData, { updatedBy: meta?.updatedBy });
+  if (!manualEvent) {
+    throw new Error('Dados do evento invalidos.');
+  }
+
+  const etapa = String(manualEvent?.obraEtapa || '').trim().toLowerCase();
+  const shouldStabilize = manualEvent?.tipoEvento === 'obra'
+    && (etapa === 'concluida' || etapa === 'concluída');
+  const nextStatus = shouldStabilize ? 'Estabilizado' : normalizeErosionStatus(source.status);
+  const nextInspectionIds = normalizeErosionInspectionIds(source);
+  const primaryInspectionId = resolvePrimaryInspectionId(nextInspectionIds, meta?.inspections);
+
+  await saveErosion({
+    ...source,
+    status: nextStatus,
+    vistoriaId: primaryInspectionId || '',
+    vistoriaIds: nextInspectionIds,
+    acompanhamentosResumo: appendFollowupEvent(source.acompanhamentosResumo, manualEvent),
+  }, {
+    updatedBy: meta?.updatedBy,
+    merge: true,
+    skipAutoFollowup: true,
+  });
+
+  return {
+    manualEvent,
+    nextStatus,
+  };
 }
 
 export function deleteErosion(id) {

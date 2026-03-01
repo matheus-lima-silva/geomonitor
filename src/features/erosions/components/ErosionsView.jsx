@@ -4,11 +4,14 @@ import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { calculateCriticality } from '../../shared/rulesConfig';
 import { normalizeErosionStatus } from '../../shared/statusUtils';
-import { deleteErosion, postCalculoErosao, saveErosion } from '../../../services/erosionService';
 import {
-  appendFollowupEvent,
+  deleteErosion,
+  postCalculoErosao,
+  saveErosion,
+  saveErosionManualFollowupEvent,
+} from '../../../services/erosionService';
+import {
   buildCriticalityInputFromErosion,
-  buildManualFollowupEvent,
   buildErosionReportRows,
   buildErosionsCsv,
   buildImpactSummary,
@@ -890,39 +893,19 @@ function ErosionsView({
   async function handleSaveManualHistoryEvent(eventData) {
     if (!activeDetailsErosion) return false;
 
-    const manualEvent = buildManualFollowupEvent(eventData, { updatedBy: actorName });
-    if (!manualEvent) {
-      show('Dados do evento invalidos.', 'error');
-      return false;
-    }
-
     try {
-      const etapa = String(manualEvent.obraEtapa || '').trim().toLowerCase();
-      const shouldStabilize = manualEvent.tipoEvento === 'obra' && (etapa === 'concluida' || etapa === 'concluída');
-      const nextStatus = shouldStabilize ? 'Estabilizado' : normalizeErosionStatus(activeDetailsErosion.status);
-      const nextInspectionIds = normalizeErosionInspectionIds(activeDetailsErosion);
-
-      await saveErosion(
-        {
-          ...activeDetailsErosion,
-          status: nextStatus,
-          vistoriaId: resolvePrimaryInspectionId(nextInspectionIds, inspections),
-          vistoriaIds: nextInspectionIds,
-          acompanhamentosResumo: appendFollowupEvent(activeDetailsErosion.acompanhamentosResumo, manualEvent),
-        },
-        {
-          updatedBy: actorName,
-          merge: true,
-          skipAutoFollowup: true,
-        },
-      );
+      const { manualEvent, nextStatus } = await saveErosionManualFollowupEvent(activeDetailsErosion, eventData, {
+        updatedBy: actorName,
+        inspections,
+      });
 
       setDetailsModal((prev) => {
         if (!prev) return prev;
+        const history = normalizeFollowupHistory(prev.acompanhamentosResumo);
         return {
           ...prev,
           status: nextStatus,
-          acompanhamentosResumo: appendFollowupEvent(prev.acompanhamentosResumo, manualEvent),
+          acompanhamentosResumo: [...history, manualEvent].slice(-100),
         };
       });
 
@@ -1141,3 +1124,4 @@ function ErosionsView({
 }
 
 export default ErosionsView;
+

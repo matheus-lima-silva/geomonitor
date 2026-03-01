@@ -7,6 +7,10 @@ import {
   normalizeFollowupEventType,
   normalizeFollowupHistory,
 } from './erosionUtils';
+import {
+  buildCriticalitySummaryFromErosion,
+  formatCriticalityPoints,
+} from './criticalitySummary';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -128,6 +132,10 @@ function renderFicha({
   const localTipoLabel = getLocalContextLabel(localContexto.localTipo) || '-';
   const saturacaoPorAgua = technical.saturacaoPorAgua || String(erosion?.soloSaturadoAgua || '').trim();
   const derivedTipo = deriveErosionTypeFromTechnicalFields({ ...erosion, tiposFeicao: technical.tiposFeicao });
+  const criticalitySummary = buildCriticalitySummaryFromErosion(erosion || {});
+  const criticalidadeV2 = erosion?.criticalidadeV2 && typeof erosion.criticalidadeV2 === 'object'
+    ? erosion.criticalidadeV2
+    : null;
 
   return `
     <h1>Ficha de Cadastro de Erosao ${escapeHtml(erosion?.id || '-')}</h1>
@@ -179,8 +187,13 @@ function renderFicha({
         <div class="ficha-full"><strong>Usos do solo:</strong> ${escapeHtml(listText(technical.usosSolo))}</div>
         ${technical.usosSolo.includes('outro') ? `<div class="ficha-full"><strong>Uso do solo - outro:</strong> ${escapeHtml(technical.usoSoloOutro || '-')}</div>` : ''}
         ${technical.usosSolo.length === 0 && String(erosion?.usoSolo || '').trim() ? `<div class="ficha-full"><strong>Uso do solo (legado):</strong> ${escapeHtml(erosion?.usoSolo || '-')}</div>` : ''}
-        <div><strong>Score:</strong> ${escapeHtml(erosion?.score ?? '-')}</div>
-        <div><strong>Frequencia:</strong> ${escapeHtml(erosion?.frequencia || '-')}</div>
+        <div class="ficha-full"><strong>Resumo de criticidade calculada:</strong> ${escapeHtml(`Impacto: ${criticalitySummary.impacto} | Score: ${criticalitySummary.score} | Frequencia: ${criticalitySummary.frequencia}`)}</div>
+        ${criticalitySummary.hasBreakdown ? `<div class="ficha-full"><strong>Criticidade:</strong> ${escapeHtml(criticalitySummary.criticidadeClasse)} (${escapeHtml(criticalitySummary.criticidadeCodigo)}) | Pontos T/P/D/S/E: ${escapeHtml(formatCriticalityPoints(criticalidadeV2?.pontos))}</div>` : ''}
+        ${criticalitySummary.solucoesSugeridas.length > 0 ? `<div class="ficha-full"><strong>Solucoes sugeridas:</strong> ${escapeHtml(criticalitySummary.solucoesSugeridas.join(' | '))}</div>` : ''}
+        ${criticalitySummary.sugestoesIntervencao.length > 0 ? `<div class="ficha-full"><strong>Sugestoes de intervencao (opcional):</strong> ${escapeHtml(criticalitySummary.sugestoesIntervencao.join(' | '))}</div>` : ''}
+        ${criticalidadeV2?.tipo_medida_recomendada ? `<div class="ficha-full"><strong>Tipo de medida recomendada:</strong> ${escapeHtml(criticalidadeV2.tipo_medida_recomendada)}</div>` : ''}
+        ${criticalitySummary.regraContextual ? `<div class="ficha-full"><strong>Regra contextual:</strong> ${escapeHtml(criticalitySummary.regraContextual)}</div>` : ''}
+        ${criticalitySummary.alertas.length > 0 ? `<div class="ficha-full"><strong>Alertas ativos:</strong> ${escapeHtml(criticalitySummary.alertas.join(' | '))}</div>` : ''}
         <div class="ficha-full"><strong>Medida preventiva:</strong> ${escapeHtml(erosion?.medidaPreventiva || '-')}</div>
         <div class="ficha-full"><strong>Fotos:</strong> ${renderPhotoLinks(erosion?.fotosLinks)}</div>
       </div>

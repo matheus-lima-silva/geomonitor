@@ -5,6 +5,10 @@ import {
   isPartialUtmCoordinates,
   parseCoordinateNumber,
 } from '../utils/erosionCoordinates';
+import {
+  buildCriticalitySummaryFromCalculation,
+  formatCriticalityPoints,
+} from '../utils/criticalitySummary';
 import ErosionTechnicalFields from './ErosionTechnicalFields';
 
 function hasAnyLocationValue(locationCoordinates = {}) {
@@ -57,15 +61,7 @@ function ErosionFormModal({
   const criticalityBreakdown = safeCriticality.breakdown && typeof safeCriticality.breakdown === 'object'
     ? safeCriticality.breakdown
     : null;
-  const suggestedSolutions = Array.isArray(criticalityBreakdown?.lista_solucoes_sugeridas)
-    ? criticalityBreakdown.lista_solucoes_sugeridas
-    : [];
-  const optionalInterventionSolutions = Array.isArray(criticalityBreakdown?.lista_solucoes_possiveis_intervencao)
-    ? criticalityBreakdown.lista_solucoes_possiveis_intervencao
-    : [];
-  const validationAlerts = Array.isArray(criticalityBreakdown?.alertas_validacao)
-    ? criticalityBreakdown.alertas_validacao
-    : [];
+  const criticalitySummary = buildCriticalitySummaryFromCalculation(safeCriticality);
 
   const locationCoordinates = {
     latitude: '',
@@ -367,30 +363,29 @@ function ErosionFormModal({
           </section>
 
           <div className="notice erosions-criticality-notice">
-            <strong>Impacto:</strong> {safeCriticality.impacto} | <strong>Score:</strong> {safeCriticality.score} | <strong>Frequencia:</strong> {safeCriticality.frequencia}
-            {criticalityBreakdown ? (
-              <>
-                <br />
-                <strong>Criticidade:</strong> {criticalityBreakdown.criticidade_classe || '-'} ({criticalityBreakdown.codigo || '-'}) | Pontos T/P/D/S/E: {criticalityBreakdown.pontos?.T ?? 0}/{criticalityBreakdown.pontos?.P ?? 0}/{criticalityBreakdown.pontos?.D ?? 0}/{criticalityBreakdown.pontos?.S ?? 0}/{criticalityBreakdown.pontos?.E ?? 0}
-              </>
+            <div><strong>Resumo de criticidade calculada</strong></div>
+            <div>
+              <strong>Impacto:</strong> {criticalitySummary.impacto} | <strong>Score:</strong> {criticalitySummary.score} | <strong>Frequencia:</strong> {criticalitySummary.frequencia}
+            </div>
+            {criticalitySummary.hasBreakdown ? (
+              <div>
+                <strong>Criticidade:</strong> {criticalitySummary.criticidadeClasse} ({criticalitySummary.criticidadeCodigo}) | Pontos T/P/D/S/E: {formatCriticalityPoints(criticalityBreakdown?.pontos)}
+              </div>
             ) : null}
-            {suggestedSolutions.length > 0 ? (
-              <>
-                <br />
-                <strong>Solucoes sugeridas:</strong> {suggestedSolutions.join(' | ')}
-              </>
+            {criticalitySummary.solucoesSugeridas.length > 0 ? (
+              <div>
+                <strong>Solucoes sugeridas:</strong> {criticalitySummary.solucoesSugeridas.join(' | ')}
+              </div>
             ) : null}
-            {optionalInterventionSolutions.length > 0 ? (
-              <>
-                <br />
-                <strong>Sugestoes de intervencao (opcional):</strong> {optionalInterventionSolutions.join(' | ')}
-              </>
+            {criticalitySummary.sugestoesIntervencao.length > 0 ? (
+              <div>
+                <strong>Sugestoes de intervencao (opcional):</strong> {criticalitySummary.sugestoesIntervencao.join(' | ')}
+              </div>
             ) : null}
-            {validationAlerts.length > 0 ? (
-              <>
-                <br />
-                <strong>Alertas:</strong> {validationAlerts.join(' | ')}
-              </>
+            {criticalitySummary.alertas.length > 0 ? (
+              <div>
+                <strong>Alertas:</strong> {criticalitySummary.alertas.join(' | ')}
+              </div>
             ) : null}
           </div>
         </div>

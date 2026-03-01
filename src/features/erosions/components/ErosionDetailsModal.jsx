@@ -9,6 +9,10 @@ import {
   normalizeFollowupHistory,
 } from '../utils/erosionUtils';
 import { normalizeLocationCoordinates } from '../utils/erosionCoordinates';
+import {
+  buildCriticalitySummaryFromErosion,
+  formatCriticalityPoints,
+} from '../utils/criticalitySummary';
 
 const EMPTY_EVENT_FORM = {
   tipoEvento: 'obra',
@@ -68,10 +72,11 @@ function ErosionDetailsModal({
   const tiposFeicao = technical.tiposFeicao;
   const caracteristicasFeicao = technical.caracteristicasFeicao;
   const derivedTipo = deriveErosionTypeFromTechnicalFields({ ...erosion, tiposFeicao });
+  const criticalitySummary = buildCriticalitySummaryFromErosion(erosion || {});
   const criticalidadeV2 = erosion?.criticalidadeV2 && typeof erosion.criticalidadeV2 === 'object'
     ? erosion.criticalidadeV2
     : null;
-  const alertasAtivos = Array.isArray(erosion?.alertsAtivos) ? erosion.alertsAtivos : [];
+  const alertasAtivos = criticalitySummary.alertas;
 
   async function handleSaveEvent() {
     const tipo = String(eventForm.tipoEvento || '').trim();
@@ -153,16 +158,27 @@ function ErosionDetailsModal({
               {usosSolo.includes('outro') ? (
                 <div className="erosions-details-span-all"><strong>Uso do solo - outro:</strong> {erosion.usoSoloOutro || '-'}</div>
               ) : null}
-              <div><strong>Score:</strong> {erosion.score ?? '-'}</div>
-              <div><strong>Frequencia:</strong> {erosion.frequencia || '-'}</div>
+              <div className="erosions-details-span-all">
+                <strong>Resumo de criticidade calculada:</strong>{' '}
+                Impacto: {criticalitySummary.impacto} | Score: {criticalitySummary.score} | Frequencia: {criticalitySummary.frequencia}
+              </div>
+              {criticalitySummary.hasBreakdown ? (
+                <div className="erosions-details-span-all">
+                  <strong>Criticidade:</strong> {criticalitySummary.criticidadeClasse} ({criticalitySummary.criticidadeCodigo}) | Pontos T/P/D/S/E: {formatCriticalityPoints(criticalidadeV2?.pontos)}
+                </div>
+              ) : null}
+              {criticalitySummary.solucoesSugeridas.length > 0 ? (
+                <div className="erosions-details-span-all">
+                  <strong>Solucoes sugeridas:</strong> {criticalitySummary.solucoesSugeridas.join(' | ')}
+                </div>
+              ) : null}
+              {criticalitySummary.sugestoesIntervencao.length > 0 ? (
+                <div className="erosions-details-span-all">
+                  <strong>Sugestoes de intervencao (opcional):</strong> {criticalitySummary.sugestoesIntervencao.join(' | ')}
+                </div>
+              ) : null}
               {criticalidadeV2 ? (
                 <>
-                  <div><strong>Criticidade:</strong> {criticalidadeV2.criticidade_classe || '-'} ({criticalidadeV2.codigo || '-'})</div>
-                  <div><strong>Score:</strong> {criticalidadeV2.criticidade_score ?? '-'}</div>
-                  <div className="erosions-details-span-all">
-                    <strong>Pontos T/P/D/S/E:</strong>{' '}
-                    {criticalidadeV2.pontos?.T ?? 0}/{criticalidadeV2.pontos?.P ?? 0}/{criticalidadeV2.pontos?.D ?? 0}/{criticalidadeV2.pontos?.S ?? 0}/{criticalidadeV2.pontos?.E ?? 0}
-                  </div>
                   <div><strong>Classe tipo erosao:</strong> {criticalidadeV2.tipo_erosao_classe || '-'}</div>
                   <div><strong>Classe profundidade:</strong> {criticalidadeV2.profundidade_classe || '-'}</div>
                   <div><strong>Classe declividade:</strong> {criticalidadeV2.declividade_classe || '-'}</div>
@@ -171,17 +187,9 @@ function ErosionDetailsModal({
                   <div className="erosions-details-span-all">
                     <strong>Tipo de medida recomendada:</strong> {criticalidadeV2.tipo_medida_recomendada || '-'}
                   </div>
-                  <div className="erosions-details-span-all">
-                    <strong>Solucoes sugeridas:</strong> {Array.isArray(criticalidadeV2.lista_solucoes_sugeridas) && criticalidadeV2.lista_solucoes_sugeridas.length > 0 ? criticalidadeV2.lista_solucoes_sugeridas.join(' | ') : '-'}
-                  </div>
-                  {Array.isArray(criticalidadeV2.lista_solucoes_possiveis_intervencao) && criticalidadeV2.lista_solucoes_possiveis_intervencao.length > 0 ? (
+                  {criticalitySummary.regraContextual ? (
                     <div className="erosions-details-span-all">
-                      <strong>Sugestoes de intervencao (opcional):</strong> {criticalidadeV2.lista_solucoes_possiveis_intervencao.join(' | ')}
-                    </div>
-                  ) : null}
-                  {criticalidadeV2.recomendacao_contextual ? (
-                    <div className="erosions-details-span-all">
-                      <strong>Regra contextual:</strong> {criticalidadeV2.recomendacao_contextual}
+                      <strong>Regra contextual:</strong> {criticalitySummary.regraContextual}
                     </div>
                   ) : null}
                 </>

@@ -26,6 +26,7 @@ vi.mock('../../features/erosions/utils/erosionUtils', () => ({
     'soloSaturadoAgua',
   ],
   appendFollowupEvent: vi.fn(),
+  buildManualFollowupEvent: vi.fn(),
   buildCriticalityInputFromErosion: vi.fn(),
   deriveErosionTypeFromTechnicalFields: vi.fn(),
   buildFollowupEvent: vi.fn(),
@@ -56,6 +57,7 @@ import { deleteDocById, loadDoc, saveDoc, subscribeCollection } from '../firesto
 import { normalizeErosionStatus } from '../../features/shared/statusUtils';
 import {
   appendFollowupEvent,
+  buildManualFollowupEvent,
   buildCriticalityInputFromErosion,
   deriveErosionTypeFromTechnicalFields,
   buildFollowupEvent,
@@ -63,7 +65,12 @@ import {
   normalizeFollowupHistory,
   validateErosionTechnicalFields,
 } from '../../features/erosions/utils/erosionUtils';
-import { deleteErosion, saveErosion, subscribeErosions } from '../erosionService';
+import {
+  deleteErosion,
+  saveErosion,
+  saveErosionManualFollowupEvent,
+  subscribeErosions,
+} from '../erosionService';
 
 describe('erosionService', () => {
   beforeEach(() => {
@@ -301,5 +308,90 @@ describe('erosionService', () => {
       }),
       expect.objectContaining({ merge: true }),
     );
+  });
+
+  it('saveErosionManualFollowupEvent salva evento manual e estabiliza em obra concluida', async () => {
+    vi.mocked(loadDoc).mockResolvedValue({
+      id: 'ER-1',
+      status: 'Ativo',
+      acompanhamentosResumo: [],
+      vistoriaId: 'VS-1',
+      vistoriaIds: ['VS-1'],
+    });
+    vi.mocked(normalizeErosionStatus).mockImplementation((value) => String(value || '').trim() || 'Ativo');
+    vi.mocked(normalizeFollowupHistory).mockReturnValue([]);
+    vi.mocked(buildFollowupEvent).mockReturnValue(null);
+    vi.mocked(appendFollowupEvent).mockImplementation((history, event) => {
+      const list = Array.isArray(history) ? history : [];
+      return event ? [...list, event] : [...list];
+    });
+    vi.mocked(buildManualFollowupEvent).mockReturnValue({
+      tipoEvento: 'obra',
+      obraEtapa: 'Concluida',
+      descricao: 'Execucao finalizada',
+      timestamp: '2026-03-01T10:00:00.000Z',
+    });
+    vi.mocked(saveDoc).mockResolvedValue(undefined);
+
+    const erosion = {
+      id: 'ER-1',
+      projetoId: 'P1',
+      status: 'Ativo',
+      vistoriaId: 'VS-1',
+      vistoriaIds: ['VS-1'],
+      acompanhamentosResumo: [],
+    };
+
+    const result = await saveErosionManualFollowupEvent(erosion, {
+      tipoEvento: 'obra',
+      obraEtapa: 'Concluida',
+      descricao: 'Execucao finalizada',
+    }, {
+      updatedBy: 'analista@empresa.com',
+      inspections: [{ id: 'VS-1', dataFim: '2026-02-10' }],
+    });
+
+    expect(buildManualFollowupEvent).toHaveBeenCalledWith({
+      tipoEvento: 'obra',
+      obraEtapa: 'Concluida',
+      descricao: 'Execucao finalizada',
+    }, { updatedBy: 'analista@empresa.com' });
+    expect(result).toEqual({
+      manualEvent: {
+        tipoEvento: 'obra',
+        obraEtapa: 'Concluida',
+        descricao: 'Execucao finalizada',
+        timestamp: '2026-03-01T10:00:00.000Z',
+      },
+      nextStatus: 'Estabilizado',
+    });
+
+    expect(saveDoc).toHaveBeenCalledWith(
+      'erosions',
+      'ER-1',
+      expect.objectContaining({
+        id: 'ER-1',
+        status: 'Estabilizado',
+        acompanhamentosResumo: [
+          expect.objectContaining({
+            tipoEvento: 'obra',
+            obraEtapa: 'Concluida',
+          }),
+        ],
+      }),
+      expect.objectContaining({
+        merge: true,
+        skipAutoFollowup: true,
+        updatedBy: 'analista@empresa.com',
+      }),
+    );
+  });
+
+  it('saveErosionManualFollowupEvent rejeita quando evento manual e invalido', async () => {
+    vi.mocked(buildManualFollowupEvent).mockReturnValue(null);
+
+    await expect(saveErosionManualFollowupEvent({ id: 'ER-2' }, { tipoEvento: 'obra' }, {}))
+      .rejects
+      .toThrow('Dados do evento invalidos.');
   });
 });

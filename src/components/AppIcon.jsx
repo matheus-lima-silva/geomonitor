@@ -198,6 +198,14 @@ const ICON_PATHS = {
       <path d="M6 8v3l3 2v3" />
     </>
   ),
+  'followups-nav': (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M8 8h8" />
+      <path d="M8 12h5" />
+      <path d="m14 14 2 2 4-4" />
+    </>
+  ),
   'admin-nav': (
     <>
       <path d="M12 3 5 6v6c0 5 3.5 8 7 9 3.5-1 7-4 7-9V6z" />

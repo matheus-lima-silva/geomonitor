@@ -79,6 +79,14 @@ vi.mock('../../services/erosionService', () => ({
         impacto: 'Alto',
         torreRef: '1',
         ultimaAtualizacao: '2026-01-20T00:00:00.000Z',
+        acompanhamentosResumo: [
+          {
+            tipoEvento: 'obra',
+            obraEtapa: 'Em andamento',
+            descricao: 'Execucao de drenagem',
+            timestamp: '2026-01-22T10:00:00.000Z',
+          },
+        ],
       },
     ]);
     return () => {};
@@ -87,6 +95,13 @@ vi.mock('../../services/erosionService', () => ({
 
 vi.mock('../../services/licenseService', () => ({
   subscribeOperatingLicenses: (onData) => {
+    onData([]);
+    return () => {};
+  },
+}));
+
+vi.mock('../../services/reportDeliveryTrackingService', () => ({
+  subscribeReportDeliveryTracking: (onData) => {
     onData([]);
     return () => {};
   },
@@ -177,6 +192,51 @@ describe('DashboardView monitoring top notice', () => {
     expect(container.querySelector('.monitor-topbar-alert-trigger')).toBeNull();
   });
 
+  it('shows due days, deadline status and operational status in the upcoming reports card', async () => {
+    await act(async () => {
+      root.render(<DashboardView />);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('Prazo');
+    expect(container.textContent).toContain('Status prazo');
+    expect(container.textContent).toContain('Status operacional');
+    expect(container.textContent).toContain('dia(s)');
+    expect(container.textContent).toContain('Em acompanhamento');
+    expect(container.textContent).toContain('Nao iniciado');
+  });
+
+  it('shows active work tracking card with project and ongoing stage', async () => {
+    await act(async () => {
+      root.render(<DashboardView />);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('Acompanhamento de Obras');
+    expect(container.textContent).toContain('ER-1');
+    expect(container.textContent).toContain('P1 - Projeto 1');
+    expect(container.textContent).toContain('Em andamento');
+  });
+
+  it('expands LO/project aggregated row in upcoming reports card', async () => {
+    await act(async () => {
+      root.render(<DashboardView />);
+      await Promise.resolve();
+    });
+
+    const expandButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent.includes('Projetos ('));
+    expect(expandButton).toBeTruthy();
+
+    await act(async () => {
+      expandButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('Origem aplicada');
+    expect(container.textContent).toContain('Override');
+  });
+
   it('expands and collapses monthly delivery details when clicking a month row', async () => {
     await act(async () => {
       root.render(<DashboardView />);
@@ -197,6 +257,10 @@ describe('DashboardView monitoring top notice', () => {
     expect(container.querySelector('.monitor-month-details')).toBeTruthy();
     expect(container.textContent).toContain('P1 - Projeto 1');
     expect(container.textContent).toContain('Empreendimento vinculado');
+    expect(container.textContent).toContain('Prazo:');
+    expect(container.textContent).toContain('Status prazo:');
+    expect(container.textContent).toContain('Status operacional:');
+    expect(container.textContent).toContain('Em acompanhamento');
 
     await act(async () => {
       expandedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));

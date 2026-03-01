@@ -1,5 +1,13 @@
-import { buildEffectiveReportOccurrences } from '../../licenses/utils/scheduleResolver';
+import { buildEffectiveReportPlan } from '../../licenses/utils/scheduleResolver';
 import { MONTH_OPTIONS_PT } from '../../projects/utils/reportSchedule';
+import { normalizeFollowupEventType, normalizeFollowupHistory } from '../../erosions/utils/erosionUtils';
+import {
+  REPORT_OPERATIONAL_STATUS,
+  REPORT_SOURCE_OVERRIDE,
+  getOperationalStatusPresentation,
+  normalizeSourceOverride,
+  getSourceOverrideLabel,
+} from './reportTracking';
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 export const IMPACT_LEVELS = ['Muito Alto', 'Alto', 'Medio', 'Baixo'];
@@ -40,6 +48,29 @@ function matchesDashboardSearch(erosion, searchTerm) {
     || String(erosion?.projetoId || '').toLowerCase().includes(term);
 }
 
+function buildProjectMonthKey(projectId, monthKey) {
+  return `${String(projectId || '').trim()}|${String(monthKey || '').trim()}`;
+}
+
+function normalizeTrackingRows(deliveryTracking) {
+  const list = Array.isArray(deliveryTracking) ? deliveryTracking : [];
+  const map = new Map();
+  list.forEach((item) => {
+    const projectId = String(item?.projectId || '').trim();
+    const monthKey = String(item?.monthKey || '').trim();
+    if (!projectId || !/^\d{4}-\d{2}$/.test(monthKey)) return;
+    map.set(buildProjectMonthKey(projectId, monthKey), {
+      projectId,
+      monthKey,
+      operationalStatus: String(item?.operationalStatus || '').trim().toUpperCase(),
+      sourceOverride: normalizeSourceOverride(item?.sourceOverride),
+      deliveredAt: String(item?.deliveredAt || '').trim(),
+      notes: String(item?.notes || '').trim(),
+    });
+  });
+  return map;
+}
+
 export function getErosionImpact(erosion) {
   return normalizeImpactLabel(erosion?.grauFinal || erosion?.grauTecnico || erosion?.impacto || '');
 }
@@ -67,89 +98,291 @@ export function formatMonitoringMonthLabel(monthValue) {
   return found?.label || String(monthValue || '-');
 }
 
+export function getReportTrackingStatus(days) {
+  const safeDays = Number(days);
+  if (!Number.isFinite(safeDays)) {
+    return { label: 'Sem prazo', tone: 'neutral' };
+  }
+  if (safeDays < 0) {
+    return { label: 'Atrasado', tone: 'danger' };
+  }
+  if (safeDays <= 15) {
+    return { label: 'Urgente', tone: 'critical' };
+  }
+  if (safeDays <= 45) {
+    return { label: 'Em acompanhamento', tone: 'warning' };
+  }
+  return { label: 'No prazo', tone: 'ok' };
+}
+
 function getOccurrenceSourceLabel(item) {
-  if (item?.scopeType === 'lo') {
+  if (String(item?.sourceApplied || '').toUpperCase() === 'LO' || item?.scopeType === 'lo') {
     const loLabel = String(item?.loNumero || item?.loId || item?.scopeId || '').trim();
     return loLabel ? `LO ${loLabel}` : 'LO';
   }
   return 'Empreendimento vinculado';
 }
 
-function normalizeOccurrenceProjects(item) {
-  const ids = Array.isArray(item?.projectIds)
-    ? item.projectIds.map((value) => String(value || '').trim()).filter(Boolean)
-    : [];
-  const names = Array.isArray(item?.projectNames)
-    ? item.projectNames.map((value) => String(value || '').trim())
-    : [];
+function getAggregatedOperationalStatus(projectBreakdown) {
+  const list = Array.isArray(projectBreakdown) ? projectBreakdown : [];
+  if (list.length === 0) return getOperationalStatusPresentation(REPORT_OPERATIONAL_STATUS.NAO_INICIADO);
 
-  if (ids.length === 0) {
-    const fallbackId = String(item?.scopeId || '').trim();
-    if (fallbackId) ids.push(fallbackId);
+  const values = [...new Set(list.map((item) => String(item?.operationalStatusValue || '').trim().toUpperCase()).filter(Boolean))];
+  if (values.length === 1) {
+    return getOperationalStatusPresentation(values[0]);
   }
-
-  return ids.map((projectId, index) => ({
-    projectId,
-    projectName: names[index] || projectId,
-  }));
+  return {
+    value: 'MISTO',
+    label: 'Misto',
+    tone: 'warning',
+  };
 }
 
-function buildReportMonthDetails(reportOccurrences) {
+function buildProjectBreakdownByMonth(reportProjectMonthRows) {
   const monthBuckets = new Map();
-  const list = Array.isArray(reportOccurrences) ? reportOccurrences : [];
-
-  list.forEach((item) => {
-    const monthKey = String(item?.monthKey || '').trim();
+  (reportProjectMonthRows || []).forEach((row) => {
+    const monthKey = String(row?.monthKey || '').trim();
     if (!monthKey) return;
-
-    if (!monthBuckets.has(monthKey)) {
-      monthBuckets.set(monthKey, new Map());
-    }
-    const projectsMap = monthBuckets.get(monthKey);
-    const sourceLabel = getOccurrenceSourceLabel(item);
-    const scopeLabel = String(item?.scopeSummary || '').trim() || '-';
-    const projects = normalizeOccurrenceProjects(item);
-
-    projects.forEach(({ projectId, projectName }) => {
-      if (!projectId) return;
-
-      if (!projectsMap.has(projectId)) {
-        projectsMap.set(projectId, {
-          projectId,
-          projectName: projectName || projectId,
-          sourceSet: new Set(),
-          scopeSet: new Set(),
-        });
-      }
-
-      const detail = projectsMap.get(projectId);
-      if (!detail.projectName && projectName) detail.projectName = projectName;
-      detail.sourceSet.add(sourceLabel);
-      if (scopeLabel !== '-') {
-        detail.scopeSet.add(scopeLabel);
-      }
-    });
+    if (!monthBuckets.has(monthKey)) monthBuckets.set(monthKey, []);
+    monthBuckets.get(monthKey).push(row);
   });
+  return monthBuckets;
+}
 
+function buildReportMonthDetails(reportProjectMonthRows = []) {
+  const byMonth = buildProjectBreakdownByMonth(reportProjectMonthRows);
   const detailsByMonth = {};
-  monthBuckets.forEach((projectsMap, monthKey) => {
-    const rows = Array.from(projectsMap.values())
-      .sort((a, b) => {
-        const byProjectId = String(a.projectId || '').localeCompare(String(b.projectId || ''));
-        if (byProjectId !== 0) return byProjectId;
-        return String(a.projectName || '').localeCompare(String(b.projectName || ''));
-      })
-      .map((detail) => ({
-        projectId: detail.projectId,
-        projectName: detail.projectName || detail.projectId,
-        sourceSummary: Array.from(detail.sourceSet).join(' | ') || '-',
-        scopeSummary: Array.from(detail.scopeSet).join(' | ') || '-',
-      }));
 
-    detailsByMonth[monthKey] = rows;
+  byMonth.forEach((rows, monthKey) => {
+    const details = [...rows]
+      .sort((a, b) => String(a.projectId || '').localeCompare(String(b.projectId || '')))
+      .map((row) => {
+        const sourceSummary = row.sourceApplied === 'LO'
+          ? (row.loSourceSummary || 'LO')
+          : 'Empreendimento vinculado';
+
+        return {
+          projectId: row.projectId,
+          projectName: row.projectName,
+          sourceSummary,
+          scopeSummary: row.projectName ? `${row.projectId}: ${row.projectName}` : row.projectId,
+          dueInDays: row.daysUntilDue,
+          deadlineStatusLabel: row.deadlineStatusLabel,
+          deadlineStatusTone: row.deadlineStatusTone,
+          operationalStatusLabel: row.operationalStatusLabel,
+          operationalStatusTone: row.operationalStatusTone,
+          sourceApplied: row.sourceApplied,
+          sourceOverride: row.sourceOverride,
+          sourceOverrideLabel: row.sourceOverrideLabel,
+          isOverridden: row.isOverridden,
+          notes: row.notes || '',
+          deliveredAt: row.deliveredAt || '',
+        };
+      });
+
+    detailsByMonth[monthKey] = details;
   });
 
   return detailsByMonth;
+}
+
+function buildWorkTrackingRows(erosions = [], projectsById = new Map()) {
+  return (Array.isArray(erosions) ? erosions : [])
+    .map((erosion) => {
+      const history = normalizeFollowupHistory(erosion?.acompanhamentosResumo)
+        .slice()
+        .sort((a, b) => String(b?.timestamp || '').localeCompare(String(a?.timestamp || '')));
+      const latestWorkEvent = history.find((event) => normalizeFollowupEventType(event) === 'obra');
+      if (!latestWorkEvent) return null;
+
+      const stage = String(latestWorkEvent?.obraEtapa || '').trim();
+      const normalizedStage = stage.toLowerCase();
+      const isActive = normalizedStage === 'projeto' || normalizedStage === 'em andamento';
+      if (!isActive) return null;
+
+      const projectId = String(erosion?.projetoId || '').trim();
+      const project = projectsById.get(projectId);
+      return {
+        erosionId: String(erosion?.id || '').trim(),
+        projectId,
+        projectName: String(project?.nome || '').trim(),
+        towerRef: String(erosion?.torreRef || '').trim(),
+        stage,
+        description: String(latestWorkEvent?.descricao || '').trim(),
+        timestamp: String(latestWorkEvent?.timestamp || '').trim(),
+        status: String(erosion?.status || '').trim(),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+}
+
+function enrichSelectedOccurrences(selectedOccurrences, nowMs, trackingMap) {
+  return (Array.isArray(selectedOccurrences) ? selectedOccurrences : []).map((item) => {
+    const monthKey = String(item?.monthKey || '').trim();
+    const projectId = String(item?.projectId || '').trim();
+    const tracking = trackingMap.get(buildProjectMonthKey(projectId, monthKey));
+    const target = new Date(item.year, Number(item.month) - 1, 1).getTime();
+    const daysUntilDue = Math.ceil((target - nowMs) / DAY_IN_MS);
+    const deadline = getReportTrackingStatus(daysUntilDue);
+    const operational = getOperationalStatusPresentation(tracking?.operationalStatus);
+    const sourceOverride = normalizeSourceOverride(tracking?.sourceOverride || item?.sourceOverride);
+
+    return {
+      ...item,
+      daysUntilDue,
+      deadlineStatusLabel: deadline.label,
+      deadlineStatusTone: deadline.tone,
+      trackingStatusLabel: deadline.label,
+      trackingStatusTone: deadline.tone,
+      operationalStatusValue: operational.value,
+      operationalStatusLabel: operational.label,
+      operationalStatusTone: operational.tone,
+      sourceApplied: String(item?.sourceApplied || '').toUpperCase() === 'LO' ? 'LO' : 'PROJECT',
+      sourceOverride,
+      sourceOverrideLabel: getSourceOverrideLabel(sourceOverride),
+      isOverridden: sourceOverride !== REPORT_SOURCE_OVERRIDE.AUTO,
+      notes: tracking?.notes || '',
+      deliveredAt: tracking?.deliveredAt || '',
+    };
+  });
+}
+
+function buildReportProjectMonthRows(planRows, selectedOccurrences, projectsById, nowMs, trackingMap) {
+  const occurrenceByProjectMonth = new Map();
+  (selectedOccurrences || []).forEach((item) => {
+    const key = buildProjectMonthKey(item?.projectId, item?.monthKey);
+    if (!occurrenceByProjectMonth.has(key)) {
+      occurrenceByProjectMonth.set(key, []);
+    }
+    occurrenceByProjectMonth.get(key).push(item);
+  });
+
+  return (Array.isArray(planRows) ? planRows : [])
+    .map((row) => {
+      const key = buildProjectMonthKey(row?.projectId, row?.monthKey);
+      const selectedRows = occurrenceByProjectMonth.get(key) || [];
+      if (selectedRows.length === 0) return null;
+
+      const firstRow = selectedRows[0];
+      const tracking = trackingMap.get(key);
+      const sourceOverride = normalizeSourceOverride(tracking?.sourceOverride || row?.sourceOverride);
+      const target = new Date(firstRow.year, Number(firstRow.month) - 1, 1).getTime();
+      const daysUntilDue = Math.ceil((target - nowMs) / DAY_IN_MS);
+      const deadline = getReportTrackingStatus(daysUntilDue);
+      const operational = getOperationalStatusPresentation(tracking?.operationalStatus);
+      const projectId = String(row?.projectId || firstRow?.projectId || '').trim();
+      const projectName = String(
+        firstRow?.projectName
+          || firstRow?.projectNames?.[0]
+          || projectsById.get(projectId)?.nome
+          || projectId,
+      ).trim() || projectId;
+      const loSourceSummary = [...new Set(selectedRows
+        .filter((item) => item.sourceApplied === 'LO')
+        .map((item) => getOccurrenceSourceLabel(item)))]
+        .join(' | ');
+
+      return {
+        key,
+        projectId,
+        projectName,
+        month: Number(firstRow.month),
+        year: Number(firstRow.year),
+        monthKey: String(firstRow.monthKey || ''),
+        sourceApplied: String(row?.selectedSource || firstRow?.sourceApplied || 'PROJECT').toUpperCase() === 'LO' ? 'LO' : 'PROJECT',
+        sourceOverride,
+        sourceOverrideLabel: getSourceOverrideLabel(sourceOverride),
+        isOverridden: sourceOverride !== REPORT_SOURCE_OVERRIDE.AUTO,
+        baseSource: String(row?.baseSource || '').toUpperCase() === 'LO' ? 'LO' : 'PROJECT',
+        hasLoOption: Boolean(row?.hasLoOption),
+        hasProjectOption: Boolean(row?.hasProjectOption),
+        overrideInvalid: Boolean(row?.overrideInvalid),
+        loSourceSummary,
+        daysUntilDue,
+        deadlineStatusLabel: deadline.label,
+        deadlineStatusTone: deadline.tone,
+        operationalStatusValue: operational.value,
+        operationalStatusLabel: operational.label,
+        operationalStatusTone: operational.tone,
+        notes: tracking?.notes || '',
+        deliveredAt: tracking?.deliveredAt || '',
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(a.monthKey || '').localeCompare(String(b.monthKey || ''))
+      || String(a.projectId || '').localeCompare(String(b.projectId || '')));
+}
+
+function buildAggregatedReportOccurrences(selectedOccurrences, reportProjectMonthRows) {
+  const projectMonthMap = new Map(reportProjectMonthRows.map((row) => [row.key, row]));
+  const groups = new Map();
+
+  (selectedOccurrences || []).forEach((item) => {
+    const sourceApplied = String(item?.sourceApplied || '').toUpperCase() === 'LO' ? 'LO' : 'PROJECT';
+    const monthKey = String(item?.monthKey || '').trim();
+    const groupKey = sourceApplied === 'LO'
+      ? `LO|${String(item?.scopeId || '').trim()}|${monthKey}`
+      : `PROJECT|${String(item?.projectId || '').trim()}|${monthKey}`;
+
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, {
+        ...item,
+        sourceApplied,
+        projectBreakdown: [],
+      });
+    }
+
+    const group = groups.get(groupKey);
+    const projectKey = buildProjectMonthKey(item?.projectId, item?.monthKey);
+    const projectRow = projectMonthMap.get(projectKey);
+    if (projectRow) {
+      group.projectBreakdown.push({
+        projectId: projectRow.projectId,
+        projectName: projectRow.projectName,
+        sourceApplied: projectRow.sourceApplied,
+        sourceOverride: projectRow.sourceOverride,
+        sourceOverrideLabel: projectRow.sourceOverrideLabel,
+        isOverridden: projectRow.isOverridden,
+        daysUntilDue: projectRow.daysUntilDue,
+        deadlineStatusLabel: projectRow.deadlineStatusLabel,
+        deadlineStatusTone: projectRow.deadlineStatusTone,
+        operationalStatusValue: projectRow.operationalStatusValue,
+        operationalStatusLabel: projectRow.operationalStatusLabel,
+        operationalStatusTone: projectRow.operationalStatusTone,
+        notes: projectRow.notes,
+        deliveredAt: projectRow.deliveredAt,
+      });
+    }
+  });
+
+  return Array.from(groups.values())
+    .map((group) => {
+      const uniqueBreakdown = group.projectBreakdown
+        .filter((item, index, array) => array.findIndex((other) => (
+          other.projectId === item.projectId
+        )) === index)
+        .sort((a, b) => String(a.projectId || '').localeCompare(String(b.projectId || '')));
+
+      const sourceSummary = uniqueBreakdown
+        .map((item) => (item.projectName ? `${item.projectId}: ${item.projectName}` : item.projectId))
+        .join(' | ');
+      const operational = getAggregatedOperationalStatus(uniqueBreakdown);
+
+      return {
+        ...group,
+        projectBreakdown: uniqueBreakdown,
+        projectIds: uniqueBreakdown.map((item) => item.projectId),
+        projectNames: uniqueBreakdown.map((item) => item.projectName),
+        scopeSummary: sourceSummary || group.scopeSummary || '-',
+        operationalStatusValue: operational.value,
+        operationalStatusLabel: operational.label,
+        operationalStatusTone: operational.tone,
+        isOverridden: uniqueBreakdown.some((item) => item.isOverridden),
+      };
+    })
+    .sort((a, b) => a.sortDate - b.sortDate
+      || String(a.scopeId || '').localeCompare(String(b.scopeId || '')));
 }
 
 export function buildMonitoringViewModel({
@@ -157,6 +390,7 @@ export function buildMonitoringViewModel({
   inspections,
   erosions,
   operatingLicenses,
+  deliveryTracking,
   searchTerm,
   nowMs = Date.now(),
 } = {}) {
@@ -164,18 +398,33 @@ export function buildMonitoringViewModel({
   const inspectionsList = Array.isArray(inspections) ? inspections : [];
   const erosionsList = Array.isArray(erosions) ? erosions : [];
   const licensesList = Array.isArray(operatingLicenses) ? operatingLicenses : [];
+  const trackingRows = Array.isArray(deliveryTracking) ? deliveryTracking : [];
   const currentYear = new Date(nowMs).getFullYear();
 
   const filteredErosions = erosionsList.filter((item) => matchesDashboardSearch(item, searchTerm));
+  const projectsById = new Map(projectsList.map((item) => [String(item?.id || '').trim(), item]));
+  const trackingMap = normalizeTrackingRows(trackingRows);
 
-  const reportOccurrences = buildEffectiveReportOccurrences({
+  const reportPlan = buildEffectiveReportPlan({
     projects: projectsList,
     operatingLicenses: licensesList,
     startYear: currentYear,
     endYear: currentYear + 1,
-  }).sort((a, b) => a.sortDate - b.sortDate || String(a.scopeId || '').localeCompare(String(b.scopeId || '')));
+    deliveryTracking: trackingRows,
+  });
 
-  const reportByMonth = reportOccurrences.reduce((acc, item) => {
+  const selectedOccurrences = enrichSelectedOccurrences(reportPlan.selectedOccurrences, nowMs, trackingMap);
+  const reportProjectMonthRows = buildReportProjectMonthRows(
+    reportPlan.projectMonthRows,
+    selectedOccurrences,
+    projectsById,
+    nowMs,
+    trackingMap,
+  );
+
+  const reportOccurrences = buildAggregatedReportOccurrences(selectedOccurrences, reportProjectMonthRows);
+
+  const reportByMonth = reportProjectMonthRows.reduce((acc, item) => {
     const monthKey = String(item?.monthKey || '').trim();
     if (!monthKey) return acc;
     acc[monthKey] = (acc[monthKey] || 0) + 1;
@@ -183,15 +432,11 @@ export function buildMonitoringViewModel({
   }, {});
 
   const reportMonthRows = Object.entries(reportByMonth).sort((a, b) => a[0].localeCompare(b[0]));
-  const reportMonthDetailsByKey = buildReportMonthDetails(reportOccurrences);
+  const reportMonthDetailsByKey = buildReportMonthDetails(reportProjectMonthRows);
 
   const reportPlanningAlerts = reportOccurrences
-    .map((item) => {
-      const target = new Date(item.year, Number(item.month) - 1, 1).getTime();
-      const days = Math.ceil((target - nowMs) / DAY_IN_MS);
-      return { ...item, days };
-    })
-    .filter((item) => item.days >= 0 && item.days <= 45)
+    .filter((item) => item.daysUntilDue >= 0 && item.daysUntilDue <= 45)
+    .map((item) => ({ ...item, days: item.daysUntilDue }))
     .sort((a, b) => a.days - b.days);
 
   const impactCounts = {
@@ -260,13 +505,16 @@ export function buildMonitoringViewModel({
     })
     .slice(0, 10);
 
-  const projectsById = new Map(projectsList.map((item) => [String(item?.id || '').trim(), item]));
+  const workTrackingRows = buildWorkTrackingRows(filteredErosions, projectsById);
 
   return {
     reportOccurrences,
+    reportProjectMonthRows,
+    reportInvalidOverrides: reportPlan.invalidOverrides,
     reportPlanningAlerts,
     reportMonthRows,
     reportMonthDetailsByKey,
+    workTrackingRows,
     impactCounts,
     criticalCount: impactCounts['Muito Alto'] + impactCounts.Alto,
     criticalityDistribution,
@@ -284,3 +532,4 @@ export function buildMonitoringViewModel({
     erosionCount: filteredErosions.length,
   };
 }
+

@@ -26,6 +26,19 @@ function renderModal(root, overrides = {}) {
       declividadeGraus: 18,
       distanciaEstruturaMetros: 7,
       medidaPreventiva: 'Instalar drenagem',
+      criticalidadeV2: {
+        criticidade_classe: 'Baixo',
+        codigo: 'C1',
+        criticidade_score: 0,
+        pontos: { T: 0, P: 0, D: 0, S: 0, E: 0 },
+        tipo_erosao_classe: 'sulco',
+        profundidade_classe: '<0.5',
+        declividade_classe: '<15',
+        solo_classe: 'argiloso',
+        exposicao_classe: 'faixa_servidao',
+        tipo_medida_recomendada: 'Monitoramento',
+        lista_solucoes_sugeridas: ['Cobertura vegetal'],
+      },
       acompanhamentosResumo: [],
       fotosLinks: ['https://example.com/foto-1.jpg'],
       locationCoordinates: {
@@ -83,6 +96,9 @@ describe('ErosionDetailsModal', () => {
     expect(container.textContent).toContain('pastagem, outro');
     expect(container.textContent).toContain('Uso do solo - outro:');
     expect(container.textContent).toContain('acesso rural');
+    expect(container.textContent).toContain('Resumo de criticidade calculada:');
+    expect(container.textContent).toContain('Criticidade: Baixo (C1)');
+    expect(container.textContent).toContain('Solucoes sugeridas: Cobertura vegetal');
     expect(container.textContent).not.toContain('Intervencao:');
     expect(container.textContent).not.toContain('Criticidade V2');
     expect(container.textContent).not.toContain('Score V2');

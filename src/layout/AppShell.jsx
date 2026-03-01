@@ -35,6 +35,7 @@ function AppShell({
 
   const navigationTabs = [
     { id: 'dashboard', label: 'Monitorização', icon: 'dashboard-nav' },
+    { id: 'followups', label: 'Acompanhamentos', icon: 'followups-nav' },
     { id: 'projects', label: 'Empreendimentos', icon: 'projects-nav' },
     { id: 'licenses', label: 'Licenças LO', icon: 'licenses-nav' },
     { id: 'inspections', label: 'Vistorias', icon: 'inspections-nav' },
@@ -283,3 +284,4 @@ function AppShell({
 }
 
 export default AppShell;
+
