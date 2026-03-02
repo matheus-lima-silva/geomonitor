@@ -1,6 +1,6 @@
 import AppIcon from '../../../components/AppIcon';
 import { erosionStatusClass, normalizeErosionStatus } from '../../shared/statusUtils';
-import { getLocalContextLabel, normalizeErosionTechnicalFields } from '../utils/erosionUtils';
+import { getLocalContextLabel, normalizeErosionTechnicalFields } from '../../shared/viewUtils';
 
 function getImpactClassName(impact) {
   if (impact === 'Muito Alto') return 'erosions-impact-chip is-critical';

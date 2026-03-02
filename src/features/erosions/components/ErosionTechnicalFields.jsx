@@ -4,7 +4,7 @@ import {
   LOCAL_CONTEXTO_TIPO_OPTIONS,
   deriveCriticalityDimensionClasses,
   normalizeLocalContexto,
-} from '../utils/erosionUtils';
+} from '../../shared/viewUtils';
 
 function normalizeArray(value) {
   return Array.isArray(value) ? value : [];

@@ -1,4 +1,4 @@
-﻿import { normalizeErosionStatus } from '../../shared/statusUtils';
+﻿import { normalizeErosionStatus } from './statusUtils';
 import { normalizeLocationCoordinates } from './erosionCoordinates';
 
 export const LOCAL_CONTEXTO_TIPO_OPTIONS = [

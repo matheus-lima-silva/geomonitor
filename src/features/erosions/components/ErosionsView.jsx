@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
-import { calculateCriticality } from '../../shared/rulesConfig';
 import { normalizeErosionStatus } from '../../shared/statusUtils';
 import {
   deleteErosion,
@@ -21,13 +20,13 @@ import {
   normalizeFollowupHistory,
   validateErosionLocation,
   validateErosionTechnicalFields,
-} from '../utils/erosionUtils';
+} from '../../shared/viewUtils';
 import {
   hasValidDecimalCoordinates,
   normalizeLocationCoordinates,
   parseCoordinateNumber,
   resolveLocationCoordinatesForSave,
-} from '../utils/erosionCoordinates';
+} from '../../shared/erosionCoordinates';
 import {
   buildBatchErosionFichasPdfDocument,
   buildSingleErosionFichaPdfDocument,

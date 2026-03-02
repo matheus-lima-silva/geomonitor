@@ -9,7 +9,7 @@ import { useToast } from '../context/ToastContext';
 import {
   EROSION_LOCATION_OPTIONS,
   validateErosionLocation,
-} from '../features/erosions/utils/erosionUtils';
+} from '../features/shared/viewUtils';
 import {
   buildHotelHistory,
   extractHotelFields,

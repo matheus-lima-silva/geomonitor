@@ -1,5 +1,5 @@
 import { ENVIRONMENTAL_AGENCY_CATALOG } from '../constants/agencies';
-import { normalizeFollowupEventType, normalizeFollowupHistory } from '../../erosions/utils/erosionUtils';
+import { normalizeFollowupEventType, normalizeFollowupHistory } from '../../shared/viewUtils';
 
 function cleanAgencyName(value) {
   return String(value || '').trim().replace(/\s+/g, ' ');

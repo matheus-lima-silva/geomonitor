@@ -12,8 +12,6 @@ import {
   RULES_DATABASE,
 } from '../../shared/rulesConfig';
 import { normalizeUserStatus } from '../../shared/statusUtils';
-import { inferCriticalityInputFromLegacyErosion, calcular_criticidade } from '../../erosions/utils/criticalityV2';
-import { normalizeLocalContexto, validateErosionLocation } from '../../erosions/utils/erosionUtils';
 
 function AdminView({
   users,
@@ -26,8 +24,7 @@ function AdminView({
   const [section, setSection] = useState('users');
   const [draftRules, setDraftRules] = useState(() => normalizeRulesConfig(rulesConfig || RULES_DATABASE));
   const [criticalityV2Text, setCriticalityV2Text] = useState(() => JSON.stringify(mergeCriticalityV2Config(rulesConfig?.criticalityV2 || CRITICALITY_V2_DEFAULTS), null, 2));
-  const [backfillState, setBackfillState] = useState({ running: false, done: 0, total: 0, failed: 0 });
-  const [localContextMigrationState, setLocalContextMigrationState] = useState({ running: false, done: 0, total: 0, failed: 0 });
+
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
   const [isEditingUser, setIsEditingUser] = useState(false);
   const [userForm, setUserForm] = useState({
@@ -138,98 +135,7 @@ function AdminView({
     show('Regras salvas com sucesso.', 'success');
   }
 
-  async function handleBackfillCriticalidadeV2() {
-    if (backfillState.running) return;
-    const list = Array.isArray(erosions) ? erosions : [];
-    if (list.length === 0) {
-      show('Nenhuma erosao disponivel para backfill.', 'error');
-      return;
-    }
 
-    setBackfillState({ running: true, done: 0, total: list.length, failed: 0 });
-    let failed = 0;
-
-    for (let i = 0; i < list.length; i += 1) {
-      const row = list[i];
-      try {
-        const inferred = inferCriticalityInputFromLegacyErosion(row);
-        const criticalidadeV2 = calcular_criticidade(inferred.input, draftRules?.criticalityV2 || CRITICALITY_V2_DEFAULTS);
-        await saveErosion({
-          ...row,
-          criticalidadeV2,
-          alertsAtivos: criticalidadeV2.alertas_validacao || [],
-          backfillEstimado: inferred.estimado,
-          criticality: criticalidadeV2.legacy,
-        }, {
-          merge: true,
-          updatedBy: user?.email,
-          rulesConfig: draftRules?.criticalityV2 || CRITICALITY_V2_DEFAULTS,
-        });
-      } catch {
-        failed += 1;
-      } finally {
-        setBackfillState((prev) => ({
-          ...prev,
-          done: i + 1,
-          failed,
-        }));
-      }
-    }
-
-    setBackfillState((prev) => ({
-      ...prev,
-      running: false,
-      failed,
-      done: prev.total,
-    }));
-    show(`Backfill concluido. Processados: ${list.length}. Falhas: ${failed}.`, failed > 0 ? 'error' : 'success');
-  }
-
-  async function handleMigrateLocalContexto() {
-    if (localContextMigrationState.running) return;
-    const list = Array.isArray(erosions) ? erosions : [];
-    if (list.length === 0) {
-      show('Nenhuma erosao disponivel para migracao de localContexto.', 'error');
-      return;
-    }
-
-    setLocalContextMigrationState({ running: true, done: 0, total: list.length, failed: 0 });
-    let failed = 0;
-
-    for (let i = 0; i < list.length; i += 1) {
-      const row = list[i];
-      try {
-        const localContexto = normalizeLocalContexto(row);
-        const validation = validateErosionLocation({ localContexto });
-        if (!validation.ok) {
-          throw new Error(validation.message || 'localContexto invalido');
-        }
-        await saveErosion({
-          ...row,
-          localContexto,
-        }, {
-          merge: true,
-          updatedBy: user?.email,
-        });
-      } catch {
-        failed += 1;
-      } finally {
-        setLocalContextMigrationState((prev) => ({
-          ...prev,
-          done: i + 1,
-          failed,
-        }));
-      }
-    }
-
-    setLocalContextMigrationState((prev) => ({
-      ...prev,
-      running: false,
-      failed,
-      done: prev.total,
-    }));
-    show(`Migracao localContexto concluida. Processados: ${list.length}. Falhas: ${failed}.`, failed > 0 ? 'error' : 'success');
-  }
 
   const criterios = {
     tipo: ['sulco', 'ravina', 'vocoroca', 'deslizamento'],
@@ -391,33 +297,7 @@ function AdminView({
             </div>
           </div>
 
-          <div className="panel nested">
-            <h3>Backfill de Criticidade V2</h3>
-            <p className="muted">Recalcula criticidade para erosoes existentes com heuristica quando faltarem campos novos.</p>
-            <div className="row-actions">
-              <button type="button" onClick={handleBackfillCriticalidadeV2} disabled={backfillState.running}>
-                <AppIcon name="save" />
-                {backfillState.running ? 'Executando backfill...' : 'Executar backfill V2'}
-              </button>
-            </div>
-            <p className="muted">
-              Progresso: {backfillState.done}/{backfillState.total} | Falhas: {backfillState.failed}
-            </p>
-          </div>
 
-          <div className="panel nested">
-            <h3>Migracao LocalContexto</h3>
-            <p className="muted">Converte erosoes para schema canônico localContexto e remove campos soltos de localizacao no save.</p>
-            <div className="row-actions">
-              <button type="button" onClick={handleMigrateLocalContexto} disabled={localContextMigrationState.running}>
-                <AppIcon name="save" />
-                {localContextMigrationState.running ? 'Executando migracao...' : 'Executar migracao localContexto'}
-              </button>
-            </div>
-            <p className="muted">
-              Progresso: {localContextMigrationState.done}/{localContextMigrationState.total} | Falhas: {localContextMigrationState.failed}
-            </p>
-          </div>
         </div>
       )}
 

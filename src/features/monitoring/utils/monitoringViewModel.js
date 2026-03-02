@@ -1,6 +1,6 @@
 import { buildEffectiveReportPlan } from '../../licenses/utils/scheduleResolver';
 import { MONTH_OPTIONS_PT } from '../../projects/utils/reportSchedule';
-import { normalizeFollowupEventType, normalizeFollowupHistory } from '../../erosions/utils/erosionUtils';
+import { normalizeFollowupEventType, normalizeFollowupHistory } from '../../shared/viewUtils';
 import {
   REPORT_OPERATIONAL_STATUS,
   REPORT_SOURCE_OVERRIDE,
@@ -274,9 +274,9 @@ function buildReportProjectMonthRows(planRows, selectedOccurrences, projectsById
       const projectId = String(row?.projectId || firstRow?.projectId || '').trim();
       const projectName = String(
         firstRow?.projectName
-          || firstRow?.projectNames?.[0]
-          || projectsById.get(projectId)?.nome
-          || projectId,
+        || firstRow?.projectNames?.[0]
+        || projectsById.get(projectId)?.nome
+        || projectId,
       ).trim() || projectId;
       const loSourceSummary = [...new Set(selectedRows
         .filter((item) => item.sourceApplied === 'LO')

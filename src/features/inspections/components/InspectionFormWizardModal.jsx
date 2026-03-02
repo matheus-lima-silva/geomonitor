@@ -12,14 +12,14 @@ import {
   normalizeErosionTechnicalFields,
   validateErosionLocation,
   validateErosionTechnicalFields,
-} from '../../erosions/utils/erosionUtils';
+} from '../../shared/viewUtils';
 import {
   isCompleteUtmCoordinates,
   isPartialUtmCoordinates,
   normalizeLocationCoordinates,
   parseCoordinateNumber,
   resolveLocationCoordinatesForSave,
-} from '../../erosions/utils/erosionCoordinates';
+} from '../../shared/erosionCoordinates';
 import ErosionTechnicalFields from '../../erosions/components/ErosionTechnicalFields';
 import { buildHotelHistory, extractHotelFields, findPreviousDayHotel } from '../utils/hotelHistory';
 import {
@@ -1079,447 +1079,447 @@ function InspectionFormWizardModal({
           aria-modal="true"
           aria-label={isEditing ? 'Editar Vistoria' : 'Nova Vistoria'}
         >
-        <div className="inspections-wizard-head">
-          <div>
-            <h3>{isEditing ? 'Editar Vistoria' : 'Nova Vistoria'}</h3>
-            <p className="muted">Wizard em 3 etapas com preenchimento drill-down por dia e torre.</p>
-          </div>
-          <button type="button" className="secondary" onClick={onCancel}>
-            <AppIcon name="close" />
-          </button>
-        </div>
-
-        <div className="inspections-wizard-steps">
-          <button type="button" className={`inspections-step-chip ${step === 1 ? 'is-active' : ''}`} onClick={() => setStep(1)}>1. Dados gerais</button>
-          <button type="button" className={`inspections-step-chip ${step === 2 ? 'is-active' : ''}`} onClick={() => setStep(2)}>2. Diario</button>
-          <button type="button" className={`inspections-step-chip ${step === 3 ? 'is-active' : ''}`} onClick={() => setStep(3)}>3. Revisao</button>
-        </div>
-
-        <div className="inspections-wizard-body">
-          {step === 1 ? (
-            <div className="inspections-step-pane">
-              <div className="grid-form">
-                <div>
-                  <label>ID</label>
-                  <input value={formData.id || ''} disabled placeholder="ID gerado automaticamente" />
-                </div>
-                <div>
-                  <label>Empreendimento *</label>
-                  <select value={formData.projetoId} onChange={(e) => updateGeneralField('projetoId', e.target.value)}>
-                    <option value="">Selecione...</option>
-                    {(projects || []).map((project) => (
-                      <option key={project.id} value={project.id}>{project.id} - {project.nome}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label>Responsavel</label>
-                  <input value={formData.responsavel || ''} onChange={(e) => updateGeneralField('responsavel', e.target.value)} placeholder="Nome do responsavel" />
-                </div>
-                <div>
-                  <label>Data inicio *</label>
-                  <input type="date" value={formData.dataInicio || ''} onChange={(e) => updateGeneralField('dataInicio', e.target.value)} />
-                </div>
-                <div>
-                  <label>Data fim</label>
-                  <input type="date" value={formData.dataFim || ''} onChange={(e) => updateGeneralField('dataFim', e.target.value)} />
-                </div>
-              </div>
-              <div>
-                <label>Observacoes</label>
-                <textarea rows="3" value={formData.obs || ''} onChange={(e) => updateGeneralField('obs', e.target.value)} placeholder="Observacoes gerais da vistoria..." />
-              </div>
-              {suggestedTowerInput ? (
-                <div className="notice">
-                  <div><strong>Torres sugeridas pelo planejamento:</strong> {suggestedTowerInput}</div>
-                </div>
-              ) : null}
-              {formData.detalhesDias.length === 0 ? (
-                <div className="notice">Defina data inicio e data fim para gerar os dias da vistoria.</div>
-              ) : (
-                <div className="notice">
-                  <strong>Dias gerados:</strong> {formData.detalhesDias.length}
-                </div>
-              )}
+          <div className="inspections-wizard-head">
+            <div>
+              <h3>{isEditing ? 'Editar Vistoria' : 'Nova Vistoria'}</h3>
+              <p className="muted">Wizard em 3 etapas com preenchimento drill-down por dia e torre.</p>
             </div>
-          ) : null}
+            <button type="button" className="secondary" onClick={onCancel}>
+              <AppIcon name="close" />
+            </button>
+          </div>
 
-          {step === 2 ? (
-            <div className="inspections-step-pane">
-              <div className="inspections-day-list">
-                {formData.detalhesDias.map((day, dayIndex) => {
-                  const isDayExpanded = expandedDay === day.data;
-                  const dayKey = String(day?.data || `dia-${dayIndex}`);
-                  const isTowerPickerCollapsed = !!collapsedTowerPickerDays[dayKey];
-                  const isHotelPickerOpen = openHotelPickerDayKey === dayKey;
-                  const selectedDayTowers = [...(day.torresDetalhadas || [])]
-                    .filter((tower) => String(tower?.numero || '').trim())
-                    .sort((a, b) => compareTowerNumbers(a.numero, b.numero));
-                  const selectedDayTowerKeys = new Set(selectedDayTowers.map((tower) => String(tower?.numero || '').trim()));
-                  const canCreateHotelFromSearch = isHotelPickerOpen
-                    && String(hotelPickerSearch || '').trim() !== ''
-                    && !hasExactHotelMatch;
-                  const previousHotel = findPreviousDayHotel(formData.detalhesDias, day.data);
-                  return (
-                    <article key={day.data || dayIndex} className="inspections-day-card">
-                      <div className="inspections-day-card-head">
-                        <div>
-                          <strong>{day.data ? new Date(`${day.data}T00:00:00`).toLocaleDateString('pt-BR') : `Dia ${dayIndex + 1}`}</strong>
-                          <div className="muted">{(day.torresDetalhadas || []).length} torre(s) detalhada(s)</div>
+          <div className="inspections-wizard-steps">
+            <button type="button" className={`inspections-step-chip ${step === 1 ? 'is-active' : ''}`} onClick={() => setStep(1)}>1. Dados gerais</button>
+            <button type="button" className={`inspections-step-chip ${step === 2 ? 'is-active' : ''}`} onClick={() => setStep(2)}>2. Diario</button>
+            <button type="button" className={`inspections-step-chip ${step === 3 ? 'is-active' : ''}`} onClick={() => setStep(3)}>3. Revisao</button>
+          </div>
+
+          <div className="inspections-wizard-body">
+            {step === 1 ? (
+              <div className="inspections-step-pane">
+                <div className="grid-form">
+                  <div>
+                    <label>ID</label>
+                    <input value={formData.id || ''} disabled placeholder="ID gerado automaticamente" />
+                  </div>
+                  <div>
+                    <label>Empreendimento *</label>
+                    <select value={formData.projetoId} onChange={(e) => updateGeneralField('projetoId', e.target.value)}>
+                      <option value="">Selecione...</option>
+                      {(projects || []).map((project) => (
+                        <option key={project.id} value={project.id}>{project.id} - {project.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Responsavel</label>
+                    <input value={formData.responsavel || ''} onChange={(e) => updateGeneralField('responsavel', e.target.value)} placeholder="Nome do responsavel" />
+                  </div>
+                  <div>
+                    <label>Data inicio *</label>
+                    <input type="date" value={formData.dataInicio || ''} onChange={(e) => updateGeneralField('dataInicio', e.target.value)} />
+                  </div>
+                  <div>
+                    <label>Data fim</label>
+                    <input type="date" value={formData.dataFim || ''} onChange={(e) => updateGeneralField('dataFim', e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <label>Observacoes</label>
+                  <textarea rows="3" value={formData.obs || ''} onChange={(e) => updateGeneralField('obs', e.target.value)} placeholder="Observacoes gerais da vistoria..." />
+                </div>
+                {suggestedTowerInput ? (
+                  <div className="notice">
+                    <div><strong>Torres sugeridas pelo planejamento:</strong> {suggestedTowerInput}</div>
+                  </div>
+                ) : null}
+                {formData.detalhesDias.length === 0 ? (
+                  <div className="notice">Defina data inicio e data fim para gerar os dias da vistoria.</div>
+                ) : (
+                  <div className="notice">
+                    <strong>Dias gerados:</strong> {formData.detalhesDias.length}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {step === 2 ? (
+              <div className="inspections-step-pane">
+                <div className="inspections-day-list">
+                  {formData.detalhesDias.map((day, dayIndex) => {
+                    const isDayExpanded = expandedDay === day.data;
+                    const dayKey = String(day?.data || `dia-${dayIndex}`);
+                    const isTowerPickerCollapsed = !!collapsedTowerPickerDays[dayKey];
+                    const isHotelPickerOpen = openHotelPickerDayKey === dayKey;
+                    const selectedDayTowers = [...(day.torresDetalhadas || [])]
+                      .filter((tower) => String(tower?.numero || '').trim())
+                      .sort((a, b) => compareTowerNumbers(a.numero, b.numero));
+                    const selectedDayTowerKeys = new Set(selectedDayTowers.map((tower) => String(tower?.numero || '').trim()));
+                    const canCreateHotelFromSearch = isHotelPickerOpen
+                      && String(hotelPickerSearch || '').trim() !== ''
+                      && !hasExactHotelMatch;
+                    const previousHotel = findPreviousDayHotel(formData.detalhesDias, day.data);
+                    return (
+                      <article key={day.data || dayIndex} className="inspections-day-card">
+                        <div className="inspections-day-card-head">
+                          <div>
+                            <strong>{day.data ? new Date(`${day.data}T00:00:00`).toLocaleDateString('pt-BR') : `Dia ${dayIndex + 1}`}</strong>
+                            <div className="muted">{(day.torresDetalhadas || []).length} torre(s) detalhada(s)</div>
+                          </div>
+                          <button type="button" className="secondary" onClick={() => setExpandedDay((prev) => (prev === day.data ? '' : day.data))}>
+                            <AppIcon name="details" />
+                            {isDayExpanded ? 'Ocultar' : 'Detalhar dia'}
+                          </button>
                         </div>
-                        <button type="button" className="secondary" onClick={() => setExpandedDay((prev) => (prev === day.data ? '' : day.data))}>
-                          <AppIcon name="details" />
-                          {isDayExpanded ? 'Ocultar' : 'Detalhar dia'}
-                        </button>
-                      </div>
 
-                      {isDayExpanded ? (
-                        <div className="inspections-day-card-body">
-                          <div className="inspections-day-field-grid">
-                            <div className="inspections-day-field">
-                              <label>Clima</label>
-                              <select value={day.clima || ''} onChange={(e) => updateDayField(dayIndex, { clima: e.target.value })}>
-                                <option value="">Selecione...</option>
-                                <option value="Sol">Sol</option>
-                                <option value="Parcialmente Nublado">Parcialmente nublado</option>
-                                <option value="Nublado">Nublado</option>
-                                <option value="Chuva">Chuva</option>
-                              </select>
-                            </div>
-                            <div className="inspections-day-field inspections-day-tower-selected-summary">
-                              <label>Torres selecionadas</label>
-                              <div className="muted">
-                                {selectedDayTowers.length > 0
-                                  ? selectedDayTowers.map((tower) => formatTowerLabel(tower.numero)).join(', ')
-                                  : 'Nenhuma torre selecionada.'}
+                        {isDayExpanded ? (
+                          <div className="inspections-day-card-body">
+                            <div className="inspections-day-field-grid">
+                              <div className="inspections-day-field">
+                                <label>Clima</label>
+                                <select value={day.clima || ''} onChange={(e) => updateDayField(dayIndex, { clima: e.target.value })}>
+                                  <option value="">Selecione...</option>
+                                  <option value="Sol">Sol</option>
+                                  <option value="Parcialmente Nublado">Parcialmente nublado</option>
+                                  <option value="Nublado">Nublado</option>
+                                  <option value="Chuva">Chuva</option>
+                                </select>
                               </div>
-                            </div>
-                          </div>
-
-                          <div className="inspections-day-tower-picker">
-                            <div className="inspections-day-tower-picker-head">
-                              <div className="inspections-day-tower-picker-head-copy">
-                                <strong>Selecionar torres do dia</strong>
-                                <span>{selectedDayTowers.length} selecionada(s)</span>
-                              </div>
-                              <button
-                                type="button"
-                                className="secondary inspections-day-tower-picker-toggle"
-                                onClick={() => toggleTowerPickerCollapse(dayKey)}
-                              >
-                                <AppIcon name={isTowerPickerCollapsed ? 'chevron-down' : 'chevron-up'} />
-                                {isTowerPickerCollapsed ? 'Expandir' : 'Ocultar'}
-                              </button>
-                            </div>
-                            {!isTowerPickerCollapsed ? (
-                              <>
-                                <div className="inspections-day-tower-picker-grid">
-                                  {projectTowerOptions.map((towerNumber) => {
-                                    const active = selectedDayTowerKeys.has(String(towerNumber));
-                                    return (
-                                      <button
-                                        key={`${dayKey}-picker-${towerNumber}`}
-                                        type="button"
-                                        className={`inspections-day-tower-picker-btn ${active ? 'is-active' : ''}`.trim()}
-                                        onClick={() => toggleDayTower(dayIndex, towerNumber)}
-                                      >
-                                        {formatTowerLabel(towerNumber)}
-                                      </button>
-                                    );
-                                  })}
+                              <div className="inspections-day-field inspections-day-tower-selected-summary">
+                                <label>Torres selecionadas</label>
+                                <div className="muted">
+                                  {selectedDayTowers.length > 0
+                                    ? selectedDayTowers.map((tower) => formatTowerLabel(tower.numero)).join(', ')
+                                    : 'Nenhuma torre selecionada.'}
                                 </div>
-                                {projectTowerOptions.length === 0 ? (
-                                  <p className="muted inspections-day-tower-picker-empty">
-                                    Este empreendimento nao possui total de torres valido para selecao.
-                                  </p>
-                                ) : null}
-                              </>
-                            ) : null}
-                          </div>
+                              </div>
+                            </div>
 
-                          <div className="row-actions inspections-day-actions">
-                            <button
-                              type="button"
-                              className="secondary"
-                              onClick={() => clearDayTowerSelection(dayIndex)}
-                              disabled={selectedDayTowers.length === 0}
-                            >
-                              <AppIcon name="close" />
-                              Limpar selecao do dia
-                            </button>
-                            {suggestedTowerInput ? (
-                              <button type="button" className="secondary" onClick={() => applySuggestedTowersToDay(dayIndex)}>
-                                <AppIcon name="clipboard" />
-                                Aplicar sugeridas
-                              </button>
-                            ) : null}
-                          </div>
-
-                          <div className="panel nested inspections-day-hotel-history">
-                            <div className="inspections-day-hotel-history-grid">
-                              <div
-                                className="inspections-day-hotel-picker"
-                                ref={isHotelPickerOpen ? hotelPickerRef : null}
-                              >
+                            <div className="inspections-day-tower-picker">
+                              <div className="inspections-day-tower-picker-head">
+                                <div className="inspections-day-tower-picker-head-copy">
+                                  <strong>Selecionar torres do dia</strong>
+                                  <span>{selectedDayTowers.length} selecionada(s)</span>
+                                </div>
                                 <button
                                   type="button"
-                                  className={`inspections-day-hotel-picker-trigger ${isHotelPickerOpen ? 'is-open' : ''}`.trim()}
-                                  aria-expanded={isHotelPickerOpen ? 'true' : 'false'}
-                                  aria-haspopup="listbox"
-                                  onClick={() => toggleHotelPicker(dayKey, String(day.hotelNome || ''))}
+                                  className="secondary inspections-day-tower-picker-toggle"
+                                  onClick={() => toggleTowerPickerCollapse(dayKey)}
                                 >
-                                  <span className="inspections-day-hotel-picker-trigger-label">
-                                    {day.hotelNome
-                                      ? `${day.hotelNome}${day.hotelMunicipio ? ` (${day.hotelMunicipio})` : ''}`
-                                      : 'Selecionar hotel...'}
-                                  </span>
-                                  <AppIcon name={isHotelPickerOpen ? 'close' : 'details'} />
+                                  <AppIcon name={isTowerPickerCollapsed ? 'chevron-down' : 'chevron-up'} />
+                                  {isTowerPickerCollapsed ? 'Expandir' : 'Ocultar'}
                                 </button>
-
-                                {isHotelPickerOpen ? (
-                                  <div className="inspections-day-hotel-picker-menu" role="dialog" aria-label="Selecionar hotel">
-                                    <label className="inspections-day-hotel-picker-search">
-                                      <AppIcon name="search" />
-                                      <input
-                                        ref={hotelPickerSearchRef}
-                                        type="search"
-                                        value={hotelPickerSearch}
-                                        placeholder="Buscar hotel por nome ou municipio..."
-                                        onChange={(e) => setHotelPickerSearch(e.target.value)}
-                                      />
-                                    </label>
-
-                                    <div className="inspections-day-hotel-picker-options" role="listbox" aria-label="Historico de hoteis">
-                                      {filteredHotelHistory.map((item) => (
-                                        <button
-                                          key={item.key}
-                                          type="button"
-                                          className="inspections-day-hotel-picker-option"
-                                          onClick={() => handleSelectHotelFromHistory(dayIndex, item)}
-                                        >
-                                          {formatHistoryOption(item)}
-                                        </button>
-                                      ))}
-                                      {canCreateHotelFromSearch ? (
-                                        <button
-                                          type="button"
-                                          className="inspections-day-hotel-picker-option is-create"
-                                          onClick={() => handleCreateNewHotel(dayIndex)}
-                                        >
-                                          Criar novo hotel: "{String(hotelPickerSearch || '').trim()}"
-                                        </button>
-                                      ) : null}
-                                      {filteredHotelHistory.length === 0 && !canCreateHotelFromSearch ? (
-                                        <div className="inspections-day-hotel-picker-empty">Nenhum hotel encontrado.</div>
-                                      ) : null}
-                                    </div>
-                                  </div>
-                                ) : null}
                               </div>
+                              {!isTowerPickerCollapsed ? (
+                                <>
+                                  <div className="inspections-day-tower-picker-grid">
+                                    {projectTowerOptions.map((towerNumber) => {
+                                      const active = selectedDayTowerKeys.has(String(towerNumber));
+                                      return (
+                                        <button
+                                          key={`${dayKey}-picker-${towerNumber}`}
+                                          type="button"
+                                          className={`inspections-day-tower-picker-btn ${active ? 'is-active' : ''}`.trim()}
+                                          onClick={() => toggleDayTower(dayIndex, towerNumber)}
+                                        >
+                                          {formatTowerLabel(towerNumber)}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  {projectTowerOptions.length === 0 ? (
+                                    <p className="muted inspections-day-tower-picker-empty">
+                                      Este empreendimento nao possui total de torres valido para selecao.
+                                    </p>
+                                  ) : null}
+                                </>
+                              ) : null}
+                            </div>
 
-                              <button type="button" className="secondary" onClick={() => repeatPreviousDayHotel(dayIndex)} disabled={!previousHotel}>
-                                <AppIcon name="copy" />
-                                Repetir dia anterior
+                            <div className="row-actions inspections-day-actions">
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => clearDayTowerSelection(dayIndex)}
+                                disabled={selectedDayTowers.length === 0}
+                              >
+                                <AppIcon name="close" />
+                                Limpar selecao do dia
                               </button>
+                              {suggestedTowerInput ? (
+                                <button type="button" className="secondary" onClick={() => applySuggestedTowersToDay(dayIndex)}>
+                                  <AppIcon name="clipboard" />
+                                  Aplicar sugeridas
+                                </button>
+                              ) : null}
                             </div>
-                            {previousHotel ? (
-                              <small className="muted">
-                                Hotel anterior disponivel ({previousHotel.date}): {previousHotel.hotelNome || 'Sem nome'}
-                              </small>
-                            ) : null}
-                          </div>
 
-                          <div className="grid-form inspections-day-hotel-fields">
-                            <input value={day.hotelNome || ''} onChange={(e) => updateDayField(dayIndex, { hotelNome: e.target.value })} placeholder="Hotel (opcional)" />
-                            <input value={day.hotelMunicipio || ''} onChange={(e) => updateDayField(dayIndex, { hotelMunicipio: e.target.value })} placeholder="Municipio do hotel" />
-                            <select value={day.hotelLogisticaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelLogisticaNota: e.target.value })}>
-                              <option value="">Logistica (1-5)</option>
-                              <option value="1">1</option>
-                              <option value="2">2</option>
-                              <option value="3">3</option>
-                              <option value="4">4</option>
-                              <option value="5">5</option>
-                            </select>
-                            <select value={day.hotelReservaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelReservaNota: e.target.value })}>
-                              <option value="">Reserva (1-5)</option>
-                              <option value="1">1</option>
-                              <option value="2">2</option>
-                              <option value="3">3</option>
-                              <option value="4">4</option>
-                              <option value="5">5</option>
-                            </select>
-                            <select value={day.hotelEstadiaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelEstadiaNota: e.target.value })}>
-                              <option value="">Estadia (1-5)</option>
-                              <option value="1">1</option>
-                              <option value="2">2</option>
-                              <option value="3">3</option>
-                              <option value="4">4</option>
-                              <option value="5">5</option>
-                            </select>
-                            <select
-                              value={day.hotelTorreBase || ''}
-                              onChange={(e) => updateDayField(dayIndex, { hotelTorreBase: e.target.value })}
-                              disabled={selectedDayTowers.length === 0}
-                            >
-                              <option value="">
-                                {selectedDayTowers.length === 0
-                                  ? 'Selecione torres visitadas no dia'
-                                  : 'Torre base da hospedagem'}
-                              </option>
-                              {selectedDayTowers.map((tower) => (
-                                <option key={`hotel-base-${dayIndex}-${tower.numero}`} value={tower.numero}>Torre {tower.numero}</option>
-                              ))}
-                            </select>
-                          </div>
+                            <div className="panel nested inspections-day-hotel-history">
+                              <div className="inspections-day-hotel-history-grid">
+                                <div
+                                  className="inspections-day-hotel-picker"
+                                  ref={isHotelPickerOpen ? hotelPickerRef : null}
+                                >
+                                  <button
+                                    type="button"
+                                    className={`inspections-day-hotel-picker-trigger ${isHotelPickerOpen ? 'is-open' : ''}`.trim()}
+                                    aria-expanded={isHotelPickerOpen ? 'true' : 'false'}
+                                    aria-haspopup="listbox"
+                                    onClick={() => toggleHotelPicker(dayKey, String(day.hotelNome || ''))}
+                                  >
+                                    <span className="inspections-day-hotel-picker-trigger-label">
+                                      {day.hotelNome
+                                        ? `${day.hotelNome}${day.hotelMunicipio ? ` (${day.hotelMunicipio})` : ''}`
+                                        : 'Selecionar hotel...'}
+                                    </span>
+                                    <AppIcon name={isHotelPickerOpen ? 'close' : 'details'} />
+                                  </button>
 
-                          {(day.torresDetalhadas || []).length > 0 ? (
-                            <div className="table-scroll inspections-tower-table-wrap">
-                              <table className="inspections-tower-table">
-                                <thead>
-                                  <tr>
-                                    <th>Torre</th>
-                                    <th>Observacao</th>
-                                    <th>Acoes</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {(day.torresDetalhadas || []).map((tower, towerIndex) => {
-                                    const towerKey = String(tower?.numero || '').trim();
-                                    const linkedTowerErosions = (erosions || []).filter((item) =>
-                                      String(item?.projetoId || '').trim() === String(formData.projetoId || '').trim()
-                                      && String(item?.torreRef || '').trim() === towerKey);
-                                    const pendency = linkedTowerErosions
-                                      .map((item) => getInspectionPendency(item, formData.id))
-                                      .find(Boolean);
-                                    const hasVisitedDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
-                                    const hasErosion = !!tower?.temErosao || linkedTowerErosions.length > 0;
-                                    const key = `${day.data}|${towerKey}`;
-                                    const expandedTower = expandedTowerKey === key;
-                                    return (
-                                      <tr key={`${day.data}-${towerKey}`} className={hasErosion ? 'is-erosion' : ''}>
-                                        <td className="inspections-tower-col-number">
-                                          <span className="inspections-tower-number">{formatTowerLabel(towerKey)}</span>
-                                        </td>
-                                        <td className="inspections-tower-col-note">
-                                          <input
-                                            className="inspections-tower-note-input"
-                                            value={tower?.obs || ''}
-                                            onChange={(e) => updateTowerDetail(dayIndex, towerIndex, { obs: e.target.value })}
-                                            placeholder="Observacoes da torre"
-                                          />
-                                          {expandedTower ? (
-                                            <div className="muted inspections-tower-summary">
-                                              <div><strong>Resumo:</strong> {linkedTowerErosions.length > 0 ? 'Ha erosao vinculada nesta torre.' : 'Sem erosao vinculada.'}</div>
-                                              <div><strong>Pendencia:</strong> {hasVisitedDate ? `visitada em ${pendency.dia}` : (linkedTowerErosions.length > 0 ? 'pendente' : 'sem pendencia')}</div>
-                                            </div>
-                                          ) : null}
-                                        </td>
-                                        <td className="inspections-tower-col-actions">
-                                          <div className="inspections-tower-actions">
-                                            <button
-                                              type="button"
-                                              className={`inspections-tower-btn-detail ${expandedTower ? 'is-active' : ''}`.trim()}
-                                              onClick={() => setExpandedTowerKey((prev) => (prev === key ? '' : key))}
-                                              aria-label={expandedTower ? 'Ocultar detalhes da torre' : 'Detalhar torre'}
-                                              title={expandedTower ? 'Ocultar detalhes da torre' : 'Detalhar torre'}
-                                            >
-                                              <AppIcon name="details" />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className={`inspections-tower-btn-erosion ${hasErosion ? 'has-erosion' : ''}`.trim()}
-                                              onClick={() => openErosionFromTower(dayIndex, towerKey)}
-                                              aria-label={hasErosion ? 'Editar erosao vinculada' : 'Cadastrar erosao nesta torre'}
-                                              title={hasErosion ? 'Editar erosao vinculada' : 'Cadastrar erosao nesta torre'}
-                                              disabled={saving}
-                                            >
-                                              <AppIcon name="alert" />
-                                            </button>
-                                            {linkedTowerErosions.length > 0 ? (
-                                              <button type="button" className="secondary" onClick={() => markPendingErosionVisit(dayIndex, towerKey)}>
-                                                <AppIcon name="check" />
-                                                {hasVisitedDate ? `Visitada ${pendency.dia}` : 'Marcar visita'}
-                                              </button>
+                                  {isHotelPickerOpen ? (
+                                    <div className="inspections-day-hotel-picker-menu" role="dialog" aria-label="Selecionar hotel">
+                                      <label className="inspections-day-hotel-picker-search">
+                                        <AppIcon name="search" />
+                                        <input
+                                          ref={hotelPickerSearchRef}
+                                          type="search"
+                                          value={hotelPickerSearch}
+                                          placeholder="Buscar hotel por nome ou municipio..."
+                                          onChange={(e) => setHotelPickerSearch(e.target.value)}
+                                        />
+                                      </label>
+
+                                      <div className="inspections-day-hotel-picker-options" role="listbox" aria-label="Historico de hoteis">
+                                        {filteredHotelHistory.map((item) => (
+                                          <button
+                                            key={item.key}
+                                            type="button"
+                                            className="inspections-day-hotel-picker-option"
+                                            onClick={() => handleSelectHotelFromHistory(dayIndex, item)}
+                                          >
+                                            {formatHistoryOption(item)}
+                                          </button>
+                                        ))}
+                                        {canCreateHotelFromSearch ? (
+                                          <button
+                                            type="button"
+                                            className="inspections-day-hotel-picker-option is-create"
+                                            onClick={() => handleCreateNewHotel(dayIndex)}
+                                          >
+                                            Criar novo hotel: "{String(hotelPickerSearch || '').trim()}"
+                                          </button>
+                                        ) : null}
+                                        {filteredHotelHistory.length === 0 && !canCreateHotelFromSearch ? (
+                                          <div className="inspections-day-hotel-picker-empty">Nenhum hotel encontrado.</div>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                </div>
+
+                                <button type="button" className="secondary" onClick={() => repeatPreviousDayHotel(dayIndex)} disabled={!previousHotel}>
+                                  <AppIcon name="copy" />
+                                  Repetir dia anterior
+                                </button>
+                              </div>
+                              {previousHotel ? (
+                                <small className="muted">
+                                  Hotel anterior disponivel ({previousHotel.date}): {previousHotel.hotelNome || 'Sem nome'}
+                                </small>
+                              ) : null}
+                            </div>
+
+                            <div className="grid-form inspections-day-hotel-fields">
+                              <input value={day.hotelNome || ''} onChange={(e) => updateDayField(dayIndex, { hotelNome: e.target.value })} placeholder="Hotel (opcional)" />
+                              <input value={day.hotelMunicipio || ''} onChange={(e) => updateDayField(dayIndex, { hotelMunicipio: e.target.value })} placeholder="Municipio do hotel" />
+                              <select value={day.hotelLogisticaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelLogisticaNota: e.target.value })}>
+                                <option value="">Logistica (1-5)</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                              </select>
+                              <select value={day.hotelReservaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelReservaNota: e.target.value })}>
+                                <option value="">Reserva (1-5)</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                              </select>
+                              <select value={day.hotelEstadiaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelEstadiaNota: e.target.value })}>
+                                <option value="">Estadia (1-5)</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                              </select>
+                              <select
+                                value={day.hotelTorreBase || ''}
+                                onChange={(e) => updateDayField(dayIndex, { hotelTorreBase: e.target.value })}
+                                disabled={selectedDayTowers.length === 0}
+                              >
+                                <option value="">
+                                  {selectedDayTowers.length === 0
+                                    ? 'Selecione torres visitadas no dia'
+                                    : 'Torre base da hospedagem'}
+                                </option>
+                                {selectedDayTowers.map((tower) => (
+                                  <option key={`hotel-base-${dayIndex}-${tower.numero}`} value={tower.numero}>Torre {tower.numero}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {(day.torresDetalhadas || []).length > 0 ? (
+                              <div className="table-scroll inspections-tower-table-wrap">
+                                <table className="inspections-tower-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Torre</th>
+                                      <th>Observacao</th>
+                                      <th>Acoes</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {(day.torresDetalhadas || []).map((tower, towerIndex) => {
+                                      const towerKey = String(tower?.numero || '').trim();
+                                      const linkedTowerErosions = (erosions || []).filter((item) =>
+                                        String(item?.projetoId || '').trim() === String(formData.projetoId || '').trim()
+                                        && String(item?.torreRef || '').trim() === towerKey);
+                                      const pendency = linkedTowerErosions
+                                        .map((item) => getInspectionPendency(item, formData.id))
+                                        .find(Boolean);
+                                      const hasVisitedDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
+                                      const hasErosion = !!tower?.temErosao || linkedTowerErosions.length > 0;
+                                      const key = `${day.data}|${towerKey}`;
+                                      const expandedTower = expandedTowerKey === key;
+                                      return (
+                                        <tr key={`${day.data}-${towerKey}`} className={hasErosion ? 'is-erosion' : ''}>
+                                          <td className="inspections-tower-col-number">
+                                            <span className="inspections-tower-number">{formatTowerLabel(towerKey)}</span>
+                                          </td>
+                                          <td className="inspections-tower-col-note">
+                                            <input
+                                              className="inspections-tower-note-input"
+                                              value={tower?.obs || ''}
+                                              onChange={(e) => updateTowerDetail(dayIndex, towerIndex, { obs: e.target.value })}
+                                              placeholder="Observacoes da torre"
+                                            />
+                                            {expandedTower ? (
+                                              <div className="muted inspections-tower-summary">
+                                                <div><strong>Resumo:</strong> {linkedTowerErosions.length > 0 ? 'Ha erosao vinculada nesta torre.' : 'Sem erosao vinculada.'}</div>
+                                                <div><strong>Pendencia:</strong> {hasVisitedDate ? `visitada em ${pendency.dia}` : (linkedTowerErosions.length > 0 ? 'pendente' : 'sem pendencia')}</div>
+                                              </div>
                                             ) : null}
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          ) : (
-                            <div className="muted">Sem torres detalhadas para este dia. Gere o checklist para continuar.</div>
-                          )}
-                        </div>
-                      ) : null}
-                    </article>
-                  );
-                })}
-                {formData.detalhesDias.length === 0 ? (
-                  <p className="muted">Nenhum dia gerado. Volte para etapa 1 e defina as datas.</p>
+                                          </td>
+                                          <td className="inspections-tower-col-actions">
+                                            <div className="inspections-tower-actions">
+                                              <button
+                                                type="button"
+                                                className={`inspections-tower-btn-detail ${expandedTower ? 'is-active' : ''}`.trim()}
+                                                onClick={() => setExpandedTowerKey((prev) => (prev === key ? '' : key))}
+                                                aria-label={expandedTower ? 'Ocultar detalhes da torre' : 'Detalhar torre'}
+                                                title={expandedTower ? 'Ocultar detalhes da torre' : 'Detalhar torre'}
+                                              >
+                                                <AppIcon name="details" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className={`inspections-tower-btn-erosion ${hasErosion ? 'has-erosion' : ''}`.trim()}
+                                                onClick={() => openErosionFromTower(dayIndex, towerKey)}
+                                                aria-label={hasErosion ? 'Editar erosao vinculada' : 'Cadastrar erosao nesta torre'}
+                                                title={hasErosion ? 'Editar erosao vinculada' : 'Cadastrar erosao nesta torre'}
+                                                disabled={saving}
+                                              >
+                                                <AppIcon name="alert" />
+                                              </button>
+                                              {linkedTowerErosions.length > 0 ? (
+                                                <button type="button" className="secondary" onClick={() => markPendingErosionVisit(dayIndex, towerKey)}>
+                                                  <AppIcon name="check" />
+                                                  {hasVisitedDate ? `Visitada ${pendency.dia}` : 'Marcar visita'}
+                                                </button>
+                                              ) : null}
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="muted">Sem torres detalhadas para este dia. Gere o checklist para continuar.</div>
+                            )}
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                  {formData.detalhesDias.length === 0 ? (
+                    <p className="muted">Nenhum dia gerado. Volte para etapa 1 e defina as datas.</p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
+            {step === 3 ? (
+              <div className="inspections-step-pane">
+                <div className="project-card">
+                  <h4>Resumo da vistoria</h4>
+                  <div className="muted">
+                    <div><strong>ID:</strong> {formData.id || '(sera gerado no salvar)'}</div>
+                    <div><strong>Empreendimento:</strong> {formData.projetoId || '-'}</div>
+                    <div><strong>Periodo:</strong> {formData.dataInicio || '-'} ate {formData.dataFim || formData.dataInicio || '-'}</div>
+                    <div><strong>Responsavel:</strong> {formData.responsavel || '-'}</div>
+                    <div><strong>Dias registados:</strong> {summary.daysCount}</div>
+                    <div><strong>Dias com checklist:</strong> {summary.daysWithChecklist}</div>
+                    <div><strong>Torres unicas no diario:</strong> {summary.uniqueTowerCount}</div>
+                    <div><strong>Torres sinalizadas com erosao:</strong> {summary.towersWithErosion}</div>
+                  </div>
+                </div>
+
+                {findDuplicateTowersAcrossDays(formData.detalhesDias).length > 0 ? (
+                  <div className="notice">
+                    Existem torres registadas em mais de um dia. O sistema pedira confirmacao no salvamento.
+                  </div>
+                ) : null}
+
+                {suggestedTowerInput ? (
+                  <div className="notice">
+                    <strong>Torres sugeridas do planejamento:</strong> {suggestedTowerInput}
+                  </div>
                 ) : null}
               </div>
-            </div>
-          ) : null}
-
-          {step === 3 ? (
-            <div className="inspections-step-pane">
-              <div className="project-card">
-                <h4>Resumo da vistoria</h4>
-                <div className="muted">
-                  <div><strong>ID:</strong> {formData.id || '(sera gerado no salvar)'}</div>
-                  <div><strong>Empreendimento:</strong> {formData.projetoId || '-'}</div>
-                  <div><strong>Periodo:</strong> {formData.dataInicio || '-'} ate {formData.dataFim || formData.dataInicio || '-'}</div>
-                  <div><strong>Responsavel:</strong> {formData.responsavel || '-'}</div>
-                  <div><strong>Dias registados:</strong> {summary.daysCount}</div>
-                  <div><strong>Dias com checklist:</strong> {summary.daysWithChecklist}</div>
-                  <div><strong>Torres unicas no diario:</strong> {summary.uniqueTowerCount}</div>
-                  <div><strong>Torres sinalizadas com erosao:</strong> {summary.towersWithErosion}</div>
-                </div>
-              </div>
-
-              {findDuplicateTowersAcrossDays(formData.detalhesDias).length > 0 ? (
-                <div className="notice">
-                  Existem torres registadas em mais de um dia. O sistema pedira confirmacao no salvamento.
-                </div>
-              ) : null}
-
-              {suggestedTowerInput ? (
-                <div className="notice">
-                  <strong>Torres sugeridas do planejamento:</strong> {suggestedTowerInput}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="inspections-wizard-foot">
-          <button type="button" className="secondary" onClick={onCancel}>
-            <AppIcon name="close" />
-            Cancelar
-          </button>
-          <div className="row-actions">
-            {step > 1 ? (
-              <button type="button" className="secondary" onClick={handlePreviousStep}>
-                <AppIcon name="chevron-left" />
-                Voltar
-              </button>
             ) : null}
-            {step < 3 ? (
-              <button type="button" onClick={handleNextStep}>
-                Avancar
-                <AppIcon name="chevron-right" />
-              </button>
-            ) : (
-              <button type="button" onClick={handleSaveInspection} disabled={saving}>
-                <AppIcon name="save" />
-                {saving ? 'Salvando...' : 'Salvar vistoria'}
-              </button>
-            )}
           </div>
-        </div>
+
+          <div className="inspections-wizard-foot">
+            <button type="button" className="secondary" onClick={onCancel}>
+              <AppIcon name="close" />
+              Cancelar
+            </button>
+            <div className="row-actions">
+              {step > 1 ? (
+                <button type="button" className="secondary" onClick={handlePreviousStep}>
+                  <AppIcon name="chevron-left" />
+                  Voltar
+                </button>
+              ) : null}
+              {step < 3 ? (
+                <button type="button" onClick={handleNextStep}>
+                  Avancar
+                  <AppIcon name="chevron-right" />
+                </button>
+              ) : (
+                <button type="button" onClick={handleSaveInspection} disabled={saving}>
+                  <AppIcon name="save" />
+                  {saving ? 'Salvando...' : 'Salvar vistoria'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

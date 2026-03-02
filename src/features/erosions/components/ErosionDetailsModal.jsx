@@ -7,12 +7,12 @@ import {
   normalizeErosionTechnicalFields,
   normalizeFollowupEventType,
   normalizeFollowupHistory,
-} from '../utils/erosionUtils';
-import { normalizeLocationCoordinates } from '../utils/erosionCoordinates';
+} from '../../shared/viewUtils';
+import { normalizeLocationCoordinates } from '../../shared/erosionCoordinates';
 import {
   buildCriticalitySummaryFromErosion,
   formatCriticalityPoints,
-} from '../utils/criticalitySummary';
+} from '../../shared/criticalitySummary';
 
 const EMPTY_EVENT_FORM = {
   tipoEvento: 'obra',

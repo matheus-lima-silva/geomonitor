@@ -1,12 +1,110 @@
-import {
-  CRITICALITY_V2_DEFAULTS,
-  calculateCriticality as calculateCriticalityV2,
-  calcular_criticidade,
-  calcularCriticidade,
-  mergeCriticalityV2Config,
-} from '../erosions/utils/criticalityV2';
+export const CRITICALITY_V2_DEFAULTS = {
+  pontos: {
+    profundidade: {
+      P1: { descricao: '<= 1', pontos: 0 },
+      P2: { descricao: '> 1 - 10', pontos: 2 },
+      P3: { descricao: '> 10 - 30', pontos: 4 },
+      P4: { descricao: '> 30', pontos: 6 },
+    },
+    tipo_erosao: {
+      T1: { tipos: ['laminar'], pontos: 0 },
+      T2: { tipos: ['sulco'], pontos: 2 },
+      T3: { tipos: ['ravina'], pontos: 4 },
+      T4: { tipos: ['vocoroca', 'movimento_massa'], pontos: 6 },
+    },
+    declividade: {
+      D1: { descricao: '< 10', pontos: 0 },
+      D2: { descricao: '10 - 25', pontos: 2 },
+      D3: { descricao: '> 25', pontos: 4 },
+    },
+    solo: {
+      S1: { tipos: ['lateritico'], pontos: 0 },
+      S2: { tipos: ['argiloso'], pontos: 2 },
+      S3: { tipos: ['solos_rasos', 'arenoso'], pontos: 4 },
+    },
+    exposicao: {
+      E1: { descricao: '> 50', pontos: 0 },
+      E2: { descricao: '20 - 50', pontos: 2 },
+      E3: { descricao: '5 - 20', pontos: 4 },
+      E4: { descricao: '< 5', pontos: 6 },
+    },
+  },
+  faixas: [
+    { codigo: 'C1', classe: 'Baixo', min: 0, max: 7 },
+    { codigo: 'C2', classe: 'Médio', min: 8, max: 15 },
+    { codigo: 'C3', classe: 'Alto', min: 16, max: 23 },
+    { codigo: 'C4', classe: 'Muito Alto', min: 24, max: Infinity },
+  ],
+  solucoes_por_criticidade: {
+    C1: {
+      tipo_medida: 'preventiva',
+      solucoes: [
+        'Cobertura vegetal (gramíneas, ressemeadura)',
+        'Curvas de nível, plantio em faixas',
+        'Mulching / palhada / biomanta leve',
+        'Controle de tráfego (evitar compactação)',
+        'Regularização leve de acesso (coroamento)',
+      ],
+    },
+    C2: {
+      tipo_medida: 'corretiva_leve',
+      solucoes: [
+        'Barraginhas e pequenos terraços',
+        'Sangradouros laterais / lombadas de água',
+        'Canaletas vegetadas / valetas rasas',
+        'Hidrossemeadura + biomantas leves',
+        'Reperfilamento de caixa de estrada',
+      ],
+    },
+    C3: {
+      tipo_medida: 'corretiva_estrutural',
+      solucoes: [
+        'Reconformação de taludes (suavizar inclinações)',
+        'Sarjetas de crista / canaletas revestidas',
+        'Escadas hidráulicas / bacias de dissipação',
+        'Check dams (degraus com pedra/gabiões/sacos solo-cimento)',
+        'Bioengenharia robusta (biomantas reforçadas + estacas vivas)',
+        'Enrocamento lateral em acessos críticos',
+        'Proteção de base de torres (anel drenante + enrocamento)',
+      ],
+    },
+    C4: {
+      tipo_medida: 'engenharia_PRAD',
+      solucoes: [
+        'Rede completa de drenagem da bacia (terraços, valas contorno)',
+        'Drenos profundos (espinha de peixe) para piping',
+        'Diques de terra / barragens com vertedouros protegidos',
+        'Estruturas de contenção (muros, gabiões) em taludes críticos',
+        'Reperfilamento amplo + revegetação com nativas',
+        'Monitoramento periódico com marcos (recuo de cabeceira)',
+        'PRAD específico com acompanhamento semestral/anual',
+      ],
+    },
+  },
+};
 
-export { CRITICALITY_V2_DEFAULTS, calcular_criticidade, calcularCriticidade, mergeCriticalityV2Config };
+export function mergeCriticalityV2Config(rawConfig) {
+  if (!rawConfig || typeof rawConfig !== 'object') return CRITICALITY_V2_DEFAULTS;
+  const source = rawConfig.criticalityV2 && typeof rawConfig.criticalityV2 === 'object'
+    ? rawConfig.criticalityV2
+    : rawConfig;
+
+  return {
+    ...CRITICALITY_V2_DEFAULTS,
+    ...source,
+    pontos: {
+      ...CRITICALITY_V2_DEFAULTS.pontos,
+      ...(source.pontos || {}),
+    },
+    solucoes_por_criticidade: {
+      ...CRITICALITY_V2_DEFAULTS.solucoes_por_criticidade,
+      ...(source.solucoes_por_criticidade || {}),
+    },
+    faixas: Array.isArray(source.faixas) && source.faixas.length > 0
+      ? source.faixas
+      : CRITICALITY_V2_DEFAULTS.faixas,
+  };
+}
 
 export const RULES_DATABASE = {
   'tipo|sulco': { impacto: 'Baixo', score: 1, frequencia: '24 meses', intervencao: 'Monitoramento visual' },
@@ -56,8 +154,4 @@ export function normalizeRulesConfig(rawRules) {
     ...legacy,
     criticalityV2,
   };
-}
-
-export function calculateCriticality(dados, rulesConfig = RULES_DATABASE) {
-  return calculateCriticalityV2(dados, rulesConfig?.criticalityV2 || rulesConfig || CRITICALITY_V2_DEFAULTS);
 }

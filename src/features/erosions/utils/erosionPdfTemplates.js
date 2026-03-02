@@ -1,16 +1,16 @@
 import { normalizeErosionStatus } from '../../shared/statusUtils';
-import { normalizeLocationCoordinates } from './erosionCoordinates';
+import { normalizeLocationCoordinates } from '../../shared/erosionCoordinates';
 import {
   deriveErosionTypeFromTechnicalFields,
   getLocalContextLabel,
   normalizeErosionTechnicalFields,
   normalizeFollowupEventType,
   normalizeFollowupHistory,
-} from './erosionUtils';
+} from '../../shared/viewUtils';
 import {
   buildCriticalitySummaryFromErosion,
   formatCriticalityPoints,
-} from './criticalitySummary';
+} from '../../shared/criticalitySummary';
 
 function escapeHtml(value) {
   return String(value ?? '')

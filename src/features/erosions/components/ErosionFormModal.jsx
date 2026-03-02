@@ -1,14 +1,16 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import {
+  hasValidDecimalCoordinates,
   isCompleteUtmCoordinates,
   isPartialUtmCoordinates,
   parseCoordinateNumber,
-} from '../utils/erosionCoordinates';
+  resolveLocationCoordinatesForSave,
+} from '../../shared/erosionCoordinates';
 import {
   buildCriticalitySummaryFromCalculation,
   formatCriticalityPoints,
-} from '../utils/criticalitySummary';
+} from '../../shared/criticalitySummary';
 import ErosionTechnicalFields from './ErosionTechnicalFields';
 
 function hasAnyLocationValue(locationCoordinates = {}) {
@@ -172,7 +174,7 @@ function ErosionFormModal({
                 <select value={safeFormData.projetoId || ''} onChange={(e) => updateField('projetoId', e.target.value)}>
                   <option value="">Selecione...</option>
                   {safeProjects.map((project, index) => (
-                    <option key={String(project?.id || `project-${index}`)} value={String(project?.id || '')}>
+                    <option key={String(project?.id || `project - ${index} `)} value={String(project?.id || '')}>
                       {String(project?.id || '')}
                     </option>
                   ))}
@@ -197,7 +199,7 @@ function ErosionFormModal({
                   {safeInspections
                     .filter((inspection) => String(inspection?.projetoId || '').trim() === String(safeFormData.projetoId || '').trim())
                     .map((inspection, index) => (
-                      <option key={String(inspection?.id || `inspection-${index}`)} value={String(inspection?.id || '')}>
+                      <option key={String(inspection?.id || `inspection - ${index} `)} value={String(inspection?.id || '')}>
                         {String(inspection?.id || '')}
                       </option>
                     ))}
@@ -215,8 +217,8 @@ function ErosionFormModal({
                   <select value={safeFormData.torreRef || ''} onChange={(e) => updateField('torreRef', e.target.value)}>
                     <option value="">Selecione...</option>
                     {towerOptions.map((tower) => (
-                      <option key={`tower-option-${tower}`} value={tower}>
-                        {tower === '0' ? 'Portico (T0)' : `Torre ${tower}`}
+                      <option key={`tower - option - ${tower} `} value={tower}>
+                        {tower === '0' ? 'Portico (T0)' : `Torre ${tower} `}
                       </option>
                     ))}
                   </select>

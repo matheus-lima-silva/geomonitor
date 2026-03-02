@@ -2,25 +2,86 @@
   deleteDocById, loadDoc, saveDoc, subscribeCollection,
 } from './firestoreClient';
 import { deleteField } from 'firebase/firestore';
+import { auth } from '../firebase/config';
 import { normalizeErosionStatus } from '../features/shared/statusUtils';
-import {
-  EROSION_REMOVED_FIELDS,
-  appendFollowupEvent,
-  buildManualFollowupEvent,
-  buildCriticalityInputFromErosion,
-  deriveErosionTypeFromTechnicalFields,
-  buildFollowupEvent,
-  normalizeErosionTechnicalFields,
-  normalizeFollowupHistory,
-  stripRemovedErosionFields,
-  validateErosionTechnicalFields,
-} from '../features/erosions/utils/erosionUtils';
-import { resolveLocationCoordinatesForSave } from '../features/erosions/utils/erosionCoordinates';
-import {
-  buildCriticalityTrend,
-  calcular_criticidade,
-  normalizeCriticalityHistory,
-} from '../features/erosions/utils/criticalityV2';
+function normalizeText(value) {
+  return String(value || '').trim();
+}
+
+function normalizeFollowupHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history.filter((item) => item && typeof item === 'object').slice(-100);
+}
+
+export const EROSION_REMOVED_FIELDS = [
+  'profundidade',
+  'declividadeClasse',
+  'declividadeClassePdf',
+  'faixaServidao',
+  'areaTerceiros',
+  'usoSolo',
+  'soloSaturadoAgua',
+];
+
+export function buildManualFollowupEvent(data, meta = {}) {
+  const tipoEvento = normalizeText(data?.tipoEvento).toLowerCase();
+  const usuario = normalizeText(meta?.updatedBy);
+
+  if (tipoEvento === 'obra') {
+    const obraEtapa = normalizeText(data?.obraEtapa);
+    const descricao = normalizeText(data?.descricao);
+    if (!obraEtapa || !descricao) return null;
+    const etapa = obraEtapa.toLowerCase();
+    const etapaConcluida = etapa === 'concluida' || etapa === 'concluída';
+    return {
+      timestamp: new Date().toISOString(),
+      usuario,
+      origem: 'manual',
+      tipoEvento: 'obra',
+      obraEtapa,
+      descricao,
+      ...(etapaConcluida ? { statusNovo: 'Estabilizado' } : {}),
+      resumo: `Obra - ${obraEtapa}: ${descricao}`,
+    };
+  }
+
+  if (tipoEvento === 'autuacao') {
+    const orgao = normalizeText(data?.orgao);
+    const numeroOuDescricao = normalizeText(data?.numeroOuDescricao);
+    const autuacaoStatus = normalizeText(data?.autuacaoStatus);
+    if (!orgao || !numeroOuDescricao || !autuacaoStatus) return null;
+    return {
+      timestamp: new Date().toISOString(),
+      usuario,
+      origem: 'manual',
+      tipoEvento: 'autuacao',
+      orgao,
+      numeroOuDescricao,
+      autuacaoStatus,
+      resumo: `Autuacao (${orgao}) - ${autuacaoStatus}: ${numeroOuDescricao}`,
+    };
+  }
+
+  return null;
+}
+
+export function appendFollowupEvent(history, event) {
+  const normalized = normalizeFollowupHistory(history);
+  if (!event) return normalized;
+  return [...normalized, event].slice(-100);
+}
+
+export function buildCriticalityTrend(previousScore, currentScore) {
+  if (!Number.isFinite(previousScore) || !Number.isFinite(currentScore)) return 'estavel';
+  if (currentScore > previousScore) return 'agravando';
+  if (currentScore < previousScore) return 'recuperando';
+  return 'estavel';
+}
+
+export function normalizeCriticalityHistory(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item) => item && typeof item === 'object').slice(-200);
+}
 
 export function subscribeErosions(onData, onError) {
   return subscribeCollection('erosions', onData, onError);
@@ -101,7 +162,26 @@ function buildCriticalityHistory(previous, nextData, criticalidadeV2) {
 }
 
 export async function postCalculoErosao(payload = {}, options = {}) {
-  const calculation = calcular_criticidade(payload, options?.rulesConfig);
+  const token = await auth?.currentUser?.getIdToken();
+  if (!token) throw new Error('Usuário não autenticado.');
+
+  const response = await fetch(`${API_BASE_URL}/erosions/simulate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ data: payload })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Erro ao simular calculo via API.');
+  }
+
+  const result = await response.json();
+  const calculation = result.data;
+
   return {
     campos_calculados: calculation,
     alertas_validacao: calculation.alertas_validacao || [],
@@ -123,104 +203,31 @@ function buildLegacyFieldCleanupPatch() {
   }, {});
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
 export async function saveErosion(payload, meta = {}) {
-  const sanitizedPayload = stripRemovedErosionFields(payload);
-  const id = String(sanitizedPayload.id || '').trim() || `ERS-${Date.now()}`;
-  const previous = meta.merge ? await loadDoc('erosions', id) : null;
-  const criticality = sanitizedPayload.criticality || null;
-
-  const locationResult = resolveLocationCoordinatesForSave(sanitizedPayload);
-  if (!locationResult.ok) {
-    throw new Error(locationResult.error || 'Coordenadas invalidas.');
+  const token = await auth?.currentUser?.getIdToken();
+  if (!token) {
+    throw new Error('Usuário não autenticado. Faça login para salvar a erosão.');
   }
 
-  const technicalValidation = validateErosionTechnicalFields(sanitizedPayload);
-  if (!technicalValidation.ok) {
-    throw new Error(technicalValidation.message || 'Campos tecnicos invalidos.');
-  }
-
-  const technical = technicalValidation.value || normalizeErosionTechnicalFields(sanitizedPayload);
-  const criticalityInput = buildCriticalityInputFromErosion({
-    ...sanitizedPayload,
-    tiposFeicao: technical.tiposFeicao,
+  // Chamar o back-end via API usando o token de autênticação passando Data e Meta
+  const response = await fetch(`${API_BASE_URL}/erosions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ data: payload, meta })
   });
 
-  const criticalityResponse = sanitizedPayload.criticalidadeV2
-    ? { campos_calculados: sanitizedPayload.criticalidadeV2, alertas_validacao: sanitizedPayload.alertsAtivos || [] }
-    : await postCalculoErosao(criticalityInput, { rulesConfig: meta.rulesConfig });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Erro ao salvar a erosão via API.');
+  }
 
-  const criticalidadeV2 = criticalityResponse.campos_calculados || null;
-  const fotosLinks = Array.isArray(sanitizedPayload.fotosLinks)
-    ? sanitizedPayload.fotosLinks.map((item) => String(item || '').trim()).filter(Boolean)
-    : [];
-
-  const mergedInspectionIds = [
-    String(sanitizedPayload.vistoriaId || '').trim(),
-    ...(Array.isArray(sanitizedPayload.vistoriaIds) ? sanitizedPayload.vistoriaIds : []).map((item) => String(item || '').trim()),
-    String(previous?.vistoriaId || '').trim(),
-    ...(Array.isArray(previous?.vistoriaIds) ? previous.vistoriaIds : []).map((item) => String(item || '').trim()),
-  ].filter(Boolean);
-
-  const vistoriaIds = [...new Set(mergedInspectionIds)];
-
-  const nextData = {
-    ...sanitizedPayload,
-    id,
-    vistoriaId: String(sanitizedPayload.vistoriaId || '').trim(),
-    ...(vistoriaIds.length > 0 ? { vistoriaIds } : {}),
-    status: normalizeErosionStatus(sanitizedPayload.status),
-    impacto: sanitizedPayload.impacto || criticality?.impacto || criticalidadeV2?.legacy?.impacto || 'Baixo',
-    score: sanitizedPayload.score ?? criticality?.score ?? criticalidadeV2?.criticidade_score ?? 0,
-    frequencia: sanitizedPayload.frequencia || criticality?.frequencia || criticalidadeV2?.legacy?.frequencia || '24 meses',
-    intervencao: sanitizedPayload.intervencao || criticality?.intervencao || criticalidadeV2?.legacy?.intervencao || 'Monitoramento visual',
-    localContexto: technical.localContexto,
-    locationCoordinates: locationResult.locationCoordinates,
-    latitude: locationResult.latitude || '',
-    longitude: locationResult.longitude || '',
-    tipo: deriveErosionTypeFromTechnicalFields({
-      ...sanitizedPayload,
-      tiposFeicao: technical.tiposFeicao,
-    }),
-    presencaAguaFundo: technical.presencaAguaFundo,
-    tiposFeicao: technical.tiposFeicao,
-    caracteristicasFeicao: technical.caracteristicasFeicao,
-    usosSolo: technical.usosSolo,
-    usoSoloOutro: technical.usoSoloOutro,
-    saturacaoPorAgua: technical.saturacaoPorAgua,
-    tipoSolo: technical.tipoSolo,
-    profundidadeMetros: technical.profundidadeMetros,
-    declividadeGraus: technical.declividadeGraus,
-    distanciaEstruturaMetros: technical.distanciaEstruturaMetros,
-    sinaisAvanco: technical.sinaisAvanco,
-    vegetacaoInterior: technical.vegetacaoInterior,
-    medidaPreventiva: sanitizedPayload.medidaPreventiva
-      || criticalidadeV2?.lista_solucoes_sugeridas?.[0]
-      || '',
-    fotosLinks,
-    criticalidadeV2,
-    alertsAtivos: Array.isArray(sanitizedPayload.alertsAtivos)
-      ? sanitizedPayload.alertsAtivos
-      : (criticalityResponse.alertas_validacao || []),
-    backfillEstimado: Boolean(sanitizedPayload.backfillEstimado),
-  };
-
-  const history = normalizeFollowupHistory(previous?.acompanhamentosResumo);
-  const event = meta.skipAutoFollowup
-    ? null
-    : buildFollowupEvent(previous, nextData, {
-      updatedBy: meta.updatedBy,
-      isCreate: !previous,
-      origem: meta.origem,
-    });
-
-  await saveDoc('erosions', id, {
-    ...nextData,
-    ...buildLegacyFieldCleanupPatch(),
-    acompanhamentosResumo: appendFollowupEvent(nextData.acompanhamentosResumo ?? history, event),
-    historicoCriticidade: buildCriticalityHistory(previous, nextData, criticalidadeV2),
-  }, { ...meta, merge: true });
-
-  return id;
+  const result = await response.json();
+  return result.data.id;
 }
 
 export async function saveErosionManualFollowupEvent(erosion, eventData, meta = {}) {
