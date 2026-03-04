@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
+import { Button, Input, Modal } from '../../../components/ui';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { saveUser } from '../../../services/userService';
@@ -53,97 +54,93 @@ function ProfileModal({ onClose }) {
     }
   }
 
+  const footer = (
+    <>
+      <Button variant="outline" onClick={onClose}>
+        <AppIcon name="close" />
+        Cancelar
+      </Button>
+      <Button variant="primary" onClick={handleSave}>
+        <AppIcon name="save" />
+        Salvar Alterações
+      </Button>
+    </>
+  );
+
   return (
-    <div className="modal-backdrop profile-modal-backdrop">
-      <div className="modal wide profile-modal">
-        <div className="profile-modal-head">
-          <h3>
-            <AppIcon name="user" />
-            Meu Perfil
-          </h3>
-          <button type="button" className="profile-modal-close secondary" onClick={onClose}>
-            <AppIcon name="close" />
-          </button>
+    <Modal
+      open
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2">
+          <AppIcon name="user" /> Meu Perfil
+        </span>
+      }
+      size="lg"
+      footer={footer}
+    >
+      <section className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">
+        <div className="flex-shrink-0 w-14 h-14 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xl font-bold">
+          {String(formData.nome || user?.email || 'U').trim().charAt(0).toUpperCase() || 'U'}
         </div>
-
-        <div className="profile-modal-body">
-          <section className="profile-ident-card">
-            <div className="profile-ident-avatar">
-              {String(formData.nome || user?.email || 'U').trim().charAt(0).toUpperCase() || 'U'}
-            </div>
-            <div className="profile-ident-details">
-              <strong>{String(formData.nome || '').trim() || 'Utilizador'}</strong>
-              <span>{user?.email || '-'}</span>
-              <small>ID: {formData.id || '-'}</small>
-            </div>
-          </section>
-
-          <div className="profile-form-grid profile-form-grid-two">
-            <label>
-              <span>Nome Completo *</span>
-              <input
-                value={formData.nome}
-                onChange={(e) => setFormData((prev) => ({ ...prev, nome: e.target.value }))}
-                placeholder="Seu nome completo"
-              />
-            </label>
-            <label>
-              <span>Email</span>
-              <input value={formData.email} disabled />
-            </label>
-          </div>
-
-          <div className="profile-form-grid profile-form-grid-three">
-            <label>
-              <span>Cargo</span>
-              <input
-                value={formData.cargo}
-                onChange={(e) => setFormData((prev) => ({ ...prev, cargo: e.target.value }))}
-                placeholder="Ex: Engenheiro"
-              />
-            </label>
-            <label>
-              <span>Departamento</span>
-              <input
-                value={formData.departamento}
-                onChange={(e) => setFormData((prev) => ({ ...prev, departamento: e.target.value }))}
-                placeholder="Ex: Geotecnia"
-              />
-            </label>
-            <label>
-              <span>Telefone</span>
-              <input
-                type="tel"
-                value={formData.telefone}
-                onChange={(e) => setFormData((prev) => ({ ...prev, telefone: formatPhone(e.target.value) }))}
-                placeholder="(00) 00000-0000"
-                maxLength={15}
-              />
-            </label>
-          </div>
-
-          <section className="profile-access-card">
-            <div className="profile-access-title">
-              <AppIcon name="shield" />
-              Perfil de Acesso
-            </div>
-            <strong>{formData.perfil}</strong>
-            <p>Para alterar seu perfil de acesso, contate um administrador.</p>
-          </section>
+        <div className="flex flex-col">
+          <strong className="text-lg text-slate-800">{String(formData.nome || '').trim() || 'Utilizador'}</strong>
+          <span className="text-sm text-slate-500">{user?.email || '-'}</span>
+          <small className="text-xs text-slate-400 mt-1">ID: {formData.id || '-'}</small>
         </div>
+      </section>
 
-        <div className="row-actions profile-modal-actions">
-          <button type="button" onClick={handleSave} className="profile-save-btn">
-            <AppIcon name="save" />
-            Salvar Alteracoes
-          </button>
-          <button type="button" className="secondary profile-cancel-btn" onClick={onClose}>
-            <AppIcon name="close" />
-            Cancelar
-          </button>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <Input
+          id="profile-nome"
+          label="Nome Completo *"
+          value={formData.nome}
+          onChange={(e) => setFormData((prev) => ({ ...prev, nome: e.target.value }))}
+          placeholder="Seu nome completo"
+        />
+        <Input
+          id="profile-email"
+          label="Email"
+          value={formData.email}
+          disabled
+        />
       </div>
-    </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <Input
+          id="profile-cargo"
+          label="Cargo"
+          value={formData.cargo}
+          onChange={(e) => setFormData((prev) => ({ ...prev, cargo: e.target.value }))}
+          placeholder="Ex: Engenheiro"
+        />
+        <Input
+          id="profile-departamento"
+          label="Departamento"
+          value={formData.departamento}
+          onChange={(e) => setFormData((prev) => ({ ...prev, departamento: e.target.value }))}
+          placeholder="Ex: Geotecnia"
+        />
+        <Input
+          id="profile-telefone"
+          label="Telefone"
+          type="tel"
+          value={formData.telefone}
+          onChange={(e) => setFormData((prev) => ({ ...prev, telefone: formatPhone(e.target.value) }))}
+          placeholder="(00) 00000-0000"
+          maxLength={15}
+        />
+      </div>
+
+      <section className="bg-blue-50 border border-blue-100 rounded-xl p-5 text-blue-900">
+        <div className="flex items-center gap-2 font-bold text-sm mb-2 text-blue-800">
+          <AppIcon name="shield" />
+          Perfil de Acesso
+        </div>
+        <strong className="block text-lg mb-1">{formData.perfil}</strong>
+        <p className="text-sm opacity-80 m-0">Para alterar seu perfil de acesso, contate um administrador.</p>
+      </section>
+    </Modal>
   );
 }
 

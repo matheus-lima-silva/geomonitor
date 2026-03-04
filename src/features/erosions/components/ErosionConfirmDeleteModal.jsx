@@ -1,4 +1,5 @@
 import AppIcon from '../../../components/AppIcon';
+import { Button, Modal } from '../../../components/ui';
 
 function ErosionConfirmDeleteModal({
   open,
@@ -8,30 +9,35 @@ function ErosionConfirmDeleteModal({
 }) {
   if (!open) return null;
 
+  const footer = (
+    <>
+      <Button variant="outline" size="md" onClick={onCancel}>
+        <AppIcon name="close" />
+        Cancelar
+      </Button>
+      <Button variant="danger" size="md" onClick={onConfirm}>
+        <AppIcon name="trash" />
+        Excluir
+      </Button>
+    </>
+  );
+
   return (
-    <div className="modal-backdrop erosions-delete-backdrop">
-      <div className="modal erosions-delete-modal">
-        <div className="erosions-delete-head">
-          <h3>
-            <AppIcon name="alert" />
-            Confirmar exclusao
-          </h3>
-        </div>
-        <p className="erosions-delete-message">
-          Tem a certeza que deseja excluir a erosao <strong>{erosionId}</strong>?
-        </p>
-        <div className="erosions-delete-actions">
-          <button type="button" className="erosions-delete-btn" onClick={onConfirm}>
-            <AppIcon name="trash" />
-            Excluir
-          </button>
-          <button type="button" className="projects-cancel-btn" onClick={onCancel}>
-            <AppIcon name="close" />
-            Cancelar
-          </button>
-        </div>
-      </div>
-    </div>
+    <Modal
+      open={open}
+      onClose={onCancel}
+      title={
+        <span className="flex items-center gap-2">
+          <AppIcon name="alert" /> Confirmar exclusão
+        </span>
+      }
+      size="sm"
+      footer={footer}
+    >
+      <p style={{ margin: 0 }}>
+        Tem certeza que deseja excluir a erosão <strong>{erosionId}</strong>?
+      </p>
+    </Modal>
   );
 }
 

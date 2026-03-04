@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
+import { Badge, Button, Input, Modal, Select } from '../../../components/ui';
 import { erosionStatusClass, normalizeErosionStatus } from '../../shared/statusUtils';
 import {
   deriveErosionTypeFromTechnicalFields,
@@ -103,310 +104,313 @@ function ErosionDetailsModal({
 
   if (!open || !erosion) return null;
 
+  const footer = (
+    <>
+      <Button variant="primary" onClick={onExportPdf}>
+        <AppIcon name="pdf" />
+        Gerar PDF
+      </Button>
+      <Button variant="outline" onClick={onClose}>
+        <AppIcon name="close" />
+        Fechar
+      </Button>
+    </>
+  );
+
   return (
-    <div className="modal-backdrop erosions-details-backdrop">
-      <div className="modal erosions-details-modal">
-        <div className="erosions-modal-head">
-          <h3>Detalhes da erosao</h3>
-          <button type="button" className="secondary erosions-modal-close-btn" onClick={onClose}>
-            <AppIcon name="close" />
-          </button>
-        </div>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Detalhes da erosão"
+      size="xl"
+      footer={footer}
+    >
+      <div className="flex flex-col gap-5">
+        <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+          <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2 mb-4">Resumo</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-700">
+            <div><strong className="text-slate-900">ID:</strong> {erosion.id || '-'}</div>
+            <div><strong className="text-slate-900">Empreendimento:</strong> {erosion.projetoId || '-'}</div>
+            <div><strong className="text-slate-900">Nome:</strong> {project?.nome || '-'}</div>
+            <div><strong className="text-slate-900">Torre:</strong> {erosion.torreRef || '-'}</div>
+            <div><strong className="text-slate-900">Impacto:</strong> {erosion.impacto || '-'}</div>
+            <div>
+              <strong className="text-slate-900">Status:</strong>{' '}
+              <span className={erosionStatusClass(erosion.status)}>
+                {normalizeErosionStatus(erosion.status)}
+              </span>
+            </div>
+            <div><strong className="text-slate-900">Vistoria principal:</strong> {erosion.vistoriaId || '-'}</div>
+            <div><strong className="text-slate-900">Vistorias vinculadas:</strong> {Array.isArray(erosion.vistoriaIds) ? erosion.vistoriaIds.join(', ') || '-' : '-'}</div>
+          </div>
+        </section>
 
-        <div className="erosions-modal-body">
-          <section className="erosions-details-section">
-            <h4>Resumo</h4>
-            <div className="erosions-details-grid is-two">
-              <div><strong>ID:</strong> {erosion.id || '-'}</div>
-              <div><strong>Empreendimento:</strong> {erosion.projetoId || '-'}</div>
-              <div><strong>Nome:</strong> {project?.nome || '-'}</div>
-              <div><strong>Torre:</strong> {erosion.torreRef || '-'}</div>
-              <div><strong>Impacto:</strong> {erosion.impacto || '-'}</div>
-              <div>
-                <strong>Status:</strong>{' '}
-                <span className={erosionStatusClass(erosion.status)}>
-                  {normalizeErosionStatus(erosion.status)}
-                </span>
+        <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+          <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2 mb-4">Classificacao e caracterizacao consolidada</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-700">
+            <div><strong className="text-slate-900">Tipo (derivado):</strong> {derivedTipo || '-'}</div>
+            <div><strong className="text-slate-900">Estagio:</strong> {erosion.estagio || '-'}</div>
+            <div><strong className="text-slate-900">Local:</strong> {localTipoLabel}</div>
+            {localContexto.localTipo === 'outros' ? (
+              <div className="col-span-full"><strong className="text-slate-900">Detalhe local:</strong> {localContexto.localDescricao || '-'}</div>
+            ) : null}
+            <div><strong className="text-slate-900">Profundidade real (m):</strong> {Number.isFinite(technical.profundidadeMetros) ? technical.profundidadeMetros : '-'}</div>
+            <div><strong className="text-slate-900">Declividade real (graus):</strong> {Number.isFinite(technical.declividadeGraus) ? technical.declividadeGraus : '-'}</div>
+            <div><strong className="text-slate-900">Distancia da estrutura (m):</strong> {Number.isFinite(technical.distanciaEstruturaMetros) ? technical.distanciaEstruturaMetros : '-'}</div>
+            <div><strong className="text-slate-900">Presenca de agua no fundo:</strong> {technical.presencaAguaFundo || '-'}</div>
+            <div><strong className="text-slate-900">Saturacao por agua:</strong> {saturacaoPorAgua || '-'}</div>
+            <div><strong className="text-slate-900">Tipo de solo:</strong> {technical.tipoSolo || '-'}</div>
+            <div><strong className="text-slate-900">Localizacao de exposicao:</strong> {localContexto.exposicao || '-'}</div>
+            <div><strong className="text-slate-900">Estrutura proxima:</strong> {localContexto.estruturaProxima || '-'}</div>
+            <div><strong className="text-slate-900">Sinais de avanco:</strong> {technical.sinaisAvanco ? 'sim' : 'nao'}</div>
+            <div><strong className="text-slate-900">Vegetacao interior:</strong> {technical.vegetacaoInterior ? 'sim' : 'nao'}</div>
+            <div className="col-span-full"><strong className="text-slate-900">Tipos de feicao:</strong> {listValue(tiposFeicao)}</div>
+            <div className="col-span-full"><strong className="text-slate-900">Caracteristicas da feicao:</strong> {listValue(caracteristicasFeicao)}</div>
+            <div className="col-span-full"><strong className="text-slate-900">Usos do solo:</strong> {listValue(usosSolo)}</div>
+            {usosSolo.includes('outro') ? (
+              <div className="col-span-full"><strong className="text-slate-900">Uso do solo - outro:</strong> {erosion.usoSoloOutro || '-'}</div>
+            ) : null}
+            <div className="col-span-full bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <strong className="text-slate-900">Resumo de criticidade calculada:</strong>{' '}
+              Impacto: {criticalitySummary.impacto} | Score: {criticalitySummary.score} | Frequencia: {criticalitySummary.frequencia}
+            </div>
+            {criticalitySummary.hasBreakdown ? (
+              <div className="col-span-full">
+                <strong className="text-slate-900">Criticidade:</strong> {criticalitySummary.criticidadeClasse} ({criticalitySummary.criticidadeCodigo}) | Pontos T/P/D/S/E: {formatCriticalityPoints(criticalidadeV2?.pontos)}
               </div>
-              <div><strong>Vistoria principal:</strong> {erosion.vistoriaId || '-'}</div>
-              <div><strong>Vistorias vinculadas:</strong> {Array.isArray(erosion.vistoriaIds) ? erosion.vistoriaIds.join(', ') || '-' : '-'}</div>
-            </div>
-          </section>
-
-          <section className="erosions-details-section">
-            <h4>Classificacao e caracterizacao consolidada</h4>
-            <div className="erosions-details-grid is-two">
-              <div><strong>Tipo (derivado):</strong> {derivedTipo || '-'}</div>
-              <div><strong>Estagio:</strong> {erosion.estagio || '-'}</div>
-              <div><strong>Local:</strong> {localTipoLabel}</div>
-              {localContexto.localTipo === 'outros' ? (
-                <div className="erosions-details-span-all"><strong>Detalhe local:</strong> {localContexto.localDescricao || '-'}</div>
-              ) : null}
-              <div><strong>Profundidade real (m):</strong> {Number.isFinite(technical.profundidadeMetros) ? technical.profundidadeMetros : '-'}</div>
-              <div><strong>Declividade real (graus):</strong> {Number.isFinite(technical.declividadeGraus) ? technical.declividadeGraus : '-'}</div>
-              <div><strong>Distancia da estrutura (m):</strong> {Number.isFinite(technical.distanciaEstruturaMetros) ? technical.distanciaEstruturaMetros : '-'}</div>
-              <div><strong>Presenca de agua no fundo:</strong> {technical.presencaAguaFundo || '-'}</div>
-              <div><strong>Saturacao por agua:</strong> {saturacaoPorAgua || '-'}</div>
-              <div><strong>Tipo de solo:</strong> {technical.tipoSolo || '-'}</div>
-              <div><strong>Localizacao de exposicao:</strong> {localContexto.exposicao || '-'}</div>
-              <div><strong>Estrutura proxima:</strong> {localContexto.estruturaProxima || '-'}</div>
-              <div><strong>Sinais de avanco:</strong> {technical.sinaisAvanco ? 'sim' : 'nao'}</div>
-              <div><strong>Vegetacao interior:</strong> {technical.vegetacaoInterior ? 'sim' : 'nao'}</div>
-              <div className="erosions-details-span-all"><strong>Tipos de feicao:</strong> {listValue(tiposFeicao)}</div>
-              <div className="erosions-details-span-all"><strong>Caracteristicas da feicao:</strong> {listValue(caracteristicasFeicao)}</div>
-              <div className="erosions-details-span-all"><strong>Usos do solo:</strong> {listValue(usosSolo)}</div>
-              {usosSolo.includes('outro') ? (
-                <div className="erosions-details-span-all"><strong>Uso do solo - outro:</strong> {erosion.usoSoloOutro || '-'}</div>
-              ) : null}
-              <div className="erosions-details-span-all">
-                <strong>Resumo de criticidade calculada:</strong>{' '}
-                Impacto: {criticalitySummary.impacto} | Score: {criticalitySummary.score} | Frequencia: {criticalitySummary.frequencia}
+            ) : null}
+            {criticalitySummary.solucoesSugeridas.length > 0 ? (
+              <div className="col-span-full">
+                <strong className="text-slate-900">Solucoes sugeridas:</strong> {criticalitySummary.solucoesSugeridas.join(' | ')}
               </div>
-              {criticalitySummary.hasBreakdown ? (
-                <div className="erosions-details-span-all">
-                  <strong>Criticidade:</strong> {criticalitySummary.criticidadeClasse} ({criticalitySummary.criticidadeCodigo}) | Pontos T/P/D/S/E: {formatCriticalityPoints(criticalidadeV2?.pontos)}
+            ) : null}
+            {criticalitySummary.sugestoesIntervencao.length > 0 ? (
+              <div className="col-span-full">
+                <strong className="text-slate-900">Sugestoes de intervencao (opcional):</strong> {criticalitySummary.sugestoesIntervencao.join(' | ')}
+              </div>
+            ) : null}
+            {criticalidadeV2 ? (
+              <>
+                <div><strong className="text-slate-900">Classe tipo erosao:</strong> {criticalidadeV2.tipo_erosao_classe || '-'}</div>
+                <div><strong className="text-slate-900">Classe profundidade:</strong> {criticalidadeV2.profundidade_classe || '-'}</div>
+                <div><strong className="text-slate-900">Classe declividade:</strong> {criticalidadeV2.declividade_classe || '-'}</div>
+                <div><strong className="text-slate-900">Classe solo:</strong> {criticalidadeV2.solo_classe || '-'}</div>
+                <div><strong className="text-slate-900">Classe exposicao:</strong> {criticalidadeV2.exposicao_classe || '-'}</div>
+                <div className="col-span-full bg-indigo-50 text-indigo-900 p-3 rounded-lg border border-indigo-100">
+                  <strong className="font-bold">Tipo de medida recomendada:</strong> {criticalidadeV2.tipo_medida_recomendada || '-'}
                 </div>
-              ) : null}
-              {criticalitySummary.solucoesSugeridas.length > 0 ? (
-                <div className="erosions-details-span-all">
-                  <strong>Solucoes sugeridas:</strong> {criticalitySummary.solucoesSugeridas.join(' | ')}
-                </div>
-              ) : null}
-              {criticalitySummary.sugestoesIntervencao.length > 0 ? (
-                <div className="erosions-details-span-all">
-                  <strong>Sugestoes de intervencao (opcional):</strong> {criticalitySummary.sugestoesIntervencao.join(' | ')}
-                </div>
-              ) : null}
-              {criticalidadeV2 ? (
-                <>
-                  <div><strong>Classe tipo erosao:</strong> {criticalidadeV2.tipo_erosao_classe || '-'}</div>
-                  <div><strong>Classe profundidade:</strong> {criticalidadeV2.profundidade_classe || '-'}</div>
-                  <div><strong>Classe declividade:</strong> {criticalidadeV2.declividade_classe || '-'}</div>
-                  <div><strong>Classe solo:</strong> {criticalidadeV2.solo_classe || '-'}</div>
-                  <div><strong>Classe exposicao:</strong> {criticalidadeV2.exposicao_classe || '-'}</div>
-                  <div className="erosions-details-span-all">
-                    <strong>Tipo de medida recomendada:</strong> {criticalidadeV2.tipo_medida_recomendada || '-'}
+                {criticalitySummary.regraContextual ? (
+                  <div className="col-span-full">
+                    <strong className="text-slate-900">Regra contextual:</strong> {criticalitySummary.regraContextual}
                   </div>
-                  {criticalitySummary.regraContextual ? (
-                    <div className="erosions-details-span-all">
-                      <strong>Regra contextual:</strong> {criticalitySummary.regraContextual}
-                    </div>
-                  ) : null}
-                </>
-              ) : null}
-              {alertasAtivos.length > 0 ? (
-                <div className="erosions-details-span-all"><strong>Alertas ativos:</strong> {alertasAtivos.join(' | ')}</div>
-              ) : null}
-              <div className="erosions-details-span-all"><strong>Observacoes:</strong> {erosion.obs || '-'}</div>
-            </div>
-            <div className="erosions-details-links">
-              <strong>Fotos (links):</strong>
-              {Array.isArray(erosion.fotosLinks) && erosion.fotosLinks.length > 0 ? (
-                <ul>
-                  {erosion.fotosLinks.map((link) => (
-                    <li key={link}>
-                      <a href={link} target="_blank" rel="noreferrer">{link}</a>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="muted">Sem links de fotos.</p>
-              )}
-            </div>
-          </section>
-
-          <section className="erosions-details-section">
-            <h4>Localizacao geografica</h4>
-            <div className="erosions-details-grid is-four">
-              <div><strong>Latitude:</strong> {locationCoordinates.latitude || '-'}</div>
-              <div><strong>Longitude:</strong> {locationCoordinates.longitude || '-'}</div>
-              <div><strong>UTM Easting:</strong> {locationCoordinates.utmEasting || '-'}</div>
-              <div><strong>UTM Northing:</strong> {locationCoordinates.utmNorthing || '-'}</div>
-              <div><strong>UTM Zona:</strong> {locationCoordinates.utmZone || '-'}</div>
-              <div><strong>Hemisferio:</strong> {locationCoordinates.utmHemisphere || '-'}</div>
-              <div><strong>Altitude:</strong> {locationCoordinates.altitude || '-'}</div>
-              <div><strong>Referencia:</strong> {locationCoordinates.reference || '-'}</div>
-            </div>
-            <div className="erosions-details-links">
-              {hasCoordinates(erosion) ? (
-                <div className="row-actions erosions-details-map-action">
-                  <button type="button" onClick={() => onOpenMaps(erosion)}>
-                    <AppIcon name="map" />
-                    Tracar rota
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </section>
-
-          {relatedInspections.length > 0 ? (
-            <section className="erosions-details-section">
-              <h4>Vistorias que abordaram esta erosao</h4>
-              <div className="erosions-related-list">
-                {relatedInspections.map((row) => (
-                  <div key={`related-inspection-${row.id}`} className="erosions-related-item">
-                    <strong>{row.id}</strong>
-                    {row.inspection?.dataInicio ? ` | inicio: ${row.inspection.dataInicio}` : ''}
-                    {row.inspection?.dataFim ? ` | fim: ${row.inspection.dataFim}` : ''}
-                    {row.inspection?.responsavel ? ` | resp.: ${row.inspection.responsavel}` : ''}
-                  </div>
+                ) : null}
+              </>
+            ) : null}
+            {alertasAtivos.length > 0 ? (
+              <div className="col-span-full text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-100"><strong className="font-bold">Alertas ativos:</strong> {alertasAtivos.join(' | ')}</div>
+            ) : null}
+            <div className="col-span-full whitespace-pre-wrap"><strong className="text-slate-900">Observacoes:</strong> {erosion.obs || '-'}</div>
+          </div>
+          <div className="mt-5 pt-4 border-t border-slate-100 text-sm">
+            <strong className="text-slate-900 block mb-2">Fotos (links):</strong>
+            {Array.isArray(erosion.fotosLinks) && erosion.fotosLinks.length > 0 ? (
+              <ul className="list-disc pl-5 m-0 space-y-1 text-blue-600">
+                {erosion.fotosLinks.map((link) => (
+                  <li key={link}>
+                    <a href={link} target="_blank" rel="noreferrer" className="hover:underline hover:text-blue-800 break-all">{link}</a>
+                  </li>
                 ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-500 m-0">Sem links de fotos.</p>
+            )}
+          </div>
+        </section>
+
+        <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+          <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2 mb-4">Localizacao geografica</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-slate-700">
+            <div><strong className="text-slate-900">Latitude:</strong> {locationCoordinates.latitude || '-'}</div>
+            <div><strong className="text-slate-900">Longitude:</strong> {locationCoordinates.longitude || '-'}</div>
+            <div><strong className="text-slate-900">UTM Easting:</strong> {locationCoordinates.utmEasting || '-'}</div>
+            <div><strong className="text-slate-900">UTM Northing:</strong> {locationCoordinates.utmNorthing || '-'}</div>
+            <div><strong className="text-slate-900">UTM Zona:</strong> {locationCoordinates.utmZone || '-'}</div>
+            <div><strong className="text-slate-900">Hemisferio:</strong> {locationCoordinates.utmHemisphere || '-'}</div>
+            <div><strong className="text-slate-900">Altitude:</strong> {locationCoordinates.altitude || '-'}</div>
+            <div><strong className="text-slate-900">Referencia:</strong> {locationCoordinates.reference || '-'}</div>
+          </div>
+          {hasCoordinates(erosion) ? (
+            <div className="mt-5 pt-4 border-t border-slate-100 flex justify-end">
+              <Button variant="primary" size="sm" onClick={() => onOpenMaps(erosion)}>
+                <AppIcon name="map" />
+                Traçar rota
+              </Button>
+            </div>
+          ) : null}
+        </section>
+
+        {relatedInspections.length > 0 ? (
+          <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+            <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2 mb-4">Vistorias que abordaram esta erosao</h4>
+            <div className="flex flex-col gap-2">
+              {relatedInspections.map((row) => (
+                <div key={`related-inspection-${row.id}`} className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700">
+                  <strong className="text-slate-900">{row.id}</strong>
+                  {row.inspection?.dataInicio ? ` | inicio: ${row.inspection.dataInicio}` : ''}
+                  {row.inspection?.dataFim ? ` | fim: ${row.inspection.dataFim}` : ''}
+                  {row.inspection?.responsavel ? ` | resp.: ${row.inspection.responsavel}` : ''}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+          <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2 mb-4">Historico tecnico de criticidade</h4>
+          <div className="pl-4 py-2 border-l-2 border-slate-100 flex flex-col gap-4">
+            {criticalityHistory.map((item, index) => (
+              <article key={`${item.timestamp || 'criticality'}-${index}`} className="relative pl-6 before:absolute before:left-[-21px] before:top-1.5 before:w-2 before:h-2 before:rounded-full before:bg-slate-300">
+                <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm text-sm">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <strong className="text-slate-800">{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : '-'}</strong>
+                    <Badge tone="neutral" size="sm">{item.situacao || '-'}</Badge>
+                  </div>
+                  <div className="text-slate-700">
+                    Data vistoria: {item.data_vistoria || '-'} | Score anterior: {item.score_anterior ?? '-'} | Score atual: {item.score_atual ?? '-'}
+                  </div>
+                  <div className="text-slate-500 mt-1">
+                    Tendencia: {item.tendencia || '-'} | Intervencao realizada: {item.intervencao_realizada || '-'}
+                  </div>
+                </div>
+              </article>
+            ))}
+            {criticalityHistory.length === 0 ? <p className="text-sm text-slate-500 m-0 py-2">Sem historico tecnico de criticidade.</p> : null}
+          </div>
+        </section>
+
+        <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+          <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3 mb-6">
+            <h4 className="text-base font-bold text-slate-800 m-0">Historico de acompanhamento</h4>
+            <Button
+              variant={showAddEventForm ? 'outline' : 'primary'}
+              size="sm"
+              onClick={() => {
+                setShowAddEventForm((prev) => !prev);
+                if (showAddEventForm) setEventForm(EMPTY_EVENT_FORM);
+              }}
+            >
+              <AppIcon name={showAddEventForm ? 'close' : 'plus'} />
+              {showAddEventForm ? 'Cancelar evento' : 'Adicionar evento'}
+            </Button>
+          </div>
+
+          {showAddEventForm ? (
+            <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl mb-6 flex flex-col gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select
+                  id="event-tipo"
+                  label="Tipo de evento"
+                  value={eventForm.tipoEvento}
+                  onChange={(e) => setEventForm((prev) => ({ ...prev, tipoEvento: e.target.value }))}
+                >
+                  <option value="obra">Obra</option>
+                  <option value="autuacao">Autuação por órgão público</option>
+                </Select>
+                {eventForm.tipoEvento === 'obra' ? (
+                  <Select
+                    id="event-obra-etapa"
+                    label="Etapa da obra *"
+                    value={eventForm.obraEtapa}
+                    onChange={(e) => setEventForm((prev) => ({ ...prev, obraEtapa: e.target.value }))}
+                  >
+                    <option value="Projeto">Projeto</option>
+                    <option value="Em andamento">Em andamento</option>
+                    <option value="Concluida">Concluída</option>
+                  </Select>
+                ) : (
+                  <Select
+                    id="event-autuacao-status"
+                    label="Status da autuação *"
+                    value={eventForm.autuacaoStatus}
+                    onChange={(e) => setEventForm((prev) => ({ ...prev, autuacaoStatus: e.target.value }))}
+                  >
+                    <option value="Aberta">Aberta</option>
+                    <option value="Recorrida">Recorrida</option>
+                    <option value="Encerrada">Encerrada</option>
+                  </Select>
+                )}
               </div>
-            </section>
+
+              {eventForm.tipoEvento === 'obra' ? (
+                <label className="flex flex-col gap-1 w-full text-sm font-semibold text-slate-700">
+                  <span>Descricao da obra *</span>
+                  <textarea
+                    rows="2"
+                    className="w-full px-3 py-2 text-sm font-normal border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
+                    value={eventForm.descricao}
+                    onChange={(e) => setEventForm((prev) => ({ ...prev, descricao: e.target.value }))}
+                  />
+                </label>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    id="event-orgao"
+                    label="Órgão público *"
+                    value={eventForm.orgao}
+                    onChange={(e) => setEventForm((prev) => ({ ...prev, orgao: e.target.value }))}
+                  />
+                  <Input
+                    id="event-numero"
+                    label="Nº/Descrição *"
+                    value={eventForm.numeroOuDescricao}
+                    onChange={(e) => setEventForm((prev) => ({ ...prev, numeroOuDescricao: e.target.value }))}
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 justify-end mt-2 pt-4 border-t border-indigo-200/50">
+                <Button variant="primary" size="sm" onClick={handleSaveEvent} disabled={savingEvent}>
+                  <AppIcon name="save" />
+                  {savingEvent ? 'Salvando...' : 'Salvar evento'}
+                </Button>
+              </div>
+            </div>
           ) : null}
 
-          <section className="erosions-details-section">
-            <h4>Historico tecnico de criticidade</h4>
-            <div className="erosions-history-list">
-              {criticalityHistory.map((item, index, array) => (
-                <article key={`${item.timestamp || 'criticality'}-${index}`} className="erosions-history-item is-sistema">
-                  {index < array.length - 1 ? <div className="erosions-history-line" /> : null}
-                  <div className="erosions-history-content">
-                    <div className="erosions-history-meta">
-                      <strong>{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : '-'}</strong>
-                      <span className="status-chip">{item.situacao || '-'}</span>
+          <div className="pl-4 py-2 border-l-2 border-slate-100 flex flex-col gap-5">
+            {sortedHistory.map((item, index) => {
+              const itemType = normalizeFollowupEventType(item);
+              const typeLabel = itemType === 'obra' ? 'Obra' : (itemType === 'autuacao' ? 'Autuacao' : 'Sistema');
+              const markerColor = itemType === 'obra' ? 'bg-indigo-400' : (itemType === 'autuacao' ? 'bg-amber-400' : 'bg-slate-300');
+
+              return (
+                <article key={`${item.timestamp}-${index}`} className={`relative pl-6 before:absolute before:left-[-21px] before:top-2.5 before:w-2 before:h-2 before:rounded-full ${markerColor}`}>
+                  <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm text-sm flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <strong className="text-slate-800">{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : '-'}</strong>
+                      <Badge tone={itemType === 'obra' ? 'ok' : (itemType === 'autuacao' ? 'warning' : 'neutral')} size="sm">{typeLabel}</Badge>
                     </div>
-                    <div>
-                      Data vistoria: {item.data_vistoria || '-'} | Score anterior: {item.score_anterior ?? '-'} | Score atual: {item.score_atual ?? '-'}
-                    </div>
-                    <div className="muted">
-                      Tendencia: {item.tendencia || '-'} | Intervencao realizada: {item.intervencao_realizada || '-'}
+                    <div className="text-slate-700">{item.resumo || '-'}</div>
+                    {itemType === 'obra' ? (
+                      <div className="text-slate-500">Etapa: {item.obraEtapa || '-'} | Descricao: {item.descricao || '-'}</div>
+                    ) : null}
+                    {itemType === 'autuacao' ? (
+                      <div className="text-slate-500">
+                        Orgao: {item.orgao || '-'} | No/Descricao: {item.numeroOuDescricao || '-'} | Status: {item.autuacaoStatus || '-'}
+                      </div>
+                    ) : null}
+                    <div className="text-slate-400 text-xs mt-1 pt-2 border-t border-slate-100 font-medium">
+                      Origem: {item.origem || '-'} | Usuario: {item.usuario || '-'} | Status da erosao: {item.statusNovo || '-'}
                     </div>
                   </div>
                 </article>
-              ))}
-              {criticalityHistory.length === 0 ? <p className="muted">Sem historico tecnico de criticidade.</p> : null}
-            </div>
-          </section>
-
-          <section className="erosions-details-section">
-            <div className="erosions-history-head">
-              <h4>Historico de acompanhamento</h4>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAddEventForm((prev) => !prev);
-                  if (showAddEventForm) setEventForm(EMPTY_EVENT_FORM);
-                }}
-              >
-                <AppIcon name={showAddEventForm ? 'close' : 'plus'} />
-                {showAddEventForm ? 'Cancelar evento' : 'Adicionar evento'}
-              </button>
-            </div>
-
-            {showAddEventForm ? (
-              <div className="erosions-history-form">
-                <div className="erosions-form-grid is-two">
-                  <label className="erosions-field">
-                    <span>Tipo de evento</span>
-                    <select value={eventForm.tipoEvento} onChange={(e) => setEventForm((prev) => ({ ...prev, tipoEvento: e.target.value }))}>
-                      <option value="obra">Obra</option>
-                      <option value="autuacao">Autuacao por orgao publico</option>
-                    </select>
-                  </label>
-                  {eventForm.tipoEvento === 'obra' ? (
-                    <label className="erosions-field">
-                      <span>Etapa da obra *</span>
-                      <select value={eventForm.obraEtapa} onChange={(e) => setEventForm((prev) => ({ ...prev, obraEtapa: e.target.value }))}>
-                        <option value="Projeto">Projeto</option>
-                        <option value="Em andamento">Em andamento</option>
-                        <option value="Concluida">Concluida</option>
-                      </select>
-                    </label>
-                  ) : (
-                    <label className="erosions-field">
-                      <span>Status da autuacao *</span>
-                      <select value={eventForm.autuacaoStatus} onChange={(e) => setEventForm((prev) => ({ ...prev, autuacaoStatus: e.target.value }))}>
-                        <option value="Aberta">Aberta</option>
-                        <option value="Recorrida">Recorrida</option>
-                        <option value="Encerrada">Encerrada</option>
-                      </select>
-                    </label>
-                  )}
-                </div>
-
-                {eventForm.tipoEvento === 'obra' ? (
-                  <label className="erosions-field">
-                    <span>Descricao da obra *</span>
-                    <textarea
-                      rows="2"
-                      value={eventForm.descricao}
-                      onChange={(e) => setEventForm((prev) => ({ ...prev, descricao: e.target.value }))}
-                    />
-                  </label>
-                ) : (
-                  <div className="erosions-form-grid is-two">
-                    <label className="erosions-field">
-                      <span>Orgao publico *</span>
-                      <input value={eventForm.orgao} onChange={(e) => setEventForm((prev) => ({ ...prev, orgao: e.target.value }))} />
-                    </label>
-                    <label className="erosions-field">
-                      <span>No/Descricao *</span>
-                      <input value={eventForm.numeroOuDescricao} onChange={(e) => setEventForm((prev) => ({ ...prev, numeroOuDescricao: e.target.value }))} />
-                    </label>
-                  </div>
-                )}
-
-                <div className="row-actions">
-                  <button type="button" onClick={handleSaveEvent} disabled={savingEvent}>
-                    <AppIcon name="save" />
-                    {savingEvent ? 'Salvando...' : 'Salvar evento'}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="erosions-history-list">
-              {sortedHistory.map((item, index, array) => {
-                const itemType = normalizeFollowupEventType(item);
-                const typeLabel = itemType === 'obra' ? 'Obra' : (itemType === 'autuacao' ? 'Autuacao' : 'Sistema');
-                const badgeClass = itemType === 'obra'
-                  ? 'status-chip status-ok'
-                  : (itemType === 'autuacao' ? 'status-chip status-warn' : 'status-chip');
-                const markerClass = itemType === 'obra'
-                  ? 'is-obra'
-                  : (itemType === 'autuacao' ? 'is-autuacao' : 'is-sistema');
-                return (
-                  <article key={`${item.timestamp}-${index}`} className={`erosions-history-item ${markerClass}`}>
-                    {index < array.length - 1 ? <div className="erosions-history-line" /> : null}
-                    <div className="erosions-history-content">
-                      <div className="erosions-history-meta">
-                        <strong>{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : '-'}</strong>
-                        <span className={badgeClass}>{typeLabel}</span>
-                      </div>
-                      <div>{item.resumo || '-'}</div>
-                      {itemType === 'obra' ? (
-                        <div className="muted">Etapa: {item.obraEtapa || '-'} | Descricao: {item.descricao || '-'}</div>
-                      ) : null}
-                      {itemType === 'autuacao' ? (
-                        <div className="muted">
-                          Orgao: {item.orgao || '-'} | No/Descricao: {item.numeroOuDescricao || '-'} | Status: {item.autuacaoStatus || '-'}
-                        </div>
-                      ) : null}
-                      <div className="muted">
-                        Origem: {item.origem || '-'} | Usuario: {item.usuario || '-'} | Status da erosao: {item.statusNovo || '-'}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-              {sortedHistory.length === 0 ? <p className="muted">Sem historico de acompanhamento.</p> : null}
-            </div>
-          </section>
-        </div>
-
-        <div className="erosions-modal-foot erosions-details-foot">
-          <button type="button" onClick={onExportPdf}>
-            <AppIcon name="pdf" />
-            Gerar PDF
-          </button>
-          <button type="button" className="projects-cancel-btn" onClick={onClose}>
-            <AppIcon name="close" />
-            Fechar
-          </button>
-        </div>
+              );
+            })}
+            {sortedHistory.length === 0 ? <p className="text-sm text-slate-500 m-0 py-2">Sem historico de acompanhamento.</p> : null}
+          </div>
+        </section>
       </div>
-    </div>
+    </Modal>
   );
 }
 

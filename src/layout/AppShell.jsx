@@ -21,7 +21,7 @@ function AppShell({
   onOpenProfile,
   topNotice = null,
   searchTerm = '',
-  onSearchTermChange = () => {},
+  onSearchTermChange = () => { },
   initialSidebarCollapsed,
   sidebarReviewVariant = 'a',
   children,
@@ -91,19 +91,9 @@ function AppShell({
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [isDesktopViewport, isMobileNavOpen, sidebarCollapsed]);
 
-  const appGridClassName = [
-    'app-grid',
-    isCollapsedRailMode ? 'is-sidebar-collapsed' : '',
-    isMobileNavOpen ? 'is-mobile-nav-open' : '',
-    normalizedSidebarReviewVariant === 'a' ? 'is-sidebar-review-variant-a' : '',
-    normalizedSidebarReviewVariant === 'b' ? 'is-sidebar-review-variant-b' : '',
-  ].filter(Boolean).join(' ');
 
-  const sideNavClassName = [
-    'side-nav',
-    isCollapsedRailMode ? 'is-collapsed' : '',
-    isMobileNavOpen ? 'is-mobile-open' : '',
-  ].filter(Boolean).join(' ');
+
+  const isCollapsedViewport = isCollapsedRailMode || (sidebarCollapsed && isDesktopViewport);
 
   const handleTabChange = (tabId) => {
     onChangeTab(tabId);
@@ -111,173 +101,221 @@ function AppShell({
   };
 
   return (
-    <div className={appGridClassName} data-sidebar-review-variant={normalizedSidebarReviewVariant}>
+    <div
+      className="flex h-screen w-full bg-[#eef3fb] overflow-hidden text-slate-800"
+      data-sidebar-review-variant={normalizedSidebarReviewVariant}
+    >
+      {/* Mobile Overlay */}
       <button
         type="button"
-        className={`side-nav-overlay ${isMobileNavOpen ? 'is-visible' : ''}`.trim()}
+        className={`fixed inset-0 bg-slate-850/60 z-40 transition-opacity duration-300 md:hidden ${isMobileNavOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`}
         onClick={() => setIsMobileNavOpen(false)}
         aria-label="Fechar menu lateral"
       />
 
-      <aside id="app-side-nav" ref={sideNavRef} className={sideNavClassName}>
-        <div className="side-nav-head">
+      {/* Sidebar */}
+      <aside
+        id="app-side-nav"
+        ref={sideNavRef}
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col pt-3 pb-3 bg-gradient-to-b from-slate-900 via-slate-850 to-slate-800 text-slate-300 border-r border-slate-800 transition-all duration-300 
+          md:relative md:translate-x-0
+          ${isCollapsedViewport ? 'w-[88px]' : 'w-[260px]'}
+          ${isMobileNavOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+      >
+        {/* Brand / Toggle */}
+        <div className={`flex items-center px-4 mb-6 ${isCollapsedViewport ? 'justify-center' : 'justify-between'}`}>
+          {!isCollapsedViewport && (
+            <div className="flex items-center gap-3 fade-in pl-1">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-600 bg-opacity-20 text-brand-500">
+                <AppIcon name="monitor" size={20} strokeWidth={2.5} />
+              </div>
+              <h2 className="text-white font-bold tracking-wide text-lg">GeoMonitor</h2>
+            </div>
+          )}
+
           <button
             type="button"
-            className="side-nav-toggle"
+            className="flex items-center justify-center min-w-[32px] w-8 h-8 rounded-md text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500"
             onClick={() => setSidebarCollapsed((prev) => !prev)}
-            aria-label={isCollapsedRailMode ? 'Expandir barra lateral' : 'Recolher barra lateral'}
-            aria-pressed={isCollapsedRailMode ? 'true' : 'false'}
+            aria-label={isCollapsedViewport ? 'Expandir barra lateral' : 'Recolher barra lateral'}
+            aria-pressed={isCollapsedViewport ? 'true' : 'false'}
           >
-            <AppIcon name={isCollapsedRailMode ? 'chevron-right' : 'chevron-left'} />
+            <AppIcon name={isCollapsedViewport ? 'chevron-right' : 'chevron-left'} size={20} />
           </button>
-          {!isCollapsedRailMode ? (
-            <div className="side-nav-brand">
-              <AppIcon name="monitor" className="side-nav-brand-icon" />
-              <h2 className="side-nav-brand-text">GeoMonitor</h2>
-            </div>
-          ) : null}
         </div>
 
-        <div className="side-nav-body">
-          {isCollapsedRailMode ? (
-            <section className="side-nav-group side-nav-group-navigation side-nav-group-icon-rail">
-              <nav className="side-nav-links side-nav-icon-rail" aria-label="Navegação principal recolhida">
-                {iconRailTabs.map((tab) => (
+        {/* Navigation Body */}
+        <div className="flex-1 overflow-y-auto px-3 space-y-6 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+
+          {/* Main Navigation */}
+          <section>
+            {!isCollapsedViewport && <p className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Navegação</p>}
+            <nav className="space-y-1" aria-label="Navegação principal">
+              {navigationTabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
                   <button
                     key={tab.id}
                     type="button"
-                    className={`side-nav-link side-nav-link-icon-only ${
-                      activeTab === tab.id
-                        ? 'nav-active'
-                        : ''
-                    }`.trim()}
+                    className={`w-full flex items-center rounded-lg transition-all duration-200 group relative
+                      ${isCollapsedViewport ? 'justify-center py-3' : 'px-3 py-2.5 gap-3'}
+                      ${isActive
+                        ? 'bg-gradient-to-r from-brand-700 to-brand-600 text-white font-medium shadow-md shadow-brand-900/20'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                      }
+                    `}
                     onClick={() => handleTabChange(tab.id)}
-                    title={tab.label}
-                    aria-label={tab.label}
-                    aria-current={activeTab === tab.id ? 'page' : undefined}
+                    title={isCollapsedViewport ? tab.label : ''}
+                    aria-current={isActive ? 'page' : undefined}
                   >
-                    <span className="side-nav-link-icon">
-                      <AppIcon name={tab.icon} />
+                    {isActive && !isCollapsedViewport && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-1/2 bg-white rounded-r-md opacity-80" />
+                    )}
+
+                    <span className={`flex items-center justify-center shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`}>
+                      <AppIcon name={tab.icon} size={isCollapsedViewport ? 22 : 18} />
                     </span>
+                    {!isCollapsedViewport && <span className="truncate">{tab.label}</span>}
                   </button>
-                ))}
-              </nav>
-            </section>
-          ) : (
-            <>
-              <section className="side-nav-group side-nav-group-navigation">
-                <p className="side-nav-section">Navegação</p>
-                <nav
-                  className="side-nav-links"
-                  aria-label="Navegação principal"
-                >
-                  {navigationTabs.map((tab) => (
+                )
+              })}
+            </nav>
+          </section>
+
+          {/* Admin Navigation */}
+          {adminTabs.length > 0 && (
+            <section>
+              {!isCollapsedViewport && <p className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Administração</p>}
+              <nav className="space-y-1" aria-label="Administração">
+                {adminTabs.map((tab) => {
+                  const isActive = activeTab === tab.id;
+                  return (
                     <button
                       key={tab.id}
                       type="button"
-                      className={`side-nav-link ${
-                        activeTab === tab.id
-                          ? 'nav-active'
-                          : ''
-                      }`.trim()}
+                      className={`w-full flex items-center rounded-lg transition-all duration-200 group relative
+                        ${isCollapsedViewport ? 'justify-center py-3' : 'px-3 py-2.5 gap-3'}
+                        ${isActive
+                          ? 'bg-gradient-to-r from-slate-700 to-slate-600 text-white font-medium shadow-md shadow-slate-900/20'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                        }
+                      `}
                       onClick={() => handleTabChange(tab.id)}
-                      title={isCollapsedRailMode ? tab.label : ''}
-                      aria-current={activeTab === tab.id ? 'page' : undefined}
+                      title={isCollapsedViewport ? tab.label : ''}
+                      aria-current={isActive ? 'page' : undefined}
                     >
-                      <span className="side-nav-link-icon">
-                        <AppIcon name={tab.icon} />
+                      {isActive && !isCollapsedViewport && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-1/2 bg-white rounded-r-md opacity-80" />
+                      )}
+
+                      <span className={`flex items-center justify-center shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-brand-400'}`}>
+                        <AppIcon name={tab.icon} size={isCollapsedViewport ? 22 : 18} />
                       </span>
-                      <span className="side-nav-link-label">{tab.label}</span>
+                      {!isCollapsedViewport && <span className="truncate">{tab.label}</span>}
                     </button>
-                  ))}
-                </nav>
-              </section>
-
-              {adminTabs.length > 0 ? (
-                <section className="side-nav-group side-nav-group-admin">
-                  <p className="side-nav-section">Administração</p>
-                  <nav className="side-nav-links side-nav-admin-links" aria-label="Administração">
-                    {adminTabs.map((tab) => (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        className={`side-nav-link ${
-                          activeTab === tab.id
-                            ? 'nav-active'
-                            : ''
-                        }`.trim()}
-                        onClick={() => handleTabChange(tab.id)}
-                        title={isCollapsedRailMode ? tab.label : ''}
-                        aria-current={activeTab === tab.id ? 'page' : undefined}
-                      >
-                        <span className="side-nav-link-icon">
-                          <AppIcon name={tab.icon} />
-                        </span>
-                        <span className="side-nav-link-label">{tab.label}</span>
-                      </button>
-                    ))}
-                  </nav>
-                </section>
-              ) : null}
-
-              <section className="side-nav-group side-nav-group-utilities">
-                <p className="side-nav-section">Utilidades</p>
-
-                <div className="side-nav-profile-wrap">
-                  <button type="button" className="side-nav-profile-btn" onClick={onOpenProfile}>
-                    <div className="side-nav-profile-title">
-                      <AppIcon name="user" className="side-nav-profile-user-icon" />
-                      Meu Perfil
-                    </div>
-                    <strong className="side-nav-profile-name">{user?.nome || user?.email || 'Sem identificação'}</strong>
-                    <small className="side-nav-profile-role">{user?.cargo || user?.perfil || user?.role || ''}</small>
-                  </button>
-                </div>
-
-                <div className="side-nav-search">
-                  <label htmlFor="side-nav-search-input" className="side-nav-search-label">Procurar</label>
-                  <div className="side-nav-search-box">
-                    <AppIcon name="search" className="side-nav-search-icon" />
-                    <input
-                      id="side-nav-search-input"
-                      type="search"
-                      className="side-nav-search-input"
-                      placeholder="ID, nome, email..."
-                      value={searchTerm}
-                      onChange={(event) => onSearchTermChange(event.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <button type="button" className="side-nav-head-logout" onClick={onLogout} title={isCollapsedRailMode ? 'Sair' : ''}>
-                  <AppIcon name="logout" />
-                  Sair
-                </button>
-              </section>
-            </>
+                  )
+                })}
+              </nav>
+            </section>
           )}
+
+        </div>
+
+        {/* Utilities Footer */}
+        <div className="mt-auto px-3 pt-4 border-t border-slate-800 space-y-3">
+
+          {!isCollapsedViewport ? (
+            <div className="relative">
+              <AppIcon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="search"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 pl-9 pr-3 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 transition-colors"
+                placeholder="Procurar..."
+                value={searchTerm}
+                onChange={(event) => onSearchTermChange(event.target.value)}
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              title="Procurar"
+              className="w-full flex items-center justify-center py-3 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors"
+              onClick={() => setSidebarCollapsed(false)}
+            >
+              <AppIcon name="search" size={22} />
+            </button>
+          )}
+
+          <hr className="border-slate-800" />
+
+          <button
+            type="button"
+            className={`w-full flex items-center text-left rounded-lg transition-colors p-2 hover:bg-slate-800 
+              ${isCollapsedViewport ? 'justify-center' : 'gap-3'}`}
+            onClick={onOpenProfile}
+            title={isCollapsedViewport ? 'Meu Perfil' : ''}
+          >
+            <div className="flex bg-slate-700 text-slate-300 w-9 h-9 rounded-full items-center justify-center shrink-0 border border-slate-600 flex-none shrink-0 overflow-hidden">
+              {user?.nome ? user.nome.charAt(0).toUpperCase() : <AppIcon name="user" size={18} />}
+            </div>
+            {!isCollapsedViewport && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-200 truncate">{user?.nome || user?.email || 'Sem identificação'}</p>
+                <p className="text-xs text-slate-500 truncate">{user?.cargo || user?.perfil || user?.role || ''}</p>
+              </div>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className={`w-full flex items-center rounded-lg text-slate-400 hover:text-rose-400 transition-colors
+              ${isCollapsedViewport ? 'justify-center py-3' : 'px-3 py-2.5 gap-3 hover:bg-slate-800/80'}`}
+            onClick={onLogout}
+            title={isCollapsedViewport ? 'Sair' : ''}
+          >
+            <AppIcon name="logout" size={isCollapsedViewport ? 22 : 18} className="shrink-0" />
+            {!isCollapsedViewport && <span>Sair do Sistema</span>}
+          </button>
         </div>
       </aside>
 
-      <main className="shell-content">
-        {(topNotice || !isDesktopViewport) ? (
-          <div className="shell-main-head">
-            <button
-              type="button"
-              className="mobile-nav-toggle"
-              onClick={() => setIsMobileNavOpen((prev) => !prev)}
-              aria-label={isMobileNavOpen ? 'Fechar menu lateral' : 'Abrir menu lateral'}
-              aria-controls="app-side-nav"
-              aria-expanded={isMobileNavOpen ? 'true' : 'false'}
-            >
-              <AppIcon name={isMobileNavOpen ? 'close' : 'menu'} />
-            </button>
-            {topNotice ? (
-              <div id="shell-topbar-notice-slot" className="shell-topbar-notice-slot">{topNotice}</div>
-            ) : null}
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col min-w-0 bg-[#eef3fb]">
+        {/* Mobile Header */}
+        {(topNotice || !isDesktopViewport) && (
+          <header className={`flex items-center bg-white border-b border-slate-200 px-4 py-3 shrink-0 justify-between ${isDesktopViewport ? 'hidden' : 'flex'}`}>
+            <div className="flex items-center gap-3">
+              <button
+                id="mobile-nav-toggle"
+                type="button"
+                className="p-1.5 -ml-1.5 rounded-md text-slate-600 hover:bg-slate-100 transition-colors"
+                onClick={() => setIsMobileNavOpen((prev) => !prev)}
+                aria-label={isMobileNavOpen ? 'Fechar menu lateral' : 'Abrir menu lateral'}
+                aria-controls="app-side-nav"
+                aria-expanded={isMobileNavOpen ? 'true' : 'false'}
+              >
+                <AppIcon name={isMobileNavOpen ? 'close' : 'menu'} size={24} />
+              </button>
+              <h1 className="font-semibold text-slate-800 text-lg">GeoMonitor</h1>
+            </div>
+          </header>
+        )}
+
+        {/* Top Notice */}
+        {topNotice && (
+          <div id="shell-topbar-notice-slot" className="bg-brand-50 border-b border-brand-100 px-4 py-2 shrink-0 flex items-center gap-2 text-sm text-brand-700">
+            <AppIcon name="info" size={16} className="shrink-0" />
+            <div className="flex-1 min-w-0 truncate font-medium">
+              {topNotice}
+            </div>
           </div>
-        ) : null}
-        {children}
+        )}
+
+        {/* Router Outlet / Content Injection */}
+        <div className="flex-1 overflow-auto relative z-0">
+          {children}
+        </div>
       </main>
     </div>
   );

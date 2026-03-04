@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import AppIcon from '../../../components/AppIcon';
+import { Button, Modal } from '../../../components/ui';
 import { buildGoogleMapsMultiStopUrl, chunkRoutePoints } from '../utils/routeUtils';
 import { compareTowerNumbers, validateTowerCoordinatesAsString } from '../utils/kmlUtils';
 
@@ -49,56 +50,58 @@ function RoutePlannerModal({ project, routeSelection, setRouteSelection, onClose
     }
   }
 
-  return (
-    <div className="modal-backdrop">
-      <div className="modal projects-modal projects-modal-route">
-        <div className="projects-modal-head">
-          <h3 className="projects-modal-title">Tracar rota - {project.nome || project.id}</h3>
-          <button type="button" className="projects-modal-close" aria-label="Fechar" onClick={onClose}>
-            <AppIcon name="close" />
-          </button>
-        </div>
-
-        <div className="projects-modal-body">
-          <p className="projects-route-helper">
-            Selecione torres na ordem desejada. A rota sera aberta no Google Maps com origem na sua localizacao.
-          </p>
-
-          <div className="projects-route-grid">
-            {routeProjectTowers.map((tower) => {
-              const active = routeSelection.includes(String(tower.numero));
-              const order = routeSelection.findIndex((n) => n === String(tower.numero));
-              return (
-                <button
-                  key={`route-${tower.numero}`}
-                  type="button"
-                  className={`projects-route-tower-btn ${active ? 'is-active' : ''}`.trim()}
-                  onClick={() => toggleRouteTower(tower.numero)}
-                >
-                  <span>{formatTowerLabel(tower.numero)}</span>
-                  {active && <strong>#{order + 1}</strong>}
-                </button>
-              );
-            })}
-          </div>
-
-          {routeProjectTowers.length === 0 && (
-            <p className="projects-route-empty">Este empreendimento nao possui torres com coordenadas validas.</p>
-          )}
-        </div>
-
-        <div className="projects-modal-foot projects-route-foot">
-          <div className="projects-route-count">{selectedRoutePoints.length} torre(s) selecionada(s)</div>
-          <div className="projects-route-actions">
-            <button type="button" className="projects-cancel-btn" onClick={onClose}>Fechar</button>
-            <button type="button" className="projects-open-route-btn" onClick={handleOpenRoute}>
-              <AppIcon name="route" />
-              Abrir rota
-            </button>
-          </div>
-        </div>
+  const footer = (
+    <>
+      <div className="text-sm text-slate-500 font-medium">{selectedRoutePoints.length} torre(s) selecionada(s)</div>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" onClick={onClose}>Fechar</Button>
+        <Button variant="primary" onClick={handleOpenRoute}>
+          <AppIcon name="route" />
+          Abrir rota
+        </Button>
       </div>
-    </div>
+    </>
+  );
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Traçar rota - ${project.nome || project.id}`}
+      size="lg"
+      footer={footer}
+    >
+      <p className="text-sm text-blue-800 bg-blue-50 border border-blue-100 p-3 rounded-lg mb-4">
+        Selecione torres na ordem desejada. A rota será aberta no Google Maps com origem na sua localização.
+      </p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[50vh] overflow-y-auto pr-1">
+        {routeProjectTowers.map((tower) => {
+          const active = routeSelection.includes(String(tower.numero));
+          const order = routeSelection.findIndex((n) => n === String(tower.numero));
+          return (
+            <button
+              key={`route-${tower.numero}`}
+              type="button"
+              className={`flex items-center justify-between px-3 py-2 text-sm border rounded-lg transition-all ${active
+                  ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-bold shadow-sm'
+                  : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-slate-50'
+                }`}
+              onClick={() => toggleRouteTower(tower.numero)}
+            >
+              <span>{formatTowerLabel(tower.numero)}</span>
+              {active && <strong className="text-indigo-600">#{order + 1}</strong>}
+            </button>
+          );
+        })}
+      </div>
+
+      {routeProjectTowers.length === 0 && (
+        <p className="text-sm text-slate-500 p-4 bg-slate-50 rounded-lg text-center border border-slate-200">
+          Este empreendimento não possui torres com coordenadas válidas.
+        </p>
+      )}
+    </Modal>
   );
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
+import { Button, Input, Modal, Select } from '../../../components/ui';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { deleteUser, saveUser } from '../../../services/userService';
@@ -147,77 +148,77 @@ function AdminView({
   const [selectedCriterio, setSelectedCriterio] = useState('tipo');
 
   return (
-    <section className="panel">
-      <div className="topbar">
+    <section className="bg-white rounded-2xl shadow-[0_4px_18px_rgba(15,23,42,0.08)] p-5 mb-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div>
-          <h2>Administração</h2>
-          <p className="muted">Gestão de utilizadores e regras de criticidade.</p>
+          <h2 className="text-xl font-bold text-slate-800 m-0">Administração</h2>
+          <p className="text-sm text-slate-500 mt-1">Gestão de utilizadores e regras de criticidade.</p>
         </div>
       </div>
 
-      <div className="inline-row">
-        <button type="button" className={section === 'users' ? 'chip-active' : ''} onClick={() => setSection('users')}>Utilizadores</button>
-        <button type="button" className={section === 'rules' ? 'chip-active' : ''} onClick={() => setSection('rules')}>Regras</button>
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <Button variant={section === 'users' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('users')}>Utilizadores</Button>
+        <Button variant={section === 'rules' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('rules')}>Regras</Button>
       </div>
 
       {section === 'users' && (
-        <div>
-          <div className="row-actions">
-            <button type="button" onClick={openNewUser}>
+        <div className="flex flex-col gap-4">
+          <div className="flex justify-start sm:justify-end gap-2">
+            <Button variant="primary" size="sm" onClick={openNewUser}>
               <AppIcon name="plus" />
               Novo Utilizador
-            </button>
+            </Button>
           </div>
 
-          <div className="table-scroll">
-            <table>
+          <div className="overflow-x-auto w-full bg-white rounded-xl border border-slate-200">
+            <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr>
-                  <th>Nome</th>
-                  <th>Email</th>
-                  <th>Cargo</th>
-                  <th>Perfil</th>
-                  <th>Status</th>
-                  <th>Ações</th>
+                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Nome</th>
+                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</th>
+                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Cargo</th>
+                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Perfil</th>
+                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Ações</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {filteredUsers.map((u) => (
-                  <tr key={u.id}>
-                    <td>{u.nome || '-'}</td>
-                    <td>{u.email || '-'}</td>
-                    <td>{u.cargo || '-'}</td>
-                    <td>{u.perfil || 'Utilizador'}</td>
-                    <td>{normalizeUserStatus(u.status)}</td>
-                    <td>
-                      <div className="inline-row">
-                        <button type="button" className="secondary" onClick={() => openEditUser(u)}>
+                  <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 text-sm text-slate-700">{u.nome || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{u.email || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{u.cargo || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{u.perfil || 'Utilizador'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{normalizeUserStatus(u.status)}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openEditUser(u)}>
                           <AppIcon name="edit" />
                           Editar
-                        </button>
+                        </Button>
                         {canApproveUsers && normalizeUserStatus(u.status) === 'Pendente' && (
                           <>
-                            <button type="button" onClick={() => handleApproveUser(u.id, 'Ativo')}>
+                            <Button variant="primary" size="sm" onClick={() => handleApproveUser(u.id, 'Ativo')}>
                               <AppIcon name="check" />
                               Aprovar
-                            </button>
-                            <button type="button" className="secondary" onClick={() => handleApproveUser(u.id, 'Inativo')}>
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleApproveUser(u.id, 'Inativo')}>
                               <AppIcon name="pause" />
                               Inativar
-                            </button>
+                            </Button>
                           </>
                         )}
-                        <button type="button" className="danger" onClick={() => handleDeleteUser(u.id)}>
+                        <Button variant="danger" size="sm" onClick={() => handleDeleteUser(u.id)}>
                           <AppIcon name="trash" />
                           Excluir
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
                 ))}
                 {filteredUsers.length === 0 && (
                   <tr>
-                    <td colSpan="6" className="muted">Nenhum utilizador encontrado.</td>
+                    <td colSpan="6" className="px-4 py-6 text-center text-sm text-slate-500">Nenhum utilizador encontrado.</td>
                   </tr>
                 )}
               </tbody>
@@ -227,37 +228,37 @@ function AdminView({
       )}
 
       {section === 'rules' && (
-        <div>
-          <div className="inline-row">
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-wrap items-center gap-2">
             {Object.keys(criterios).map((c) => (
-              <button key={c} type="button" className={selectedCriterio === c ? 'chip-active' : ''} onClick={() => setSelectedCriterio(c)}>
+              <Button key={c} variant={selectedCriterio === c ? 'primary' : 'outline'} size="sm" onClick={() => setSelectedCriterio(c)}>
                 {c}
-              </button>
+              </Button>
             ))}
           </div>
 
-          <div className="table-scroll">
-            <table>
+          <div className="overflow-x-auto w-full bg-white rounded-xl border border-slate-200">
+            <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr>
-                  <th>Valor</th>
-                  <th>Impacto</th>
-                  <th>Score</th>
-                  <th>Frequência</th>
-                  <th>Intervenção</th>
+                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Valor</th>
+                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Impacto</th>
+                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Score</th>
+                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Frequência</th>
+                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Intervenção</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {criterios[selectedCriterio].map((valor) => {
                   const key = `${selectedCriterio}|${valor}`;
                   const regra = draftRules[key] || RULES_DATABASE[key];
                   return (
-                    <tr key={key}>
-                      <td>{valor}</td>
-                      <td><input value={regra.impacto} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, impacto: e.target.value } }))} /></td>
-                      <td><input type="number" min="1" max="4" value={regra.score} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, score: Number(e.target.value || 1) } }))} /></td>
-                      <td><input value={regra.frequencia} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, frequencia: e.target.value } }))} /></td>
-                      <td><input value={regra.intervencao} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, intervencao: e.target.value } }))} /></td>
+                    <tr key={key} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-2 text-sm text-slate-700 font-medium">{valor}</td>
+                      <td className="px-4 py-2"><input className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={regra.impacto} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, impacto: e.target.value } }))} /></td>
+                      <td className="px-4 py-2"><input className="w-20 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" type="number" min="1" max="4" value={regra.score} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, score: Number(e.target.value || 1) } }))} /></td>
+                      <td className="px-4 py-2"><input className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={regra.frequencia} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, frequencia: e.target.value } }))} /></td>
+                      <td className="px-4 py-2"><input className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={regra.intervencao} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, intervencao: e.target.value } }))} /></td>
                     </tr>
                   );
                 })}
@@ -265,110 +266,119 @@ function AdminView({
             </table>
           </div>
 
-          <div className="row-actions">
-            <button type="button" className="secondary" onClick={() => setDraftRules(normalizeRulesConfig(RULES_DATABASE))}>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button variant="outline" onClick={() => setDraftRules(normalizeRulesConfig(RULES_DATABASE))}>
               <AppIcon name="reset" />
               Restaurar padrão
-            </button>
-            <button type="button" onClick={handleSaveRules}>
+            </Button>
+            <Button variant="primary" onClick={handleSaveRules}>
               <AppIcon name="save" />
               Salvar regras
-            </button>
+            </Button>
           </div>
 
-          <div className="panel nested">
-            <h3>Configuracao Criticidade V2 (JSON)</h3>
-            <p className="muted">Overrides para classes, faixas e solucoes. O padrao eh mesclado automaticamente.</p>
+          <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 mt-2">
+            <h3 className="text-base font-bold text-slate-800 m-0 mb-1">Configuração Criticidade V2 (JSON)</h3>
+            <p className="text-sm text-slate-500 mb-4">Overrides para classes, faixas e soluções. O padrão é mesclado automaticamente.</p>
             <textarea
               rows={14}
               value={criticalityV2Text}
               onChange={(e) => setCriticalityV2Text(e.target.value)}
-              className="erosions-long-textarea erosions-long-textarea-large"
+              className="w-full min-h-[300px] p-3 text-sm font-mono text-slate-700 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none mb-4"
             />
-            <div className="row-actions">
-              <button
-                type="button"
-                className="secondary"
+            <div className="flex justify-start">
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setCriticalityV2Text(JSON.stringify(mergeCriticalityV2Config(CRITICALITY_V2_DEFAULTS), null, 2))}
               >
                 <AppIcon name="reset" />
-                Restaurar V2 padrao
-              </button>
-            </div>
-          </div>
-
-
-        </div>
-      )}
-
-      {isUserFormOpen && (
-        <div className="modal-backdrop">
-          <div className="modal wide">
-            <h3>{isEditingUser ? 'Editar Utilizador' : 'Novo Utilizador'}</h3>
-            <div className="grid-form">
-              <input
-                value={userForm.id}
-                onChange={(e) => setUserForm((prev) => ({ ...prev, id: e.target.value.trim() }))}
-                placeholder="UID (Firebase Auth)"
-                disabled={isEditingUser}
-              />
-              <input
-                value={userForm.nome}
-                onChange={(e) => setUserForm((prev) => ({ ...prev, nome: e.target.value }))}
-                placeholder="Nome"
-              />
-              <input
-                value={userForm.email}
-                onChange={(e) => setUserForm((prev) => ({ ...prev, email: e.target.value }))}
-                placeholder="Email"
-                type="email"
-              />
-              <input
-                value={userForm.cargo}
-                onChange={(e) => setUserForm((prev) => ({ ...prev, cargo: e.target.value }))}
-                placeholder="Cargo"
-              />
-              <input
-                value={userForm.departamento}
-                onChange={(e) => setUserForm((prev) => ({ ...prev, departamento: e.target.value }))}
-                placeholder="Departamento"
-              />
-              <input
-                value={userForm.telefone}
-                onChange={(e) => setUserForm((prev) => ({ ...prev, telefone: e.target.value }))}
-                placeholder="Telefone"
-              />
-              <select
-                value={userForm.perfil}
-                onChange={(e) => setUserForm((prev) => ({ ...prev, perfil: e.target.value }))}
-              >
-                <option value="Utilizador">Utilizador</option>
-                <option value="Gerente">Gerente</option>
-                <option value="Administrador">Administrador</option>
-              </select>
-              <select
-                value={userForm.status}
-                onChange={(e) => setUserForm((prev) => ({ ...prev, status: e.target.value }))}
-              >
-                <option value="Pendente">Pendente</option>
-                <option value="Ativo">Ativo</option>
-                <option value="Inativo">Inativo</option>
-              </select>
-            </div>
-
-            <div className="row-actions">
-              <button type="button" onClick={handleSaveUser}>
-                <AppIcon name="save" />
-                Salvar
-              </button>
-              <button type="button" className="secondary" onClick={() => setIsUserFormOpen(false)}>
-                <AppIcon name="close" />
-                Cancelar
-              </button>
+                Restaurar V2 padrão
+              </Button>
             </div>
           </div>
         </div>
       )}
+
+      <Modal
+        open={isUserFormOpen}
+        onClose={() => setIsUserFormOpen(false)}
+        title={isEditingUser ? 'Editar Utilizador' : 'Novo Utilizador'}
+        size="lg"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsUserFormOpen(false)}>
+              <AppIcon name="close" />
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={handleSaveUser}>
+              <AppIcon name="save" />
+              Salvar
+            </Button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            id="user-uid"
+            label="UID (Firebase Auth)"
+            value={userForm.id}
+            onChange={(e) => setUserForm((prev) => ({ ...prev, id: e.target.value.trim() }))}
+            disabled={isEditingUser}
+          />
+          <Input
+            id="user-nome"
+            label="Nome"
+            value={userForm.nome}
+            onChange={(e) => setUserForm((prev) => ({ ...prev, nome: e.target.value }))}
+          />
+          <Input
+            id="user-email"
+            label="Email"
+            type="email"
+            value={userForm.email}
+            onChange={(e) => setUserForm((prev) => ({ ...prev, email: e.target.value }))}
+          />
+          <Input
+            id="user-cargo"
+            label="Cargo"
+            value={userForm.cargo}
+            onChange={(e) => setUserForm((prev) => ({ ...prev, cargo: e.target.value }))}
+          />
+          <Input
+            id="user-depto"
+            label="Departamento"
+            value={userForm.departamento}
+            onChange={(e) => setUserForm((prev) => ({ ...prev, departamento: e.target.value }))}
+          />
+          <Input
+            id="user-tel"
+            label="Telefone"
+            value={userForm.telefone}
+            onChange={(e) => setUserForm((prev) => ({ ...prev, telefone: e.target.value }))}
+          />
+          <Select
+            id="user-perfil"
+            label="Perfil"
+            value={userForm.perfil}
+            onChange={(e) => setUserForm((prev) => ({ ...prev, perfil: e.target.value }))}
+          >
+            <option value="Utilizador">Utilizador</option>
+            <option value="Gerente">Gerente</option>
+            <option value="Administrador">Administrador</option>
+          </Select>
+          <Select
+            id="user-status"
+            label="Status"
+            value={userForm.status}
+            onChange={(e) => setUserForm((prev) => ({ ...prev, status: e.target.value }))}
+          >
+            <option value="Pendente">Pendente</option>
+            <option value="Ativo">Ativo</option>
+            <option value="Inativo">Inativo</option>
+          </Select>
+        </div>
+      </Modal>
     </section>
   );
 }

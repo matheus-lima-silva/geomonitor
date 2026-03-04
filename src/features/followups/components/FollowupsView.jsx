@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
+import { Button, Select } from '../../../components/ui';
 import { saveErosionManualFollowupEvent } from '../../../services/erosionService';
 import { saveReportDeliveryTracking } from '../../../services/reportDeliveryTrackingService';
 import {
@@ -169,80 +170,87 @@ function FollowupsView({
   }
 
   return (
-    <section className="panel followups-panel">
-      <div className="topbar">
+    <section className="bg-white rounded-2xl shadow-[0_4px_18px_rgba(15,23,42,0.08)] p-5 mb-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-6">
         <div>
-          <h2>Acompanhamentos</h2>
-          <p className="muted">Gestao operacional de entregas de relatorio e andamento de obras erosivas.</p>
+          <h2 className="text-xl font-bold text-slate-800 m-0">Acompanhamentos</h2>
+          <p className="text-sm text-slate-500 mt-1">Gestao operacional de entregas de relatorio e andamento de obras erosivas.</p>
         </div>
       </div>
 
-      <article className="panel nested followups-report-section">
-        <h3>Acompanhamento de Entregas de Relatorio</h3>
+      <article className="bg-slate-50 rounded-2xl p-5 mb-6 border border-slate-200">
+        <h3 className="text-lg font-bold text-slate-800 m-0 mb-4">Acompanhamento de Entregas de Relatorio</h3>
 
-        <div className="followups-filters">
-          <label>
-            <span>Projeto</span>
-            <select value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}>
-              <option value="">Todos</option>
-              {projectOptions.map((option) => (
-                <option key={`followup-project-${option.id}`} value={option.id}>
-                  {option.id} - {option.name || option.id}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="flex flex-wrap items-end gap-3 mb-5">
+          <Select
+            id="followup-project"
+            label="Projeto"
+            value={projectFilter}
+            onChange={(event) => setProjectFilter(event.target.value)}
+          >
+            <option value="">Todos</option>
+            {projectOptions.map((option) => (
+              <option key={`followup-project-${option.id}`} value={option.id}>
+                {option.id} - {option.name || option.id}
+              </option>
+            ))}
+          </Select>
 
-          <label>
-            <span>Ano</span>
-            <select value={yearFilter} onChange={(event) => setYearFilter(event.target.value)}>
-              <option value="">Todos</option>
-              {reportYearOptions.map((year) => (
-                <option key={`followup-year-${year}`} value={String(year)}>{year}</option>
-              ))}
-            </select>
-          </label>
+          <Select
+            id="followup-year"
+            label="Ano"
+            value={yearFilter}
+            onChange={(event) => setYearFilter(event.target.value)}
+          >
+            <option value="">Todos</option>
+            {reportYearOptions.map((year) => (
+              <option key={`followup-year-${year}`} value={String(year)}>{year}</option>
+            ))}
+          </Select>
 
-          <label>
-            <span>Status operacional</span>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option value="">Todos</option>
-              {REPORT_OPERATIONAL_STATUS_OPTIONS.map((option) => (
-                <option key={`status-filter-${option.value}`} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
+          <Select
+            id="followup-status"
+            label="Status operacional"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
+            <option value="">Todos</option>
+            {REPORT_OPERATIONAL_STATUS_OPTIONS.map((option) => (
+              <option key={`status-filter-${option.value}`} value={option.value}>{option.label}</option>
+            ))}
+          </Select>
         </div>
 
-        <div className="table-scroll">
-          <table className="monitor-table followups-report-table">
+        <div className="overflow-x-auto w-full bg-white rounded-xl border border-slate-200">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr>
-                <th>Projeto</th>
-                <th>Mes/ano</th>
-                <th>Fonte aplicada</th>
-                <th>Override</th>
-                <th>Status prazo</th>
-                <th>Status operacional</th>
-                <th>Observacoes</th>
-                <th>Acoes</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Projeto</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Mes/ano</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Fonte aplicada</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Override</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status prazo</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status operacional</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Observacoes</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Acoes</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {filteredRows.map((row) => {
                 const draft = draftForRow(row);
                 const rowKey = String(row.key || '');
                 return (
-                  <tr key={`followup-row-${rowKey}`}>
-                    <td>{row.projectId} - {row.projectName || row.projectId}</td>
-                    <td>{formatMonitoringMonthLabel(row.month)}/{row.year}</td>
-                    <td>
-                      <span className={`followups-source-chip is-${String(row.sourceApplied || '').toLowerCase()}`}>
+                  <tr key={`followup-row-${rowKey}`} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 text-sm text-slate-700">{row.projectId} - {row.projectName || row.projectId}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{formatMonitoringMonthLabel(row.month)}/{row.year}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${row.sourceApplied === 'LO' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-800'}`}>
                         {row.sourceApplied === 'LO' ? 'LO' : 'Empreendimento'}
                       </span>
                     </td>
-                    <td>
+                    <td className="px-4 py-3">
                       <select
+                        className="w-full min-w-[140px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                         value={draft.sourceOverride}
                         onChange={(event) => setDraftValue(rowKey, 'sourceOverride', event.target.value)}
                       >
@@ -251,48 +259,54 @@ function FollowupsView({
                         <option value={REPORT_SOURCE_OVERRIDE.PROJECT} disabled={!row.hasProjectOption}>Forcar empreendimento</option>
                       </select>
                     </td>
-                    <td>{row.deadlineStatusLabel}</td>
-                    <td>
-                      <select
-                        value={draft.operationalStatus}
-                        onChange={(event) => setDraftValue(rowKey, 'operationalStatus', event.target.value)}
-                      >
-                        {REPORT_OPERATIONAL_STATUS_OPTIONS.map((option) => (
-                          <option key={`status-edit-${rowKey}-${option.value}`} value={option.value}>{option.label}</option>
-                        ))}
-                      </select>
-                      {draft.operationalStatus === REPORT_OPERATIONAL_STATUS.ENTREGUE ? (
-                        <input
-                          type="date"
-                          value={draft.deliveredAt || ''}
-                          onChange={(event) => setDraftValue(rowKey, 'deliveredAt', event.target.value)}
-                        />
-                      ) : null}
+                    <td className="px-4 py-3 text-sm text-slate-700">{row.deadlineStatusLabel}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-2">
+                        <select
+                          className="w-full min-w-[140px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                          value={draft.operationalStatus}
+                          onChange={(event) => setDraftValue(rowKey, 'operationalStatus', event.target.value)}
+                        >
+                          {REPORT_OPERATIONAL_STATUS_OPTIONS.map((option) => (
+                            <option key={`status-edit-${rowKey}-${option.value}`} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                        {draft.operationalStatus === REPORT_OPERATIONAL_STATUS.ENTREGUE ? (
+                          <input
+                            type="date"
+                            className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                            value={draft.deliveredAt || ''}
+                            onChange={(event) => setDraftValue(rowKey, 'deliveredAt', event.target.value)}
+                          />
+                        ) : null}
+                      </div>
                     </td>
-                    <td>
+                    <td className="px-4 py-3">
                       <textarea
                         rows="2"
+                        className="w-full min-w-[200px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none resize-y"
                         value={draft.notes || ''}
                         onChange={(event) => setDraftValue(rowKey, 'notes', event.target.value)}
                         placeholder="Observacoes..."
                       />
                     </td>
-                    <td>
-                      <button
-                        type="button"
+                    <td className="px-4 py-3">
+                      <Button
+                        variant="primary"
+                        size="sm"
                         onClick={() => handleSaveTracking(row)}
                         disabled={savingRowKey === rowKey}
                       >
                         <AppIcon name="save" />
                         {savingRowKey === rowKey ? 'Salvando...' : 'Salvar'}
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 );
               })}
               {filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="muted">Nenhum item de acompanhamento encontrado.</td>
+                  <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">Nenhum item de acompanhamento encontrado.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -300,9 +314,9 @@ function FollowupsView({
         </div>
 
         {Array.isArray(invalidOverrides) && invalidOverrides.length > 0 ? (
-          <div className="followups-warning-list">
+          <div className="mt-4 flex flex-col gap-1">
             {invalidOverrides.map((item) => (
-              <p key={`invalid-override-${item.projectId}-${item.monthKey}`} className="muted">
+              <p key={`invalid-override-${item.projectId}-${item.monthKey}`} className="text-sm text-slate-500 m-0">
                 Override invalido em {item.projectId} / {item.monthKey}: {item.sourceOverride}.
               </p>
             ))}
@@ -310,34 +324,34 @@ function FollowupsView({
         ) : null}
       </article>
 
-      <article className="panel nested followups-work-section">
-        <h3>Acompanhamento de Obras em Erosoes</h3>
-        <div className="table-scroll">
-          <table className="monitor-table followups-work-table">
+      <article className="bg-slate-50 rounded-2xl p-5 mb-6 border border-slate-200">
+        <h3 className="text-lg font-bold text-slate-800 m-0 mb-4">Acompanhamento de Obras em Erosoes</h3>
+        <div className="overflow-x-auto w-full bg-white rounded-xl border border-slate-200">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr>
-                <th>Erosao</th>
-                <th>Projeto</th>
-                <th>Torre</th>
-                <th>Etapa</th>
-                <th>Descricao</th>
-                <th>Atualizacao</th>
-                <th>Acoes</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Erosao</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Projeto</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Torre</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Etapa</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Descricao</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Atualizacao</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Acoes</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {filteredWorkRows.map((row) => (
-                <tr key={`work-row-${row.erosionId}`}>
-                  <td>{row.erosionId}</td>
-                  <td>{row.projectId} - {row.projectName || row.projectId}</td>
-                  <td>{row.towerRef || '-'}</td>
-                  <td>{row.stage || '-'}</td>
-                  <td>{row.description || '-'}</td>
-                  <td>{row.timestamp ? new Date(row.timestamp).toLocaleString('pt-BR') : '-'}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="secondary"
+                <tr key={`work-row-${row.erosionId}`} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 text-sm text-slate-700">{row.erosionId}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{row.projectId} - {row.projectName || row.projectId}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{row.towerRef || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{row.stage || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{row.description || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{row.timestamp ? new Date(row.timestamp).toLocaleString('pt-BR') : '-'}</td>
+                  <td className="px-4 py-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => {
                         setActiveWorkErosionId(row.erosionId);
                         setWorkForm((prev) => ({
@@ -348,13 +362,13 @@ function FollowupsView({
                     >
                       <AppIcon name="edit" />
                       Registrar evento
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}
               {filteredWorkRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="muted">Sem obras ativas para acompanhar.</td>
+                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">Sem obras ativas para acompanhar.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -362,37 +376,37 @@ function FollowupsView({
         </div>
 
         {activeWorkErosionId ? (
-          <div className="followups-work-form">
-            <h4>Novo evento de obra - {activeWorkErosionId}</h4>
-            <div className="followups-filters">
-              <label>
-                <span>Etapa</span>
-                <select
-                  value={workForm.obraEtapa}
-                  onChange={(event) => setWorkForm((prev) => ({ ...prev, obraEtapa: event.target.value }))}
-                >
-                  <option value="Projeto">Projeto</option>
-                  <option value="Em andamento">Em andamento</option>
-                  <option value="Concluida">Concluida</option>
-                </select>
-              </label>
-              <label className="is-wide">
-                <span>Descricao</span>
+          <div className="mt-6 p-5 bg-white border border-slate-200 rounded-xl shadow-sm">
+            <h4 className="text-base font-bold text-slate-800 m-0 mb-4">Novo evento de obra - {activeWorkErosionId}</h4>
+            <div className="flex flex-col sm:flex-row items-start gap-4 mb-4">
+              <Select
+                id="work-etapa"
+                label="Etapa"
+                value={workForm.obraEtapa}
+                onChange={(event) => setWorkForm((prev) => ({ ...prev, obraEtapa: event.target.value }))}
+              >
+                <option value="Projeto">Projeto</option>
+                <option value="Em andamento">Em andamento</option>
+                <option value="Concluida">Concluída</option>
+              </Select>
+              <label className="flex flex-col gap-1 w-full max-w-md">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Descrição</span>
                 <textarea
                   rows="2"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-y"
                   value={workForm.descricao}
                   onChange={(event) => setWorkForm((prev) => ({ ...prev, descricao: event.target.value }))}
                 />
               </label>
             </div>
-            <div className="row-actions">
-              <button type="button" onClick={handleSaveWorkEvent} disabled={savingWorkEvent}>
+            <div className="flex flex-wrap items-center gap-2 mt-4">
+              <Button variant="primary" size="sm" onClick={handleSaveWorkEvent} disabled={savingWorkEvent}>
                 <AppIcon name="save" />
                 {savingWorkEvent ? 'Salvando...' : 'Salvar evento'}
-              </button>
-              <button
-                type="button"
-                className="secondary"
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   setActiveWorkErosionId('');
                   setWorkForm(WORK_EVENT_FORM_DEFAULT);
@@ -400,7 +414,7 @@ function FollowupsView({
               >
                 <AppIcon name="close" />
                 Cancelar
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}

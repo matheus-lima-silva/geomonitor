@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import AppIcon from '../../../components/AppIcon';
+import { Button } from '../../../components/ui';
 import { useProjectsFeatureState } from '../hooks/useProjectsFeatureState';
 import { formatReportMonths, getProjectReportConfig } from '../utils/reportSchedule';
 import { validateTowerCoordinatesAsString } from '../utils/kmlUtils';
@@ -73,10 +74,10 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
           <h2>Empreendimentos</h2>
           <p className="muted">Cadastre e mantenha os dados base das linhas de transmissao.</p>
         </div>
-        <button type="button" className="projects-primary-action" onClick={state.openNew}>
+        <Button variant="primary" size="sm" onClick={state.openNew}>
           <AppIcon name="plus" />
           Novo
-        </button>
+        </Button>
       </div>
 
       <div className="projects-grid">

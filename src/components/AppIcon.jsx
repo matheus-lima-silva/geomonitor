@@ -316,7 +316,7 @@ function AppIcon({
       viewBox="0 0 24 24"
       width={size}
       height={size}
-      className={`app-icon ${className}`.trim()}
+      className={`inline-block shrink-0 ${className}`.trim()}
       fill="none"
       stroke="currentColor"
       strokeWidth={strokeWidth}

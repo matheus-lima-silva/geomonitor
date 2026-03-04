@@ -1,4 +1,5 @@
 import AppIcon from '../../../components/AppIcon';
+import { Badge, Button, Modal } from '../../../components/ui';
 import { formatHotelNote, hasHotelData } from '../utils/inspectionWorkflow';
 
 function escapeHtml(value) {
@@ -175,141 +176,142 @@ function InspectionDetailsModal({
     win.print();
   }
 
+  const footer = (
+    <>
+      <Button variant="outline" size="sm" onClick={handlePrevious} disabled={!hasPrevious}>
+        <AppIcon name="chevron-left" />
+      </Button>
+      <Button variant="outline" size="sm" onClick={handleNext} disabled={!hasNext}>
+        <AppIcon name="chevron-right" />
+      </Button>
+      <Button variant="primary" size="sm" onClick={handleExportDetailsPdf}>
+        <AppIcon name="pdf" /> Gerar PDF
+      </Button>
+      <Button variant="outline" size="sm" onClick={onClose}>
+        <AppIcon name="close" />
+      </Button>
+    </>
+  );
+
   return (
-    <div className="modal-backdrop inspection-details-backdrop">
-      <div className="inspection-details-modal">
-        <div className="inspection-details-head">
-          <div className="inspection-details-head-title">
-            <h3>
-              <AppIcon name="clipboard" />
-              Detalhes da Vistoria: {inspection?.id}
-            </h3>
-            <div className="muted">({currentIndex + 1} de {inspections.length})</div>
-          </div>
-          <div className="inspection-details-head-actions">
-            <button type="button" className="secondary" onClick={handlePrevious} disabled={!hasPrevious}>
-              <AppIcon name="chevron-left" />
-            </button>
-            <button type="button" className="secondary" onClick={handleNext} disabled={!hasNext}>
-              <AppIcon name="chevron-right" />
-            </button>
-            <button type="button" onClick={handleExportDetailsPdf}>
-              <AppIcon name="pdf" />
-              Gerar PDF
-            </button>
-            <button type="button" className="secondary" onClick={onClose}>
-              <AppIcon name="close" />
-            </button>
-          </div>
-        </div>
-
-        <div className="inspection-details-body">
-          <div className="inspection-details-info-grid">
-            <div className="inspection-details-box">
-              <h4><AppIcon name="map" /> Empreendimento</h4>
-              {project ? (
-                <div className="inspection-details-kv">
-                  <div><strong>ID:</strong> {project.id}</div>
-                  <div><strong>Nome:</strong> {project.nome || '-'}</div>
-                  <div><strong>Tipo:</strong> {project.tipo || '-'}</div>
-                  {project.tensao ? <div><strong>Tensao:</strong> {project.tensao} kV</div> : null}
-                </div>
-              ) : (
-                <p className="muted">Projeto nao encontrado.</p>
-              )}
-            </div>
-            <div className="inspection-details-box">
-              <h4>Informacoes da Vistoria</h4>
-              <div className="inspection-details-kv">
-                <div><strong>ID:</strong> {inspection?.id || '-'}</div>
-                <div><strong>Data Inicio:</strong> {inspection?.dataInicio || '-'}</div>
-                {inspection?.dataFim ? <div><strong>Data Fim:</strong> {inspection.dataFim}</div> : null}
-                {inspection?.responsavel ? <div><strong>Responsavel:</strong> {inspection.responsavel}</div> : null}
-              </div>
-            </div>
-          </div>
-
-          {inspection?.obs ? (
-            <div className="inspection-details-box">
-              <h4>Observacoes</h4>
-              <p className="muted">{inspection.obs}</p>
-            </div>
-          ) : null}
-
-          {Array.isArray(inspection?.detalhesDias) && inspection.detalhesDias.length > 0 ? (
-            <div className="inspection-details-box">
-              <h4>Diario de Campo Detalhado</h4>
-              <div className="inspection-details-days">
-                {inspection.detalhesDias.map((day, idx) => (
-                  <article key={`${day?.data || idx}`} className="inspection-day-card">
-                    <div className="inspection-day-header">
-                      <strong>{day?.data ? new Date(`${day.data}T00:00:00`).toLocaleDateString('pt-BR') : 'Data nao informada'}</strong>
-                      {day?.clima ? <span className="status-chip status-ok">{day.clima}</span> : null}
-                      {(day?.torresInput || day?.torres) ? (
-                        <span className="status-chip">Torres: {Array.isArray(day.torres) ? day.torres.join(', ') : (day.torresInput || day.torres)}</span>
-                      ) : null}
-                    </div>
-                    {Array.isArray(day?.torresDetalhadas) && day.torresDetalhadas.length > 0 ? (
-                      <div className="inspection-day-towers">
-                        {day.torresDetalhadas.map((tower) => (
-                          <div key={`${day?.data || idx}-${tower?.numero || 'x'}`} className={`inspection-day-tower ${tower?.temErosao ? 'is-erosion' : ''}`}>
-                            <strong>{formatTowerLabel(tower?.numero)}</strong>
-                            {tower?.obs ? ` - ${tower.obs}` : ' - sem observacoes'}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {hasHotelData(day) ? (
-                      <div className="inspection-day-hotel">
-                        <div className="inspection-day-hotel-title">Dados de hospedagem</div>
-                        <div><strong>Hotel:</strong> {day?.hotelNome || '-'}</div>
-                        <div><strong>Municipio:</strong> {day?.hotelMunicipio || '-'}</div>
-                        <div><strong>Torre base:</strong> {day?.hotelTorreBase || '-'}</div>
-                        <div>
-                          <strong>Notas:</strong>
-                          {' '}Logistica {formatHotelNote(day?.hotelLogisticaNota)}
-                          {' | '}Reserva {formatHotelNote(day?.hotelReservaNota)}
-                          {' | '}Estadia {formatHotelNote(day?.hotelEstadiaNota)}
-                        </div>
-                      </div>
-                    ) : null}
-                  </article>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          <div className="inspection-details-box">
-            <h4><AppIcon name="alert" /> Erosoes Identificadas ({relatedErosions.length})</h4>
-            {relatedErosions.length > 0 ? (
-              <div className="inspection-details-erosions">
-                {relatedErosions.map((item) => (
-                  <article key={item.id} className="inspection-details-erosion-row">
-                    <div className="inspection-details-erosion-main">
-                      <div><strong>{item.id}</strong></div>
-                      <div className="muted">
-                        {String(item?.torreRef ?? '').trim() ? `${formatTowerLabel(item.torreRef)} • ` : ''}
-                        {item?.tipo || '-'} • {item?.estagio || '-'}
-                      </div>
-                    </div>
-                    <span className={`status-chip ${colorByImpact(item?.impacto)}`}>{item?.impacto || '-'}</span>
-                  </article>
-                ))}
+    <Modal
+      open
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2">
+          <AppIcon name="clipboard" /> Detalhes da Vistoria: {inspection?.id}
+          <span className="text-sm text-gray-400 font-normal">({currentIndex + 1} de {inspections.length})</span>
+        </span>
+      }
+      size="xl"
+      footer={footer}
+    >
+      <div className="flex flex-col gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col gap-3">
+            <h4 className="text-base font-bold text-slate-800 flex items-center gap-2 m-0 border-b border-slate-100 pb-2"><AppIcon name="map" /> Empreendimento</h4>
+            {project ? (
+              <div className="flex flex-col gap-1.5 text-sm text-slate-700">
+                <div><strong>ID:</strong> {project.id}</div>
+                <div><strong>Nome:</strong> {project.nome || '-'}</div>
+                <div><strong>Tipo:</strong> {project.tipo || '-'}</div>
+                {project.tensao ? <div><strong>Tensao:</strong> {project.tensao} kV</div> : null}
               </div>
             ) : (
-              <p className="muted">Nenhuma erosao vinculada a esta vistoria.</p>
+              <p className="text-sm text-slate-500 m-0">Projeto nao encontrado.</p>
             )}
           </div>
-
-          {inspection?.ultimaAtualizacao ? (
-            <div className="muted inspection-details-footer">
-              <div><strong>Ultima atualizacao:</strong> {new Date(inspection.ultimaAtualizacao).toLocaleString('pt-BR')}</div>
-              {inspection?.atualizadoPor ? <div><strong>Por:</strong> {inspection.atualizadoPor}</div> : null}
+          <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col gap-3">
+            <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2">Informacoes da Vistoria</h4>
+            <div className="flex flex-col gap-1.5 text-sm text-slate-700">
+              <div><strong>ID:</strong> {inspection?.id || '-'}</div>
+              <div><strong>Data Inicio:</strong> {inspection?.dataInicio || '-'}</div>
+              {inspection?.dataFim ? <div><strong>Data Fim:</strong> {inspection.dataFim}</div> : null}
+              {inspection?.responsavel ? <div><strong>Responsavel:</strong> {inspection.responsavel}</div> : null}
             </div>
-          ) : null}
+          </div>
         </div>
+
+        {inspection?.obs ? (
+          <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col gap-3">
+            <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2">Observacoes</h4>
+            <p className="text-sm text-slate-600 m-0 whitespace-pre-wrap">{inspection.obs}</p>
+          </div>
+        ) : null}
+
+        {Array.isArray(inspection?.detalhesDias) && inspection.detalhesDias.length > 0 ? (
+          <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col gap-4">
+            <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2">Diario de Campo Detalhado</h4>
+            <div className="flex flex-col gap-3">
+              {inspection.detalhesDias.map((day, idx) => (
+                <article key={`${day?.data || idx}`} className="border border-slate-200 rounded-xl bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-center gap-2 mb-3 text-slate-800">
+                    <strong>{day?.data ? new Date(`${day.data}T00:00:00`).toLocaleDateString('pt-BR') : 'Data nao informada'}</strong>
+                    {day?.clima ? <Badge tone="ok" size="sm">{day.clima}</Badge> : null}
+                    {(day?.torresInput || day?.torres) ? (
+                      <Badge tone="neutral" size="sm">Torres: {Array.isArray(day.torres) ? day.torres.join(', ') : (day.torresInput || day.torres)}</Badge>
+                    ) : null}
+                  </div>
+                  {Array.isArray(day?.torresDetalhadas) && day.torresDetalhadas.length > 0 ? (
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      {day.torresDetalhadas.map((tower) => (
+                        <div key={`${day?.data || idx}-${tower?.numero || 'x'}`} className={`bg-white border p-2 text-sm rounded-lg flex items-center gap-1 ${tower?.temErosao ? 'border-red-200 bg-red-50 text-red-800' : 'border-slate-200 text-slate-700'}`}>
+                          <strong>{formatTowerLabel(tower?.numero)}</strong>
+                          {tower?.obs ? ` - ${tower.obs}` : ' - sem observacoes'}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {hasHotelData(day) ? (
+                    <div className="mt-4 bg-blue-50/50 border border-blue-100 p-3 rounded-lg text-sm text-slate-700 flex flex-col gap-1.5">
+                      <div className="font-bold text-blue-800 flex items-center gap-1.5 mb-1">Dados de hospedagem</div>
+                      <div><strong>Hotel:</strong> {day?.hotelNome || '-'}</div>
+                      <div><strong>Municipio:</strong> {day?.hotelMunicipio || '-'}</div>
+                      <div><strong>Torre base:</strong> {day?.hotelTorreBase || '-'}</div>
+                      <div className="text-slate-500">
+                        <strong>Notas:</strong>
+                        {' '}Logistica {formatHotelNote(day?.hotelLogisticaNota)}
+                        {' | '}Reserva {formatHotelNote(day?.hotelReservaNota)}
+                        {' | '}Estadia {formatHotelNote(day?.hotelEstadiaNota)}
+                      </div>
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col gap-3">
+          <h4 className="text-base font-bold text-slate-800 flex items-center gap-2 m-0 border-b border-slate-100 pb-2"><AppIcon name="alert" /> Erosoes Identificadas ({relatedErosions.length})</h4>
+          {relatedErosions.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {relatedErosions.map((item) => (
+                <article key={item.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                  <div className="flex flex-col text-sm text-slate-800">
+                    <div><strong>{item.id}</strong></div>
+                    <div className="text-slate-500 text-xs mt-0.5">
+                      {String(item?.torreRef ?? '').trim() ? `${formatTowerLabel(item.torreRef)} • ` : ''}
+                      {item?.tipo || '-'} • {item?.estagio || '-'}
+                    </div>
+                  </div>
+                  <Badge tone={colorByImpact(item?.impacto) === 'status-danger' ? 'danger' : (colorByImpact(item?.impacto) === 'status-warn' ? 'warning' : 'ok')} size="sm">{item?.impacto || '-'}</Badge>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 m-0 py-2">Nenhuma erosao vinculada a esta vistoria.</p>
+          )}
+        </div>
+
+        {inspection?.ultimaAtualizacao ? (
+          <div className="text-xs text-slate-400 flex justify-between gap-4 pt-4 mt-2 border-t border-slate-100 uppercase tracking-widest font-semibold">
+            <div><strong>Ultima atualizacao:</strong> {new Date(inspection.ultimaAtualizacao).toLocaleString('pt-BR')}</div>
+            {inspection?.atualizadoPor ? <div><strong>Por:</strong> {inspection.atualizadoPor}</div> : null}
+          </div>
+        ) : null}
       </div>
-    </div>
+    </Modal>
   );
 }
 

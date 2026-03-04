@@ -1,3 +1,6 @@
+import { normalizeLocationCoordinates } from './erosionCoordinates';
+import { normalizeErosionStatus } from './statusUtils';
+
 export const LOCAL_CONTEXTO_TIPO_OPTIONS = [
     { value: 'faixa_servidao', label: 'Na faixa de servidao' },
     { value: 'via_acesso_exclusiva', label: 'Na via de acesso exclusiva' },

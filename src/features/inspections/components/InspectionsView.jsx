@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
+import { Button, Modal } from '../../../components/ui';
 import { deleteInspection } from '../../../services/inspectionService';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
@@ -129,10 +130,10 @@ function InspectionsView({
           <h2>Vistorias</h2>
           <p className="muted">Diario multi-dia com checklist por torre e fluxo integrado de erosoes.</p>
         </div>
-        <button type="button" onClick={openNewInspection}>
+        <Button variant="primary" size="sm" onClick={openNewInspection}>
           <AppIcon name="plus" />
           Nova Vistoria
-        </button>
+        </Button>
       </div>
 
       {forcedProject ? (
@@ -140,10 +141,10 @@ function InspectionsView({
           <span>
             Filtrado por empreendimento: <strong>{forcedProject.nome || forcedProject.id}</strong> ({forcedProject.id})
           </span>
-          <button type="button" className="secondary" onClick={onClearForcedProjectFilter}>
+          <Button variant="outline" size="sm" onClick={onClearForcedProjectFilter}>
             <AppIcon name="reset" />
             Limpar filtro
-          </button>
+          </Button>
         </div>
       ) : null}
 
@@ -172,15 +173,15 @@ function InspectionsView({
                   </div>
                 </div>
                 <div className="inspections-card-actions">
-                  <button type="button" className="secondary" onClick={() => setDetailsModal(inspection)}>
+                  <Button variant="outline" size="sm" onClick={() => setDetailsModal(inspection)}>
                     <AppIcon name="details" />
-                  </button>
-                  <button type="button" className="secondary" onClick={() => openEditInspection(inspection)}>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => openEditInspection(inspection)}>
                     <AppIcon name="edit" />
-                  </button>
-                  <button type="button" className="danger" onClick={() => setConfirmDelete(inspection.id)}>
+                  </Button>
+                  <Button variant="danger" size="sm" onClick={() => setConfirmDelete(inspection.id)}>
                     <AppIcon name="trash" />
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -240,29 +241,32 @@ function InspectionsView({
         />
       ) : null}
 
-      {confirmDelete ? (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <h3 className="inspections-delete-title">
-              <AppIcon name="alert" />
-              Confirmar exclusao
-            </h3>
-            <p className="muted">
-              Tem a certeza que deseja excluir a vistoria <strong>{confirmDelete}</strong>?
-            </p>
-            <div className="row-actions">
-              <button type="button" className="danger" onClick={handleConfirmDelete}>
-                <AppIcon name="trash" />
-                Excluir
-              </button>
-              <button type="button" className="secondary" onClick={() => setConfirmDelete('')}>
-                <AppIcon name="close" />
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <Modal
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete('')}
+        title={
+          <span className="flex items-center gap-2">
+            <AppIcon name="alert" /> Confirmar exclusão
+          </span>
+        }
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" size="md" onClick={() => setConfirmDelete('')}>
+              <AppIcon name="close" />
+              Cancelar
+            </Button>
+            <Button variant="danger" size="md" onClick={handleConfirmDelete}>
+              <AppIcon name="trash" />
+              Excluir
+            </Button>
+          </>
+        }
+      >
+        <p className="muted" style={{ margin: 0 }}>
+          Tem certeza que deseja excluir a vistoria <strong>{confirmDelete}</strong>?
+        </p>
+      </Modal>
     </section>
   );
 }

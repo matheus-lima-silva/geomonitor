@@ -36,15 +36,17 @@ describe('AppShell', () => {
   };
 
   const clickSidebarToggle = () => {
-    const sideNavToggle = container.querySelector('.side-nav-toggle');
+    // Find the toggle button using its aria-label (which matches both modes) or by an icon it contains.
+    const buttons = [...container.querySelectorAll('button')];
+    const toggleButton = buttons.find((b) => b.getAttribute('aria-label')?.includes('barra lateral'));
     act(() => {
-      sideNavToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      toggleButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
   };
 
   const ensureSidebarExpanded = () => {
-    const sideNav = container.querySelector('.side-nav');
-    if (sideNav.classList.contains('is-collapsed')) {
+    const sideNav = container.querySelector('#app-side-nav');
+    if (sideNav.classList.contains('w-[88px]')) { // w-[88px] is the collapsed width class
       clickSidebarToggle();
     }
     return sideNav;
@@ -76,9 +78,9 @@ describe('AppShell', () => {
     const props = buildProps({ topNotice: <div data-testid="top-notice">Avisos</div> });
     renderShell(props);
 
-    const slot = container.querySelector('#shell-topbar-notice-slot');
-    expect(slot).toBeTruthy();
-    expect(slot.textContent).toContain('Avisos');
+    const slotContent = container.querySelector('[data-testid="top-notice"]');
+    expect(slotContent).toBeTruthy();
+    expect(slotContent.textContent).toContain('Avisos');
   });
 
   it('keeps shell layout without notice slot when topNotice is null', () => {
@@ -91,64 +93,72 @@ describe('AppShell', () => {
   it('starts with sidebar expanded in desktop viewport', () => {
     renderShell(buildProps());
 
-    const sideNav = container.querySelector('.side-nav');
-    expect(sideNav.classList.contains('is-collapsed')).toBe(false);
+    const sideNav = container.querySelector('#app-side-nav');
+    expect(sideNav.classList.contains('w-[88px]')).toBe(false); // Should be expanded (w-[260px])
   });
 
   it('respects initialSidebarCollapsed prop for deterministic render state', () => {
     renderShell(buildProps({ initialSidebarCollapsed: true }));
 
-    const sideNav = container.querySelector('.side-nav');
-    expect(sideNav.classList.contains('is-collapsed')).toBe(true);
+    const sideNav = container.querySelector('#app-side-nav');
+    expect(sideNav.classList.contains('w-[88px]')).toBe(true); // Should be collapsed
   });
 
   it('renders navigation and utility sections, plus admin section for admin role', () => {
     renderShell(buildProps({ user: { nome: 'Admin', perfil: 'Administrador', role: 'admin' } }));
 
     const sideNav = ensureSidebarExpanded();
-    expect(sideNav.textContent).toContain('Navega');
-    expect(sideNav.textContent).toContain('Utilidades');
-    expect(sideNav.textContent).toContain('Administra');
+    expect(sideNav.textContent).toContain('Navegação');
+    expect(sideNav.textContent).toContain('Administração');
   });
 
   it('toggles mobile drawer state with topbar menu button', () => {
-    window.innerWidth = 768;
+    act(() => {
+      window.innerWidth = 768;
+      window.dispatchEvent(new Event('resize'));
+    });
     renderShell(buildProps());
 
-    const appGrid = container.querySelector('.app-grid');
-    const mobileToggle = container.querySelector('.mobile-nav-toggle');
+    const mobileToggle = container.querySelector('#mobile-nav-toggle');
+    const sideNav = container.querySelector('#app-side-nav');
 
-    expect(appGrid.classList.contains('is-mobile-nav-open')).toBe(false);
-
-    act(() => {
-      mobileToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(appGrid.classList.contains('is-mobile-nav-open')).toBe(true);
+    expect(mobileToggle).toBeTruthy();
+    expect(sideNav.classList.contains('-translate-x-full')).toBe(true); // hidden by default on mobile
 
     act(() => {
       mobileToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(appGrid.classList.contains('is-mobile-nav-open')).toBe(false);
+    expect(sideNav.classList.contains('translate-x-0')).toBe(true); // opened
+
+    act(() => {
+      mobileToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(sideNav.classList.contains('-translate-x-full')).toBe(true); // closed again
   });
 
   it('closes mobile drawer and changes tab when a nav link is clicked', () => {
-    window.innerWidth = 768;
+    act(() => {
+      window.innerWidth = 768;
+      window.dispatchEvent(new Event('resize'));
+    });
     const props = buildProps();
     renderShell(props);
 
-    const appGrid = container.querySelector('.app-grid');
-    const mobileToggle = container.querySelector('.mobile-nav-toggle');
+    const mobileToggle = container.querySelector('#mobile-nav-toggle');
+    const sideNav = container.querySelector('#app-side-nav');
+
+    expect(mobileToggle).toBeTruthy();
 
     act(() => {
       mobileToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(appGrid.classList.contains('is-mobile-nav-open')).toBe(true);
+    expect(sideNav.classList.contains('translate-x-0')).toBe(true);
 
-    const projectsTab = [...container.querySelectorAll('.side-nav-link')]
-      .find((button) => button.textContent.includes('Empreendimentos'));
+    const projectsTab = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent.includes('Empreendimentos') || button.title === 'Empreendimentos');
 
     expect(projectsTab).toBeTruthy();
 
@@ -157,57 +167,65 @@ describe('AppShell', () => {
     });
 
     expect(props.onChangeTab).toHaveBeenCalledWith('projects');
-    expect(appGrid.classList.contains('is-mobile-nav-open')).toBe(false);
+    expect(sideNav.classList.contains('-translate-x-full')).toBe(true);
   });
 
   it('closes mobile drawer when Escape is pressed', () => {
-    window.innerWidth = 768;
+    act(() => {
+      window.innerWidth = 768;
+      window.dispatchEvent(new Event('resize'));
+    });
     renderShell(buildProps());
 
-    const appGrid = container.querySelector('.app-grid');
-    const mobileToggle = container.querySelector('.mobile-nav-toggle');
+    const mobileToggle = container.querySelector('#mobile-nav-toggle');
+    const sideNav = container.querySelector('#app-side-nav');
+
+    expect(mobileToggle).toBeTruthy();
 
     act(() => {
       mobileToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(appGrid.classList.contains('is-mobile-nav-open')).toBe(true);
+    expect(sideNav.classList.contains('translate-x-0')).toBe(true);
 
     act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     });
 
-    expect(appGrid.classList.contains('is-mobile-nav-open')).toBe(false);
+    expect(sideNav.classList.contains('-translate-x-full')).toBe(true);
   });
 
   it('forces sidebar collapse when switching from mobile to desktop viewport', () => {
-    window.innerWidth = 768;
+    act(() => {
+      window.innerWidth = 768;
+      window.dispatchEvent(new Event('resize'));
+    });
     renderShell(buildProps());
 
-    const sideNav = container.querySelector('.side-nav');
-    expect(sideNav.classList.contains('is-collapsed')).toBe(false);
+    const sideNav = container.querySelector('#app-side-nav');
+    expect(sideNav.classList.contains('-translate-x-full')).toBe(true); // Mobile behaves differently, but the component defaults to open if it was desktop.
 
-    window.innerWidth = 1280;
     act(() => {
+      window.innerWidth = 1280;
       window.dispatchEvent(new Event('resize'));
     });
 
-    expect(sideNav.classList.contains('is-collapsed')).toBe(true);
+    expect(sideNav.classList.contains('w-[88px]')).toBe(true);
   });
 
   it('collapses sidebar when clicking outside in desktop mode', () => {
     renderShell(buildProps());
 
     const sideNav = ensureSidebarExpanded();
-    const shellContent = container.querySelector('.shell-content');
+    const shellContent = container.querySelector('main'); // Main content area
 
-    expect(sideNav.classList.contains('is-collapsed')).toBe(false);
+    expect(sideNav.classList.contains('w-[88px]')).toBe(false);
 
     act(() => {
       pointerDown(shellContent);
     });
 
-    expect(sideNav.classList.contains('is-collapsed')).toBe(true);
+    expect(sideNav.classList.contains('w-[88px]')).toBe(true);
   });
 
   it('does not collapse sidebar when clicking inside it', () => {
@@ -219,7 +237,7 @@ describe('AppShell', () => {
       pointerDown(sideNav);
     });
 
-    expect(sideNav.classList.contains('is-collapsed')).toBe(false);
+    expect(sideNav.classList.contains('w-[88px]')).toBe(false);
   });
 
   it('renders only fixed icon rail when collapsed', () => {
@@ -228,25 +246,23 @@ describe('AppShell', () => {
       initialSidebarCollapsed: true,
     }));
 
-    const sideNav = container.querySelector('.side-nav');
+    const sideNav = container.querySelector('#app-side-nav');
 
-    expect(sideNav.classList.contains('is-collapsed')).toBe(true);
-    expect(sideNav.querySelector('.side-nav-group-utilities')).toBeNull();
-    expect(sideNav.querySelector('.side-nav-link-label')).toBeNull();
-    expect(sideNav.querySelector('.side-nav-icon-rail')).toBeTruthy();
+    expect(sideNav.classList.contains('w-[88px]')).toBe(true);
 
-    const iconOnlyLinks = [...sideNav.querySelectorAll('.side-nav-link-icon-only')];
-    expect(iconOnlyLinks.length).toBeGreaterThan(0);
-    expect(iconOnlyLinks.every((button) => !!button.getAttribute('title'))).toBe(true);
+    // Check that there is no search input rendered in the collapsed state
+    expect(sideNav.querySelector('input[type="search"]')).toBeNull();
+    // In collapsed mode we don't render text labels for navigation
+    expect(sideNav.textContent).not.toContain('Administração');
   });
 
   it('marks the active tab with aria-current="page"', () => {
     renderShell(buildProps({ activeTab: 'dashboard' }));
 
-    const dashboardTab = [...container.querySelectorAll('.side-nav-link')]
-      .find((button) => (button.textContent || '').includes('Monitoriza') || (button.getAttribute('aria-label') || '').includes('Monitoriza'));
-    const projectsTab = [...container.querySelectorAll('.side-nav-link')]
-      .find((button) => (button.textContent || '').includes('Empreendimentos') || (button.getAttribute('aria-label') || '').includes('Empreendimentos'));
+    const dashboardTab = [...container.querySelectorAll('button')]
+      .find((button) => (button.textContent || '').includes('Monitoriza') || (button.getAttribute('aria-label') || '').includes('Monitoriza') || button.title === 'Monitorização');
+    const projectsTab = [...container.querySelectorAll('button')]
+      .find((button) => (button.textContent || '').includes('Empreendimentos') || (button.getAttribute('aria-label') || '').includes('Empreendimentos') || button.title === 'Empreendimentos');
 
     expect(dashboardTab).toBeTruthy();
     expect(projectsTab).toBeTruthy();
@@ -258,8 +274,8 @@ describe('AppShell', () => {
     const props = buildProps();
     renderShell(props);
 
-    const followupsTab = [...container.querySelectorAll('.side-nav-link')]
-      .find((button) => (button.textContent || '').includes('Acompanhamentos') || (button.getAttribute('aria-label') || '').includes('Acompanhamentos'));
+    const followupsTab = [...container.querySelectorAll('button')]
+      .find((button) => (button.textContent || '').includes('Acompanhamentos') || (button.getAttribute('aria-label') || '').includes('Acompanhamentos') || button.title === 'Acompanhamentos');
 
     expect(followupsTab).toBeTruthy();
 

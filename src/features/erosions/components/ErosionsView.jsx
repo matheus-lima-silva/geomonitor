@@ -812,22 +812,26 @@ function ErosionsView({
       return;
     }
 
-    const filteredRows = filterErosionsForReport(
-      erosions,
-      {
-        ...reportFilters,
-        anos: selectedReportYears,
-      },
-      inspections,
-    );
+    try {
+      const filteredRows = filterErosionsForReport(
+        erosions,
+        {
+          ...reportFilters,
+          anos: selectedReportYears,
+        },
+        inspections,
+      );
 
-    const rows = buildErosionReportRows(filteredRows);
-    openReportPdfWindow({
-      projectId: reportFilters.projetoId,
-      rows,
-      selectedYears: selectedReportYears,
-    });
-    show('PDF preparado para impressao.', 'success');
+      const rows = buildErosionReportRows(filteredRows);
+      openReportPdfWindow({
+        projectId: reportFilters.projetoId,
+        rows,
+        selectedYears: selectedReportYears,
+      });
+      show('PDF preparado para impressao.', 'success');
+    } catch (err) {
+      show(err.message || 'Erro ao gerar PDF.', 'error');
+    }
   }
 
   function buildPdfRowsByProject(projectId) {
@@ -864,29 +868,33 @@ function ErosionsView({
       return;
     }
 
-    const projectErosions = buildPdfRowsByProject(reportFilters.projetoId);
-    if (projectErosions.length === 0) {
-      show('Nenhuma erosao encontrada para o empreendimento selecionado.', 'error');
-      return;
+    try {
+      const projectErosions = buildPdfRowsByProject(reportFilters.projetoId);
+      if (projectErosions.length === 0) {
+        show('Nenhuma erosao encontrada para o empreendimento selecionado.', 'error');
+        return;
+      }
+
+      const project = (projects || []).find(
+        (item) => String(item?.id || '').trim().toLowerCase() === String(reportFilters.projetoId || '').trim().toLowerCase(),
+      ) || null;
+
+      const rows = projectErosions.map((erosion) => ({
+        erosion,
+        project,
+        history: getSortedHistory(erosion),
+        relatedInspections: getRelatedInspections(erosion),
+      }));
+
+      openBatchErosionFichasPdfWindow({
+        projectId: reportFilters.projetoId,
+        project,
+        rows,
+      });
+      show('Fichas em lote preparadas para impressao.', 'success');
+    } catch (err) {
+      show(err.message || 'Erro ao gerar fichas PDF.', 'error');
     }
-
-    const project = (projects || []).find(
-      (item) => String(item?.id || '').trim().toLowerCase() === String(reportFilters.projetoId || '').trim().toLowerCase(),
-    ) || null;
-
-    const rows = projectErosions.map((erosion) => ({
-      erosion,
-      project,
-      history: getSortedHistory(erosion),
-      relatedInspections: getRelatedInspections(erosion),
-    }));
-
-    openBatchErosionFichasPdfWindow({
-      projectId: reportFilters.projetoId,
-      project,
-      rows,
-    });
-    show('Fichas em lote preparadas para impressao.', 'success');
   }
 
   async function handleSaveManualHistoryEvent(eventData) {

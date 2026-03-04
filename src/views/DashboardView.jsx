@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet';
 import AppIcon from '../components/AppIcon';
+import { Badge, Card } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import AppShell from '../layout/AppShell';
@@ -42,20 +43,6 @@ const VisitPlanningView = lazy(() => import('../features/inspections/components/
 const AdminView = lazy(() => import('../features/admin/components/AdminView'));
 const FollowupsView = lazy(() => import('../features/followups/components/FollowupsView'));
 
-function getImpactCardClassName(impact) {
-  if (impact === 'Muito Alto') return 'monitor-impact-card is-critical';
-  if (impact === 'Alto') return 'monitor-impact-card is-high';
-  if (impact === 'Medio' || impact === 'Médio') return 'monitor-impact-card is-medium';
-  return 'monitor-impact-card is-low';
-}
-
-function getImpactChipClassName(impact) {
-  if (impact === 'Muito Alto') return 'monitor-impact-chip is-critical';
-  if (impact === 'Alto') return 'monitor-impact-chip is-high';
-  if (impact === 'Medio' || impact === 'Médio') return 'monitor-impact-chip is-medium';
-  return 'monitor-impact-chip is-low';
-}
-
 function getCriticalityBarColor(code) {
   if (code === 'C4') return '#7f1d1d';
   if (code === 'C3') return '#b45309';
@@ -69,14 +56,6 @@ function getHeatColor(weight) {
   if (weight >= 0.45) return '#ea580c';
   if (weight >= 0.25) return '#f59e0b';
   return '#22c55e';
-}
-
-function getStatusChipClassName(tone) {
-  if (tone === 'danger') return 'monitor-report-status-chip is-danger';
-  if (tone === 'critical') return 'monitor-report-status-chip is-critical';
-  if (tone === 'warning') return 'monitor-report-status-chip is-warning';
-  if (tone === 'ok') return 'monitor-report-status-chip is-ok';
-  return 'monitor-report-status-chip is-neutral';
 }
 
 function formatReportDueDays(days) {
@@ -94,6 +73,13 @@ function getReportSourceLabel(item) {
     return loLabel ? `LO ${loLabel}` : 'LO';
   }
   return 'Empreendimento vinculado';
+}
+
+function getImpactTone(impact) {
+  if (impact === 'Muito Alto') return 'critical';
+  if (impact === 'Alto') return 'danger';
+  if (impact === 'Medio' || impact === 'Médio') return 'warning';
+  return 'ok';
 }
 
 function DashboardMonitoring({ viewModel }) {
@@ -118,370 +104,350 @@ function DashboardMonitoring({ viewModel }) {
   const [expandedReportRowKey, setExpandedReportRowKey] = useState('');
 
   return (
-    <section className="panel monitor-dashboard">
-      <div className="monitor-dashboard-header">
-        <h2>Dashboard de Monitorizacao</h2>
-        <p className="muted">Resumo de entregas, riscos, obras em curso e evolucao recente das erosoes.</p>
+    <section className="flex flex-col gap-5 p-2">
+      <div>
+        <h2 className="text-xl font-bold text-slate-800 m-0">Dashboard de Monitorização</h2>
+        <p className="text-sm text-slate-500 mt-1">Resumo de entregas, riscos, obras em curso e evolução recente das erosões.</p>
       </div>
 
+      {/* KPI Cards — tamanho compacto e proporcional */}
       <div className="monitor-kpi-grid">
-        <article className="project-card monitor-kpi-card">
-          <div className="monitor-kpi-title">
-            <AppIcon name="alert" />
-            Criticas
-          </div>
-          <div className="monitor-kpi-value is-critical">{criticalCount}</div>
-        </article>
-        <article className="project-card monitor-kpi-card">
-          <div className="monitor-kpi-title">
-            <AppIcon name="alert" />
-            Erosoes
-          </div>
-          <div className="monitor-kpi-value">{erosionCount}</div>
-        </article>
-        <article className="project-card monitor-kpi-card">
-          <div className="monitor-kpi-title">
-            <AppIcon name="clipboard" />
-            Vistorias
-          </div>
-          <div className="monitor-kpi-value">{inspectionCount}</div>
-        </article>
-        <article className="project-card monitor-kpi-card">
-          <div className="monitor-kpi-title">
-            <AppIcon name="building" />
-            Empreendimentos
-          </div>
-          <div className="monitor-kpi-value">{projectCount}</div>
-        </article>
+        {[
+          { label: 'Críticas', value: criticalCount, icon: 'alert', accent: 'text-red-700' },
+          { label: 'Erosões', value: erosionCount, icon: 'alert', accent: 'text-slate-700' },
+          { label: 'Vistorias', value: inspectionCount, icon: 'clipboard', accent: 'text-slate-700' },
+          { label: 'Empreendimentos', value: projectCount, icon: 'building', accent: 'text-slate-700' },
+        ].map(({ label, value, icon, accent }) => (
+          <Card key={label} className="flex flex-col gap-1 p-4">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold uppercase tracking-wide">
+              <AppIcon name={icon} />
+              {label}
+            </div>
+            <div className={`text-2xl font-bold ${accent}`}>{value}</div>
+          </Card>
+        ))}
       </div>
 
+      {/* Impact level distribution */}
       <div className="monitor-impact-grid">
         {IMPACT_LEVELS.map((impact) => (
-          <article key={impact} className={getImpactCardClassName(impact)}>
-            <div className="monitor-impact-label">{impact}</div>
-            <div className="monitor-impact-value">{impactCounts[impact]}</div>
-          </article>
+          <Card key={impact} variant="nested" className="flex flex-col gap-1 p-3">
+            <div className="text-2xs font-bold uppercase tracking-wide text-slate-500">{impact}</div>
+            <div className="text-xl font-bold text-slate-800">{impactCounts[impact]}</div>
+          </Card>
         ))}
       </div>
 
       <div className="monitor-postit-grid">
-        <div className="monitor-postit-column">
-        <article className="panel nested">
-          <h3>Distribuicao por criticidade (C1-C4)</h3>
-          <div style={{ width: '100%', height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={criticalityDistributionRows}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="level" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="total" name="Erosoes">
-                  {criticalityDistributionRows.map((row) => (
-                    <Cell key={`criticality-bar-${row.level}`} fill={getCriticalityBarColor(row.level)} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <p className="muted">Taxa de estabilizacao: {stabilizationRate.toFixed(1)}%</p>
-        </article>
+        {/* Coluna esquerda */}
+        <div className="flex flex-col gap-4">
+          <Card variant="nested">
+            <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Distribuição por criticidade (C1–C4)</h3>
+            <div style={{ width: '100%', height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={criticalityDistributionRows}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="level" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="total" name="Erosões">
+                    {criticalityDistributionRows.map((row) => (
+                      <Cell key={`criticality-bar-${row.level}`} fill={getCriticalityBarColor(row.level)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">Taxa de estabilização: {stabilizationRate.toFixed(1)}%</p>
+          </Card>
 
-        <article className="panel nested monitor-report-card">
-          <h3>Entregas de Relatorios (proximas)</h3>
-          <div className="table-scroll">
-            <table className="monitor-table">
-              <thead className="monitor-report-card-table-head">
-                <tr>
-                  <th>Origem</th>
-                  <th>Escopo</th>
-                  <th>Mes/ano entrega</th>
-                  <th>Prazo</th>
-                  <th>Status prazo</th>
-                  <th>Status operacional</th>
-                </tr>
-              </thead>
-              <tbody className="monitor-report-card-body">
-                {reportOccurrences.slice(0, 8).map((item, idx) => {
-                  const rowKey = `${item.scopeId || item.projectId || 'scope'}-${item.monthKey}-${idx}`;
-                  const isExpanded = expandedReportRowKey === rowKey;
-                  const projectBreakdown = Array.isArray(item.projectBreakdown) ? item.projectBreakdown : [];
-                  const canExpand = projectBreakdown.length > 0;
-
-                  return (
-                    <tr key={rowKey}>
-                      <td className="monitor-report-main-cell">{getReportSourceLabel(item)}</td>
-                      <td>
-                        <div className="monitor-report-scope-cell">
-                          <span>{item.scopeSummary || '-'}</span>
-                          {canExpand ? (
-                            <button
-                              type="button"
-                              className="monitor-report-expand-button"
-                              aria-expanded={isExpanded ? 'true' : 'false'}
-                              onClick={() => setExpandedReportRowKey((prev) => (prev === rowKey ? '' : rowKey))}
-                            >
-                              {isExpanded ? 'Ocultar projetos' : `Projetos (${projectBreakdown.length})`}
-                            </button>
-                          ) : null}
-                        </div>
-                        {isExpanded && canExpand ? (
-                          <div className="monitor-report-breakdown" role="region" aria-label="Detalhes por projeto">
-                            <table className="monitor-table monitor-report-breakdown-table">
-                              <thead>
-                                <tr>
-                                  <th>Projeto</th>
-                                  <th>Origem aplicada</th>
-                                  <th>Prazo</th>
-                                  <th>Status prazo</th>
-                                  <th>Status operacional</th>
-                                  <th>Override</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {projectBreakdown.map((projectItem) => {
-                                  const projectLabel = projectItem.projectName
-                                    ? `${projectItem.projectId} - ${projectItem.projectName}`
-                                    : projectItem.projectId;
-                                  const sourceLabel = projectItem.sourceApplied === 'LO'
-                                    ? 'LO'
-                                    : 'Empreendimento';
-                                  return (
-                                    <tr key={`${rowKey}-${projectItem.projectId}`}>
-                                      <td>{projectLabel}</td>
-                                      <td>{sourceLabel}</td>
-                                      <td>{formatReportDueDays(projectItem.daysUntilDue)}</td>
-                                      <td>
-                                        <span className={getStatusChipClassName(projectItem.deadlineStatusTone)}>
-                                          {projectItem.deadlineStatusLabel || 'Sem prazo'}
-                                        </span>
-                                      </td>
-                                      <td>
-                                        <span className={getStatusChipClassName(projectItem.operationalStatusTone)}>
-                                          {projectItem.operationalStatusLabel || 'Nao iniciado'}
-                                        </span>
-                                      </td>
-                                      <td>{projectItem.sourceOverrideLabel || 'Automatico'}</td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : null}
-                      </td>
-                      <td>{formatMonitoringMonthLabel(item.month)}/{item.year}</td>
-                      <td>{formatReportDueDays(item?.daysUntilDue)}</td>
-                      <td>
-                        <span className={getStatusChipClassName(item?.deadlineStatusTone || item?.trackingStatusTone)}>
-                          {item?.deadlineStatusLabel || item?.trackingStatusLabel || 'Sem prazo'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={getStatusChipClassName(item?.operationalStatusTone)}>
-                          {item?.operationalStatusLabel || 'Nao iniciado'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {reportOccurrences.length === 0 && (
+          <Card variant="nested" className="monitor-report-card">
+            <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Entregas de Relatórios (próximas)</h3>
+            <div className="table-scroll">
+              <table className="monitor-table">
+                <thead className="monitor-report-card-table-head">
                   <tr>
-                    <td colSpan={6} className="monitor-report-empty-cell">Sem periodicidades de entrega cadastradas.</td>
+                    <th>Origem</th>
+                    <th>Escopo</th>
+                    <th>Mês/ano</th>
+                    <th>Prazo</th>
+                    <th>Status prazo</th>
+                    <th>Status operacional</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </article>
+                </thead>
+                <tbody className="monitor-report-card-body">
+                  {reportOccurrences.slice(0, 8).map((item, idx) => {
+                    const rowKey = `${item.scopeId || item.projectId || 'scope'}-${item.monthKey}-${idx}`;
+                    const isExpanded = expandedReportRowKey === rowKey;
+                    const projectBreakdown = Array.isArray(item.projectBreakdown) ? item.projectBreakdown : [];
+                    const canExpand = projectBreakdown.length > 0;
+
+                    return (
+                      <tr key={rowKey}>
+                        <td className="monitor-report-main-cell">{getReportSourceLabel(item)}</td>
+                        <td>
+                          <div className="monitor-report-scope-cell">
+                            <span>{item.scopeSummary || '-'}</span>
+                            {canExpand ? (
+                              <button
+                                type="button"
+                                className="monitor-report-expand-button"
+                                aria-expanded={isExpanded ? 'true' : 'false'}
+                                onClick={() => setExpandedReportRowKey((prev) => (prev === rowKey ? '' : rowKey))}
+                              >
+                                {isExpanded ? 'Ocultar projetos' : `Projetos (${projectBreakdown.length})`}
+                              </button>
+                            ) : null}
+                          </div>
+                          {isExpanded && canExpand ? (
+                            <div className="monitor-report-breakdown" role="region" aria-label="Detalhes por projeto">
+                              <table className="monitor-table monitor-report-breakdown-table">
+                                <thead>
+                                  <tr>
+                                    <th>Projeto</th>
+                                    <th>Origem</th>
+                                    <th>Prazo</th>
+                                    <th>Status prazo</th>
+                                    <th>Status operacional</th>
+                                    <th>Override</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {projectBreakdown.map((projectItem) => {
+                                    const projectLabel = projectItem.projectName
+                                      ? `${projectItem.projectId} - ${projectItem.projectName}`
+                                      : projectItem.projectId;
+                                    const sourceLabel = projectItem.sourceApplied === 'LO' ? 'LO' : 'Empreendimento';
+                                    return (
+                                      <tr key={`${rowKey}-${projectItem.projectId}`}>
+                                        <td>{projectLabel}</td>
+                                        <td>{sourceLabel}</td>
+                                        <td>{formatReportDueDays(projectItem.daysUntilDue)}</td>
+                                        <td>
+                                          <Badge tone={projectItem.deadlineStatusTone}>
+                                            {projectItem.deadlineStatusLabel || 'Sem prazo'}
+                                          </Badge>
+                                        </td>
+                                        <td>
+                                          <Badge tone={projectItem.operationalStatusTone}>
+                                            {projectItem.operationalStatusLabel || 'Não iniciado'}
+                                          </Badge>
+                                        </td>
+                                        <td>{projectItem.sourceOverrideLabel || 'Automático'}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : null}
+                        </td>
+                        <td>{formatMonitoringMonthLabel(item.month)}/{item.year}</td>
+                        <td>{formatReportDueDays(item?.daysUntilDue)}</td>
+                        <td>
+                          <Badge tone={item?.deadlineStatusTone || item?.trackingStatusTone}>
+                            {item?.deadlineStatusLabel || item?.trackingStatusLabel || 'Sem prazo'}
+                          </Badge>
+                        </td>
+                        <td>
+                          <Badge tone={item?.operationalStatusTone}>
+                            {item?.operationalStatusLabel || 'Não iniciado'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {reportOccurrences.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="monitor-report-empty-cell">Sem periodicidades de entrega cadastradas.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
 
-        <div className="monitor-postit-column">
-        <article className="panel nested">
-          <h3>Mapa de calor (coordenadas)</h3>
-          <div style={{ width: '100%', height: 260, borderRadius: 12, overflow: 'hidden' }}>
-            <MapContainer
-              center={heatPoints.length > 0 ? [heatPoints[0].latitude, heatPoints[0].longitude] : [-15.793889, -47.882778]}
-              zoom={heatPoints.length > 0 ? 10 : 4}
-              scrollWheelZoom={false}
-              style={{ width: '100%', height: '100%' }}
-            >
-              <TileLayer
-                attribution="&copy; OpenStreetMap contributors"
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              {heatPoints.map((point) => (
-                <CircleMarker
-                  key={`heat-point-${point.id}-${point.latitude}-${point.longitude}`}
-                  center={[point.latitude, point.longitude]}
-                  radius={6 + (point.peso * 8)}
-                  pathOptions={{
-                    color: getHeatColor(point.peso),
-                    fillColor: getHeatColor(point.peso),
-                    fillOpacity: 0.55 + (point.peso * 0.35),
-                  }}
-                >
-                  <Popup>
-                    <strong>{point.id || '-'}</strong>
-                    <br />
-                    Projeto: {point.projetoId || '-'}
-                    <br />
-                    Criticidade: {point.criticidade || '-'}
-                    <br />
-                    Score: {point.score}
-                  </Popup>
-                </CircleMarker>
-              ))}
-            </MapContainer>
-          </div>
-          <p className="muted">
-            Pontos no mapa: {heatPoints.length} | Erosoes sem coordenadas: {heatPointsWithoutCoordinates}
-          </p>
-        </article>
-        <article className="panel nested monitor-month-card">
-          <h3>Acompanhamento mensal de entregas</h3>
-          <div className="monitor-month-list">
-            {reportMonthRows.map(([monthKey, count]) => {
-              const [year, monthNumber] = monthKey.split('-');
-              const detailsId = `monitor-month-details-${monthKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
-              const isExpanded = expandedMonthKey === monthKey;
-              const details = Array.isArray(reportMonthDetailsByKey?.[monthKey]) ? reportMonthDetailsByKey[monthKey] : [];
-              return (
-                <div key={monthKey} className="monitor-month-entry">
-                  <button
-                    type="button"
-                    className={`monitor-month-button${isExpanded ? ' is-expanded' : ''}`}
-                    aria-expanded={isExpanded ? 'true' : 'false'}
-                    aria-controls={detailsId}
-                    onClick={() => setExpandedMonthKey((prev) => (prev === monthKey ? null : monthKey))}
+        {/* Coluna direita */}
+        <div className="flex flex-col gap-4">
+          <Card variant="nested">
+            <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Mapa de calor (coordenadas)</h3>
+            <div style={{ width: '100%', height: 220, borderRadius: 10, overflow: 'hidden' }}>
+              <MapContainer
+                center={heatPoints.length > 0 ? [heatPoints[0].latitude, heatPoints[0].longitude] : [-15.793889, -47.882778]}
+                zoom={heatPoints.length > 0 ? 10 : 4}
+                scrollWheelZoom={false}
+                style={{ width: '100%', height: '100%' }}
+              >
+                <TileLayer
+                  attribution="&copy; OpenStreetMap contributors"
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                {heatPoints.map((point) => (
+                  <CircleMarker
+                    key={`heat-point-${point.id}-${point.latitude}-${point.longitude}`}
+                    center={[point.latitude, point.longitude]}
+                    radius={6 + (point.peso * 8)}
+                    pathOptions={{
+                      color: getHeatColor(point.peso),
+                      fillColor: getHeatColor(point.peso),
+                      fillOpacity: 0.55 + (point.peso * 0.35),
+                    }}
                   >
-                    <span className="monitor-month-button-main">
-                      <span className="monitor-month-button-label">{formatMonitoringMonthLabel(monthNumber)}/{year}</span>
-                    </span>
-                    <strong className="monitor-month-button-count">{count}</strong>
-                  </button>
-
-                  {isExpanded ? (
-                    <div
-                      id={detailsId}
-                      className="monitor-month-details"
-                      role="region"
-                      aria-label={`Detalhes de ${formatMonitoringMonthLabel(monthNumber)}/${year}`}
-                    >
-                      {details.map((item) => {
-                        const projectId = String(item?.projectId || '').trim();
-                        const projectName = String(item?.projectName || '').trim();
-                        const projectLabel = projectName && projectName !== projectId
-                          ? `${projectId} - ${projectName}`
-                          : (projectId || projectName || '-');
-
-                        return (
-                          <article key={`${monthKey}-${projectId || projectLabel}`} className="monitor-month-detail-item">
-                            <strong className="monitor-month-detail-title">{projectLabel}</strong>
-                            <span className="monitor-month-detail-meta"><strong>Origem:</strong> {item?.sourceSummary || '-'}</span>
-                            <span className="monitor-month-detail-meta"><strong>Escopo:</strong> {item?.scopeSummary || '-'}</span>
-                            <span className="monitor-month-detail-meta"><strong>Prazo:</strong> {formatReportDueDays(item?.dueInDays)}</span>
-                            <span className="monitor-month-detail-meta">
-                              <strong>Status prazo:</strong>{' '}
-                              <span className={getStatusChipClassName(item?.deadlineStatusTone)}>
-                                {item?.deadlineStatusLabel || 'Sem prazo'}
-                              </span>
-                            </span>
-                            <span className="monitor-month-detail-meta">
-                              <strong>Status operacional:</strong>{' '}
-                              <span className={getStatusChipClassName(item?.operationalStatusTone)}>
-                                {item?.operationalStatusLabel || 'Nao iniciado'}
-                              </span>
-                            </span>
-                          </article>
-                        );
-                      })}
-                      {details.length === 0 && (
-                        <p className="monitor-month-detail-empty">Nenhum empreendimento encontrado para este mes.</p>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-            {reportMonthRows.length === 0 && <p className="muted">Sem entregas por mes para acompanhar.</p>}
-          </div>
-        </article>
-        <article className="panel nested monitor-work-card">
-          <h3>Acompanhamento de Obras</h3>
-          <div className="table-scroll">
-            <table className="monitor-table">
-              <thead>
-                <tr>
-                  <th>Erosao</th>
-                  <th>Projeto</th>
-                  <th>Torre</th>
-                  <th>Etapa</th>
-                  <th>Atualizacao</th>
-                </tr>
-              </thead>
-              <tbody>
-                {workTrackingRows.slice(0, 8).map((row) => (
-                  <tr key={`monitor-work-${row.erosionId}`}>
-                    <td>{row.erosionId}</td>
-                    <td>{row.projectName ? `${row.projectId} - ${row.projectName}` : row.projectId}</td>
-                    <td>{formatTowerLabel(row.towerRef)}</td>
-                    <td>{row.stage || '-'}</td>
-                    <td>{row.timestamp ? new Date(row.timestamp).toLocaleString('pt-BR') : '-'}</td>
-                  </tr>
+                    <Popup>
+                      <strong>{point.id || '-'}</strong>
+                      <br />
+                      Projeto: {point.projetoId || '-'}
+                      <br />
+                      Criticidade: {point.criticidade || '-'}
+                      <br />
+                      Score: {point.score}
+                    </Popup>
+                  </CircleMarker>
                 ))}
-                {workTrackingRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="muted">Sem obras ativas em Projeto ou Em andamento.</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </article>
+              </MapContainer>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              Pontos no mapa: {heatPoints.length} | Erosões sem coordenadas: {heatPointsWithoutCoordinates}
+            </p>
+          </Card>
 
-        <article className="panel nested monitor-table-card">
-          <h3>Erosoes recentes</h3>
-          <div className="table-scroll">
-            <table className="monitor-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Projeto</th>
-                  <th>Torre</th>
-                  <th>Impacto</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentErosions.map((item) => {
-                  const projectId = String(item?.projetoId || '').trim();
-                  const project = projectsById.get(projectId);
-                  const projectLabel = project ? `${projectId} - ${project.nome || projectId}` : (projectId || '-');
-                  const impact = getErosionImpact(item);
-                  return (
-                    <tr key={item.id}>
-                      <td>{item.id}</td>
-                      <td>{projectLabel}</td>
-                      <td>{formatTowerLabel(item?.torreRef)}</td>
-                      <td><span className={getImpactChipClassName(impact)}>{impact}</span></td>
-                      <td>{item.status || '-'}</td>
-                    </tr>
-                  );
-                })}
-                {recentErosions.length === 0 && (
+          <Card variant="nested" className="monitor-month-card">
+            <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Acompanhamento mensal de entregas</h3>
+            <div className="monitor-month-list">
+              {reportMonthRows.map(([monthKey, count]) => {
+                const [year, monthNumber] = monthKey.split('-');
+                const detailsId = `monitor-month-details-${monthKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+                const isExpanded = expandedMonthKey === monthKey;
+                const details = Array.isArray(reportMonthDetailsByKey?.[monthKey]) ? reportMonthDetailsByKey[monthKey] : [];
+                return (
+                  <div key={monthKey} className="monitor-month-entry">
+                    <button
+                      type="button"
+                      className={`monitor-month-button${isExpanded ? ' is-expanded' : ''}`}
+                      aria-expanded={isExpanded ? 'true' : 'false'}
+                      aria-controls={detailsId}
+                      onClick={() => setExpandedMonthKey((prev) => (prev === monthKey ? null : monthKey))}
+                    >
+                      <span className="monitor-month-button-main">
+                        <span className="monitor-month-button-label">{formatMonitoringMonthLabel(monthNumber)}/{year}</span>
+                      </span>
+                      <strong className="monitor-month-button-count">{count}</strong>
+                    </button>
+                    {isExpanded ? (
+                      <div id={detailsId} className="monitor-month-details" role="region" aria-label={`Detalhes de ${formatMonitoringMonthLabel(monthNumber)}/${year}`}>
+                        {details.map((item) => {
+                          const projectId = String(item?.projectId || '').trim();
+                          const projectName = String(item?.projectName || '').trim();
+                          const projectLabel = projectName && projectName !== projectId
+                            ? `${projectId} - ${projectName}`
+                            : (projectId || projectName || '-');
+                          return (
+                            <article key={`${monthKey}-${projectId || projectLabel}`} className="monitor-month-detail-item">
+                              <strong className="monitor-month-detail-title">{projectLabel}</strong>
+                              <span className="monitor-month-detail-meta"><strong>Origem:</strong> {item?.sourceSummary || '-'}</span>
+                              <span className="monitor-month-detail-meta"><strong>Escopo:</strong> {item?.scopeSummary || '-'}</span>
+                              <span className="monitor-month-detail-meta"><strong>Prazo:</strong> {formatReportDueDays(item?.dueInDays)}</span>
+                              <span className="monitor-month-detail-meta">
+                                <strong>Status prazo:</strong>{' '}
+                                <Badge tone={item?.deadlineStatusTone}>{item?.deadlineStatusLabel || 'Sem prazo'}</Badge>
+                              </span>
+                              <span className="monitor-month-detail-meta">
+                                <strong>Status operacional:</strong>{' '}
+                                <Badge tone={item?.operationalStatusTone}>{item?.operationalStatusLabel || 'Não iniciado'}</Badge>
+                              </span>
+                            </article>
+                          );
+                        })}
+                        {details.length === 0 && (
+                          <p className="monitor-month-detail-empty">Nenhum empreendimento encontrado para este mês.</p>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+              {reportMonthRows.length === 0 && <p className="text-sm text-slate-500">Sem entregas por mês para acompanhar.</p>}
+            </div>
+          </Card>
+
+          <Card variant="nested" className="monitor-work-card">
+            <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Acompanhamento de Obras</h3>
+            <div className="table-scroll">
+              <table className="monitor-table">
+                <thead>
                   <tr>
-                    <td colSpan={5} className="muted">Nenhuma erosao registrada.</td>
+                    <th>Erosão</th>
+                    <th>Projeto</th>
+                    <th>Torre</th>
+                    <th>Etapa</th>
+                    <th>Atualização</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </article>
+                </thead>
+                <tbody>
+                  {workTrackingRows.slice(0, 8).map((row) => (
+                    <tr key={`monitor-work-${row.erosionId}`}>
+                      <td>{row.erosionId}</td>
+                      <td>{row.projectName ? `${row.projectId} - ${row.projectName}` : row.projectId}</td>
+                      <td>{formatTowerLabel(row.towerRef)}</td>
+                      <td>{row.stage || '-'}</td>
+                      <td>{row.timestamp ? new Date(row.timestamp).toLocaleString('pt-BR') : '-'}</td>
+                    </tr>
+                  ))}
+                  {workTrackingRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="text-sm text-slate-500">Sem obras ativas em Projeto ou Em andamento.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <Card variant="nested" className="monitor-table-card">
+            <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Erosões recentes</h3>
+            <div className="table-scroll">
+              <table className="monitor-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Projeto</th>
+                    <th>Torre</th>
+                    <th>Impacto</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentErosions.map((item) => {
+                    const projectId = String(item?.projetoId || '').trim();
+                    const project = projectsById.get(projectId);
+                    const projectLabel = project ? `${projectId} - ${project.nome || projectId}` : (projectId || '-');
+                    const impact = getErosionImpact(item);
+                    return (
+                      <tr key={item.id}>
+                        <td>{item.id}</td>
+                        <td>{projectLabel}</td>
+                        <td>{formatTowerLabel(item?.torreRef)}</td>
+                        <td><Badge tone={getImpactTone(impact)}>{impact}</Badge></td>
+                        <td>{item.status || '-'}</td>
+                      </tr>
+                    );
+                  })}
+                  {recentErosions.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="text-sm text-slate-500">Nenhuma erosão registrada.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
       </div>
     </section>
   );
 }
+
 
 function DashboardView() {
   const { user, logout } = useAuth();
@@ -552,7 +518,7 @@ function DashboardView() {
     const isAdminMenu = user?.role === 'admin' || user?.role === 'manager';
     if (!isAdminMenu) {
       setUsers([]);
-      return () => {};
+      return () => { };
     }
 
     const unsubUsers = subscribeUsers(

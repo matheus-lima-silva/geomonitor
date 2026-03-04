@@ -1,12 +1,13 @@
 import AppIcon from '../../../components/AppIcon';
+import { Badge, Button } from '../../../components/ui';
 import { erosionStatusClass, normalizeErosionStatus } from '../../shared/statusUtils';
 import { getLocalContextLabel, normalizeErosionTechnicalFields } from '../../shared/viewUtils';
 
-function getImpactClassName(impact) {
-  if (impact === 'Muito Alto') return 'erosions-impact-chip is-critical';
-  if (impact === 'Alto') return 'erosions-impact-chip is-high';
-  if (impact === 'Medio' || impact === 'Médio') return 'erosions-impact-chip is-medium';
-  return 'erosions-impact-chip is-low';
+function getImpactTone(impact) {
+  if (impact === 'Muito Alto') return 'critical';
+  if (impact === 'Alto') return 'danger';
+  if (impact === 'Medio' || impact === 'Médio') return 'warning';
+  return 'ok';
 }
 
 function ErosionCardGrid({
@@ -39,13 +40,13 @@ function ErosionCardGrid({
                 </span>
               </div>
               <div className="erosions-card-chips">
-                <span className="status-chip">{projectId || '-'}</span>
+                <Badge tone="neutral" size="sm">{projectId || '-'}</Badge>
                 {String(erosion?.torreRef || '').trim() ? (
-                  <span className="status-chip">{`Torre ${erosion.torreRef}`}</span>
+                  <Badge tone="neutral" size="sm">{`Torre ${erosion.torreRef}`}</Badge>
                 ) : null}
-                <span className={getImpactClassName(erosion.impacto)}>
-                  {erosion.impacto || 'Nao informado'}
-                </span>
+                <Badge tone={getImpactTone(erosion.impacto)} size="sm">
+                  {erosion.impacto || 'Não informado'}
+                </Badge>
               </div>
             </div>
 
@@ -61,7 +62,7 @@ function ErosionCardGrid({
                 <strong>{erosion.tipo || '-'}</strong>
               </div>
               <div className="erosions-card-meta-row">
-                <span>Estagio</span>
+                <span>Estágio</span>
                 <strong>{erosion.estagio || '-'}</strong>
               </div>
               <div className="erosions-card-meta-row">
@@ -77,24 +78,24 @@ function ErosionCardGrid({
             </div>
 
             <div className="erosions-card-actions">
-              <button type="button" className="secondary" onClick={() => onOpenDetails(erosion)}>
+              <Button variant="outline" size="sm" onClick={() => onOpenDetails(erosion)}>
                 <AppIcon name="details" />
                 Detalhes
-              </button>
+              </Button>
               {hasCoordinates(erosion) ? (
-                <button type="button" onClick={() => onOpenMaps(erosion)}>
+                <Button variant="primary" size="sm" onClick={() => onOpenMaps(erosion)}>
                   <AppIcon name="map" />
                   Navegar
-                </button>
+                </Button>
               ) : null}
-              <button type="button" className="secondary" onClick={() => onOpenEdit(erosion)}>
+              <Button variant="outline" size="sm" onClick={() => onOpenEdit(erosion)}>
                 <AppIcon name="edit" />
                 Editar
-              </button>
-              <button type="button" className="danger" onClick={() => onRequestDelete(erosion)}>
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => onRequestDelete(erosion)}>
                 <AppIcon name="trash" />
                 Excluir
-              </button>
+              </Button>
             </div>
           </article>
         );
@@ -102,7 +103,7 @@ function ErosionCardGrid({
 
       {erosions.length === 0 ? (
         <article className="erosions-card erosions-card-empty">
-          <p className="muted">Nenhuma erosao encontrada.</p>
+          <p className="muted">Nenhuma erosão encontrada.</p>
         </article>
       ) : null}
     </div>

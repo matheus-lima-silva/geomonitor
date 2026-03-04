@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
+import { Button, Modal, Select } from '../../../components/ui';
 import { buildPlanningGuideRows, exportPlanningGuideCsv } from '../utils/planningGuideExport';
 import {
   computeVisitPlanning,
@@ -200,12 +201,12 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
       </div>
 
       <div className="grid-form">
-        <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+        <Select id="visit-project" label="Empreendimento" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
           <option value="">Empreendimento...</option>
           {projects.map((project) => (
             <option key={project.id} value={project.id}>{project.id} - {project.nome}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {selectedProject && (
@@ -235,38 +236,38 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
               <div>Sem histórico de hotel para priorização da torre-alvo.</div>
             )}
             <div className="row-actions">
-              <button type="button" className="secondary" onClick={() => setSelectedTowers(allSelectable.map((item) => item.torre))}>
+              <Button variant="outline" size="sm" onClick={() => setSelectedTowers(allSelectable.map((item) => item.torre))}>
                 <AppIcon name="check" />
                 Marcar todas
-              </button>
-              <button type="button" className="secondary" onClick={() => setSelectedTowers([...planning.obrigatorias, ...planning.amostragemSelecionada].map((item) => item.torre))}>
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedTowers([...planning.obrigatorias, ...planning.amostragemSelecionada].map((item) => item.torre))}>
                 <AppIcon name="reset" />
                 Reset padrão
-              </button>
-              <button type="button" className="secondary" onClick={() => setSelectedTowers([])}>
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedTowers([])}>
                 <AppIcon name="close" />
                 Limpar seleção
-              </button>
+              </Button>
             </div>
           </div>
 
           <div className="row-actions">
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={() => onApplySelection?.({ projectId: selectedProject.id, towers: selectedItems, towerInput: serialized })}
               disabled={!serialized}
             >
               <AppIcon name="clipboard" />
               Aplicar seleção na nova vistoria
-            </button>
-            <button type="button" className="secondary" onClick={() => setShowGuidePreview(true)} disabled={!serialized}>
+            </Button>
+            <Button variant="outline" onClick={() => setShowGuidePreview(true)} disabled={!serialized}>
               <AppIcon name="details" />
               Gerar guia (visual)
-            </button>
-            <button type="button" className="secondary" onClick={exportGuideCsv} disabled={!serialized}>
+            </Button>
+            <Button variant="outline" onClick={exportGuideCsv} disabled={!serialized}>
               <AppIcon name="csv" />
               Exportar guia CSV
-            </button>
+            </Button>
           </div>
 
           <div className="project-cards">
@@ -295,73 +296,75 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
         </>
       )}
 
-      {showGuidePreview && selectedProject && (
-        <div className="modal-backdrop">
-          <div className="modal wide">
-            <h3>Guia de Campo - {selectedProject.id}</h3>
-            <div className="muted">
-              <div><strong>Empreendimento:</strong> {selectedProject.id} - {selectedProject.nome || '-'}</div>
-              <div><strong>Ano:</strong> {year}</div>
-              <div><strong>Total selecionado:</strong> {selectedItems.length}</div>
-              <div><strong>Torre-alvo:</strong> {targetTower || 'N/D'}</div>
-              {priorityHotel && (
-                <div>
-                  <strong>Hotel prioritário da última torre{targetTower ? ` (T${targetTower})` : ''}:</strong>
-                  {' '}
-                  {priorityHotel.hotelSugeridoNome}
-                  {priorityHotel.hotelSugeridoMunicipio ? ` (${priorityHotel.hotelSugeridoMunicipio})` : ''}
-                </div>
-              )}
+      <Modal
+        open={showGuidePreview && !!selectedProject}
+        onClose={() => setShowGuidePreview(false)}
+        title={`Guia de Campo - ${selectedProject?.id || ''}`}
+        size="xl"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setShowGuidePreview(false)}>
+              <AppIcon name="close" />
+              Fechar
+            </Button>
+            <Button variant="primary" onClick={exportGuideCsv}>
+              <AppIcon name="csv" />
+              Exportar CSV
+            </Button>
+          </>
+        }
+      >
+        <div className="muted">
+          <div><strong>Empreendimento:</strong> {selectedProject?.id} - {selectedProject?.nome || '-'}</div>
+          <div><strong>Ano:</strong> {year}</div>
+          <div><strong>Total selecionado:</strong> {selectedItems.length}</div>
+          <div><strong>Torre-alvo:</strong> {targetTower || 'N/D'}</div>
+          {priorityHotel && (
+            <div>
+              <strong>Hotel prioritário da última torre{targetTower ? ` (T${targetTower})` : ''}:</strong>
+              {' '}
+              {priorityHotel.hotelSugeridoNome}
+              {priorityHotel.hotelSugeridoMunicipio ? ` (${priorityHotel.hotelSugeridoMunicipio})` : ''}
             </div>
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Torre</th>
-                    <th>Categoria</th>
-                    <th>Motivo</th>
-                    <th>Hotel sugerido</th>
-                    <th>Município</th>
-                    <th>Logística</th>
-                    <th>Reserva</th>
-                    <th>Estadia</th>
-                    <th>Torre base</th>
-                    <th>Distância alvo</th>
-                    <th>Link Maps</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedItems.map((item) => (
-                    <tr key={`guide-${item.torre}`}>
-                      <td>{item.torre}</td>
-                      <td>{item.categoria}</td>
-                      <td>{item.motivo}</td>
-                      <td>{item.hotelSugeridoNome || '-'}</td>
-                      <td>{item.hotelSugeridoMunicipio || '-'}</td>
-                      <td>{formatHotelNote(item.hotelSugeridoLogisticaNota)}</td>
-                      <td>{formatHotelNote(item.hotelSugeridoReservaNota)}</td>
-                      <td>{formatHotelNote(item.hotelSugeridoEstadiaNota)}</td>
-                      <td>{item.hotelSugeridoTorreBase || '-'}</td>
-                      <td>{item.hotelSugeridoDistanciaTorreAlvo !== '' ? formatHotelDistance(item.hotelSugeridoDistanciaTorreAlvo) : '-'}</td>
-                      <td>{item.mapsLink ? <a href={item.mapsLink} target="_blank" rel="noreferrer">Abrir</a> : '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="row-actions">
-              <button type="button" className="secondary" onClick={() => setShowGuidePreview(false)}>
-                <AppIcon name="close" />
-                Fechar
-              </button>
-              <button type="button" onClick={exportGuideCsv}>
-                <AppIcon name="csv" />
-                Exportar CSV
-              </button>
-            </div>
-          </div>
+          )}
         </div>
-      )}
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Torre</th>
+                <th>Categoria</th>
+                <th>Motivo</th>
+                <th>Hotel sugerido</th>
+                <th>Município</th>
+                <th>Logística</th>
+                <th>Reserva</th>
+                <th>Estadia</th>
+                <th>Torre base</th>
+                <th>Distância alvo</th>
+                <th>Link Maps</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedItems.map((item) => (
+                <tr key={`guide-${item.torre}`}>
+                  <td>{item.torre}</td>
+                  <td>{item.categoria}</td>
+                  <td>{item.motivo}</td>
+                  <td>{item.hotelSugeridoNome || '-'}</td>
+                  <td>{item.hotelSugeridoMunicipio || '-'}</td>
+                  <td>{formatHotelNote(item.hotelSugeridoLogisticaNota)}</td>
+                  <td>{formatHotelNote(item.hotelSugeridoReservaNota)}</td>
+                  <td>{formatHotelNote(item.hotelSugeridoEstadiaNota)}</td>
+                  <td>{item.hotelSugeridoTorreBase || '-'}</td>
+                  <td>{item.hotelSugeridoDistanciaTorreAlvo !== '' ? formatHotelDistance(item.hotelSugeridoDistanciaTorreAlvo) : '-'}</td>
+                  <td>{item.mapsLink ? <a href={item.mapsLink} target="_blank" rel="noreferrer">Abrir</a> : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
     </section>
   );
 }

@@ -1071,491 +1071,492 @@ function InspectionFormWizardModal({
   }
 
   return createPortal(
-    <div className="inspections-wizard-root">
-      <div className="inspections-wizard-backdrop">
-        <div
-          className="inspections-wizard-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label={isEditing ? 'Editar Vistoria' : 'Nova Vistoria'}
-        >
-          <div className="inspections-wizard-head">
-            <div>
-              <h3>{isEditing ? 'Editar Vistoria' : 'Nova Vistoria'}</h3>
-              <p className="muted">Wizard em 3 etapas com preenchimento drill-down por dia e torre.</p>
-            </div>
-            <button type="button" className="secondary" onClick={onCancel}>
-              <AppIcon name="close" />
-            </button>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-hidden">
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={onCancel}></div>
+      <div
+        className="bg-white w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl relative z-10 overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label={isEditing ? 'Editar Vistoria' : 'Nova Vistoria'}
+      >
+        <div className="flex items-start justify-between p-6 border-b border-slate-200 bg-white shrink-0 min-h-[82px]">
+          <div>
+            <h3 className="text-xl font-bold text-slate-800 m-0 leading-tight">{isEditing ? 'Editar Vistoria' : 'Nova Vistoria'}</h3>
+            <p className="text-sm text-slate-500 mt-1 mb-0">Wizard em 3 etapas com preenchimento drill-down por dia e torre.</p>
           </div>
+          <button type="button" className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-lg transition-colors flex items-center justify-center" onClick={onCancel}>
+            <AppIcon name="close" />
+          </button>
+        </div>
 
-          <div className="inspections-wizard-steps">
-            <button type="button" className={`inspections-step-chip ${step === 1 ? 'is-active' : ''}`} onClick={() => setStep(1)}>1. Dados gerais</button>
-            <button type="button" className={`inspections-step-chip ${step === 2 ? 'is-active' : ''}`} onClick={() => setStep(2)}>2. Diario</button>
-            <button type="button" className={`inspections-step-chip ${step === 3 ? 'is-active' : ''}`} onClick={() => setStep(3)}>3. Revisao</button>
-          </div>
+        <div className="flex bg-slate-50 border-b border-slate-200 px-6 py-2 overflow-x-auto gap-2 shrink-0">
+          <button type="button" className={`px-4 py-2 font-semibold text-sm rounded-full whitespace-nowrap transition-colors ${step === 1 ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`} onClick={() => setStep(1)}>1. Dados gerais</button>
+          <button type="button" className={`px-4 py-2 font-semibold text-sm rounded-full whitespace-nowrap transition-colors ${step === 2 ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`} onClick={() => setStep(2)}>2. Diario</button>
+          <button type="button" className={`px-4 py-2 font-semibold text-sm rounded-full whitespace-nowrap transition-colors ${step === 3 ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`} onClick={() => setStep(3)}>3. Revisao</button>
+        </div>
 
-          <div className="inspections-wizard-body">
-            {step === 1 ? (
-              <div className="inspections-step-pane">
-                <div className="grid-form">
-                  <div>
-                    <label>ID</label>
-                    <input value={formData.id || ''} disabled placeholder="ID gerado automaticamente" />
-                  </div>
-                  <div>
-                    <label>Empreendimento *</label>
-                    <select value={formData.projetoId} onChange={(e) => updateGeneralField('projetoId', e.target.value)}>
-                      <option value="">Selecione...</option>
-                      {(projects || []).map((project) => (
-                        <option key={project.id} value={project.id}>{project.id} - {project.nome}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label>Responsavel</label>
-                    <input value={formData.responsavel || ''} onChange={(e) => updateGeneralField('responsavel', e.target.value)} placeholder="Nome do responsavel" />
-                  </div>
-                  <div>
-                    <label>Data inicio *</label>
-                    <input type="date" value={formData.dataInicio || ''} onChange={(e) => updateGeneralField('dataInicio', e.target.value)} />
-                  </div>
-                  <div>
-                    <label>Data fim</label>
-                    <input type="date" value={formData.dataFim || ''} onChange={(e) => updateGeneralField('dataFim', e.target.value)} />
-                  </div>
+        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+          {step === 1 ? (
+            <div className="flex flex-col gap-6 animate-fade-in">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-semibold text-slate-700">ID</label>
+                  <input className="w-full px-3 py-2 text-sm bg-slate-100 border border-slate-300 rounded-lg text-slate-500 cursor-not-allowed outline-none" value={formData.id || ''} disabled placeholder="ID gerado automaticamente" />
                 </div>
-                <div>
-                  <label>Observacoes</label>
-                  <textarea rows="3" value={formData.obs || ''} onChange={(e) => updateGeneralField('obs', e.target.value)} placeholder="Observacoes gerais da vistoria..." />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-semibold text-slate-700">Empreendimento *</label>
+                  <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" value={formData.projetoId} onChange={(e) => updateGeneralField('projetoId', e.target.value)}>
+                    <option value="">Selecione...</option>
+                    {(projects || []).map((project) => (
+                      <option key={project.id} value={project.id}>{project.id} - {project.nome}</option>
+                    ))}
+                  </select>
                 </div>
-                {suggestedTowerInput ? (
-                  <div className="notice">
-                    <div><strong>Torres sugeridas pelo planejamento:</strong> {suggestedTowerInput}</div>
-                  </div>
-                ) : null}
-                {formData.detalhesDias.length === 0 ? (
-                  <div className="notice">Defina data inicio e data fim para gerar os dias da vistoria.</div>
-                ) : (
-                  <div className="notice">
-                    <strong>Dias gerados:</strong> {formData.detalhesDias.length}
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            {step === 2 ? (
-              <div className="inspections-step-pane">
-                <div className="inspections-day-list">
-                  {formData.detalhesDias.map((day, dayIndex) => {
-                    const isDayExpanded = expandedDay === day.data;
-                    const dayKey = String(day?.data || `dia-${dayIndex}`);
-                    const isTowerPickerCollapsed = !!collapsedTowerPickerDays[dayKey];
-                    const isHotelPickerOpen = openHotelPickerDayKey === dayKey;
-                    const selectedDayTowers = [...(day.torresDetalhadas || [])]
-                      .filter((tower) => String(tower?.numero || '').trim())
-                      .sort((a, b) => compareTowerNumbers(a.numero, b.numero));
-                    const selectedDayTowerKeys = new Set(selectedDayTowers.map((tower) => String(tower?.numero || '').trim()));
-                    const canCreateHotelFromSearch = isHotelPickerOpen
-                      && String(hotelPickerSearch || '').trim() !== ''
-                      && !hasExactHotelMatch;
-                    const previousHotel = findPreviousDayHotel(formData.detalhesDias, day.data);
-                    return (
-                      <article key={day.data || dayIndex} className="inspections-day-card">
-                        <div className="inspections-day-card-head">
-                          <div>
-                            <strong>{day.data ? new Date(`${day.data}T00:00:00`).toLocaleDateString('pt-BR') : `Dia ${dayIndex + 1}`}</strong>
-                            <div className="muted">{(day.torresDetalhadas || []).length} torre(s) detalhada(s)</div>
-                          </div>
-                          <button type="button" className="secondary" onClick={() => setExpandedDay((prev) => (prev === day.data ? '' : day.data))}>
-                            <AppIcon name="details" />
-                            {isDayExpanded ? 'Ocultar' : 'Detalhar dia'}
-                          </button>
-                        </div>
-
-                        {isDayExpanded ? (
-                          <div className="inspections-day-card-body">
-                            <div className="inspections-day-field-grid">
-                              <div className="inspections-day-field">
-                                <label>Clima</label>
-                                <select value={day.clima || ''} onChange={(e) => updateDayField(dayIndex, { clima: e.target.value })}>
-                                  <option value="">Selecione...</option>
-                                  <option value="Sol">Sol</option>
-                                  <option value="Parcialmente Nublado">Parcialmente nublado</option>
-                                  <option value="Nublado">Nublado</option>
-                                  <option value="Chuva">Chuva</option>
-                                </select>
-                              </div>
-                              <div className="inspections-day-field inspections-day-tower-selected-summary">
-                                <label>Torres selecionadas</label>
-                                <div className="muted">
-                                  {selectedDayTowers.length > 0
-                                    ? selectedDayTowers.map((tower) => formatTowerLabel(tower.numero)).join(', ')
-                                    : 'Nenhuma torre selecionada.'}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="inspections-day-tower-picker">
-                              <div className="inspections-day-tower-picker-head">
-                                <div className="inspections-day-tower-picker-head-copy">
-                                  <strong>Selecionar torres do dia</strong>
-                                  <span>{selectedDayTowers.length} selecionada(s)</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  className="secondary inspections-day-tower-picker-toggle"
-                                  onClick={() => toggleTowerPickerCollapse(dayKey)}
-                                >
-                                  <AppIcon name={isTowerPickerCollapsed ? 'chevron-down' : 'chevron-up'} />
-                                  {isTowerPickerCollapsed ? 'Expandir' : 'Ocultar'}
-                                </button>
-                              </div>
-                              {!isTowerPickerCollapsed ? (
-                                <>
-                                  <div className="inspections-day-tower-picker-grid">
-                                    {projectTowerOptions.map((towerNumber) => {
-                                      const active = selectedDayTowerKeys.has(String(towerNumber));
-                                      return (
-                                        <button
-                                          key={`${dayKey}-picker-${towerNumber}`}
-                                          type="button"
-                                          className={`inspections-day-tower-picker-btn ${active ? 'is-active' : ''}`.trim()}
-                                          onClick={() => toggleDayTower(dayIndex, towerNumber)}
-                                        >
-                                          {formatTowerLabel(towerNumber)}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                  {projectTowerOptions.length === 0 ? (
-                                    <p className="muted inspections-day-tower-picker-empty">
-                                      Este empreendimento nao possui total de torres valido para selecao.
-                                    </p>
-                                  ) : null}
-                                </>
-                              ) : null}
-                            </div>
-
-                            <div className="row-actions inspections-day-actions">
-                              <button
-                                type="button"
-                                className="secondary"
-                                onClick={() => clearDayTowerSelection(dayIndex)}
-                                disabled={selectedDayTowers.length === 0}
-                              >
-                                <AppIcon name="close" />
-                                Limpar selecao do dia
-                              </button>
-                              {suggestedTowerInput ? (
-                                <button type="button" className="secondary" onClick={() => applySuggestedTowersToDay(dayIndex)}>
-                                  <AppIcon name="clipboard" />
-                                  Aplicar sugeridas
-                                </button>
-                              ) : null}
-                            </div>
-
-                            <div className="panel nested inspections-day-hotel-history">
-                              <div className="inspections-day-hotel-history-grid">
-                                <div
-                                  className="inspections-day-hotel-picker"
-                                  ref={isHotelPickerOpen ? hotelPickerRef : null}
-                                >
-                                  <button
-                                    type="button"
-                                    className={`inspections-day-hotel-picker-trigger ${isHotelPickerOpen ? 'is-open' : ''}`.trim()}
-                                    aria-expanded={isHotelPickerOpen ? 'true' : 'false'}
-                                    aria-haspopup="listbox"
-                                    onClick={() => toggleHotelPicker(dayKey, String(day.hotelNome || ''))}
-                                  >
-                                    <span className="inspections-day-hotel-picker-trigger-label">
-                                      {day.hotelNome
-                                        ? `${day.hotelNome}${day.hotelMunicipio ? ` (${day.hotelMunicipio})` : ''}`
-                                        : 'Selecionar hotel...'}
-                                    </span>
-                                    <AppIcon name={isHotelPickerOpen ? 'close' : 'details'} />
-                                  </button>
-
-                                  {isHotelPickerOpen ? (
-                                    <div className="inspections-day-hotel-picker-menu" role="dialog" aria-label="Selecionar hotel">
-                                      <label className="inspections-day-hotel-picker-search">
-                                        <AppIcon name="search" />
-                                        <input
-                                          ref={hotelPickerSearchRef}
-                                          type="search"
-                                          value={hotelPickerSearch}
-                                          placeholder="Buscar hotel por nome ou municipio..."
-                                          onChange={(e) => setHotelPickerSearch(e.target.value)}
-                                        />
-                                      </label>
-
-                                      <div className="inspections-day-hotel-picker-options" role="listbox" aria-label="Historico de hoteis">
-                                        {filteredHotelHistory.map((item) => (
-                                          <button
-                                            key={item.key}
-                                            type="button"
-                                            className="inspections-day-hotel-picker-option"
-                                            onClick={() => handleSelectHotelFromHistory(dayIndex, item)}
-                                          >
-                                            {formatHistoryOption(item)}
-                                          </button>
-                                        ))}
-                                        {canCreateHotelFromSearch ? (
-                                          <button
-                                            type="button"
-                                            className="inspections-day-hotel-picker-option is-create"
-                                            onClick={() => handleCreateNewHotel(dayIndex)}
-                                          >
-                                            Criar novo hotel: "{String(hotelPickerSearch || '').trim()}"
-                                          </button>
-                                        ) : null}
-                                        {filteredHotelHistory.length === 0 && !canCreateHotelFromSearch ? (
-                                          <div className="inspections-day-hotel-picker-empty">Nenhum hotel encontrado.</div>
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                  ) : null}
-                                </div>
-
-                                <button type="button" className="secondary" onClick={() => repeatPreviousDayHotel(dayIndex)} disabled={!previousHotel}>
-                                  <AppIcon name="copy" />
-                                  Repetir dia anterior
-                                </button>
-                              </div>
-                              {previousHotel ? (
-                                <small className="muted">
-                                  Hotel anterior disponivel ({previousHotel.date}): {previousHotel.hotelNome || 'Sem nome'}
-                                </small>
-                              ) : null}
-                            </div>
-
-                            <div className="grid-form inspections-day-hotel-fields">
-                              <input value={day.hotelNome || ''} onChange={(e) => updateDayField(dayIndex, { hotelNome: e.target.value })} placeholder="Hotel (opcional)" />
-                              <input value={day.hotelMunicipio || ''} onChange={(e) => updateDayField(dayIndex, { hotelMunicipio: e.target.value })} placeholder="Municipio do hotel" />
-                              <select value={day.hotelLogisticaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelLogisticaNota: e.target.value })}>
-                                <option value="">Logistica (1-5)</option>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="5">5</option>
-                              </select>
-                              <select value={day.hotelReservaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelReservaNota: e.target.value })}>
-                                <option value="">Reserva (1-5)</option>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="5">5</option>
-                              </select>
-                              <select value={day.hotelEstadiaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelEstadiaNota: e.target.value })}>
-                                <option value="">Estadia (1-5)</option>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="5">5</option>
-                              </select>
-                              <select
-                                value={day.hotelTorreBase || ''}
-                                onChange={(e) => updateDayField(dayIndex, { hotelTorreBase: e.target.value })}
-                                disabled={selectedDayTowers.length === 0}
-                              >
-                                <option value="">
-                                  {selectedDayTowers.length === 0
-                                    ? 'Selecione torres visitadas no dia'
-                                    : 'Torre base da hospedagem'}
-                                </option>
-                                {selectedDayTowers.map((tower) => (
-                                  <option key={`hotel-base-${dayIndex}-${tower.numero}`} value={tower.numero}>Torre {tower.numero}</option>
-                                ))}
-                              </select>
-                            </div>
-
-                            {(day.torresDetalhadas || []).length > 0 ? (
-                              <div className="table-scroll inspections-tower-table-wrap">
-                                <table className="inspections-tower-table">
-                                  <thead>
-                                    <tr>
-                                      <th>Torre</th>
-                                      <th>Observacao</th>
-                                      <th>Acoes</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {(day.torresDetalhadas || []).map((tower, towerIndex) => {
-                                      const towerKey = String(tower?.numero || '').trim();
-                                      const linkedTowerErosions = (erosions || []).filter((item) =>
-                                        String(item?.projetoId || '').trim() === String(formData.projetoId || '').trim()
-                                        && String(item?.torreRef || '').trim() === towerKey);
-                                      const pendency = linkedTowerErosions
-                                        .map((item) => getInspectionPendency(item, formData.id))
-                                        .find(Boolean);
-                                      const hasVisitedDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
-                                      const hasErosion = !!tower?.temErosao || linkedTowerErosions.length > 0;
-                                      const key = `${day.data}|${towerKey}`;
-                                      const expandedTower = expandedTowerKey === key;
-                                      return (
-                                        <tr key={`${day.data}-${towerKey}`} className={hasErosion ? 'is-erosion' : ''}>
-                                          <td className="inspections-tower-col-number">
-                                            <span className="inspections-tower-number">{formatTowerLabel(towerKey)}</span>
-                                          </td>
-                                          <td className="inspections-tower-col-note">
-                                            <input
-                                              className="inspections-tower-note-input"
-                                              value={tower?.obs || ''}
-                                              onChange={(e) => updateTowerDetail(dayIndex, towerIndex, { obs: e.target.value })}
-                                              placeholder="Observacoes da torre"
-                                            />
-                                            {expandedTower ? (
-                                              <div className="muted inspections-tower-summary">
-                                                <div><strong>Resumo:</strong> {linkedTowerErosions.length > 0 ? 'Ha erosao vinculada nesta torre.' : 'Sem erosao vinculada.'}</div>
-                                                <div><strong>Pendencia:</strong> {hasVisitedDate ? `visitada em ${pendency.dia}` : (linkedTowerErosions.length > 0 ? 'pendente' : 'sem pendencia')}</div>
-                                              </div>
-                                            ) : null}
-                                          </td>
-                                          <td className="inspections-tower-col-actions">
-                                            <div className="inspections-tower-actions">
-                                              <button
-                                                type="button"
-                                                className={`inspections-tower-btn-detail ${expandedTower ? 'is-active' : ''}`.trim()}
-                                                onClick={() => setExpandedTowerKey((prev) => (prev === key ? '' : key))}
-                                                aria-label={expandedTower ? 'Ocultar detalhes da torre' : 'Detalhar torre'}
-                                                title={expandedTower ? 'Ocultar detalhes da torre' : 'Detalhar torre'}
-                                              >
-                                                <AppIcon name="details" />
-                                              </button>
-                                              <button
-                                                type="button"
-                                                className={`inspections-tower-btn-erosion ${hasErosion ? 'has-erosion' : ''}`.trim()}
-                                                onClick={() => openErosionFromTower(dayIndex, towerKey)}
-                                                aria-label={hasErosion ? 'Editar erosao vinculada' : 'Cadastrar erosao nesta torre'}
-                                                title={hasErosion ? 'Editar erosao vinculada' : 'Cadastrar erosao nesta torre'}
-                                                disabled={saving}
-                                              >
-                                                <AppIcon name="alert" />
-                                              </button>
-                                              {linkedTowerErosions.length > 0 ? (
-                                                <button type="button" className="secondary" onClick={() => markPendingErosionVisit(dayIndex, towerKey)}>
-                                                  <AppIcon name="check" />
-                                                  {hasVisitedDate ? `Visitada ${pendency.dia}` : 'Marcar visita'}
-                                                </button>
-                                              ) : null}
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : (
-                              <div className="muted">Sem torres detalhadas para este dia. Gere o checklist para continuar.</div>
-                            )}
-                          </div>
-                        ) : null}
-                      </article>
-                    );
-                  })}
-                  {formData.detalhesDias.length === 0 ? (
-                    <p className="muted">Nenhum dia gerado. Volte para etapa 1 e defina as datas.</p>
-                  ) : null}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-semibold text-slate-700">Responsavel</label>
+                  <input className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" value={formData.responsavel || ''} onChange={(e) => updateGeneralField('responsavel', e.target.value)} placeholder="Nome do responsavel" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-semibold text-slate-700">Data inicio *</label>
+                  <input className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" type="date" value={formData.dataInicio || ''} onChange={(e) => updateGeneralField('dataInicio', e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-semibold text-slate-700">Data fim</label>
+                  <input className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" type="date" value={formData.dataFim || ''} onChange={(e) => updateGeneralField('dataFim', e.target.value)} />
                 </div>
               </div>
-            ) : null}
-
-            {step === 3 ? (
-              <div className="inspections-step-pane">
-                <div className="project-card">
-                  <h4>Resumo da vistoria</h4>
-                  <div className="muted">
-                    <div><strong>ID:</strong> {formData.id || '(sera gerado no salvar)'}</div>
-                    <div><strong>Empreendimento:</strong> {formData.projetoId || '-'}</div>
-                    <div><strong>Periodo:</strong> {formData.dataInicio || '-'} ate {formData.dataFim || formData.dataInicio || '-'}</div>
-                    <div><strong>Responsavel:</strong> {formData.responsavel || '-'}</div>
-                    <div><strong>Dias registados:</strong> {summary.daysCount}</div>
-                    <div><strong>Dias com checklist:</strong> {summary.daysWithChecklist}</div>
-                    <div><strong>Torres unicas no diario:</strong> {summary.uniqueTowerCount}</div>
-                    <div><strong>Torres sinalizadas com erosao:</strong> {summary.towersWithErosion}</div>
-                  </div>
-                </div>
-
-                {findDuplicateTowersAcrossDays(formData.detalhesDias).length > 0 ? (
-                  <div className="notice">
-                    Existem torres registadas em mais de um dia. O sistema pedira confirmacao no salvamento.
-                  </div>
-                ) : null}
-
-                {suggestedTowerInput ? (
-                  <div className="notice">
-                    <strong>Torres sugeridas do planejamento:</strong> {suggestedTowerInput}
-                  </div>
-                ) : null}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-slate-700">Observacoes</label>
+                <textarea className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-y" rows="3" value={formData.obs || ''} onChange={(e) => updateGeneralField('obs', e.target.value)} placeholder="Observacoes gerais da vistoria..." />
               </div>
-            ) : null}
-          </div>
-
-          <div className="inspections-wizard-foot">
-            <button type="button" className="secondary" onClick={onCancel}>
-              <AppIcon name="close" />
-              Cancelar
-            </button>
-            <div className="row-actions">
-              {step > 1 ? (
-                <button type="button" className="secondary" onClick={handlePreviousStep}>
-                  <AppIcon name="chevron-left" />
-                  Voltar
-                </button>
+              {suggestedTowerInput ? (
+                <div className="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100 text-sm">
+                  <div><strong>Torres sugeridas pelo planejamento:</strong> {suggestedTowerInput}</div>
+                </div>
               ) : null}
-              {step < 3 ? (
-                <button type="button" onClick={handleNextStep}>
-                  Avancar
-                  <AppIcon name="chevron-right" />
-                </button>
+              {formData.detalhesDias.length === 0 ? (
+                <div className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-100 text-sm">Defina data inicio e data fim para gerar os dias da vistoria.</div>
               ) : (
-                <button type="button" onClick={handleSaveInspection} disabled={saving}>
-                  <AppIcon name="save" />
-                  {saving ? 'Salvando...' : 'Salvar vistoria'}
-                </button>
+                <div className="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100 text-sm">
+                  <strong>Dias gerados:</strong> {formData.detalhesDias.length}
+                </div>
               )}
             </div>
+          ) : null}
+
+          {step === 2 ? (
+            <div className="flex flex-col gap-6 animate-fade-in">
+              <div className="flex flex-col gap-4">
+                {formData.detalhesDias.map((day, dayIndex) => {
+                  const isDayExpanded = expandedDay === day.data;
+                  const dayKey = String(day?.data || `dia-${dayIndex}`);
+                  const isTowerPickerCollapsed = !!collapsedTowerPickerDays[dayKey];
+                  const isHotelPickerOpen = openHotelPickerDayKey === dayKey;
+                  const selectedDayTowers = [...(day.torresDetalhadas || [])]
+                    .filter((tower) => String(tower?.numero || '').trim())
+                    .sort((a, b) => compareTowerNumbers(a.numero, b.numero));
+                  const selectedDayTowerKeys = new Set(selectedDayTowers.map((tower) => String(tower?.numero || '').trim()));
+                  const canCreateHotelFromSearch = isHotelPickerOpen
+                    && String(hotelPickerSearch || '').trim() !== ''
+                    && !hasExactHotelMatch;
+                  const previousHotel = findPreviousDayHotel(formData.detalhesDias, day.data);
+                  return (
+                    <article key={day.data || dayIndex} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-shadow hover:shadow-md">
+                      <div className="flex items-center justify-between p-4 bg-white cursor-pointer select-none" onClick={() => setExpandedDay((prev) => (prev === day.data ? '' : day.data))}>
+                        <div>
+                          <strong className="text-slate-800 text-lg">{day.data ? new Date(`${day.data}T00:00:00`).toLocaleDateString('pt-BR') : `Dia ${dayIndex + 1}`}</strong>
+                          <div className="text-sm text-slate-500">{(day.torresDetalhadas || []).length} torre(s) detalhada(s)</div>
+                        </div>
+                        <button type="button" className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2" onClick={(e) => { e.stopPropagation(); setExpandedDay((prev) => (prev === day.data ? '' : day.data)); }}>
+                          <AppIcon name="details" />
+                          {isDayExpanded ? 'Ocultar' : 'Detalhar dia'}
+                        </button>
+                      </div>
+
+                      {isDayExpanded ? (
+                        <div className="p-5 border-t border-slate-100 flex flex-col gap-5 bg-slate-50/50">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-sm font-semibold text-slate-700">Clima</label>
+                              <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" value={day.clima || ''} onChange={(e) => updateDayField(dayIndex, { clima: e.target.value })}>
+                                <option value="">Selecione...</option>
+                                <option value="Sol">Sol</option>
+                                <option value="Parcialmente Nublado">Parcialmente nublado</option>
+                                <option value="Nublado">Nublado</option>
+                                <option value="Chuva">Chuva</option>
+                              </select>
+                            </div>
+                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex flex-col gap-1">
+                              <label className="text-sm font-semibold text-slate-700 m-0">Torres selecionadas</label>
+                              <div className="text-sm text-slate-500 overflow-hidden text-ellipsis whitespace-nowrap">
+                                {selectedDayTowers.length > 0
+                                  ? selectedDayTowers.map((tower) => formatTowerLabel(tower.numero)).join(', ')
+                                  : 'Nenhuma torre selecionada.'}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                            <div className="flex items-center justify-between p-3 border-b border-slate-100 bg-slate-50/50 cursor-pointer select-none" onClick={() => toggleTowerPickerCollapse(dayKey)}>
+                              <div className="flex items-center gap-3 text-sm flex-wrap">
+                                <strong className="text-slate-800">Selecionar torres do dia</strong>
+                                <span className="text-slate-500 text-xs font-semibold px-2 py-0.5 bg-slate-200 rounded-full">{selectedDayTowers.length} selecionada(s)</span>
+                              </div>
+                              <button
+                                type="button"
+                                className="text-xs px-2 py-1 text-slate-600 hover:bg-slate-200 rounded-md transition-colors flex items-center gap-1"
+                                onClick={(e) => { e.stopPropagation(); toggleTowerPickerCollapse(dayKey); }}
+                              >
+                                <AppIcon name={isTowerPickerCollapsed ? 'chevron-down' : 'chevron-up'} />
+                                {isTowerPickerCollapsed ? 'Expandir' : 'Ocultar'}
+                              </button>
+                            </div>
+                            {!isTowerPickerCollapsed ? (
+                              <>
+                                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1.5 p-3 max-h-[30vh] overflow-y-auto bg-slate-50">
+                                  {projectTowerOptions.map((towerNumber) => {
+                                    const active = selectedDayTowerKeys.has(String(towerNumber));
+                                    return (
+                                      <button
+                                        key={`${dayKey}-picker-${towerNumber}`}
+                                        type="button"
+                                        className={`flex items-center justify-center p-2 border rounded-lg text-xs font-medium transition-colors ${active ? 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700 hover:border-blue-700 shadow-inner' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50'}`}
+                                        onClick={() => toggleDayTower(dayIndex, towerNumber)}
+                                      >
+                                        {formatTowerLabel(towerNumber)}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                {projectTowerOptions.length === 0 ? (
+                                  <p className="text-sm text-slate-500 m-0 py-2 px-3">
+                                    Este empreendimento nao possui total de torres valido para selecao.
+                                  </p>
+                                ) : null}
+                              </>
+                            ) : null}
+                          </div>
+
+                          <div className="flex items-center gap-2 justify-end">
+                            <button
+                              type="button"
+                              className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                              onClick={() => clearDayTowerSelection(dayIndex)}
+                              disabled={selectedDayTowers.length === 0}
+                            >
+                              <AppIcon name="close" />
+                              Limpar selecao do dia
+                            </button>
+                            {suggestedTowerInput ? (
+                              <button type="button" className="px-3 py-1.5 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-sm font-semibold hover:bg-blue-100 transition-colors flex items-center gap-1.5" onClick={() => applySuggestedTowersToDay(dayIndex)}>
+                                <AppIcon name="clipboard" />
+                                Aplicar sugeridas
+                              </button>
+                            ) : null}
+                          </div>
+
+                          <div className="bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl flex flex-col gap-3">
+                            <div className="flex items-center justify-between gap-4 flex-wrap">
+                              <div
+                                className="relative flex-1 min-w-[200px]"
+                                ref={isHotelPickerOpen ? hotelPickerRef : null}
+                              >
+                                <button
+                                  type="button"
+                                  className={`flex items-center justify-between gap-2 px-3 py-2 bg-white border rounded-lg text-sm w-full md:w-[350px] text-left transition-all ${isHotelPickerOpen ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-slate-300 hover:border-indigo-300'}`}
+                                  aria-expanded={isHotelPickerOpen ? 'true' : 'false'}
+                                  aria-haspopup="listbox"
+                                  onClick={() => toggleHotelPicker(dayKey, String(day.hotelNome || ''))}
+                                >
+                                  <span className="truncate flex-1">
+                                    {day.hotelNome
+                                      ? `${day.hotelNome}${day.hotelMunicipio ? ` (${day.hotelMunicipio})` : ''}`
+                                      : 'Selecionar hotel...'}
+                                  </span>
+                                  <AppIcon name={isHotelPickerOpen ? 'close' : 'details'} />
+                                </button>
+
+                                {isHotelPickerOpen ? (
+                                  <div className="absolute top-[calc(100%+4px)] left-0 w-[400px] max-w-[90vw] bg-white border border-slate-200 rounded-xl shadow-xl z-50 flex flex-col overflow-hidden animate-slide-up origin-top" role="dialog" aria-label="Selecionar hotel">
+                                    <label className="flex items-center gap-2 p-3 border-b border-slate-100 bg-slate-50 text-slate-400">
+                                      <AppIcon name="search" />
+                                      <input
+                                        ref={hotelPickerSearchRef}
+                                        type="search"
+                                        className="w-full bg-transparent border-none outline-none text-sm text-slate-800 placeholder-slate-400"
+                                        value={hotelPickerSearch}
+                                        placeholder="Buscar hotel por nome ou municipio..."
+                                        onChange={(e) => setHotelPickerSearch(e.target.value)}
+                                      />
+                                    </label>
+
+                                    <div className="max-h-[250px] overflow-y-auto flex flex-col" role="listbox" aria-label="Historico de hoteis">
+                                      {filteredHotelHistory.map((item) => (
+                                        <button
+                                          key={item.key}
+                                          type="button"
+                                          className="text-left w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 border-b border-slate-50 last:border-none transition-colors"
+                                          onClick={() => handleSelectHotelFromHistory(dayIndex, item)}
+                                        >
+                                          {formatHistoryOption(item)}
+                                        </button>
+                                      ))}
+                                      {canCreateHotelFromSearch ? (
+                                        <button
+                                          type="button"
+                                          className="text-left w-full px-4 py-2.5 text-sm font-semibold text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 transition-colors border-t border-indigo-100"
+                                          onClick={() => handleCreateNewHotel(dayIndex)}
+                                        >
+                                          Criar novo hotel: "{String(hotelPickerSearch || '').trim()}"
+                                        </button>
+                                      ) : null}
+                                      {filteredHotelHistory.length === 0 && !canCreateHotelFromSearch ? (
+                                        <div className="px-4 py-3 text-sm text-slate-500 italic">Nenhum hotel encontrado.</div>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              <button type="button" className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" onClick={() => repeatPreviousDayHotel(dayIndex)} disabled={!previousHotel}>
+                                <AppIcon name="copy" />
+                                Repetir dia anterior
+                              </button>
+                            </div>
+                            {previousHotel ? (
+                              <small className="text-sm text-slate-500">
+                                Hotel anterior disponivel ({previousHotel.date}): {previousHotel.hotelNome || 'Sem nome'}
+                              </small>
+                            ) : null}
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            <input className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={day.hotelNome || ''} onChange={(e) => updateDayField(dayIndex, { hotelNome: e.target.value })} placeholder="Hotel (opcional)" />
+                            <input className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={day.hotelMunicipio || ''} onChange={(e) => updateDayField(dayIndex, { hotelMunicipio: e.target.value })} placeholder="Municipio do hotel" />
+                            <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={day.hotelLogisticaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelLogisticaNota: e.target.value })}>
+                              <option value="">Logistica (1-5)</option>
+                              <option value="1">1</option>
+                              <option value="2">2</option>
+                              <option value="3">3</option>
+                              <option value="4">4</option>
+                              <option value="5">5</option>
+                            </select>
+                            <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={day.hotelReservaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelReservaNota: e.target.value })}>
+                              <option value="">Reserva (1-5)</option>
+                              <option value="1">1</option>
+                              <option value="2">2</option>
+                              <option value="3">3</option>
+                              <option value="4">4</option>
+                              <option value="5">5</option>
+                            </select>
+                            <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={day.hotelEstadiaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelEstadiaNota: e.target.value })}>
+                              <option value="">Estadia (1-5)</option>
+                              <option value="1">1</option>
+                              <option value="2">2</option>
+                              <option value="3">3</option>
+                              <option value="4">4</option>
+                              <option value="5">5</option>
+                            </select>
+                            <select
+                              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 disabled:bg-slate-100"
+                              value={day.hotelTorreBase || ''}
+                              onChange={(e) => updateDayField(dayIndex, { hotelTorreBase: e.target.value })}
+                              disabled={selectedDayTowers.length === 0}
+                            >
+                              <option value="">
+                                {selectedDayTowers.length === 0
+                                  ? 'Selecione torres'
+                                  : 'Torre base da hospedagem'}
+                              </option>
+                              {selectedDayTowers.map((tower) => (
+                                <option key={`hotel-base-${dayIndex}-${tower.numero}`} value={tower.numero}>Torre {tower.numero}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {(day.torresDetalhadas || []).length > 0 ? (
+                            <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl shadow-sm">
+                              <table className="w-full text-left border-collapse text-sm">
+                                <thead>
+                                  <tr>
+                                    <th className="bg-slate-50 p-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap">Torre</th>
+                                    <th className="bg-slate-50 p-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap">Observacao</th>
+                                    <th className="bg-slate-50 p-3 font-semibold text-slate-700 border-b border-slate-200 whitespace-nowrap">Acoes</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(day.torresDetalhadas || []).map((tower, towerIndex) => {
+                                    const towerKey = String(tower?.numero || '').trim();
+                                    const linkedTowerErosions = (erosions || []).filter((item) =>
+                                      String(item?.projetoId || '').trim() === String(formData.projetoId || '').trim()
+                                      && String(item?.torreRef || '').trim() === towerKey);
+                                    const pendency = linkedTowerErosions
+                                      .map((item) => getInspectionPendency(item, formData.id))
+                                      .find(Boolean);
+                                    const hasVisitedDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
+                                    const hasErosion = !!tower?.temErosao || linkedTowerErosions.length > 0;
+                                    const key = `${day.data}|${towerKey}`;
+                                    const expandedTower = expandedTowerKey === key;
+                                    return (
+                                      <tr key={`${day.data}-${towerKey}`} className={hasErosion ? 'bg-red-50/50' : ''}>
+                                        <td className="p-3 border-b border-slate-100 align-top w-[120px]">
+                                          <span className="font-medium text-slate-800">{formatTowerLabel(towerKey)}</span>
+                                        </td>
+                                        <td className="p-3 border-b border-slate-100 align-top">
+                                          <input
+                                            className="w-full px-3 py-2 bg-slate-50 border border-transparent hover:border-slate-300 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 rounded-lg outline-none transition-all text-sm"
+                                            value={tower?.obs || ''}
+                                            onChange={(e) => updateTowerDetail(dayIndex, towerIndex, { obs: e.target.value })}
+                                            placeholder="Observacoes da torre"
+                                          />
+                                          {expandedTower ? (
+                                            <div className="mt-2 text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                              <div><strong>Resumo:</strong> {linkedTowerErosions.length > 0 ? 'Ha erosao vinculada nesta torre.' : 'Sem erosao vinculada.'}</div>
+                                              <div><strong>Pendencia:</strong> {hasVisitedDate ? `visitada em ${pendency.dia}` : (linkedTowerErosions.length > 0 ? 'pendente' : 'sem pendencia')}</div>
+                                            </div>
+                                          ) : null}
+                                        </td>
+                                        <td className="p-3 border-b border-slate-100 align-top w-[200px]">
+                                          <div className="flex flex-wrap items-center gap-1.5">
+                                            <button
+                                              type="button"
+                                              className={`p-1.5 rounded-lg transition-colors ${expandedTower ? 'bg-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                                              onClick={() => setExpandedTowerKey((prev) => (prev === key ? '' : key))}
+                                              aria-label={expandedTower ? 'Ocultar detalhes da torre' : 'Detalhar torre'}
+                                              title={expandedTower ? 'Ocultar detalhes da torre' : 'Detalhar torre'}
+                                            >
+                                              <AppIcon name="details" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className={`p-1.5 rounded-lg transition-colors ${hasErosion ? 'text-red-600 bg-red-100 hover:bg-red-200' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                                              onClick={() => openErosionFromTower(dayIndex, towerKey)}
+                                              aria-label={hasErosion ? 'Editar erosao vinculada' : 'Cadastrar erosao nesta torre'}
+                                              title={hasErosion ? 'Editar erosao vinculada' : 'Cadastrar erosao nesta torre'}
+                                              disabled={saving}
+                                            >
+                                              <AppIcon name="alert" />
+                                            </button>
+                                            {linkedTowerErosions.length > 0 ? (
+                                              <button type="button" className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1" onClick={() => markPendingErosionVisit(dayIndex, towerKey)}>
+                                                <AppIcon name="check" />
+                                                {hasVisitedDate ? `Visitada ${pendency.dia}` : 'Marcar visita'}
+                                              </button>
+                                            ) : null}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <div className="text-sm text-slate-500 italic p-2">Sem torres detalhadas para este dia. Gere o checklist para continuar.</div>
+                          )}
+                        </div>
+                      ) : null}
+                    </article>
+                  );
+                })}
+                {formData.detalhesDias.length === 0 ? (
+                  <p className="text-sm text-slate-500 italic">Nenhum dia gerado. Volte para etapa 1 e defina as datas.</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {step === 3 ? (
+            <div className="flex flex-col gap-6 animate-fade-in p-6 pt-0">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <h4 className="text-lg font-bold text-slate-800 m-0 mb-3">Resumo da vistoria</h4>
+                <div className="text-sm text-slate-600 flex flex-col gap-1.5">
+                  <div><strong className="text-slate-700">ID:</strong> {formData.id || '(sera gerado no salvar)'}</div>
+                  <div><strong className="text-slate-700">Empreendimento:</strong> {formData.projetoId || '-'}</div>
+                  <div><strong className="text-slate-700">Periodo:</strong> {formData.dataInicio || '-'} ate {formData.dataFim || formData.dataInicio || '-'}</div>
+                  <div><strong className="text-slate-700">Responsavel:</strong> {formData.responsavel || '-'}</div>
+                  <div><strong className="text-slate-700">Dias registados:</strong> {summary.daysCount}</div>
+                  <div><strong className="text-slate-700">Dias com checklist:</strong> {summary.daysWithChecklist}</div>
+                  <div><strong className="text-slate-700">Torres unicas no diario:</strong> {summary.uniqueTowerCount}</div>
+                  <div><strong className="text-slate-700">Torres sinalizadas com erosao:</strong> {summary.towersWithErosion}</div>
+                </div>
+              </div>
+
+              {findDuplicateTowersAcrossDays(formData.detalhesDias).length > 0 ? (
+                <div className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-100 text-sm">
+                  Existem torres registadas em mais de um dia. O sistema pedira confirmacao no salvamento.
+                </div>
+              ) : null}
+
+              {suggestedTowerInput ? (
+                <div className="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100 text-sm">
+                  <strong>Torres sugeridas do planejamento:</strong> {suggestedTowerInput}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex items-center justify-between p-6 bg-white border-t border-slate-200 shrink-0">
+          <button type="button" className="px-4 py-2 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 text-sm" onClick={onCancel}>
+            <AppIcon name="close" />
+            Cancelar
+          </button>
+          <div className="flex items-center gap-2">
+            {step > 1 ? (
+              <button type="button" className="px-4 py-2 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 text-sm" onClick={handlePreviousStep}>
+                <AppIcon name="chevron-left" />
+                Voltar
+              </button>
+            ) : null}
+            {step < 3 ? (
+              <button type="button" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm text-sm" onClick={handleNextStep}>
+                Avancar
+                <AppIcon name="chevron-right" />
+              </button>
+            ) : (
+              <button type="button" className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm text-sm disabled:opacity-70 disabled:cursor-not-allowed" onClick={handleSaveInspection} disabled={saving}>
+                <AppIcon name="save" />
+                {saving ? 'Salvando...' : 'Salvar vistoria'}
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {erosionModal ? (
-        <div className="modal-backdrop inspections-inline-erosion-backdrop">
-          <form className="modal inspections-inline-erosion-modal" onSubmit={handleSaveErosion}>
-            <div className="inspections-inline-erosion-head">
-              <h4>Erosao - {formatTowerLabel(erosionModal.towerNumber)}</h4>
+        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto">
+          <form className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col relative my-8 sm:my-0" onSubmit={handleSaveErosion}>
+            <div className="p-5 border-b border-slate-100">
+              <h4 className="text-lg font-bold text-slate-800 m-0">Erosao - {formatTowerLabel(erosionModal.towerNumber)}</h4>
               {erosionModal.existingErosion?.id ? (
-                <p className="muted">Editando erosao existente: {erosionModal.existingErosion.id}</p>
+                <p className="text-sm text-slate-500 mt-1 mb-0">Editando erosao existente: {erosionModal.existingErosion.id}</p>
               ) : null}
             </div>
-            <div className="inspections-inline-erosion-body">
-              <div className="grid-form">
-                <select value={erosionForm.estagio || ''} onChange={(e) => setErosionForm((prev) => ({ ...prev, estagio: e.target.value }))}>
+            <div className="p-5 flex flex-col gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={erosionForm.estagio || ''} onChange={(e) => setErosionForm((prev) => ({ ...prev, estagio: e.target.value }))}>
                   <option value="">Estagio (grau erosivo)...</option>
                   <option value="inicial">Inicial</option>
                   <option value="intermediario">Intermediario</option>
                   <option value="avancado">Avancado</option>
                   <option value="critico">Critico</option>
                 </select>
-                <select value={erosionForm.status || 'Ativo'} onChange={(e) => setErosionForm((prev) => ({ ...prev, status: e.target.value }))}>
+                <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={erosionForm.status || 'Ativo'} onChange={(e) => setErosionForm((prev) => ({ ...prev, status: e.target.value }))}>
                   <option value="Ativo">Status: Ativo</option>
                   <option value="Monitoramento">Status: Monitoramento</option>
                   <option value="Estabilizado">Status: Estabilizado</option>
                 </select>
               </div>
-              <div className="grid-form">
-                <span className="muted">Campos tecnicos canônicos (mesmos do cadastro principal).</span>
+              <div>
+                <span className="text-sm text-slate-500 italic block">Campos tecnicos canônicos (mesmos do cadastro principal).</span>
               </div>
-              <div className="inspections-inline-erosion-coordinates">
-                <div className="inspections-inline-erosion-coordinates-head">
-                  <strong>Coordenadas / UTM</strong>
+              <div className="bg-slate-50 p-4 border border-slate-200 rounded-xl flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <strong className="text-sm text-slate-700">Coordenadas / UTM</strong>
                   <button
                     type="button"
-                    className="secondary erosions-coordinates-toggle"
+                    className="px-3 py-1.5 border border-slate-300 bg-white rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
                     onClick={() => setInlineCoordinatesExpanded((prev) => !prev)}
                     aria-expanded={inlineCoordinatesExpanded ? 'true' : 'false'}
                     data-utm-error-token={inlineUtmErrorToken}
@@ -1566,37 +1567,43 @@ function InspectionFormWizardModal({
                 </div>
                 {inlineCoordinatesExpanded ? (
                   <>
-                    <div className="grid-form">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <input
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         placeholder="Latitude (centesimal)"
                         value={erosionForm.locationCoordinates?.latitude || ''}
                         onChange={(e) => updateInlineLocationField('latitude', e.target.value)}
                       />
                       <input
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         placeholder="Longitude (centesimal)"
                         value={erosionForm.locationCoordinates?.longitude || ''}
                         onChange={(e) => updateInlineLocationField('longitude', e.target.value)}
                       />
                     </div>
-                    <div className="grid-form">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <input
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         placeholder="UTM Easting"
                         value={erosionForm.locationCoordinates?.utmEasting || ''}
                         onChange={(e) => updateInlineLocationField('utmEasting', e.target.value)}
                       />
                       <input
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         placeholder="UTM Northing"
                         value={erosionForm.locationCoordinates?.utmNorthing || ''}
                         onChange={(e) => updateInlineLocationField('utmNorthing', e.target.value)}
                       />
                     </div>
-                    <div className="grid-form">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <input
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         placeholder="UTM Zona"
                         value={erosionForm.locationCoordinates?.utmZone || ''}
                         onChange={(e) => updateInlineLocationField('utmZone', e.target.value)}
                       />
                       <select
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         value={erosionForm.locationCoordinates?.utmHemisphere || ''}
                         onChange={(e) => updateInlineLocationField('utmHemisphere', e.target.value)}
                       >
@@ -1605,13 +1612,15 @@ function InspectionFormWizardModal({
                         <option value="S">S</option>
                       </select>
                     </div>
-                    <div className="grid-form">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <input
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         placeholder="Altitude"
                         value={erosionForm.locationCoordinates?.altitude || ''}
                         onChange={(e) => updateInlineLocationField('altitude', e.target.value)}
                       />
                       <input
+                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         placeholder="Referencia"
                         value={erosionForm.locationCoordinates?.reference || ''}
                         onChange={(e) => updateInlineLocationField('reference', e.target.value)}
@@ -1625,10 +1634,10 @@ function InspectionFormWizardModal({
                 onPatch={(patch) => setErosionForm((prev) => ({ ...prev, ...patch }))}
               />
 
-              <div className="inspections-inline-erosion-text-grid">
+              <div className="flex flex-col gap-4">
                 <textarea
                   rows="2"
-                  className="inspections-inline-erosion-textarea inspections-inline-erosion-textarea-links"
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono whitespace-pre resize-y"
                   placeholder="Fotos (links, um por linha)"
                   value={Array.isArray(erosionForm.fotosLinks) ? erosionForm.fotosLinks.join('\n') : ''}
                   onChange={(e) => setErosionForm((prev) => ({
@@ -1641,32 +1650,28 @@ function InspectionFormWizardModal({
                 />
                 <textarea
                   rows="3"
-                  className="inspections-inline-erosion-textarea inspections-inline-erosion-textarea-large inspections-inline-erosion-textarea-full"
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-y"
                   placeholder="Descricao"
                   value={erosionForm.descricao}
                   onChange={(e) => setErosionForm((prev) => ({ ...prev, descricao: e.target.value }))}
                 />
               </div>
             </div>
-            <div className="row-actions inspections-inline-erosion-actions">
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-4 rounded-b-2xl">
               {onOpenErosionDraft ? (
                 <button
                   type="button"
-                  className="secondary inspections-inline-erosion-draft-btn"
+                  className="px-4 py-2 border border-slate-300 bg-white rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 text-sm"
                   onClick={handleOpenErosionDraft}
                 >
                   <AppIcon name="details" />
                   Abrir cadastro completo na aba Erosoes
                 </button>
-              ) : null}
-              <div className="inspections-inline-erosion-actions-main">
-                <button type="submit">
-                  <AppIcon name="save" />
-                  {erosionModal.existingErosion ? 'Salvar alteracoes' : 'Salvar erosao'}
-                </button>
+              ) : <div></div>}
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="secondary"
+                  className="px-4 py-2 border border-slate-300 bg-white rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 text-sm"
                   onClick={() => {
                     setErosionModal(null);
                     setErosionForm(buildSafeInlineErosionFormState());
@@ -1676,6 +1681,10 @@ function InspectionFormWizardModal({
                 >
                   <AppIcon name="close" />
                   Cancelar
+                </button>
+                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm text-sm">
+                  <AppIcon name="save" />
+                  {erosionModal.existingErosion ? 'Salvar alteracoes' : 'Salvar erosao'}
                 </button>
               </div>
             </div>

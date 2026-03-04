@@ -1,32 +1,32 @@
 import AppIcon from '../../../components/AppIcon';
+import { Button, Modal } from '../../../components/ui';
 
 function ConfirmDeleteModal({ projectId, onCancel, onConfirm }) {
   if (!projectId) return null;
 
+  const footer = (
+    <>
+      <Button variant="outline" size="md" onClick={onCancel}>Cancelar</Button>
+      <Button variant="danger" size="md" onClick={onConfirm}>Excluir</Button>
+    </>
+  );
+
   return (
-    <div className="modal-backdrop">
-      <div className="modal projects-modal projects-modal-delete">
-        <div className="projects-delete-head">
-          <h3>
-            <AppIcon name="alert" />
-            Confirmar exclusao
-          </h3>
-        </div>
-
-        <p className="projects-delete-message">
-          Tem certeza que deseja excluir o empreendimento <strong>{projectId}</strong>?
-        </p>
-
-        <div className="projects-delete-actions">
-          <button type="button" className="projects-delete-btn" onClick={onConfirm}>
-            Excluir
-          </button>
-          <button type="button" className="projects-cancel-btn" onClick={onCancel}>
-            Cancelar
-          </button>
-        </div>
-      </div>
-    </div>
+    <Modal
+      open={!!projectId}
+      onClose={onCancel}
+      title={
+        <span className="flex items-center gap-2">
+          <AppIcon name="alert" /> Confirmar exclusão
+        </span>
+      }
+      size="sm"
+      footer={footer}
+    >
+      <p style={{ margin: 0 }}>
+        Tem certeza que deseja excluir o empreendimento <strong>{projectId}</strong>?
+      </p>
+    </Modal>
   );
 }
 

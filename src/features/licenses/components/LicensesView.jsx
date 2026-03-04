@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
+import { Button, Input, Modal, Select } from '../../../components/ui';
 import {
   BRAZIL_UF_OPTIONS,
   LICENSE_SPHERE_OPTIONS,
@@ -65,186 +66,222 @@ function LicenseFormModal({
     });
   }
 
+  const footer = (
+    <>
+      <Button variant="outline" size="md" onClick={onCancel}>
+        <AppIcon name="close" />
+        Cancelar
+      </Button>
+      <Button variant="primary" size="md" onClick={onSave}>
+        <AppIcon name="save" />
+        Salvar
+      </Button>
+    </>
+  );
+
   return (
-    <div className="modal-backdrop">
-      <div className="modal xwide">
-        <h3>{isEditing ? 'Editar' : 'Nova'} Licença de Operação</h3>
-        <div className="grid-form">
-          <select
-            value={formData.esfera}
-            onChange={(e) => setFormData((prev) => ({
-              ...prev,
-              esfera: e.target.value,
-              uf: e.target.value === 'Estadual' ? prev.uf : '',
-            }))}
+    <Modal
+      open={open}
+      onClose={onCancel}
+      title={`${isEditing ? 'Editar' : 'Nova'} Licença de Operação`}
+      size="lg"
+      footer={footer}
+    >
+      <div className="grid-form">
+        <Select
+          id="license-esfera"
+          label="Esfera"
+          value={formData.esfera}
+          onChange={(e) => setFormData((prev) => ({
+            ...prev,
+            esfera: e.target.value,
+            uf: e.target.value === 'Estadual' ? prev.uf : '',
+          }))}
+        >
+          {LICENSE_SPHERE_OPTIONS.map((item) => <option key={item} value={item}>{item}</option>)}
+        </Select>
+
+        {formData.esfera === 'Estadual' ? (
+          <Select
+            id="license-uf"
+            label="UF"
+            value={formData.uf || ''}
+            onChange={(e) => setFormData((prev) => ({ ...prev, uf: e.target.value }))}
           >
-            {LICENSE_SPHERE_OPTIONS.map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-          {formData.esfera === 'Estadual' ? (
-            <select value={formData.uf || ''} onChange={(e) => setFormData((prev) => ({ ...prev, uf: e.target.value }))}>
-              <option value="">UF...</option>
-              {BRAZIL_UF_OPTIONS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
-            </select>
-          ) : <div />}
-          <div>
-            <input
-              list="agency-options"
-              value={formData.orgaoAmbiental || ''}
-              onChange={(e) => setFormData((prev) => ({ ...prev, orgaoAmbiental: e.target.value }))}
-              placeholder="Órgão ambiental"
-            />
-            <datalist id="agency-options">
-              {agencyOptions.map((item) => <option key={item.value} value={item.value} />)}
-            </datalist>
-          </div>
+            <option value="">UF...</option>
+            {BRAZIL_UF_OPTIONS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+          </Select>
+        ) : <div />}
 
-          <input
-            placeholder="Código interno (opcional)"
-            value={formData.id || ''}
-            onChange={(e) => setFormData((prev) => ({ ...prev, id: e.target.value.toUpperCase() }))}
+        <div>
+          <Input
+            id="license-orgao"
+            label="Órgão ambiental"
+            list="agency-options"
+            value={formData.orgaoAmbiental || ''}
+            onChange={(e) => setFormData((prev) => ({ ...prev, orgaoAmbiental: e.target.value }))}
+            placeholder="Órgão ambiental"
           />
-          <input
-            placeholder="Número da LO"
-            value={formData.numero || ''}
-            onChange={(e) => setFormData((prev) => ({ ...prev, numero: e.target.value }))}
-          />
-          <input
-            placeholder="Descrição"
-            value={formData.descricao || ''}
-            onChange={(e) => setFormData((prev) => ({ ...prev, descricao: e.target.value }))}
-          />
-
-          <input
-            type="date"
-            value={formData.inicioVigencia || ''}
-            onChange={(e) => setFormData((prev) => ({ ...prev, inicioVigencia: e.target.value }))}
-          />
-          <input
-            type="date"
-            value={formData.fimVigencia || ''}
-            onChange={(e) => setFormData((prev) => ({ ...prev, fimVigencia: e.target.value }))}
-          />
-          <select
-            value={periodicidade}
-            onChange={(e) => setFormData((prev) => ({
-              ...prev,
-              periodicidadeRelatorio: normalizeReportPeriodicity(e.target.value),
-              mesesEntregaRelatorio: [],
-              anoBaseBienal: '',
-            }))}
-          >
-            <option value="Trimestral">Trimestral</option>
-            <option value="Semestral">Semestral</option>
-            <option value="Anual">Anual</option>
-            <option value="Bienal">Bienal (2 anos)</option>
-          </select>
+          <datalist id="agency-options">
+            {agencyOptions.map((item) => <option key={item.value} value={item.value} />)}
+          </datalist>
         </div>
 
-        <div className="chips">
-          {MONTH_OPTIONS_PT.map((month) => {
-            const selected = selectedMonths.includes(month.value);
-            return (
-              <button
-                key={month.value}
-                type="button"
-                className={selected ? 'chip-active' : ''}
-                onClick={() => toggleMonth(month.value)}
-              >
-                {month.label}
-              </button>
-            );
-          })}
-          <small>{selectedMonths.length}/{required}</small>
-        </div>
-
-        {periodicidade === 'Bienal' && (
-          <div className="grid-form">
-            <input
-              type="number"
-              min="2000"
-              placeholder="Ano base (bienal)"
-              value={formData.anoBaseBienal ?? ''}
-              onChange={(e) => setFormData((prev) => ({ ...prev, anoBaseBienal: e.target.value }))}
-            />
-          </div>
-        )}
-
-        <div className="panel nested">
-          <h4>Cobertura por empreendimento/torres</h4>
-          {(formData.cobertura || []).map((item, idx) => (
-            <div key={`coverage-${idx}`} className="grid-form">
-              <select
-                value={item.projetoId || ''}
-                onChange={(e) => setFormData((prev) => ({
-                  ...prev,
-                  cobertura: prev.cobertura.map((row, rowIndex) => (rowIndex === idx ? { ...row, projetoId: e.target.value } : row)),
-                }))}
-              >
-                <option value="">Empreendimento...</option>
-                {projects.map((project) => <option key={project.id} value={project.id}>{project.id} - {project.nome}</option>)}
-              </select>
-              <input
-                placeholder="Torres (ex.: 1-3, 8, 10)"
-                value={item.torresInput || ''}
-                onChange={(e) => setFormData((prev) => ({
-                  ...prev,
-                  cobertura: prev.cobertura.map((row, rowIndex) => (rowIndex === idx ? { ...row, torresInput: e.target.value } : row)),
-                }))}
-              />
-              <input
-                placeholder="Descrição escopo (opcional)"
-                value={item.descricaoEscopo || ''}
-                onChange={(e) => setFormData((prev) => ({
-                  ...prev,
-                  cobertura: prev.cobertura.map((row, rowIndex) => (rowIndex === idx ? { ...row, descricaoEscopo: e.target.value } : row)),
-                }))}
-              />
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setFormData((prev) => ({ ...prev, cobertura: prev.cobertura.filter((_, rowIndex) => rowIndex !== idx) }))}
-              >
-                <AppIcon name="trash" />
-                Remover escopo
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => setFormData((prev) => ({
-              ...prev,
-              cobertura: [...(prev.cobertura || []), { projetoId: '', torresInput: '', descricaoEscopo: '' }],
-            }))}
-          >
-            <AppIcon name="plus" />
-            Adicionar escopo
-          </button>
-        </div>
-
-        <div className="notice">
-          <strong>Condicionante:</strong> exige acompanhamento de processos erosivos.
-        </div>
-
-        <textarea
-          rows="3"
-          placeholder="Observações"
-          value={formData.observacoes || ''}
-          onChange={(e) => setFormData((prev) => ({ ...prev, observacoes: e.target.value }))}
+        <Input
+          id="license-id"
+          label="Código interno (opcional)"
+          value={formData.id || ''}
+          onChange={(e) => setFormData((prev) => ({ ...prev, id: e.target.value.toUpperCase() }))}
+          placeholder="Código interno"
+        />
+        <Input
+          id="license-numero"
+          label="Número da LO"
+          value={formData.numero || ''}
+          onChange={(e) => setFormData((prev) => ({ ...prev, numero: e.target.value }))}
+          placeholder="Número da LO"
+        />
+        <Input
+          id="license-descricao"
+          label="Descrição"
+          value={formData.descricao || ''}
+          onChange={(e) => setFormData((prev) => ({ ...prev, descricao: e.target.value }))}
+          placeholder="Descrição"
         />
 
-        <div className="row-actions">
-          <button type="button" onClick={onSave}>
-            <AppIcon name="save" />
-            Salvar
-          </button>
-          <button type="button" className="secondary" onClick={onCancel}>
-            <AppIcon name="close" />
-            Cancelar
-          </button>
-        </div>
+        <Input
+          id="license-inicio"
+          label="Início vigência"
+          type="date"
+          value={formData.inicioVigencia || ''}
+          onChange={(e) => setFormData((prev) => ({ ...prev, inicioVigencia: e.target.value }))}
+        />
+        <Input
+          id="license-fim"
+          label="Fim vigência"
+          type="date"
+          value={formData.fimVigencia || ''}
+          onChange={(e) => setFormData((prev) => ({ ...prev, fimVigencia: e.target.value }))}
+        />
+        <Select
+          id="license-periodicidade"
+          label="Periodicidade"
+          value={periodicidade}
+          onChange={(e) => setFormData((prev) => ({
+            ...prev,
+            periodicidadeRelatorio: normalizeReportPeriodicity(e.target.value),
+            mesesEntregaRelatorio: [],
+            anoBaseBienal: '',
+          }))}
+        >
+          <option value="Trimestral">Trimestral</option>
+          <option value="Semestral">Semestral</option>
+          <option value="Anual">Anual</option>
+          <option value="Bienal">Bienal (2 anos)</option>
+        </Select>
       </div>
-    </div>
+
+      <div className="chips">
+        {MONTH_OPTIONS_PT.map((month) => {
+          const selected = selectedMonths.includes(month.value);
+          return (
+            <button
+              key={month.value}
+              type="button"
+              className={selected ? 'chip-active' : ''}
+              onClick={() => toggleMonth(month.value)}
+            >
+              {month.label}
+            </button>
+          );
+        })}
+        <small>{selectedMonths.length}/{required}</small>
+      </div>
+
+      {periodicidade === 'Bienal' && (
+        <Input
+          id="license-ano-bienal"
+          label="Ano base (bienal)"
+          type="number"
+          min="2000"
+          value={formData.anoBaseBienal ?? ''}
+          onChange={(e) => setFormData((prev) => ({ ...prev, anoBaseBienal: e.target.value }))}
+          placeholder="Ex.: 2026"
+          className="mt-3"
+        />
+      )}
+
+      <div className="panel nested mt-3">
+        <h4>Cobertura por empreendimento/torres</h4>
+        {(formData.cobertura || []).map((item, idx) => (
+          <div key={`coverage-${idx}`} className="grid-form">
+            <Select
+              id={`coverage-project-${idx}`}
+              label="Empreendimento"
+              value={item.projetoId || ''}
+              onChange={(e) => setFormData((prev) => ({
+                ...prev,
+                cobertura: prev.cobertura.map((row, rowIndex) => (rowIndex === idx ? { ...row, projetoId: e.target.value } : row)),
+              }))}
+            >
+              <option value="">Empreendimento...</option>
+              {projects.map((project) => <option key={project.id} value={project.id}>{project.id} - {project.nome}</option>)}
+            </Select>
+            <Input
+              id={`coverage-torres-${idx}`}
+              label="Torres"
+              placeholder="Ex.: 1-3, 8, 10"
+              value={item.torresInput || ''}
+              onChange={(e) => setFormData((prev) => ({
+                ...prev,
+                cobertura: prev.cobertura.map((row, rowIndex) => (rowIndex === idx ? { ...row, torresInput: e.target.value } : row)),
+              }))}
+            />
+            <Input
+              id={`coverage-desc-${idx}`}
+              label="Descrição escopo (opcional)"
+              value={item.descricaoEscopo || ''}
+              onChange={(e) => setFormData((prev) => ({
+                ...prev,
+                cobertura: prev.cobertura.map((row, rowIndex) => (rowIndex === idx ? { ...row, descricaoEscopo: e.target.value } : row)),
+              }))}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFormData((prev) => ({ ...prev, cobertura: prev.cobertura.filter((_, rowIndex) => rowIndex !== idx) }))}
+            >
+              <AppIcon name="trash" />
+              Remover escopo
+            </Button>
+          </div>
+        ))}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setFormData((prev) => ({
+            ...prev,
+            cobertura: [...(prev.cobertura || []), { projetoId: '', torresInput: '', descricaoEscopo: '' }],
+          }))}
+        >
+          <AppIcon name="plus" />
+          Adicionar escopo
+        </Button>
+      </div>
+
+      <div className="notice mt-3">
+        <strong>Condicionante:</strong> exige acompanhamento de processos erosivos.
+      </div>
+
+      <textarea
+        rows="3"
+        placeholder="Observações"
+        value={formData.observacoes || ''}
+        onChange={(e) => setFormData((prev) => ({ ...prev, observacoes: e.target.value }))}
+        className="mt-3"
+        style={{ width: '100%' }}
+      />
+    </Modal>
   );
 }
 
@@ -311,10 +348,10 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast }) {
           <h2>Licenças de Operação (LO)</h2>
           <p className="muted">Cadastro centralizado de LO com escopo por empreendimento e torres.</p>
         </div>
-        <button type="button" onClick={openNew}>
+        <Button variant="primary" size="sm" onClick={openNew}>
           <AppIcon name="plus" />
           Nova LO
-        </button>
+        </Button>
       </div>
 
       <div className="project-cards">
@@ -326,14 +363,14 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast }) {
                 <small>{item.id}</small>
               </div>
               <div className="inline-row">
-                <button type="button" className="secondary" onClick={() => openEdit(item)}>
+                <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
                   <AppIcon name="edit" />
                   Editar
-                </button>
-                <button type="button" className="danger" onClick={() => handleDelete(item.id)}>
+                </Button>
+                <Button variant="danger" size="sm" onClick={() => handleDelete(item.id)}>
                   <AppIcon name="trash" />
                   Excluir
-                </button>
+                </Button>
               </div>
             </header>
             <div className="muted">
