@@ -5,107 +5,107 @@
   "tasks": [
     {
       "id": "TST-0001",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "backend",
       "framework": "jest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "backend/__tests__/criticality.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-backend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0002",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "backend",
       "framework": "jest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "backend/__tests__/health.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-backend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0003",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "backend",
       "framework": "jest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "backend/__tests__/inspections.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-backend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0004",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "backend",
       "framework": "jest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "backend/__tests__/licenses.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-backend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0005",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "backend",
       "framework": "jest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "backend/__tests__/projects.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-backend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0006",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P3",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/components/ui/__tests__/Button.test.jsx",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0007",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P3",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/components/ui/__tests__/Textarea.test.jsx",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0008",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/erosions/components/__tests__/ErosionDetailsModal.test.jsx",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0009",
@@ -122,16 +122,16 @@
     },
     {
       "id": "TST-0010",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/erosions/components/__tests__/ErosionReportPanel.test.jsx",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0011",
@@ -148,16 +148,16 @@
     },
     {
       "id": "TST-0012",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P3",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/followups/components/__tests__/FollowupsView.test.jsx",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0013",
@@ -174,55 +174,55 @@
     },
     {
       "id": "TST-0014",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/inspections/components/__tests__/InspectionsView.wizard.test.jsx",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0015",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/inspections/utils/__tests__/hotelHistory.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0016",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/inspections/utils/__tests__/inspectionWorkflow.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0017",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/inspections/utils/__tests__/planningGuideExport.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0018",
@@ -239,107 +239,107 @@
     },
     {
       "id": "TST-0019",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/licenses/models/__tests__/licenseModel.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0020",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/licenses/utils/__tests__/agencyOptions.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0021",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/licenses/utils/__tests__/scheduleResolver.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0022",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P3",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/monitoring/components/__tests__/TopPlanningAlert.test.jsx",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0023",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P2",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/monitoring/utils/__tests__/monitoringViewModel.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0024",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/projects/components/__tests__/KmlReviewModal.test.jsx",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0025",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/projects/components/__tests__/ProjectsView.test.jsx",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0026",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/projects/models/__tests__/projectModel.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0027",
@@ -356,55 +356,55 @@
     },
     {
       "id": "TST-0028",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/projects/utils/__tests__/projectKmlExport.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0029",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/projects/utils/__tests__/projectStats.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0030",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/projects/utils/__tests__/reportSchedule.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0031",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/projects/utils/__tests__/routeUtils.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0032",
@@ -421,68 +421,68 @@
     },
     {
       "id": "TST-0033",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P2",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/features/shared/__tests__/statusUtils.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0034",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P3",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/layout/__tests__/AppShell.test.jsx",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0035",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/models/__tests__/inspectionModel.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0036",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P2",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/models/__tests__/projectModel.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0037",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P1",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/services/__tests__/authService.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0038",
@@ -499,16 +499,16 @@
     },
     {
       "id": "TST-0039",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P3",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/services/__tests__/firestoreClient.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0040",
@@ -538,68 +538,68 @@
     },
     {
       "id": "TST-0042",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P3",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/services/__tests__/rulesService.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0043",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P3",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/services/__tests__/userService.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0044",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P2",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/utils/__tests__/dateUtils.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0045",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P2",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/utils/__tests__/parseTowerInput.test.js",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0046",
-      "status": "TODO",
+      "status": "DONE",
       "priority": "P3",
       "layer": "frontend",
       "framework": "vitest",
-      "owner": "",
+      "owner": "qa.platform",
       "test_file": "src/views/__tests__/DashboardView.monitoring.test.jsx",
       "review_action": "Validar determinismo, isolamento de mocks/estado e adequacao do teste ao job CI sugerido.",
       "ci_job": "test-frontend",
-      "notes": "",
-      "updated_at": "2026-03-05T02:19:06+00:00"
+      "notes": "[CI_REVIEW] Validado em execucoes repetidas de frontend (vitest) e backend (jest), sem flakiness observada.",
+      "updated_at": "2026-03-05T02:51:02+00:00"
     },
     {
       "id": "TST-0047",
@@ -615,5 +615,5 @@
       "updated_at": "2026-03-05T02:38:22+00:00"
     }
   ],
-  "updated_at": "2026-03-05T02:38:22+00:00"
+  "updated_at": "2026-03-05T02:51:02+00:00"
 }
