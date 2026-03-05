@@ -1,0 +1,10 @@
+.git
+.gitignore
+node_modules
+__tests__
+test_output*.txt
+*.log
+fly.toml
+jest.config.js
+jest.setup.js
+.env

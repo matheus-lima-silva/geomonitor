@@ -10,6 +10,8 @@ coverage/
 .env
 .env.local
 .env.*.local
+serviceAccountKey.json
+backend/serviceAccountKey.json
 
 # Python virtual environments
 .venv/

@@ -1,13 +1,19 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies first for better caching
+# Install ALL dependencies (including devDependencies for esbuild build step)
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 # Copy application source code
 COPY . .
+
+# Build utility bundles (esbuild)
+RUN npm run build:utils
+
+# Remove devDependencies after build
+RUN npm prune --omit=dev
 
 # Expose API port
 EXPOSE 8080

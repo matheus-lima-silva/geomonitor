@@ -5,21 +5,45 @@ const path = require('path');
 let db;
 let auth;
 
+const BASE_PATH = ['shared', 'geomonitor'];
+
 function initFirebase() {
     if (admin.apps.length > 0) {
         return;
     }
 
-    const serviceAccountPath = path.join(__dirname, '..', 'serviceAccountKey.json');
+    let serviceAccount = null;
 
-    if (!fs.existsSync(serviceAccountPath)) {
-        console.error('[Geomonitor API] ERRO: Arquivo serviceAccountKey.json não encontrado na raiz da pasta backend/. O Firebase Admin não pode ser inicializado.');
+    // 1) Try env var first (Fly.io / cloud deployment)
+    const envJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (envJson) {
+        try {
+            serviceAccount = JSON.parse(envJson);
+            console.log('[Geomonitor API] Firebase credentials loaded from FIREBASE_SERVICE_ACCOUNT_JSON env var.');
+        } catch (parseError) {
+            console.error('[Geomonitor API] ERRO: Falha ao parsear FIREBASE_SERVICE_ACCOUNT_JSON:', parseError.message);
+        }
+    }
+
+    // 2) Fall back to file (local development)
+    if (!serviceAccount) {
+        const serviceAccountPath = path.join(__dirname, '..', 'serviceAccountKey.json');
+        if (fs.existsSync(serviceAccountPath)) {
+            try {
+                serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
+                console.log('[Geomonitor API] Firebase credentials loaded from serviceAccountKey.json file.');
+            } catch (fileError) {
+                console.error('[Geomonitor API] Erro ao carregar serviceAccountKey.json:', fileError.message);
+            }
+        }
+    }
+
+    if (!serviceAccount) {
+        console.error('[Geomonitor API] ERRO: Nenhuma credencial Firebase encontrada. Defina FIREBASE_SERVICE_ACCOUNT_JSON ou coloque serviceAccountKey.json na pasta backend/.');
         return;
     }
 
     try {
-        const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
-
         admin.initializeApp({
             credential: admin.credential.cert(serviceAccount)
         });
@@ -28,7 +52,7 @@ function initFirebase() {
         auth = admin.auth();
         console.log('[Geomonitor API] Firebase Admin SDK inicializado com sucesso.');
     } catch (error) {
-        console.error('[Geomonitor API] Erro ao carregar serviceAccountKey.json:', error);
+        console.error('[Geomonitor API] Erro ao inicializar Firebase Admin:', error);
     }
 }
 
@@ -46,9 +70,20 @@ function getAuth() {
     return auth;
 }
 
+function getCollection(colName) {
+    const firestore = getDb();
+    return firestore.collection(BASE_PATH[0]).doc(BASE_PATH[1]).collection(colName);
+}
+
+function getDocRef(colName, docId) {
+    return getCollection(colName).doc(docId);
+}
+
 module.exports = {
     initFirebase,
     getDb,
     getAuth,
+    getCollection,
+    getDocRef,
     admin
 };
