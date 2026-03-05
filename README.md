@@ -109,6 +109,10 @@ src/
 - Checklist manual: `docs/smoke-test-checklist.md`
 - Relatorio mais recente: `docs/smoke-test-report-2026-02-22.md`
 
+## API backend
+
+- Documentacao dos endpoints: `docs/api-backend.md`
+
 ## Observacoes
 
 - O arquivo `SIMRLE.kml` pode ser usado como referencia de entrada para validacoes/importacao KML.
