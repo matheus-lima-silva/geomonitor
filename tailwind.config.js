@@ -12,10 +12,36 @@ export default {
           50: '#eff6ff',
           100: '#dbeafe',
           200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
           500: '#3b82f6',
           600: '#2563eb',
           700: '#1d4ed8',
+          800: '#1e40af',
           900: '#1e3a8a',
+        },
+        app: {
+          bg: '#eef3fb',
+          surface: '#ffffff',
+          surfaceMuted: '#f8fafc',
+        },
+        neutral: {
+          50: '#f8fafc',
+          100: '#f1f5f9',
+          200: '#e2e8f0',
+          300: '#cbd5e1',
+          400: '#94a3b8',
+          500: '#64748b',
+          600: '#475569',
+          700: '#334155',
+          800: '#1e293b',
+          900: '#0f172a',
+        },
+        info: {
+          DEFAULT: '#2563eb',
+          light: '#eff6ff',
+          border: '#bfdbfe',
+          dark: '#1d4ed8',
         },
         // Neutral / Slate scale (mirrors existing palette)
         slate: {
@@ -34,7 +60,7 @@ export default {
         // Semantic
         success: { DEFAULT: '#16a34a', light: '#ecfdf3', border: '#a7f3d0' },
         warning: { DEFAULT: '#b45309', light: '#fffbeb', border: '#fde68a' },
-        danger: { DEFAULT: '#dc2626', light: '#fef2f2', border: '#fecaca' },
+        danger: { DEFAULT: '#dc2626', dark: '#b91c1c', light: '#fef2f2', border: '#fecaca' },
         critical: { DEFAULT: '#7f1d1d', light: '#fef2f2' },
       },
       fontSize: {
@@ -75,5 +101,3 @@ export default {
   },
   plugins: [],
 }
-
-

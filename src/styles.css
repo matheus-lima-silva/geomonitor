@@ -5,6 +5,16 @@
 :root {
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: #0f172a;
+  --app-bg: #eef3fb;
+  --chart-criticality-c4: #7f1d1d;
+  --chart-criticality-c3: #b45309;
+  --chart-criticality-c2: #0369a1;
+  --chart-criticality-c1: #166534;
+  --chart-heat-critical: #7f1d1d;
+  --chart-heat-high: #b91c1c;
+  --chart-heat-medium-high: #ea580c;
+  --chart-heat-medium: #f59e0b;
+  --chart-heat-low: #22c55e;
 }
 
 html,
@@ -16,7 +26,14 @@ body,
 
 body {
   margin: 0;
-  background-color: #eef3fb;
-  /* Prevent scrolling on the body since the app shell usually handles it internally */
-  overflow: hidden;
+  background-color: var(--app-bg);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Desktop keeps shell-managed internal scrolling. */
+@media (min-width: 960px) {
+  body {
+    overflow: hidden;
+  }
 }

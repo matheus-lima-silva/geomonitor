@@ -71,7 +71,7 @@ function RoutePlannerModal({ project, routeSelection, setRouteSelection, onClose
       size="lg"
       footer={footer}
     >
-      <p className="text-sm text-blue-800 bg-blue-50 border border-blue-100 p-3 rounded-lg mb-4">
+      <p className="text-sm text-brand-800 bg-brand-50 border border-brand-100 p-3 rounded-lg mb-4">
         Selecione torres na ordem desejada. A rota será aberta no Google Maps com origem na sua localização.
       </p>
 
@@ -84,13 +84,13 @@ function RoutePlannerModal({ project, routeSelection, setRouteSelection, onClose
               key={`route-${tower.numero}`}
               type="button"
               className={`flex items-center justify-between px-3 py-2 text-sm border rounded-lg transition-all ${active
-                  ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-bold shadow-sm'
-                  : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-slate-50'
+                  ? 'bg-brand-50 border-brand-500 text-brand-700 font-bold shadow-sm'
+                  : 'bg-white border-slate-200 text-slate-700 hover:border-brand-300 hover:bg-slate-50'
                 }`}
               onClick={() => toggleRouteTower(tower.numero)}
             >
               <span>{formatTowerLabel(tower.numero)}</span>
-              {active && <strong className="text-indigo-600">#{order + 1}</strong>}
+              {active && <strong className="text-brand-600">#{order + 1}</strong>}
             </button>
           );
         })}

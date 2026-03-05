@@ -173,8 +173,8 @@ function AuthView() {
   const strengthColors = ['bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-green-500'];
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-[#eef3fb] p-4">
-      <section className="w-full max-w-md bg-white rounded-2xl shadow-panel border border-slate-200 overflow-hidden">
+    <div className="flex items-start sm:items-center justify-center min-h-[100dvh] bg-app-bg p-4 sm:p-6 overflow-y-auto">
+      <section className="w-full max-w-md bg-white rounded-2xl shadow-panel border border-slate-200 overflow-x-hidden overflow-y-auto max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)]">
         {/* Brand Header */}
         <header className="flex items-center gap-4 px-8 pt-8 pb-4">
           <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-brand-600 text-white shadow-md">

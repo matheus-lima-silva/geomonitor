@@ -201,7 +201,7 @@ describe('DashboardView monitoring top notice', () => {
 
     expect(container.textContent).toContain('Prazo');
     expect(container.textContent).toContain('Status prazo');
-    expect(container.textContent).toContain('Status operacional');
+    expect(container.textContent).toContain('Status op.');
     expect(container.textContent).toContain('dia(s)');
     expect(container.textContent).toContain('Em acompanhamento');
     expect(container.textContent).toContain('iniciado');

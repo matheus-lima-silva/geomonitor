@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import AppIcon from '../../../components/AppIcon';
+import { Button, IconButton, Input, Select, Textarea } from '../../../components/ui';
 import { saveInspection } from '../../../services/inspectionService';
 import { postCalculoErosao, saveErosion } from '../../../services/erosionService';
 import { useToast } from '../../../context/ToastContext';
@@ -1087,60 +1088,79 @@ function InspectionFormWizardModal({
             <h3 className="text-xl font-bold text-slate-800 m-0 leading-tight">{isEditing ? 'Editar Vistoria' : 'Nova Vistoria'}</h3>
             <p className="text-sm text-slate-500 mt-1 mb-0">Wizard em 3 etapas com preenchimento drill-down por dia e torre.</p>
           </div>
-          <button type="button" className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-lg transition-colors flex items-center justify-center" onClick={onCancel}>
+          <IconButton type="button" variant="ghost" size="md" aria-label="Fechar" onClick={onCancel}>
             <AppIcon name="close" />
-          </button>
+          </IconButton>
         </div>
 
         <div className="flex bg-slate-50 border-b border-slate-200 px-6 py-2 overflow-x-auto gap-2 shrink-0">
-          <button type="button" className={`px-4 py-2 font-semibold text-sm rounded-full whitespace-nowrap transition-colors ${step === 1 ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`} onClick={() => setStep(1)}>1. Dados gerais</button>
-          <button type="button" className={`px-4 py-2 font-semibold text-sm rounded-full whitespace-nowrap transition-colors ${step === 2 ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`} onClick={() => setStep(2)}>2. Diario</button>
-          <button type="button" className={`px-4 py-2 font-semibold text-sm rounded-full whitespace-nowrap transition-colors ${step === 3 ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`} onClick={() => setStep(3)}>3. Revisao</button>
+          <Button type="button" size="md" variant={step === 1 ? 'primary' : 'ghost'} className="px-4 rounded-full whitespace-nowrap" onClick={() => setStep(1)}>1. Dados gerais</Button>
+          <Button type="button" size="md" variant={step === 2 ? 'primary' : 'ghost'} className="px-4 rounded-full whitespace-nowrap" onClick={() => setStep(2)}>2. Diario</Button>
+          <Button type="button" size="md" variant={step === 3 ? 'primary' : 'ghost'} className="px-4 rounded-full whitespace-nowrap" onClick={() => setStep(3)}>3. Revisao</Button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
           {step === 1 ? (
             <div className="flex flex-col gap-6 animate-fade-in">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-semibold text-slate-700">ID</label>
-                  <input className="w-full px-3 py-2 text-sm bg-slate-100 border border-slate-300 rounded-lg text-slate-500 cursor-not-allowed outline-none" value={formData.id || ''} disabled placeholder="ID gerado automaticamente" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-semibold text-slate-700">Empreendimento *</label>
-                  <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" value={formData.projetoId} onChange={(e) => updateGeneralField('projetoId', e.target.value)}>
+                <Input
+                  id="inspection-id"
+                  label="ID"
+                  value={formData.id || ''}
+                  disabled
+                  className="bg-slate-100 text-slate-500 cursor-not-allowed"
+                  placeholder="ID gerado automaticamente"
+                />
+                <Select
+                  id="inspection-project"
+                  label="Empreendimento *"
+                  value={formData.projetoId}
+                  onChange={(e) => updateGeneralField('projetoId', e.target.value)}
+                >
                     <option value="">Selecione...</option>
                     {(projects || []).map((project) => (
                       <option key={project.id} value={project.id}>{project.id} - {project.nome}</option>
                     ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-semibold text-slate-700">Responsavel</label>
-                  <input className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" value={formData.responsavel || ''} onChange={(e) => updateGeneralField('responsavel', e.target.value)} placeholder="Nome do responsavel" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-semibold text-slate-700">Data inicio *</label>
-                  <input className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" type="date" value={formData.dataInicio || ''} onChange={(e) => updateGeneralField('dataInicio', e.target.value)} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-semibold text-slate-700">Data fim</label>
-                  <input className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" type="date" value={formData.dataFim || ''} onChange={(e) => updateGeneralField('dataFim', e.target.value)} />
-                </div>
+                </Select>
+                <Input
+                  id="inspection-responsavel"
+                  label="Responsavel"
+                  value={formData.responsavel || ''}
+                  onChange={(e) => updateGeneralField('responsavel', e.target.value)}
+                  placeholder="Nome do responsavel"
+                />
+                <Input
+                  id="inspection-date-start"
+                  label="Data inicio *"
+                  type="date"
+                  value={formData.dataInicio || ''}
+                  onChange={(e) => updateGeneralField('dataInicio', e.target.value)}
+                />
+                <Input
+                  id="inspection-date-end"
+                  label="Data fim"
+                  type="date"
+                  value={formData.dataFim || ''}
+                  onChange={(e) => updateGeneralField('dataFim', e.target.value)}
+                />
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-semibold text-slate-700">Observacoes</label>
-                <textarea className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-y" rows="3" value={formData.obs || ''} onChange={(e) => updateGeneralField('obs', e.target.value)} placeholder="Observacoes gerais da vistoria..." />
-              </div>
+              <Textarea
+                id="inspection-obs"
+                label="Observacoes"
+                rows={3}
+                value={formData.obs || ''}
+                onChange={(e) => updateGeneralField('obs', e.target.value)}
+                placeholder="Observacoes gerais da vistoria..."
+              />
               {suggestedTowerInput ? (
-                <div className="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100 text-sm">
+                <div className="bg-info-light text-brand-800 p-4 rounded-xl border border-info-border text-sm">
                   <div><strong>Torres sugeridas pelo planejamento:</strong> {suggestedTowerInput}</div>
                 </div>
               ) : null}
               {formData.detalhesDias.length === 0 ? (
                 <div className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-100 text-sm">Defina data inicio e data fim para gerar os dias da vistoria.</div>
               ) : (
-                <div className="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100 text-sm">
+                <div className="bg-info-light text-brand-800 p-4 rounded-xl border border-info-border text-sm">
                   <strong>Dias gerados:</strong> {formData.detalhesDias.length}
                 </div>
               )}
@@ -1170,25 +1190,22 @@ function InspectionFormWizardModal({
                           <strong className="text-slate-800 text-lg">{day.data ? new Date(`${day.data}T00:00:00`).toLocaleDateString('pt-BR') : `Dia ${dayIndex + 1}`}</strong>
                           <div className="text-sm text-slate-500">{(day.torresDetalhadas || []).length} torre(s) detalhada(s)</div>
                         </div>
-                        <button type="button" className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2" onClick={(e) => { e.stopPropagation(); setExpandedDay((prev) => (prev === day.data ? '' : day.data)); }}>
+                        <Button type="button" size="sm" variant="outline" className="px-3 py-1.5" onClick={(e) => { e.stopPropagation(); setExpandedDay((prev) => (prev === day.data ? '' : day.data)); }}>
                           <AppIcon name="details" />
                           {isDayExpanded ? 'Ocultar' : 'Detalhar dia'}
-                        </button>
+                        </Button>
                       </div>
 
                       {isDayExpanded ? (
                         <div className="p-5 border-t border-slate-100 flex flex-col gap-5 bg-slate-50/50">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-sm font-semibold text-slate-700">Clima</label>
-                              <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" value={day.clima || ''} onChange={(e) => updateDayField(dayIndex, { clima: e.target.value })}>
+                            <Select id={`inspection-day-weather-${dayIndex}`} label="Clima" value={day.clima || ''} onChange={(e) => updateDayField(dayIndex, { clima: e.target.value })}>
                                 <option value="">Selecione...</option>
                                 <option value="Sol">Sol</option>
                                 <option value="Parcialmente Nublado">Parcialmente nublado</option>
                                 <option value="Nublado">Nublado</option>
                                 <option value="Chuva">Chuva</option>
-                              </select>
-                            </div>
+                            </Select>
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex flex-col gap-1">
                               <label className="text-sm font-semibold text-slate-700 m-0">Torres selecionadas</label>
                               <div className="text-sm text-slate-500 overflow-hidden text-ellipsis whitespace-nowrap">
@@ -1223,7 +1240,7 @@ function InspectionFormWizardModal({
                                       <button
                                         key={`${dayKey}-picker-${towerNumber}`}
                                         type="button"
-                                        className={`flex items-center justify-center p-2 border rounded-lg text-xs font-medium transition-colors ${active ? 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700 hover:border-blue-700 shadow-inner' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50'}`}
+                                        className={`flex items-center justify-center p-2 border rounded-lg text-xs font-medium transition-colors ${active ? 'bg-brand-600 border-brand-600 text-white hover:bg-brand-700 hover:border-brand-700 shadow-inner' : 'bg-white border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50'}`}
                                         onClick={() => toggleDayTower(dayIndex, towerNumber)}
                                       >
                                         {formatTowerLabel(towerNumber)}
@@ -1241,24 +1258,26 @@ function InspectionFormWizardModal({
                           </div>
 
                           <div className="flex items-center gap-2 justify-end">
-                            <button
+                            <Button
                               type="button"
-                              className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                              variant="outline"
+                              size="sm"
+                              className="px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                               onClick={() => clearDayTowerSelection(dayIndex)}
                               disabled={selectedDayTowers.length === 0}
                             >
                               <AppIcon name="close" />
                               Limpar selecao do dia
-                            </button>
+                            </Button>
                             {suggestedTowerInput ? (
-                              <button type="button" className="px-3 py-1.5 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg text-sm font-semibold hover:bg-blue-100 transition-colors flex items-center gap-1.5" onClick={() => applySuggestedTowersToDay(dayIndex)}>
+                              <Button type="button" variant="outline" size="sm" className="px-3 py-1.5 border-brand-300 bg-brand-50 text-brand-700 hover:bg-brand-100" onClick={() => applySuggestedTowersToDay(dayIndex)}>
                                 <AppIcon name="clipboard" />
                                 Aplicar sugeridas
-                              </button>
+                              </Button>
                             ) : null}
                           </div>
 
-                          <div className="bg-indigo-50/50 border border-indigo-100 p-4 rounded-xl flex flex-col gap-3">
+                          <div className="bg-brand-50/50 border border-brand-100 p-4 rounded-xl flex flex-col gap-3">
                             <div className="flex items-center justify-between gap-4 flex-wrap">
                               <div
                                 className="relative flex-1 min-w-[200px]"
@@ -1266,7 +1285,7 @@ function InspectionFormWizardModal({
                               >
                                 <button
                                   type="button"
-                                  className={`flex items-center justify-between gap-2 px-3 py-2 bg-white border rounded-lg text-sm w-full md:w-[350px] text-left transition-all ${isHotelPickerOpen ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-slate-300 hover:border-indigo-300'}`}
+                                  className={`flex items-center justify-between gap-2 px-3 py-2 bg-white border rounded-lg text-sm w-full md:w-[350px] text-left transition-all ${isHotelPickerOpen ? 'border-brand-400 ring-2 ring-brand-100' : 'border-slate-300 hover:border-brand-300'}`}
                                   aria-expanded={isHotelPickerOpen ? 'true' : 'false'}
                                   aria-haspopup="listbox"
                                   onClick={() => toggleHotelPicker(dayKey, String(day.hotelNome || ''))}
@@ -1298,7 +1317,7 @@ function InspectionFormWizardModal({
                                         <button
                                           key={item.key}
                                           type="button"
-                                          className="text-left w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 border-b border-slate-50 last:border-none transition-colors"
+                                          className="text-left w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-brand-50 border-b border-slate-50 last:border-none transition-colors"
                                           onClick={() => handleSelectHotelFromHistory(dayIndex, item)}
                                         >
                                           {formatHistoryOption(item)}
@@ -1307,7 +1326,7 @@ function InspectionFormWizardModal({
                                       {canCreateHotelFromSearch ? (
                                         <button
                                           type="button"
-                                          className="text-left w-full px-4 py-2.5 text-sm font-semibold text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 transition-colors border-t border-indigo-100"
+                                          className="text-left w-full px-4 py-2.5 text-sm font-semibold text-brand-700 bg-brand-50/50 hover:bg-brand-100 transition-colors border-t border-brand-100"
                                           onClick={() => handleCreateNewHotel(dayIndex)}
                                         >
                                           Criar novo hotel: "{String(hotelPickerSearch || '').trim()}"
@@ -1321,10 +1340,10 @@ function InspectionFormWizardModal({
                                 ) : null}
                               </div>
 
-                              <button type="button" className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" onClick={() => repeatPreviousDayHotel(dayIndex)} disabled={!previousHotel}>
+                              <Button type="button" variant="outline" size="sm" className="px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed" onClick={() => repeatPreviousDayHotel(dayIndex)} disabled={!previousHotel}>
                                 <AppIcon name="copy" />
                                 Repetir dia anterior
-                              </button>
+                              </Button>
                             </div>
                             {previousHotel ? (
                               <small className="text-sm text-slate-500">
@@ -1334,34 +1353,35 @@ function InspectionFormWizardModal({
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                            <input className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={day.hotelNome || ''} onChange={(e) => updateDayField(dayIndex, { hotelNome: e.target.value })} placeholder="Hotel (opcional)" />
-                            <input className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={day.hotelMunicipio || ''} onChange={(e) => updateDayField(dayIndex, { hotelMunicipio: e.target.value })} placeholder="Municipio do hotel" />
-                            <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={day.hotelLogisticaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelLogisticaNota: e.target.value })}>
+                            <Input id={`inspection-hotel-name-${dayIndex}`} value={day.hotelNome || ''} onChange={(e) => updateDayField(dayIndex, { hotelNome: e.target.value })} placeholder="Hotel (opcional)" />
+                            <Input id={`inspection-hotel-city-${dayIndex}`} value={day.hotelMunicipio || ''} onChange={(e) => updateDayField(dayIndex, { hotelMunicipio: e.target.value })} placeholder="Municipio do hotel" />
+                            <Select id={`inspection-hotel-logistics-${dayIndex}`} value={day.hotelLogisticaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelLogisticaNota: e.target.value })}>
                               <option value="">Logistica (1-5)</option>
                               <option value="1">1</option>
                               <option value="2">2</option>
                               <option value="3">3</option>
                               <option value="4">4</option>
                               <option value="5">5</option>
-                            </select>
-                            <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={day.hotelReservaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelReservaNota: e.target.value })}>
+                            </Select>
+                            <Select id={`inspection-hotel-booking-${dayIndex}`} value={day.hotelReservaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelReservaNota: e.target.value })}>
                               <option value="">Reserva (1-5)</option>
                               <option value="1">1</option>
                               <option value="2">2</option>
                               <option value="3">3</option>
                               <option value="4">4</option>
                               <option value="5">5</option>
-                            </select>
-                            <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={day.hotelEstadiaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelEstadiaNota: e.target.value })}>
+                            </Select>
+                            <Select id={`inspection-hotel-stay-${dayIndex}`} value={day.hotelEstadiaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelEstadiaNota: e.target.value })}>
                               <option value="">Estadia (1-5)</option>
                               <option value="1">1</option>
                               <option value="2">2</option>
                               <option value="3">3</option>
                               <option value="4">4</option>
                               <option value="5">5</option>
-                            </select>
-                            <select
-                              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 disabled:bg-slate-100"
+                            </Select>
+                            <Select
+                              id={`inspection-hotel-base-tower-${dayIndex}`}
+                              className="disabled:opacity-60 disabled:bg-slate-100"
                               value={day.hotelTorreBase || ''}
                               onChange={(e) => updateDayField(dayIndex, { hotelTorreBase: e.target.value })}
                               disabled={selectedDayTowers.length === 0}
@@ -1374,7 +1394,7 @@ function InspectionFormWizardModal({
                               {selectedDayTowers.map((tower) => (
                                 <option key={`hotel-base-${dayIndex}-${tower.numero}`} value={tower.numero}>Torre {tower.numero}</option>
                               ))}
-                            </select>
+                            </Select>
                           </div>
 
                           {(day.torresDetalhadas || []).length > 0 ? (
@@ -1407,7 +1427,7 @@ function InspectionFormWizardModal({
                                         </td>
                                         <td className="p-3 border-b border-slate-100 align-top">
                                           <input
-                                            className="w-full px-3 py-2 bg-slate-50 border border-transparent hover:border-slate-300 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 rounded-lg outline-none transition-all text-sm"
+                                            className="w-full px-3 py-2 bg-slate-50 border border-transparent hover:border-slate-300 focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-100 rounded-lg outline-none transition-all text-sm"
                                             value={tower?.obs || ''}
                                             onChange={(e) => updateTowerDetail(dayIndex, towerIndex, { obs: e.target.value })}
                                             placeholder="Observacoes da torre"
@@ -1492,7 +1512,7 @@ function InspectionFormWizardModal({
               ) : null}
 
               {suggestedTowerInput ? (
-                <div className="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100 text-sm">
+                <div className="bg-brand-50 text-brand-800 p-4 rounded-xl border border-brand-100 text-sm">
                   <strong>Torres sugeridas do planejamento:</strong> {suggestedTowerInput}
                 </div>
               ) : null}
@@ -1501,27 +1521,27 @@ function InspectionFormWizardModal({
         </div>
 
         <div className="flex items-center justify-between p-6 bg-white border-t border-slate-200 shrink-0">
-          <button type="button" className="px-4 py-2 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 text-sm" onClick={onCancel}>
+          <Button type="button" variant="outline" size="md" className="px-4 py-2" onClick={onCancel}>
             <AppIcon name="close" />
             Cancelar
-          </button>
+          </Button>
           <div className="flex items-center gap-2">
             {step > 1 ? (
-              <button type="button" className="px-4 py-2 border border-slate-300 rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 text-sm" onClick={handlePreviousStep}>
+              <Button type="button" variant="outline" size="md" className="px-4 py-2" onClick={handlePreviousStep}>
                 <AppIcon name="chevron-left" />
                 Voltar
-              </button>
+              </Button>
             ) : null}
             {step < 3 ? (
-              <button type="button" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm text-sm" onClick={handleNextStep}>
+              <Button type="button" variant="primary" size="md" className="px-4 py-2 shadow-sm" onClick={handleNextStep}>
                 Avancar
                 <AppIcon name="chevron-right" />
-              </button>
+              </Button>
             ) : (
-              <button type="button" className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-sm text-sm disabled:opacity-70 disabled:cursor-not-allowed" onClick={handleSaveInspection} disabled={saving}>
+              <Button type="button" variant="primary" size="md" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 shadow-sm disabled:opacity-70 disabled:cursor-not-allowed" onClick={handleSaveInspection} disabled={saving}>
                 <AppIcon name="save" />
                 {saving ? 'Salvando...' : 'Salvar vistoria'}
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -1538,18 +1558,18 @@ function InspectionFormWizardModal({
             </div>
             <div className="p-5 flex flex-col gap-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={erosionForm.estagio || ''} onChange={(e) => setErosionForm((prev) => ({ ...prev, estagio: e.target.value }))}>
+                <Select id="inspection-erosion-stage" value={erosionForm.estagio || ''} onChange={(e) => setErosionForm((prev) => ({ ...prev, estagio: e.target.value }))}>
                   <option value="">Estagio (grau erosivo)...</option>
                   <option value="inicial">Inicial</option>
                   <option value="intermediario">Intermediario</option>
                   <option value="avancado">Avancado</option>
                   <option value="critico">Critico</option>
-                </select>
-                <select className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={erosionForm.status || 'Ativo'} onChange={(e) => setErosionForm((prev) => ({ ...prev, status: e.target.value }))}>
+                </Select>
+                <Select id="inspection-erosion-status" value={erosionForm.status || 'Ativo'} onChange={(e) => setErosionForm((prev) => ({ ...prev, status: e.target.value }))}>
                   <option value="Ativo">Status: Ativo</option>
                   <option value="Monitoramento">Status: Monitoramento</option>
                   <option value="Estabilizado">Status: Estabilizado</option>
-                </select>
+                </Select>
               </div>
               <div>
                 <span className="text-sm text-slate-500 italic block">Campos tecnicos canônicos (mesmos do cadastro principal).</span>
@@ -1557,73 +1577,75 @@ function InspectionFormWizardModal({
               <div className="bg-slate-50 p-4 border border-slate-200 rounded-xl flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <strong className="text-sm text-slate-700">Coordenadas / UTM</strong>
-                  <button
+                  <Button
                     type="button"
-                    className="px-3 py-1.5 border border-slate-300 bg-white rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
+                    variant="outline"
+                    size="sm"
+                    className="px-3 py-1.5 bg-white text-xs"
                     onClick={() => setInlineCoordinatesExpanded((prev) => !prev)}
                     aria-expanded={inlineCoordinatesExpanded ? 'true' : 'false'}
                     data-utm-error-token={inlineUtmErrorToken}
                   >
                     <span>{inlineCoordinatesStatus}</span>
                     <AppIcon name={inlineCoordinatesExpanded ? 'chevron-up' : 'chevron-down'} />
-                  </button>
+                  </Button>
                 </div>
                 {inlineCoordinatesExpanded ? (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <input
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      <Input
+                        id="inspection-erosion-latitude"
                         placeholder="Latitude (centesimal)"
                         value={erosionForm.locationCoordinates?.latitude || ''}
                         onChange={(e) => updateInlineLocationField('latitude', e.target.value)}
                       />
-                      <input
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      <Input
+                        id="inspection-erosion-longitude"
                         placeholder="Longitude (centesimal)"
                         value={erosionForm.locationCoordinates?.longitude || ''}
                         onChange={(e) => updateInlineLocationField('longitude', e.target.value)}
                       />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <input
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      <Input
+                        id="inspection-erosion-utm-easting"
                         placeholder="UTM Easting"
                         value={erosionForm.locationCoordinates?.utmEasting || ''}
                         onChange={(e) => updateInlineLocationField('utmEasting', e.target.value)}
                       />
-                      <input
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      <Input
+                        id="inspection-erosion-utm-northing"
                         placeholder="UTM Northing"
                         value={erosionForm.locationCoordinates?.utmNorthing || ''}
                         onChange={(e) => updateInlineLocationField('utmNorthing', e.target.value)}
                       />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <input
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      <Input
+                        id="inspection-erosion-utm-zone"
                         placeholder="UTM Zona"
                         value={erosionForm.locationCoordinates?.utmZone || ''}
                         onChange={(e) => updateInlineLocationField('utmZone', e.target.value)}
                       />
-                      <select
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      <Select
+                        id="inspection-erosion-utm-hemisphere"
                         value={erosionForm.locationCoordinates?.utmHemisphere || ''}
                         onChange={(e) => updateInlineLocationField('utmHemisphere', e.target.value)}
                       >
                         <option value="">Hemisferio UTM...</option>
                         <option value="N">N</option>
                         <option value="S">S</option>
-                      </select>
+                      </Select>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <input
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      <Input
+                        id="inspection-erosion-altitude"
                         placeholder="Altitude"
                         value={erosionForm.locationCoordinates?.altitude || ''}
                         onChange={(e) => updateInlineLocationField('altitude', e.target.value)}
                       />
-                      <input
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      <Input
+                        id="inspection-erosion-reference"
                         placeholder="Referencia"
                         value={erosionForm.locationCoordinates?.reference || ''}
                         onChange={(e) => updateInlineLocationField('reference', e.target.value)}
@@ -1638,9 +1660,10 @@ function InspectionFormWizardModal({
               />
 
               <div className="flex flex-col gap-4">
-                <textarea
-                  rows="2"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono whitespace-pre resize-y"
+                <Textarea
+                  id="inspection-erosion-photo-links"
+                  rows={2}
+                  className="font-mono whitespace-pre"
                   placeholder="Fotos (links, um por linha)"
                   value={Array.isArray(erosionForm.fotosLinks) ? erosionForm.fotosLinks.join('\n') : ''}
                   onChange={(e) => setErosionForm((prev) => ({
@@ -1651,9 +1674,9 @@ function InspectionFormWizardModal({
                       .filter(Boolean),
                   }))}
                 />
-                <textarea
-                  rows="3"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-y"
+                <Textarea
+                  id="inspection-erosion-description"
+                  rows={3}
                   placeholder="Descricao"
                   value={erosionForm.descricao}
                   onChange={(e) => setErosionForm((prev) => ({ ...prev, descricao: e.target.value }))}
@@ -1662,19 +1685,23 @@ function InspectionFormWizardModal({
             </div>
             <div className="p-5 border-t border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-4 rounded-b-2xl">
               {onOpenErosionDraft ? (
-                <button
+                <Button
                   type="button"
-                  className="px-4 py-2 border border-slate-300 bg-white rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 text-sm"
+                  variant="outline"
+                  size="md"
+                  className="px-4 py-2 bg-white"
                   onClick={handleOpenErosionDraft}
                 >
                   <AppIcon name="details" />
                   Abrir cadastro completo na aba Erosoes
-                </button>
+                </Button>
               ) : <div></div>}
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   type="button"
-                  className="px-4 py-2 border border-slate-300 bg-white rounded-lg font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 text-sm"
+                  variant="outline"
+                  size="md"
+                  className="px-4 py-2 bg-white"
                   onClick={() => {
                     setErosionModal(null);
                     setErosionForm(buildSafeInlineErosionFormState());
@@ -1684,11 +1711,11 @@ function InspectionFormWizardModal({
                 >
                   <AppIcon name="close" />
                   Cancelar
-                </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm text-sm">
+                </Button>
+                <Button type="submit" variant="primary" size="md" className="px-4 py-2 shadow-sm">
                   <AppIcon name="save" />
                   {erosionModal.existingErosion ? 'Salvar alteracoes' : 'Salvar erosao'}
-                </button>
+                </Button>
               </div>
             </div>
           </form>
@@ -1700,3 +1727,5 @@ function InspectionFormWizardModal({
 }
 
 export default InspectionFormWizardModal;
+
+

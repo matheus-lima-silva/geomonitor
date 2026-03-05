@@ -34,6 +34,10 @@ import {
   formatTowerLabel,
   getErosionImpact,
 } from '../features/monitoring/utils/monitoringViewModel';
+import {
+  getCriticalityChartColor,
+  getHeatChartColor,
+} from '../features/monitoring/utils/monitoringColors';
 
 const ProjectsView = lazy(() => import('../features/projects/components/ProjectsView'));
 const LicensesView = lazy(() => import('../features/licenses/components/LicensesView'));
@@ -42,21 +46,6 @@ const ErosionsView = lazy(() => import('../features/erosions/components/Erosions
 const VisitPlanningView = lazy(() => import('../features/inspections/components/VisitPlanningView'));
 const AdminView = lazy(() => import('../features/admin/components/AdminView'));
 const FollowupsView = lazy(() => import('../features/followups/components/FollowupsView'));
-
-function getCriticalityBarColor(code) {
-  if (code === 'C4') return '#7f1d1d';
-  if (code === 'C3') return '#b45309';
-  if (code === 'C2') return '#0369a1';
-  return '#166534';
-}
-
-function getHeatColor(weight) {
-  if (weight >= 0.85) return '#7f1d1d';
-  if (weight >= 0.65) return '#b91c1c';
-  if (weight >= 0.45) return '#ea580c';
-  if (weight >= 0.25) return '#f59e0b';
-  return '#22c55e';
-}
 
 function formatReportDueDays(days) {
   const safeDays = Number(days);
@@ -152,7 +141,7 @@ function DashboardMonitoring({ viewModel }) {
                   <Tooltip />
                   <Bar dataKey="total" name="Erosões">
                     {criticalityDistributionRows.map((row) => (
-                      <Cell key={`criticality-bar-${row.level}`} fill={getCriticalityBarColor(row.level)} />
+                      <Cell key={`criticality-bar-${row.level}`} fill={getCriticalityChartColor(row.level)} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -289,8 +278,8 @@ function DashboardMonitoring({ viewModel }) {
                     center={[point.latitude, point.longitude]}
                     radius={6 + (point.peso * 8)}
                     pathOptions={{
-                      color: getHeatColor(point.peso),
-                      fillColor: getHeatColor(point.peso),
+                      color: getHeatChartColor(point.peso),
+                      fillColor: getHeatChartColor(point.peso),
                       fillOpacity: 0.55 + (point.peso * 0.35),
                     }}
                   >

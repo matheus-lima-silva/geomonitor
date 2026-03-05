@@ -137,7 +137,7 @@ function KmlReviewModal({
                     key={periodicidade}
                     type="button"
                     className={`px-4 py-2 text-sm font-medium border rounded-lg transition-colors ${periodicidadeCreate === periodicidade
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        ? 'bg-brand-600 text-white border-brand-600 shadow-sm'
                         : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
                       }`}
                     onClick={() => setCreateFromKmlData({
@@ -166,7 +166,7 @@ function KmlReviewModal({
                       key={`create-kml-month-${m.value}`}
                       type="button"
                       className={`px-3 py-2 text-sm font-medium border rounded-lg transition-colors text-center ${selected
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          ? 'bg-brand-600 text-white border-brand-600 shadow-sm'
                           : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
                         }`}
                       onClick={() => toggleCreateMonth(m.value)}
@@ -179,23 +179,23 @@ function KmlReviewModal({
             </div>
 
             {periodicidadeCreate === 'Bienal' && (
-              <label className="flex flex-col gap-1 w-[200px]">
-                <span className="text-sm font-bold text-slate-700">Ano base (bienal)</span>
-                <input
+              <div className="w-[200px]">
+                <Input
+                  id="kml-biennial-base-year"
+                  label="Ano base (bienal)"
                   type="number"
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   min="2000"
                   value={createFromKmlData.anoBaseBienal || ''}
                   onChange={(e) => setCreateFromKmlData({ ...createFromKmlData, anoBaseBienal: e.target.value })}
                   placeholder="Ex.: 2026"
                 />
-              </label>
+              </div>
             )}
           </div>
         )}
 
         {mode === 'merge' && (
-          <div className="bg-blue-50 text-blue-900 border border-blue-100 rounded-xl p-4 text-sm flex flex-col gap-2">
+          <div className="bg-brand-50 text-brand-900 border border-brand-100 rounded-xl p-4 text-sm flex flex-col gap-2">
             <div className="font-bold text-base mb-1">Comparacao de metadados do KML</div>
             <div>ID atual: <strong>{kmlMergeSnapshot?.id || '-'}</strong> | Sigla KML (sugerida): <strong>{kmlMeta?.sigla || '-'}</strong></div>
             <div>Nome atual: <strong>{kmlMergeSnapshot?.nome || '-'}</strong> | Nome KML (sugerido): <strong>{kmlMeta?.linhaNome || kmlMeta?.nome || '-'}</strong></div>
@@ -206,7 +206,7 @@ function KmlReviewModal({
                 type="checkbox"
                 checked={!!applyKmlMetadataOnMerge}
                 onChange={(e) => setApplyKmlMetadataOnMerge(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500"
               />
               Aplicar metadados do KML (nome, extensao e torres)
             </label>
@@ -229,13 +229,13 @@ function KmlReviewModal({
               {reviewedKml.rows.map((row, index) => (
                 <tr key={row.key || index} className={`hover:bg-slate-50 transition-colors ${row.error ? 'bg-red-50/50' : ''}`}>
                   <td className="px-3 py-2">
-                    <input className="w-full min-w-[100px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" value={row.numero} onChange={(e) => updateKmlRow(index, { numero: e.target.value })} />
+                    <input className="w-full min-w-[100px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-brand-500 outline-none" value={row.numero} onChange={(e) => updateKmlRow(index, { numero: e.target.value })} />
                   </td>
                   <td className="px-3 py-2">
-                    <input className="w-full min-w-[120px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" value={row.latitude} onChange={(e) => updateKmlRow(index, { latitude: e.target.value })} />
+                    <input className="w-full min-w-[120px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-brand-500 outline-none" value={row.latitude} onChange={(e) => updateKmlRow(index, { latitude: e.target.value })} />
                   </td>
                   <td className="px-3 py-2">
-                    <input className="w-full min-w-[120px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" value={row.longitude} onChange={(e) => updateKmlRow(index, { longitude: e.target.value })} />
+                    <input className="w-full min-w-[120px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-brand-500 outline-none" value={row.longitude} onChange={(e) => updateKmlRow(index, { longitude: e.target.value })} />
                   </td>
                   <td className="px-3 py-2 text-slate-700">{row.sourceName || '-'}</td>
                   <td className="px-3 py-2 text-red-600 font-medium max-w-[200px] truncate" title={row.error || ''}>{row.error || '-'}</td>
@@ -260,3 +260,5 @@ function KmlReviewModal({
 }
 
 export default KmlReviewModal;
+
+

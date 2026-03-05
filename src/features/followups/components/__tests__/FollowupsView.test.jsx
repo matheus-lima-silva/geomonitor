@@ -86,7 +86,8 @@ describe('FollowupsView', () => {
       await Promise.resolve();
     });
 
-    const firstRow = container.querySelector('.followups-report-table tbody tr');
+    const firstRow = [...container.querySelectorAll('tbody tr')]
+      .find((row) => row.textContent.includes('P1 - Projeto 1'));
     expect(firstRow).toBeTruthy();
     const selects = firstRow.querySelectorAll('select');
     expect(selects.length).toBe(2);
@@ -179,7 +180,9 @@ describe('FollowupsView', () => {
       await Promise.resolve();
     });
 
-    const form = container.querySelector('.followups-work-form');
+    const formHeading = [...container.querySelectorAll('h4')]
+      .find((node) => node.textContent.includes('Novo evento de obra - ER-10'));
+    const form = formHeading?.parentElement;
     expect(form).toBeTruthy();
 
     const stageSelect = form.querySelector('select');

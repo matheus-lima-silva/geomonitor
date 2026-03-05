@@ -102,7 +102,7 @@ function AppShell({
 
   return (
     <div
-      className="flex h-screen w-full bg-[#eef3fb] overflow-hidden text-slate-800"
+      className="flex h-screen w-full bg-app-bg overflow-hidden text-slate-800"
       data-sidebar-review-variant={normalizedSidebarReviewVariant}
     >
       {/* Mobile Overlay */}
@@ -281,7 +281,7 @@ function AppShell({
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 bg-[#eef3fb]">
+      <main className="flex-1 flex flex-col min-w-0 min-h-0 bg-app-bg">
         {/* Mobile Header */}
         {(topNotice || !isDesktopViewport) && (
           <header className={`flex items-center bg-white border-b border-slate-200 px-4 py-3 shrink-0 justify-between ${isDesktopViewport ? 'hidden' : 'flex'}`}>
@@ -299,21 +299,23 @@ function AppShell({
               </button>
               <h1 className="font-semibold text-slate-800 text-lg">GeoMonitor</h1>
             </div>
+            {topNotice ? (
+              <div className="flex items-center pl-2">
+                {topNotice}
+              </div>
+            ) : null}
           </header>
         )}
 
-        {/* Top Notice */}
-        {topNotice && (
-          <div id="shell-topbar-notice-slot" className="bg-brand-50 border-b border-brand-100 px-4 py-2 shrink-0 flex items-center gap-2 text-sm text-brand-700">
-            <AppIcon name="info" size={16} className="shrink-0" />
-            <div className="flex-1 min-w-0 truncate font-medium">
-              {topNotice}
-            </div>
+        {/* Top Notice (desktop compact icon area) */}
+        {topNotice && isDesktopViewport && (
+          <div id="shell-topbar-notice-slot" className="px-4 pt-3 pb-1 shrink-0 flex items-center justify-end">
+            {topNotice}
           </div>
         )}
 
         {/* Router Outlet / Content Injection */}
-        <div className="flex-1 overflow-auto relative z-0">
+        <div className="flex-1 min-h-0 overflow-auto relative z-0">
           {children}
         </div>
       </main>
@@ -322,4 +324,3 @@ function AppShell({
 }
 
 export default AppShell;
-

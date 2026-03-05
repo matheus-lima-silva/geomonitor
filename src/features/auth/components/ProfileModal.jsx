@@ -80,7 +80,7 @@ function ProfileModal({ onClose }) {
       footer={footer}
     >
       <section className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">
-        <div className="flex-shrink-0 w-14 h-14 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xl font-bold">
+        <div className="flex-shrink-0 w-14 h-14 bg-blue-100 text-brand-700 rounded-full flex items-center justify-center text-xl font-bold">
           {String(formData.nome || user?.email || 'U').trim().charAt(0).toUpperCase() || 'U'}
         </div>
         <div className="flex flex-col">
@@ -132,8 +132,8 @@ function ProfileModal({ onClose }) {
         />
       </div>
 
-      <section className="bg-blue-50 border border-blue-100 rounded-xl p-5 text-blue-900">
-        <div className="flex items-center gap-2 font-bold text-sm mb-2 text-blue-800">
+      <section className="bg-brand-50 border border-brand-100 rounded-xl p-5 text-brand-900">
+        <div className="flex items-center gap-2 font-bold text-sm mb-2 text-brand-800">
           <AppIcon name="shield" />
           Perfil de Acesso
         </div>

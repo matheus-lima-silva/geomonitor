@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button } from '../../../components/ui';
+import { Button, IconButton } from '../../../components/ui';
 import { useProjectsFeatureState } from '../hooks/useProjectsFeatureState';
 import { formatReportMonths, getProjectReportConfig } from '../utils/reportSchedule';
 import { validateTowerCoordinatesAsString } from '../utils/kmlUtils';
@@ -98,29 +98,32 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
                   <p className="text-xs text-slate-400 m-0">{p.dataCadastro || 'S/D'}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <IconButton
                     type="button"
-                    className="text-slate-400 hover:text-brand-600 transition-colors bg-transparent border-0 p-1 cursor-pointer focus:outline-none"
+                    variant="ghost"
+                    size="sm"
                     aria-label={`Editar empreendimento ${p.id}`}
                     onClick={() => state.openEdit(p)}
                   >
                     <AppIcon name="edit" size={20} />
-                  </button>
-                  <button
+                  </IconButton>
+                  <IconButton
                     type="button"
-                    className="text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 p-1 cursor-pointer focus:outline-none"
+                    variant="ghost"
+                    size="sm"
+                    className="hover:text-danger"
                     aria-label={`Excluir empreendimento ${p.id}`}
                     onClick={() => state.setConfirmDelete(p.id)}
                   >
                     <AppIcon name="trash" size={20} />
-                  </button>
+                  </IconButton>
                 </div>
               </header>
 
               <div className="flex flex-wrap gap-2 px-5 py-4 border-b border-slate-100">
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">{p.tipo || 'Sem tipo'}</span>
                 {p.tensao && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-orange-50 text-orange-700">{p.tensao} kV</span>}
-                {p.extensao && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">{p.extensao} km</span>}
+                {p.extensao && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-brand-50 text-brand-700">{p.extensao} km</span>}
               </div>
 
               <div className="flex flex-col gap-2 p-5 text-sm text-slate-600">
@@ -136,18 +139,22 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
               </div>
 
               <div className="flex gap-3 px-5 py-4 bg-slate-50 border-t border-slate-100 mt-auto">
-                <button
+                <Button
                   type="button"
-                  className="flex-1 flex justify-center items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  variant="outline"
+                  size="md"
+                  className="flex-1"
                   onClick={() => onOpenProjectInspections?.(p.id)}
                 >
                   <AppIcon name="clipboard" size={18} />
                   Vistorias
-                </button>
+                </Button>
                 {hasKmlData && (
-                  <button
+                  <Button
                     type="button"
-                    className="flex-1 flex justify-center items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700 transition-colors focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                    variant="outline"
+                    size="md"
+                    className="flex-1 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700"
                     onClick={() => {
                       state.setRouteModalProject(p);
                       state.setRouteSelection([]);
@@ -155,15 +162,17 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
                   >
                     <AppIcon name="route" size={18} />
                     Tracar rota
-                  </button>
+                  </Button>
                 )}
               </div>
 
               {!hasKmlData && (
                 <div className="px-5 pb-5 bg-slate-50">
-                  <button
+                  <Button
                     type="button"
-                    className="w-full flex justify-center items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+                    variant="outline"
+                    size="md"
+                    className="w-full bg-slate-100 hover:bg-slate-200 border-slate-300"
                     onClick={() => {
                       mergeTargetProjectRef.current = p;
                       mergeInputRef.current?.click();
@@ -171,20 +180,22 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
                   >
                     <AppIcon name="upload" size={18} />
                     Importar KML neste empreendimento
-                  </button>
+                  </Button>
                 </div>
               )}
 
               {hasExportGeometry && (
                 <div className="px-5 pb-5 bg-slate-50">
-                  <button
+                  <Button
                     type="button"
-                    className="w-full flex justify-center items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+                    variant="outline"
+                    size="md"
+                    className="w-full bg-slate-100 hover:bg-slate-200 border-slate-300"
                     onClick={() => safeRun(() => downloadProjectKml(p))}
                   >
                     <AppIcon name="map" size={18} />
                     Exportar KML
-                  </button>
+                  </Button>
                 </div>
               )}
             </article>
@@ -247,3 +258,5 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
 }
 
 export default ProjectsView;
+
+

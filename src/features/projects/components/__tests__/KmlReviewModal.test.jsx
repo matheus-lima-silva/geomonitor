@@ -132,7 +132,7 @@ describe('KmlReviewModal', () => {
       },
     });
 
-    expect(container.textContent).toContain('Validas:');
+    expect(container.textContent).toContain('Válidas:');
     expect(container.textContent).toContain('Com erro:');
     expect(container.textContent).toContain('2');
     expect(container.textContent).toContain('1');

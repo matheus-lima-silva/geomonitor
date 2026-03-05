@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Input, Modal, Select } from '../../../components/ui';
+import { Button, Input, Modal, Select, Textarea } from '../../../components/ui';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { deleteUser, saveUser } from '../../../services/userService';
@@ -255,10 +255,10 @@ function AdminView({
                   return (
                     <tr key={key} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-2 text-sm text-slate-700 font-medium">{valor}</td>
-                      <td className="px-4 py-2"><input className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={regra.impacto} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, impacto: e.target.value } }))} /></td>
-                      <td className="px-4 py-2"><input className="w-20 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" type="number" min="1" max="4" value={regra.score} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, score: Number(e.target.value || 1) } }))} /></td>
-                      <td className="px-4 py-2"><input className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={regra.frequencia} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, frequencia: e.target.value } }))} /></td>
-                      <td className="px-4 py-2"><input className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" value={regra.intervencao} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, intervencao: e.target.value } }))} /></td>
+                      <td className="px-4 py-2"><input className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" value={regra.impacto} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, impacto: e.target.value } }))} /></td>
+                      <td className="px-4 py-2"><input className="w-20 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" type="number" min="1" max="4" value={regra.score} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, score: Number(e.target.value || 1) } }))} /></td>
+                      <td className="px-4 py-2"><input className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" value={regra.frequencia} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, frequencia: e.target.value } }))} /></td>
+                      <td className="px-4 py-2"><input className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" value={regra.intervencao} onChange={(e) => setDraftRules((prev) => ({ ...prev, [key]: { ...regra, intervencao: e.target.value } }))} /></td>
                     </tr>
                   );
                 })}
@@ -280,11 +280,12 @@ function AdminView({
           <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 mt-2">
             <h3 className="text-base font-bold text-slate-800 m-0 mb-1">Configuração Criticidade V2 (JSON)</h3>
             <p className="text-sm text-slate-500 mb-4">Overrides para classes, faixas e soluções. O padrão é mesclado automaticamente.</p>
-            <textarea
+            <Textarea
+              id="admin-criticality-v2-json"
               rows={14}
               value={criticalityV2Text}
               onChange={(e) => setCriticalityV2Text(e.target.value)}
-              className="w-full min-h-[300px] p-3 text-sm font-mono text-slate-700 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none mb-4"
+              className="min-h-[300px] font-mono mb-4"
             />
             <div className="flex justify-start">
               <Button
@@ -384,3 +385,5 @@ function AdminView({
 }
 
 export default AdminView;
+
+

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Select } from '../../../components/ui';
+import { Button, Input, Select, Textarea } from '../../../components/ui';
 import { saveErosionManualFollowupEvent } from '../../../services/erosionService';
 import { saveReportDeliveryTracking } from '../../../services/reportDeliveryTrackingService';
 import {
@@ -222,7 +222,7 @@ function FollowupsView({
         </div>
 
         <div className="overflow-x-auto w-full bg-white rounded-xl border border-slate-200">
-          <table className="w-full text-left border-collapse whitespace-nowrap">
+          <table className="w-full text-left border-collapse whitespace-nowrap followups-report-table">
             <thead>
               <tr>
                 <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Projeto</th>
@@ -244,37 +244,39 @@ function FollowupsView({
                     <td className="px-4 py-3 text-sm text-slate-700">{row.projectId} - {row.projectName || row.projectId}</td>
                     <td className="px-4 py-3 text-sm text-slate-700">{formatMonitoringMonthLabel(row.month)}/{row.year}</td>
                     <td className="px-4 py-3 text-sm text-slate-700">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${row.sourceApplied === 'LO' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-800'}`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${row.sourceApplied === 'LO' ? 'bg-brand-100 text-brand-800' : 'bg-slate-100 text-slate-800'}`}>
                         {row.sourceApplied === 'LO' ? 'LO' : 'Empreendimento'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <select
-                        className="w-full min-w-[140px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                      <Select
+                        id={`followup-source-override-${rowKey}`}
+                        className="min-w-[140px]"
                         value={draft.sourceOverride}
                         onChange={(event) => setDraftValue(rowKey, 'sourceOverride', event.target.value)}
                       >
                         <option value={REPORT_SOURCE_OVERRIDE.AUTO}>Automatico</option>
                         <option value={REPORT_SOURCE_OVERRIDE.LO} disabled={!row.hasLoOption}>Forcar LO</option>
                         <option value={REPORT_SOURCE_OVERRIDE.PROJECT} disabled={!row.hasProjectOption}>Forcar empreendimento</option>
-                      </select>
+                      </Select>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700">{row.deadlineStatusLabel}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-2">
-                        <select
-                          className="w-full min-w-[140px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                        <Select
+                          id={`followup-status-edit-${rowKey}`}
+                          className="min-w-[140px]"
                           value={draft.operationalStatus}
                           onChange={(event) => setDraftValue(rowKey, 'operationalStatus', event.target.value)}
                         >
                           {REPORT_OPERATIONAL_STATUS_OPTIONS.map((option) => (
                             <option key={`status-edit-${rowKey}-${option.value}`} value={option.value}>{option.label}</option>
                           ))}
-                        </select>
+                        </Select>
                         {draft.operationalStatus === REPORT_OPERATIONAL_STATUS.ENTREGUE ? (
-                          <input
+                          <Input
+                            id={`followup-delivered-at-${rowKey}`}
                             type="date"
-                            className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                             value={draft.deliveredAt || ''}
                             onChange={(event) => setDraftValue(rowKey, 'deliveredAt', event.target.value)}
                           />
@@ -282,9 +284,10 @@ function FollowupsView({
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <textarea
-                        rows="2"
-                        className="w-full min-w-[200px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none resize-y"
+                      <Textarea
+                        id={`followup-notes-${rowKey}`}
+                        rows={2}
+                        className="min-w-[200px]"
                         value={draft.notes || ''}
                         onChange={(event) => setDraftValue(rowKey, 'notes', event.target.value)}
                         placeholder="Observacoes..."
@@ -376,7 +379,7 @@ function FollowupsView({
         </div>
 
         {activeWorkErosionId ? (
-          <div className="mt-6 p-5 bg-white border border-slate-200 rounded-xl shadow-sm">
+          <div className="mt-6 p-5 bg-white border border-slate-200 rounded-xl shadow-sm followups-work-form">
             <h4 className="text-base font-bold text-slate-800 m-0 mb-4">Novo evento de obra - {activeWorkErosionId}</h4>
             <div className="flex flex-col sm:flex-row items-start gap-4 mb-4">
               <Select
@@ -389,15 +392,15 @@ function FollowupsView({
                 <option value="Em andamento">Em andamento</option>
                 <option value="Concluida">Concluída</option>
               </Select>
-              <label className="flex flex-col gap-1 w-full max-w-md">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Descrição</span>
-                <textarea
-                  rows="2"
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-y"
+              <div className="w-full max-w-md">
+                <Textarea
+                  id="work-description"
+                  label="Descricao"
+                  rows={2}
                   value={workForm.descricao}
                   onChange={(event) => setWorkForm((prev) => ({ ...prev, descricao: event.target.value }))}
                 />
-              </label>
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-4">
               <Button variant="primary" size="sm" onClick={handleSaveWorkEvent} disabled={savingWorkEvent}>
@@ -443,3 +446,6 @@ function formatMonitoringMonthLabel(monthValue) {
 }
 
 export default FollowupsView;
+
+
+

@@ -137,7 +137,7 @@ function InspectionsView({
       </div>
 
       {forcedProject ? (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 mb-2 bg-blue-50 border border-blue-100 rounded-lg text-blue-800 text-sm">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 mb-2 bg-brand-50 border border-brand-100 rounded-lg text-brand-800 text-sm">
           <span>
             Filtrado por empreendimento: <strong>{forcedProject.nome || forcedProject.id}</strong> ({forcedProject.id})
           </span>

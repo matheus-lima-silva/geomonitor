@@ -18,7 +18,7 @@ const VARIANT_CLASSES = {
     secondary: 'bg-slate-600 text-white border-transparent hover:bg-slate-700',
     outline: 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400',
     ghost: 'bg-transparent text-slate-600 border-transparent hover:bg-slate-100 hover:text-slate-800',
-    danger: 'bg-danger text-white border-transparent hover:bg-red-700',
+    danger: 'bg-danger text-white border-transparent hover:bg-danger-dark',
 };
 
 const SIZE_CLASSES = {
@@ -38,6 +38,7 @@ export default function Button({
 }) {
     const base = [
         'inline-flex items-center justify-center font-semibold border transition-colors duration-150 cursor-pointer',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white',
         'disabled:opacity-50 disabled:cursor-not-allowed',
         VARIANT_CLASSES[variant] ?? VARIANT_CLASSES.primary,
         SIZE_CLASSES[size] ?? SIZE_CLASSES.md,

@@ -263,8 +263,8 @@ function InspectionDetailsModal({
                     </div>
                   ) : null}
                   {hasHotelData(day) ? (
-                    <div className="mt-4 bg-blue-50/50 border border-blue-100 p-3 rounded-lg text-sm text-slate-700 flex flex-col gap-1.5">
-                      <div className="font-bold text-blue-800 flex items-center gap-1.5 mb-1">Dados de hospedagem</div>
+                    <div className="mt-4 bg-brand-50/50 border border-brand-100 p-3 rounded-lg text-sm text-slate-700 flex flex-col gap-1.5">
+                      <div className="font-bold text-brand-800 flex items-center gap-1.5 mb-1">Dados de hospedagem</div>
                       <div><strong>Hotel:</strong> {day?.hotelNome || '-'}</div>
                       <div><strong>Municipio:</strong> {day?.hotelMunicipio || '-'}</div>
                       <div><strong>Torre base:</strong> {day?.hotelTorreBase || '-'}</div>
