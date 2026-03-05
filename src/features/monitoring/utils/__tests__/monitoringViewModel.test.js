@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildMonitoringViewModel } from '../monitoringViewModel';
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
 describe('monitoringViewModel', () => {
   const nowMs = new Date('2026-01-01T00:00:00Z').getTime();
   const projects = [
@@ -144,6 +146,8 @@ describe('monitoringViewModel', () => {
       nowMs,
     });
 
+    const expectedDueInDays = Math.ceil((new Date(2026, 0, 1).getTime() - nowMs) / DAY_IN_MS);
+
     expect(model.reportMonthRows).toContainEqual(['2026-01', 3]);
     expect(model.reportMonthDetailsByKey['2026-01']).toEqual([
       {
@@ -151,7 +155,7 @@ describe('monitoringViewModel', () => {
         projectName: 'Projeto 1',
         sourceSummary: 'LO 001 | LO 002',
         scopeSummary: 'P1: Projeto 1',
-        dueInDays: 1,
+        dueInDays: expectedDueInDays,
         deadlineStatusLabel: 'Urgente',
         deadlineStatusTone: 'critical',
         operationalStatusLabel: 'Nao iniciado',
@@ -168,7 +172,7 @@ describe('monitoringViewModel', () => {
         projectName: 'Projeto 2',
         sourceSummary: 'LO 001',
         scopeSummary: 'P2: Projeto 2',
-        dueInDays: 1,
+        dueInDays: expectedDueInDays,
         deadlineStatusLabel: 'Urgente',
         deadlineStatusTone: 'critical',
         operationalStatusLabel: 'Nao iniciado',
@@ -185,7 +189,7 @@ describe('monitoringViewModel', () => {
         projectName: 'Projeto 3',
         sourceSummary: 'Empreendimento vinculado',
         scopeSummary: 'P3: Projeto 3',
-        dueInDays: 1,
+        dueInDays: expectedDueInDays,
         deadlineStatusLabel: 'Urgente',
         deadlineStatusTone: 'critical',
         operationalStatusLabel: 'Nao iniciado',
@@ -211,6 +215,7 @@ describe('monitoringViewModel', () => {
   });
 
   it('marks report deliveries as overdue when due date is in the past', () => {
+    const overdueNowMs = new Date('2026-02-10T00:00:00Z').getTime();
     const model = buildMonitoringViewModel({
       projects: [{
         id: 'P-OVERDUE',
@@ -222,11 +227,12 @@ describe('monitoringViewModel', () => {
       erosions: [],
       operatingLicenses: [],
       searchTerm: '',
-      nowMs: new Date('2026-02-10T00:00:00Z').getTime(),
+      nowMs: overdueNowMs,
     });
 
+    const expectedOverdueDays = Math.ceil((new Date(2026, 0, 1).getTime() - overdueNowMs) / DAY_IN_MS);
     expect(model.reportOccurrences[0]).toMatchObject({
-      daysUntilDue: -39,
+      daysUntilDue: expectedOverdueDays,
       trackingStatusLabel: 'Atrasado',
       trackingStatusTone: 'danger',
     });

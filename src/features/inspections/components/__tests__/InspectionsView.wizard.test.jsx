@@ -9,6 +9,15 @@ const showMock = vi.fn();
 const saveInspectionMock = vi.fn();
 const deleteInspectionMock = vi.fn();
 
+vi.mock('../../../../firebase/config', () => ({
+  auth: { currentUser: null },
+  db: {},
+}));
+
+vi.mock('../../../../services/firestoreClient', () => ({
+  subscribeCollection: vi.fn(),
+}));
+
 vi.mock('../../../../context/AuthContext', () => ({
   useAuth: () => ({
     user: {
