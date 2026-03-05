@@ -113,6 +113,7 @@ describe('InspectionDetailsModal', () => {
   });
 
   it('exporta PDF abrindo nova janela e chamando print', () => {
+    vi.useFakeTimers();
     const { inspection, inspections, erosions, project } = buildData();
     const documentWrite = vi.fn();
     const documentClose = vi.fn();
@@ -145,10 +146,14 @@ describe('InspectionDetailsModal', () => {
     act(() => {
       pdfButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    act(() => {
+      vi.runAllTimers();
+    });
 
     expect(openSpy).toHaveBeenCalled();
     expect(documentWrite).toHaveBeenCalled();
     expect(documentClose).toHaveBeenCalled();
     expect(print).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });

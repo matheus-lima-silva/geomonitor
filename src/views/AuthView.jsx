@@ -266,7 +266,7 @@ function AuthView() {
             {!isResetMode && (
               <label className="flex flex-col gap-1.5">
                 <span className="text-sm font-semibold text-slate-700">Senha</span>
-                <div className="flex items-center gap-2">
+                <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     placeholder="Digite sua senha"
@@ -275,15 +275,17 @@ function AuthView() {
                     autoComplete={isRegisterMode ? 'new-password' : 'current-password'}
                     disabled={submitting}
                     required={!isResetMode}
-                    className="flex-1 px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors disabled:opacity-60"
+                    className="w-full px-3 py-2.5 pr-11 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors disabled:opacity-60"
                   />
                   <button
                     type="button"
-                    className="px-3 py-2.5 text-xs font-semibold text-brand-600 hover:text-brand-800 rounded-lg hover:bg-brand-50 transition-colors"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-brand-700 hover:bg-brand-50 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
                     onClick={() => setShowPassword((value) => !value)}
                     disabled={submitting}
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                    title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                   >
-                    {showPassword ? 'Ocultar' : 'Mostrar'}
+                    <AppIcon name={showPassword ? 'eye-off' : 'eye'} size={18} />
                   </button>
                 </div>
               </label>
@@ -293,7 +295,7 @@ function AuthView() {
               <>
                 <label className="flex flex-col gap-1.5">
                   <span className="text-sm font-semibold text-slate-700">Confirmar senha</span>
-                  <div className="flex items-center gap-2">
+                  <div className="relative">
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
                       placeholder="Confirme a senha"
@@ -302,15 +304,17 @@ function AuthView() {
                       autoComplete="new-password"
                       disabled={submitting}
                       required={isRegisterMode}
-                      className="flex-1 px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors disabled:opacity-60"
+                      className="w-full px-3 py-2.5 pr-11 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors disabled:opacity-60"
                     />
                     <button
                       type="button"
-                      className="px-3 py-2.5 text-xs font-semibold text-brand-600 hover:text-brand-800 rounded-lg hover:bg-brand-50 transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-brand-700 hover:bg-brand-50 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
                       onClick={() => setShowConfirmPassword((value) => !value)}
                       disabled={submitting}
+                      aria-label={showConfirmPassword ? 'Ocultar confirmacao de senha' : 'Mostrar confirmacao de senha'}
+                      title={showConfirmPassword ? 'Ocultar confirmacao de senha' : 'Mostrar confirmacao de senha'}
                     >
-                      {showConfirmPassword ? 'Ocultar' : 'Mostrar'}
+                      <AppIcon name={showConfirmPassword ? 'eye-off' : 'eye'} size={18} />
                     </button>
                   </div>
                 </label>

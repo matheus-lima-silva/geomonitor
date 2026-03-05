@@ -1,5 +1,5 @@
 import AppIcon from '../../../components/AppIcon';
-import { Badge, Button, Modal } from '../../../components/ui';
+import { Badge, Button, IconButton, Modal } from '../../../components/ui';
 import { formatHotelNote, hasHotelData } from '../utils/inspectionWorkflow';
 
 function escapeHtml(value) {
@@ -29,6 +29,32 @@ function colorByImpact(impact) {
   return 'status-ok';
 }
 
+function openPrintableWindow(documentHtml) {
+  const win = window.open('', '_blank', 'width=1120,height=820');
+  if (!win) return null;
+
+  let printed = false;
+  const printOnce = () => {
+    if (printed) return;
+    printed = true;
+    if (typeof win.focus === 'function') win.focus();
+    if (typeof win.print === 'function') win.print();
+  };
+
+  const doc = win.document;
+  if (typeof doc?.open === 'function') doc.open();
+  if (typeof doc?.write === 'function') doc.write(documentHtml);
+  if (typeof doc?.close === 'function') doc.close();
+
+  win.onload = () => {
+    setTimeout(printOnce, 120);
+  };
+
+  // Fallback para navegadores que nao disparam onload em about:blank.
+  setTimeout(printOnce, 450);
+  return win;
+}
+
 function InspectionDetailsModal({
   inspection,
   project,
@@ -54,9 +80,6 @@ function InspectionDetailsModal({
   }
 
   function handleExportDetailsPdf() {
-    const win = window.open('', '_blank');
-    if (!win) return;
-
     const days = Array.isArray(inspection?.detalhesDias) ? inspection.detalhesDias : [];
     const dayCardsHtml = days.map((dia, idx) => {
       const dateLabel = dia?.data ? new Date(`${dia.data}T00:00:00`).toLocaleDateString('pt-BR') : `Dia ${idx + 1}`;
@@ -104,7 +127,7 @@ function InspectionDetailsModal({
       `).join('')
       : '<div class="empty">Nenhuma erosao vinculada a esta vistoria.</div>';
 
-    win.document.write(`
+    const documentHtml = `
       <html>
         <head>
           <title>Detalhes da Vistoria ${escapeHtml(inspection?.id || '-')}</title>
@@ -136,6 +159,12 @@ function InspectionDetailsModal({
             .erosion-row { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: 8px; margin-bottom: 8px; }
             .empty { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; color: #64748b; background: #f8fafc; }
             .avoid-break { page-break-inside: avoid; }
+            @media print {
+              .section-days .day-card { page-break-before: always; break-before: page; margin-bottom: 0; }
+              .section-days .day-card:first-of-type { page-break-before: auto; break-before: auto; }
+              .tower-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; align-items: start; }
+              .tower-row { page-break-inside: avoid; break-inside: avoid; }
+            }
           </style>
         </head>
         <body>
@@ -159,7 +188,7 @@ function InspectionDetailsModal({
               ${inspection?.obs ? `<div class="row" style="margin-top:8px;"><span class="label">Observacoes:</span> ${escapeHtml(inspection.obs).replace(/\n/g, '<br />')}</div>` : ''}
             </div>
 
-            <div class="section">
+            <div class="section section-days">
               <h2 class="section-title">Diario de Campo Detalhado</h2>
               ${dayCardsHtml || '<div class="empty">Sem dias detalhados.</div>'}
             </div>
@@ -171,25 +200,25 @@ function InspectionDetailsModal({
           </div>
         </body>
       </html>
-    `);
-    win.document.close();
-    win.print();
+    `;
+
+    openPrintableWindow(documentHtml);
   }
 
   const footer = (
     <>
-      <Button variant="outline" size="sm" onClick={handlePrevious} disabled={!hasPrevious}>
+      <IconButton variant="outline" size="md" onClick={handlePrevious} disabled={!hasPrevious} aria-label="Vistoria anterior">
         <AppIcon name="chevron-left" />
-      </Button>
-      <Button variant="outline" size="sm" onClick={handleNext} disabled={!hasNext}>
+      </IconButton>
+      <IconButton variant="outline" size="md" onClick={handleNext} disabled={!hasNext} aria-label="Proxima vistoria">
         <AppIcon name="chevron-right" />
-      </Button>
-      <Button variant="primary" size="sm" onClick={handleExportDetailsPdf}>
+      </IconButton>
+      <Button variant="primary" size="md" onClick={handleExportDetailsPdf}>
         <AppIcon name="pdf" /> Gerar PDF
       </Button>
-      <Button variant="outline" size="sm" onClick={onClose}>
+      <IconButton variant="outline" size="md" onClick={onClose} aria-label="Fechar detalhes da vistoria">
         <AppIcon name="close" />
-      </Button>
+      </IconButton>
     </>
   );
 
