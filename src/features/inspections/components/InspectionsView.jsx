@@ -124,11 +124,11 @@ function InspectionsView({
   }
 
   return (
-    <section className="panel inspections-panel">
-      <div className="topbar">
-        <div>
-          <h2>Vistorias</h2>
-          <p className="muted">Diario multi-dia com checklist por torre e fluxo integrado de erosoes.</p>
+    <section className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto w-full">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl font-bold text-slate-800 m-0">Vistorias</h2>
+          <p className="text-slate-500 m-0">Diario multi-dia com checklist por torre e fluxo integrado de erosoes.</p>
         </div>
         <Button variant="primary" size="sm" onClick={openNewInspection}>
           <AppIcon name="plus" />
@@ -137,7 +137,7 @@ function InspectionsView({
       </div>
 
       {forcedProject ? (
-        <div className="notice inspections-filter-notice">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 mb-2 bg-blue-50 border border-blue-100 rounded-lg text-blue-800 text-sm">
           <span>
             Filtrado por empreendimento: <strong>{forcedProject.nome || forcedProject.id}</strong> ({forcedProject.id})
           </span>
@@ -148,31 +148,31 @@ function InspectionsView({
         </div>
       ) : null}
 
-      <div className="inspections-card-list">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {filtered.map((inspection) => {
           const project = projects.find((item) => item.id === inspection.projetoId);
           const pendingSummary = pendingSummaryByInspection.get(inspection.id) || { count: 0, towers: [] };
           const pendingCount = Number(pendingSummary.count || 0);
           const dayCount = Array.isArray(inspection?.detalhesDias) ? inspection.detalhesDias.length : 0;
           return (
-            <article key={inspection.id} className="inspections-card">
-              <div className="inspections-card-head">
-                <div className="inspections-card-title-group">
-                  <h3>{inspection.id}</h3>
-                  <div className="inspections-card-chips">
-                    <span className="status-chip">{inspection.projetoId || '-'}</span>
-                    {inspection.dataInicio ? <span className="status-chip">{inspection.dataInicio}</span> : null}
-                    {dayCount > 0 ? <span className="status-chip status-ok">{dayCount} dia(s)</span> : null}
+            <article key={inspection.id} className="flex flex-col justify-between bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="flex flex-col gap-3 p-5 bg-slate-50 border-b border-slate-200">
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-lg font-bold text-slate-800 m-0">{inspection.id}</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-700">{inspection.projetoId || '-'}</span>
+                    {inspection.dataInicio ? <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-700">{inspection.dataInicio}</span> : null}
+                    {dayCount > 0 ? <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">{dayCount} dia(s)</span> : null}
                     {pendingCount > 0 ? (
-                      <span className="status-chip status-warn">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">
                         {pendingCount} pendente(s)
                       </span>
                     ) : (
-                      <span className="status-chip status-ok">Sem pendencias</span>
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">Sem pendencias</span>
                     )}
                   </div>
                 </div>
-                <div className="inspections-card-actions">
+                <div className="flex gap-2 justify-end mt-1">
                   <Button variant="outline" size="sm" onClick={() => setDetailsModal(inspection)}>
                     <AppIcon name="details" />
                   </Button>
@@ -185,14 +185,14 @@ function InspectionsView({
                 </div>
               </div>
 
-              <div className="inspections-card-body muted">
-                {inspection.responsavel ? <div><strong>Responsavel:</strong> {inspection.responsavel}</div> : null}
-                {inspection.dataFim ? <div><strong>Data fim:</strong> {inspection.dataFim}</div> : null}
+              <div className="flex flex-col gap-1 p-5 text-sm text-slate-600">
+                {inspection.responsavel ? <div><strong className="text-slate-800">Responsavel:</strong> {inspection.responsavel}</div> : null}
+                {inspection.dataFim ? <div><strong className="text-slate-800">Data fim:</strong> {inspection.dataFim}</div> : null}
                 {project ? (
-                  <div><strong>Empreendimento:</strong> {project.nome || project.id}</div>
+                  <div><strong className="text-slate-800">Empreendimento:</strong> {project.nome || project.id}</div>
                 ) : null}
                 {pendingCount > 0 ? (
-                  <div className="inspections-pending-hint">
+                  <div className="mt-2 text-xs font-medium text-amber-700 bg-amber-50 p-2 rounded-md border border-amber-100">
                     Erosoes sem data de visita: {pendingSummary.towers.length > 0 ? pendingSummary.towers.join(', ') : '-'}
                   </div>
                 ) : null}
@@ -203,9 +203,9 @@ function InspectionsView({
       </div>
 
       {filtered.length === 0 ? (
-        <article className="project-card">
-          <p className="muted">Nenhuma vistoria encontrada.</p>
-        </article>
+        <div className="col-span-full py-12 text-center text-slate-500 italic bg-white rounded-xl border border-slate-200 border-dashed">
+          Nenhuma vistoria encontrada.
+        </div>
       ) : null}
 
       {isFormOpen ? (
@@ -263,7 +263,7 @@ function InspectionsView({
           </>
         }
       >
-        <p className="muted" style={{ margin: 0 }}>
+        <p className="text-slate-500" style={{ margin: 0 }}>
           Tem certeza que deseja excluir a vistoria <strong>{confirmDelete}</strong>?
         </p>
       </Modal>

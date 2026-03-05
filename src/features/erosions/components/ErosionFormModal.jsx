@@ -173,9 +173,9 @@ function ErosionFormModal({
       size="lg"
       footer={footer}
     >
-      <section className="erosions-form-section">
-        <h4>Cadastro</h4>
-        <div className="erosions-form-grid is-three">
+      <section className="flex flex-col gap-4 mb-8">
+        <h4 className="text-lg font-semibold text-slate-800 m-0">Cadastro</h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input
             id="erosion-id"
             label="ID"
@@ -222,9 +222,9 @@ function ErosionFormModal({
         </div>
       </section>
 
-      <section className="erosions-form-section">
-        <h4>Classificação e caracterização da erosão</h4>
-        <div className="erosions-form-grid is-three">
+      <section className="flex flex-col gap-4 mb-8">
+        <h4 className="text-lg font-semibold text-slate-800 m-0">Classificação e caracterização da erosão</h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {towerOptions.length > 0 ? (
             <Select
               id="erosion-torre"
@@ -283,9 +283,9 @@ function ErosionFormModal({
         />
       </section>
 
-      <section className="erosions-form-section">
-        <div className="erosions-form-section-head">
-          <h4>Localização geográfica</h4>
+      <section className="flex flex-col gap-4 mb-8">
+        <div className="flex items-center justify-between gap-4 mb-2">
+          <h4 className="text-lg font-semibold text-slate-800 m-0">Localização geográfica</h4>
           <Button
             variant="ghost"
             size="sm"
@@ -298,8 +298,8 @@ function ErosionFormModal({
         </div>
 
         {coordinatesExpanded ? (
-          <>
-            <div className="erosions-form-grid is-two">
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 id="erosion-lat"
                 label="Latitude (centesimal)"
@@ -316,7 +316,7 @@ function ErosionFormModal({
               />
             </div>
 
-            <div className="erosions-form-grid is-four">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Input
                 id="erosion-utm-e"
                 label="UTM Easting"
@@ -347,7 +347,7 @@ function ErosionFormModal({
               </Select>
             </div>
 
-            <div className="erosions-form-grid is-two">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 id="erosion-alt"
                 label="Altitude"
@@ -361,18 +361,18 @@ function ErosionFormModal({
                 onChange={(e) => updateLocationField('reference', e.target.value)}
               />
             </div>
-          </>
+          </div>
         ) : null}
       </section>
 
-      <section className="erosions-form-section">
-        <h4>Medidas e anexos</h4>
-        <div className="erosions-form-grid is-two">
-          <label className="erosions-field">
-            <span>Fotos (links, um por linha)</span>
+      <section className="flex flex-col gap-4 mb-8">
+        <h4 className="text-lg font-semibold text-slate-800 m-0">Medidas e anexos</h4>
+        <div className="grid grid-cols-1 gap-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-semibold text-slate-700">Fotos (links, um por linha)</span>
             <textarea
               rows="2"
-              className="erosions-long-textarea erosions-long-textarea-links"
+              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono"
               value={Array.isArray(safeFormData.fotosLinks) ? safeFormData.fotosLinks.join('\n') : ''}
               onChange={(e) => {
                 const rows = String(e.target.value || '')
@@ -386,21 +386,21 @@ function ErosionFormModal({
         </div>
       </section>
 
-      <section className="erosions-form-section">
-        <h4>Observações</h4>
-        <label className="erosions-field">
-          <span>Observações gerais</span>
+      <section className="flex flex-col gap-4 mb-8">
+        <h4 className="text-lg font-semibold text-slate-800 m-0">Observações</h4>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold text-slate-700">Observações gerais</span>
           <textarea
             rows="3"
-            className="erosions-long-textarea erosions-long-textarea-large"
+            className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             value={safeFormData.obs || ''}
             onChange={(e) => updateField('obs', e.target.value)}
           />
         </label>
       </section>
 
-      <div className="notice erosions-criticality-notice">
-        <div><strong>Resumo de criticidade calculada</strong></div>
+      <div className="mt-8 p-4 bg-slate-50 rounded-lg border border-slate-200 text-sm text-slate-700 flex flex-col gap-2">
+        <div className="text-slate-900"><strong>Resumo de criticidade calculada</strong></div>
         <div>
           <strong>Impacto:</strong> {criticalitySummary.impacto} | <strong>Score:</strong> {criticalitySummary.score} | <strong>Frequência:</strong> {criticalitySummary.frequencia}
         </div>

@@ -950,26 +950,26 @@ function ErosionsView({
   }, [formData, rulesConfig]);
 
   return (
-    <section className="panel erosions-panel">
-      <div className="topbar erosions-topbar">
-        <div>
-          <h2>Erosoes</h2>
-          <p className="muted">Cadastro e acompanhamento dos focos erosivos.</p>
+    <section className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto w-full">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl font-bold text-slate-800 m-0">Erosoes</h2>
+          <p className="text-slate-500 m-0">Cadastro e acompanhamento dos focos erosivos.</p>
         </div>
-        <button type="button" onClick={openNew}>
+        <button type="button" className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg font-semibold text-sm hover:bg-brand-700 transition-colors focus:ring-2 focus:ring-offset-2 focus:ring-brand-500" onClick={openNew}>
           <AppIcon name="plus" />
           Nova Erosao
         </button>
       </div>
 
-      <article className="erosions-reading-controls">
-        <div className="erosions-reading-actions">
-          <label className="erosions-field">
-            <span>Empreendimento para leitura</span>
-            <div className="erosions-project-dropdown" ref={projectDropdownRef}>
+      <article className="flex flex-col gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="flex flex-col gap-1.5 min-w-[300px] flex-1">
+            <span className="text-sm font-semibold text-slate-700">Empreendimento para leitura</span>
+            <div className="relative" ref={projectDropdownRef}>
               <button
                 type="button"
-                className={`erosions-project-dropdown-trigger ${isProjectDropdownOpen ? 'is-open' : ''}`.trim()}
+                className={`flex items-center justify-between w-full px-3 py-2 bg-white border text-left rounded-lg text-sm transition-all outline-none ${isProjectDropdownOpen ? 'border-brand-500 ring-2 ring-brand-100' : 'border-slate-300 hover:border-brand-400'}`}
                 aria-expanded={isProjectDropdownOpen ? 'true' : 'false'}
                 aria-haspopup="listbox"
                 onClick={() => {
@@ -980,29 +980,32 @@ function ErosionsView({
                   });
                 }}
               >
-                <span className="erosions-project-dropdown-trigger-label">
+                <span className="truncate pr-4 text-slate-700">
                   {reportFilters.projetoId ? formatProjectOptionLabel(selectedProject || { id: reportFilters.projetoId, nome: '' }) : 'Selecione...'}
                 </span>
-                <AppIcon name={isProjectDropdownOpen ? 'close' : 'details'} />
+                <span className="text-slate-400">
+                  <AppIcon name={isProjectDropdownOpen ? 'close' : 'details'} />
+                </span>
               </button>
 
               {isProjectDropdownOpen ? (
-                <div className="erosions-project-dropdown-menu" role="dialog" aria-label="Selecionar empreendimento">
-                  <label className="erosions-project-dropdown-search">
+                <div className="absolute z-50 top-[calc(100%+4px)] left-0 w-full bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden animate-slide-up origin-top" role="dialog" aria-label="Selecionar empreendimento">
+                  <label className="flex items-center gap-2 p-3 bg-slate-50 border-b border-slate-100 text-slate-500">
                     <AppIcon name="search" />
                     <input
                       ref={projectDropdownSearchRef}
                       type="search"
+                      className="w-full bg-transparent border-none outline-none text-sm text-slate-800 placeholder-slate-400"
                       value={projectSearchTerm}
                       placeholder="Buscar por ID ou nome..."
                       onChange={(e) => setProjectSearchTerm(e.target.value)}
                     />
                   </label>
 
-                  <div className="erosions-project-dropdown-options" role="listbox" aria-label="Empreendimentos">
+                  <div className="max-h-60 overflow-y-auto flex flex-col p-1" role="listbox" aria-label="Empreendimentos">
                     <button
                       type="button"
-                      className={`erosions-project-dropdown-option ${!reportFilters.projetoId ? 'is-selected' : ''}`.trim()}
+                      className={`text-left px-3 py-2 text-sm rounded-md transition-colors ${!reportFilters.projetoId ? 'bg-brand-50 text-brand-700 font-medium' : 'text-slate-700 hover:bg-slate-100'}`}
                       data-project-id=""
                       onClick={() => handleSelectProjectFromDropdown('')}
                     >
@@ -1015,7 +1018,7 @@ function ErosionsView({
                         <button
                           key={projectId || `project-${index}`}
                           type="button"
-                          className={`erosions-project-dropdown-option ${isSelected ? 'is-selected' : ''}`.trim()}
+                          className={`text-left px-3 py-2 text-sm rounded-md transition-colors ${isSelected ? 'bg-brand-50 text-brand-700 font-medium' : 'text-slate-700 hover:bg-slate-100'}`}
                           data-project-id={projectId}
                           onClick={() => handleSelectProjectFromDropdown(projectId)}
                         >
@@ -1024,7 +1027,7 @@ function ErosionsView({
                       );
                     })}
                     {filteredProjects.length === 0 ? (
-                      <div className="erosions-project-dropdown-empty">
+                      <div className="px-3 py-4 text-sm text-center italic text-slate-500">
                         Nenhum empreendimento encontrado.
                       </div>
                     ) : null}
@@ -1036,7 +1039,7 @@ function ErosionsView({
 
           <button
             type="button"
-            className="secondary"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-semibold text-sm hover:bg-slate-50 transition-colors focus:ring-2 focus:ring-offset-2 focus:ring-slate-200 disabled:opacity-50 disabled:cursor-not-allowed h-[38px]"
             onClick={() => setIsCardsVisible((prev) => !prev)}
             disabled={!reportFilters.projetoId}
           >
@@ -1045,7 +1048,7 @@ function ErosionsView({
           </button>
         </div>
 
-        <div className="muted erosions-reading-summary">
+        <div className="text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
           {!reportFilters.projetoId
             ? 'Selecione um empreendimento para iniciar a leitura de erosoes.'
             : (
@@ -1057,14 +1060,14 @@ function ErosionsView({
       </article>
 
       {!reportFilters.projetoId ? (
-        <article className="erosions-card erosions-card-empty">
-          <p className="muted">Selecione um empreendimento para visualizar erosoes.</p>
+        <article className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-8 text-center">
+          <p className="text-slate-500 italic m-0">Selecione um empreendimento para visualizar erosoes.</p>
         </article>
       ) : null}
 
       {reportFilters.projetoId && !isCardsVisible ? (
-        <article className="erosions-card erosions-card-empty">
-          <p className="muted">Cards ocultos. Clique em "Mostrar cards" para exibir.</p>
+        <article className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-8 text-center">
+          <p className="text-slate-500 italic m-0">Cards ocultos. Clique em "Mostrar cards" para exibir.</p>
         </article>
       ) : null}
 

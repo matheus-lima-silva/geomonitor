@@ -77,14 +77,14 @@ async function clickElement(button) {
 }
 
 async function toggleProjectDropdown(scope = document.body) {
-  const trigger = scope.querySelector('.erosions-project-dropdown-trigger');
+  const trigger = scope.querySelector('button[aria-haspopup="listbox"]');
   expect(trigger).toBeTruthy();
   await clickElement(trigger);
 }
 
 async function selectProject(scope, projectId) {
   await toggleProjectDropdown(scope);
-  const option = [...scope.querySelectorAll('.erosions-project-dropdown-option')]
+  const option = [...scope.querySelectorAll('button[data-project-id]')]
     .find((button) => String(button.getAttribute('data-project-id') || '') === String(projectId || ''));
   expect(option).toBeTruthy();
   await clickElement(option);
@@ -197,7 +197,7 @@ describe('ErosionsView', () => {
   it('orders cards by torre number', async () => {
     renderView(root);
     await selectProject(container, 'P1');
-    const cardTitles = [...container.querySelectorAll('.erosions-card-grid .erosions-card h3')]
+    const cardTitles = [...container.querySelectorAll('article h3')]
       .map((node) => node.textContent);
     expect(cardTitles).toEqual(['ERS-1', 'ERS-2']);
   });
@@ -227,11 +227,11 @@ describe('ErosionsView', () => {
     renderView(root);
     await toggleProjectDropdown(container);
 
-    const searchInput = container.querySelector('.erosions-project-dropdown-search input');
+    const searchInput = container.querySelector('input[type="search"]');
     expect(searchInput).toBeTruthy();
     changeInput(searchInput, 'Projeto 2');
 
-    const options = [...container.querySelectorAll('.erosions-project-dropdown-option[data-project-id]')]
+    const options = [...container.querySelectorAll('button[data-project-id]')]
       .map((option) => option.textContent || '');
     expect(options).toContain('P2 - Projeto 2');
     expect(options).not.toContain('P1 - Projeto 1');
@@ -280,10 +280,9 @@ describe('ErosionsView', () => {
     });
 
     await clickByText('Nova Erosao', container);
-    expect(container.querySelector('.erosions-form-modal')).toBeTruthy();
-    expect(container.textContent).toContain('Nova Erosao');
+    expect(container.querySelector('dialog[open], [role="dialog"]')).toBeTruthy();
+    expect(container.textContent).toContain('Nova Erosão');
     expect(container.textContent).toContain('Cadastro');
-    expect(container.querySelector('.erosions-panel')).toBeTruthy();
   });
 
   it('opens Editar modal without crashing for incomplete legacy erosion payload', async () => {
@@ -313,9 +312,8 @@ describe('ErosionsView', () => {
     await selectProject(container, 'P1');
     await clickByText('Editar', container);
 
-    expect(container.querySelector('.erosions-form-modal')).toBeTruthy();
-    expect(container.textContent).toContain('Editar Erosao');
+    expect(container.querySelector('dialog[open], [role="dialog"]')).toBeTruthy();
+    expect(container.textContent).toContain('Editar Erosão');
     expect(container.textContent).toContain('Salvar');
-    expect(container.querySelector('.erosions-panel')).toBeTruthy();
   });
 });

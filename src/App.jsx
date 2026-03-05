@@ -11,8 +11,8 @@ function isSidebarReviewMode() {
 function AuthenticatedApp() {
   const { loading, user } = useAuth();
 
-  if (loading) return <div className="container">Carregando sessão...</div>;
-  return user ? <DashboardView /> : <main className="container"><AuthView /></main>;
+  if (loading) return <div className="flex items-center justify-center h-screen text-slate-500 text-sm">Carregando sessão...</div>;
+  return user ? <DashboardView /> : <AuthView />;
 }
 
 function App() {

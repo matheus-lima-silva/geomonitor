@@ -170,202 +170,243 @@ function AuthView() {
     }
   }
 
+  const strengthColors = ['bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-green-500'];
+
   return (
-    <section className="panel auth auth-card">
-      <header className="auth-header">
-        <div className="auth-brand-mark">
-          <AppIcon name="monitor" size={18} />
-        </div>
-        <div className="auth-brand-copy">
-          <h1>GeoMonitor</h1>
-          <p>Acesso seguro e rapido</p>
-        </div>
-      </header>
+    <div className="flex items-center justify-center min-h-screen bg-[#eef3fb] p-4">
+      <section className="w-full max-w-md bg-white rounded-2xl shadow-panel border border-slate-200 overflow-hidden">
+        {/* Brand Header */}
+        <header className="flex items-center gap-4 px-8 pt-8 pb-4">
+          <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-brand-600 text-white shadow-md">
+            <AppIcon name="monitor" size={22} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 leading-tight">GeoMonitor</h1>
+            <p className="text-sm text-slate-500">Acesso seguro e rapido</p>
+          </div>
+        </header>
 
-      <div className="auth-body">
-        <div className="auth-mode-switch" role="tablist" aria-label="Modo de autenticacao">
-          <button
-            type="button"
-            className={`auth-mode-btn ${mode === 'login' ? 'is-active' : ''}`}
-            onClick={() => switchMode('login')}
-            disabled={submitting}
-          >
-            Entrar
-          </button>
-          <button
-            type="button"
-            className={`auth-mode-btn ${mode === 'register' ? 'is-active' : ''}`}
-            onClick={() => switchMode('register')}
-            disabled={submitting}
-          >
-            Criar conta
-          </button>
-          <button
-            type="button"
-            className={`auth-mode-btn ${mode === 'reset' ? 'is-active' : ''}`}
-            onClick={() => switchMode('reset')}
-            disabled={submitting}
-          >
-            Recuperar
-          </button>
-        </div>
-
-        <div className="auth-context">
-          {mode === 'login' && (
-            <>
-              <h2>Entrar</h2>
-              <p className="muted">Use seu email e senha para continuar.</p>
-            </>
-          )}
-          {mode === 'register' && (
-            <>
-              <h2>Criar conta</h2>
-              <p className="muted">A conta sera criada como pendente ate aprovacao do administrador.</p>
-            </>
-          )}
-          {mode === 'reset' && (
-            <>
-              <h2>Recuperar senha</h2>
-              <p className="muted">Informe o email para receber o link de redefinicao.</p>
-            </>
-          )}
-        </div>
-
-        <form onSubmit={onSubmit} className="auth-form">
-          {isRegisterMode && (
-            <label className="auth-field">
-              <span>Nome completo</span>
-              <input
-                type="text"
-                placeholder="Seu nome"
-                value={nome}
-                onChange={handleInputChange(setNome)}
-                autoComplete="name"
+        <div className="px-8 pb-8 pt-2 flex flex-col gap-5">
+          {/* Tab Switch */}
+          <div className="flex rounded-lg bg-slate-100 p-1 gap-1" role="tablist" aria-label="Modo de autenticacao">
+            {[
+              { id: 'login', label: 'Entrar' },
+              { id: 'register', label: 'Criar conta' },
+              { id: 'reset', label: 'Recuperar' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`flex-1 py-2 px-3 text-sm font-semibold rounded-md transition-all duration-200 ${mode === tab.id
+                  ? 'bg-white text-brand-700 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                  }`}
+                onClick={() => switchMode(tab.id)}
                 disabled={submitting}
-                required={isRegisterMode}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Context */}
+          <div>
+            {mode === 'login' && (
+              <>
+                <h2 className="text-lg font-bold text-slate-800">Entrar</h2>
+                <p className="text-sm text-slate-500 mt-0.5">Use seu email e senha para continuar.</p>
+              </>
+            )}
+            {mode === 'register' && (
+              <>
+                <h2 className="text-lg font-bold text-slate-800">Criar conta</h2>
+                <p className="text-sm text-slate-500 mt-0.5">A conta sera criada como pendente ate aprovacao do administrador.</p>
+              </>
+            )}
+            {mode === 'reset' && (
+              <>
+                <h2 className="text-lg font-bold text-slate-800">Recuperar senha</h2>
+                <p className="text-sm text-slate-500 mt-0.5">Informe o email para receber o link de redefinicao.</p>
+              </>
+            )}
+          </div>
+
+          {/* Form */}
+          <form onSubmit={onSubmit} className="flex flex-col gap-4">
+            {isRegisterMode && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-slate-700">Nome completo</span>
+                <input
+                  type="text"
+                  placeholder="Seu nome"
+                  value={nome}
+                  onChange={handleInputChange(setNome)}
+                  autoComplete="name"
+                  disabled={submitting}
+                  required={isRegisterMode}
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors disabled:opacity-60"
+                />
+              </label>
+            )}
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-slate-700">Email</span>
+              <input
+                type="email"
+                placeholder="email@dominio.com"
+                value={email}
+                onChange={handleInputChange(setEmail)}
+                autoComplete="email"
+                disabled={submitting}
+                required
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors disabled:opacity-60"
               />
             </label>
-          )}
 
-          <label className="auth-field">
-            <span>Email</span>
-            <input
-              type="email"
-              placeholder="email@dominio.com"
-              value={email}
-              onChange={handleInputChange(setEmail)}
-              autoComplete="email"
-              disabled={submitting}
-              required
-            />
-          </label>
-
-          {!isResetMode && (
-            <label className="auth-field">
-              <span>Senha</span>
-              <div className="auth-password-row">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Digite sua senha"
-                  value={password}
-                  onChange={handleInputChange(setPassword)}
-                  autoComplete={isRegisterMode ? 'new-password' : 'current-password'}
-                  disabled={submitting}
-                  required={!isResetMode}
-                />
-                <button
-                  type="button"
-                  className="auth-ghost-btn"
-                  onClick={() => setShowPassword((value) => !value)}
-                  disabled={submitting}
-                >
-                  {showPassword ? 'Ocultar' : 'Mostrar'}
-                </button>
-              </div>
-            </label>
-          )}
-
-          {isRegisterMode && (
-            <>
-              <label className="auth-field">
-                <span>Confirmar senha</span>
-                <div className="auth-password-row">
+            {!isResetMode && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-slate-700">Senha</span>
+                <div className="flex items-center gap-2">
                   <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    placeholder="Confirme a senha"
-                    value={confirmPassword}
-                    onChange={handleInputChange(setConfirmPassword)}
-                    autoComplete="new-password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Digite sua senha"
+                    value={password}
+                    onChange={handleInputChange(setPassword)}
+                    autoComplete={isRegisterMode ? 'new-password' : 'current-password'}
                     disabled={submitting}
-                    required={isRegisterMode}
+                    required={!isResetMode}
+                    className="flex-1 px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors disabled:opacity-60"
                   />
                   <button
                     type="button"
-                    className="auth-ghost-btn"
-                    onClick={() => setShowConfirmPassword((value) => !value)}
+                    className="px-3 py-2.5 text-xs font-semibold text-brand-600 hover:text-brand-800 rounded-lg hover:bg-brand-50 transition-colors"
+                    onClick={() => setShowPassword((value) => !value)}
                     disabled={submitting}
-                >
-                  {showConfirmPassword ? 'Ocultar' : 'Mostrar'}
-                </button>
-              </div>
-            </label>
+                  >
+                    {showPassword ? 'Ocultar' : 'Mostrar'}
+                  </button>
+                </div>
+              </label>
+            )}
 
-              <div className="auth-password-compact">
-                <div className="auth-password-head">
-                  <span>Forca</span>
-                  <strong>{passwordStrength.label}</strong>
+            {isRegisterMode && (
+              <>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-sm font-semibold text-slate-700">Confirmar senha</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="Confirme a senha"
+                      value={confirmPassword}
+                      onChange={handleInputChange(setConfirmPassword)}
+                      autoComplete="new-password"
+                      disabled={submitting}
+                      required={isRegisterMode}
+                      className="flex-1 px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors disabled:opacity-60"
+                    />
+                    <button
+                      type="button"
+                      className="px-3 py-2.5 text-xs font-semibold text-brand-600 hover:text-brand-800 rounded-lg hover:bg-brand-50 transition-colors"
+                      onClick={() => setShowConfirmPassword((value) => !value)}
+                      disabled={submitting}
+                    >
+                      {showConfirmPassword ? 'Ocultar' : 'Mostrar'}
+                    </button>
+                  </div>
+                </label>
+
+                {/* Password Strength */}
+                <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-slate-500">Forca</span>
+                    <strong className="text-xs font-bold text-slate-700">{passwordStrength.label}</strong>
+                  </div>
+                  {/* Strength bar */}
+                  <div className="flex gap-1 mb-2.5">
+                    {[0, 1, 2, 3].map((idx) => (
+                      <div
+                        key={`str-${idx}`}
+                        className={`h-1 flex-1 rounded-full transition-colors ${idx < passwordStrength.score ? strengthColors[Math.min(passwordStrength.score - 1, 3)] : 'bg-slate-200'
+                          }`}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { key: 'minLength', label: '8+ caracteres' },
+                      { key: 'upper', label: 'Maiuscula' },
+                      { key: 'lower', label: 'Minuscula' },
+                      { key: 'number', label: 'Numero' },
+                    ].map((rule) => (
+                      <span
+                        key={rule.key}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-semibold transition-colors ${passwordRules[rule.key]
+                          ? 'bg-green-100 text-green-700 border border-green-200'
+                          : 'bg-slate-100 text-slate-400 border border-slate-200'
+                          }`}
+                      >
+                        {passwordRules[rule.key] ? '✓' : '○'} {rule.label}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div className="auth-password-tags">
-                  <span className={`auth-password-tag ${passwordRules.minLength ? 'is-ok' : ''}`}>8+ caracteres</span>
-                  <span className={`auth-password-tag ${passwordRules.upper ? 'is-ok' : ''}`}>Maiuscula</span>
-                  <span className={`auth-password-tag ${passwordRules.lower ? 'is-ok' : ''}`}>Minuscula</span>
-                  <span className={`auth-password-tag ${passwordRules.number ? 'is-ok' : ''}`}>Numero</span>
-                </div>
-              </div>
-            </>
+              </>
+            )}
+
+            <button
+              type="submit"
+              className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={submitting}
+            >
+              <AppIcon name={isResetMode ? 'lock' : 'login'} size={18} />
+              {submitting && 'Aguarde...'}
+              {!submitting && mode === 'login' && 'Entrar'}
+              {!submitting && mode === 'register' && 'Criar conta'}
+              {!submitting && mode === 'reset' && 'Enviar recuperacao'}
+            </button>
+          </form>
+
+          {/* Feedback */}
+          {feedback.text && (
+            <div
+              className={`rounded-lg px-4 py-3 text-sm font-medium ${feedback.type === 'error'
+                ? 'bg-red-50 text-red-700 border border-red-200'
+                : 'bg-green-50 text-green-700 border border-green-200'
+                }`}
+              role="alert"
+            >
+              {feedback.text}
+            </div>
           )}
 
-          <button type="submit" className="auth-submit-btn" disabled={submitting}>
-            <AppIcon name={isResetMode ? 'lock' : 'login'} />
-            {submitting && 'Aguarde...'}
-            {!submitting && mode === 'login' && 'Entrar'}
-            {!submitting && mode === 'register' && 'Criar conta'}
-            {!submitting && mode === 'reset' && 'Enviar recuperacao'}
-          </button>
-        </form>
-
-        {feedback.text && (
-          <div className={`auth-feedback ${feedback.type === 'error' ? 'is-error' : 'is-success'}`} role="alert">
-            {feedback.text}
+          {/* Footer Actions */}
+          <div className="flex justify-center pt-1">
+            {mode !== 'reset' && (
+              <button
+                type="button"
+                className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600 font-medium transition-colors"
+                onClick={() => switchMode('reset')}
+                disabled={submitting}
+              >
+                <AppIcon name="lock" size={14} />
+                Esqueci minha senha
+              </button>
+            )}
+            {mode === 'reset' && (
+              <button
+                type="button"
+                className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600 font-medium transition-colors"
+                onClick={() => switchMode('login')}
+                disabled={submitting}
+              >
+                <AppIcon name="login" size={14} />
+                Voltar para login
+              </button>
+            )}
           </div>
-        )}
-
-        <div className="auth-footer-actions">
-          {mode !== 'reset' && (
-            <button
-              type="button"
-              className="auth-link-btn"
-              onClick={() => switchMode('reset')}
-              disabled={submitting}
-            >
-              <AppIcon name="lock" />
-              Esqueci minha senha
-            </button>
-          )}
-          {mode === 'reset' && (
-            <button
-              type="button"
-              className="auth-link-btn"
-              onClick={() => switchMode('login')}
-              disabled={submitting}
-            >
-              <AppIcon name="login" />
-              Voltar para login
-            </button>
-          )}
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }
 

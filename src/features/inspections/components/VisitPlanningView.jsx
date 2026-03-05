@@ -137,70 +137,68 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
 
   function renderTowerItem(item, selectable = true) {
     return (
-      <div key={`${item.categoria}-${item.torre}`}>
-        <label>
+      <div key={`${item.categoria}-${item.torre}`} className="flex flex-col gap-1 py-2.5 px-3 border-b border-slate-100 last:border-b-0">
+        <label className="flex items-start gap-2 cursor-pointer">
           <input
             type="checkbox"
             checked={selectedTowers.includes(item.torre)}
             disabled={!selectable}
             onChange={() => toggleTower(item.torre)}
+            className="mt-0.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
           />
-          {' '}
-          <strong>Torre {item.torre}:</strong> {item.motivo}
+          <span className="text-sm text-slate-700">
+            <strong className="text-slate-800">Torre {item.torre}:</strong> {item.motivo}
+          </span>
         </label>
         {item.mapsLink && (
-          <div>
-            <small>
-              <a href={item.mapsLink} target="_blank" rel="noreferrer">Abrir no Maps</a>
-            </small>
+          <div className="pl-6">
+            <a href={item.mapsLink} target="_blank" rel="noreferrer" className="text-xs text-brand-600 hover:text-brand-800 hover:underline">
+              Abrir no Maps
+            </a>
           </div>
         )}
         {item.comentariosAnteriores?.length > 0 && (
-          <div>
+          <div className="pl-6 flex flex-col gap-0.5">
             {item.comentariosAnteriores.map((comment, idx) => (
-              <div key={`${item.torre}-${idx}`}>
-                <small>
-                  {comment.data || '-'} {comment.inspectionId ? `(${comment.inspectionId})` : ''}: {comment.obs}
-                </small>
+              <div key={`${item.torre}-${idx}`} className="text-xs text-slate-500">
+                {comment.data || '-'} {comment.inspectionId ? `(${comment.inspectionId})` : ''}: {comment.obs}
               </div>
             ))}
           </div>
         )}
         {item.hotelSugeridoNome ? (
-          <div>
-            <small>
+          <div className="pl-6 text-xs text-slate-600 bg-slate-50 rounded px-2 py-1.5 mt-1">
+            <div>
               Hotel sugerido: <strong>{item.hotelSugeridoNome}</strong>
               {item.hotelSugeridoMunicipio ? ` (${item.hotelSugeridoMunicipio})` : ''}
               {item.hotelSugeridoTorreBase ? ` | Torre base: ${item.hotelSugeridoTorreBase}` : ''}
               {item.hotelSugeridoDistanciaTorreAlvo !== '' ? ` | Distância da torre-alvo: ${formatHotelDistance(item.hotelSugeridoDistanciaTorreAlvo)}` : ''}
-            </small>
-            <div>
-              <small>
-                Notas - Logística: {formatHotelNote(item.hotelSugeridoLogisticaNota)}
-                {' | '}
-                Reserva: {formatHotelNote(item.hotelSugeridoReservaNota)}
-                {' | '}
-                Estadia: {formatHotelNote(item.hotelSugeridoEstadiaNota)}
-              </small>
+            </div>
+            <div className="text-slate-500 mt-0.5">
+              Notas - Logística: {formatHotelNote(item.hotelSugeridoLogisticaNota)}
+              {' | '}
+              Reserva: {formatHotelNote(item.hotelSugeridoReservaNota)}
+              {' | '}
+              Estadia: {formatHotelNote(item.hotelSugeridoEstadiaNota)}
             </div>
           </div>
         ) : (
-          <div><small>Sem histórico de hospedagem para esta torre.</small></div>
+          <div className="pl-6 text-xs text-slate-400 italic">Sem histórico de hospedagem para esta torre.</div>
         )}
       </div>
     );
   }
 
   return (
-    <section className="panel">
-      <div className="topbar">
-        <div>
-          <h2>Planejamento de Visita</h2>
-          <p className="muted">Planejamento anual por amostragem, com torres obrigatórias e guia de campo.</p>
-        </div>
+    <section className="p-4 md:p-6 flex flex-col gap-5">
+      {/* Header */}
+      <div className="flex flex-col gap-1">
+        <h2 className="text-xl font-bold text-slate-800 m-0">Planejamento de Visita</h2>
+        <p className="text-sm text-slate-500">Planejamento anual por amostragem, com torres obrigatórias e guia de campo.</p>
       </div>
 
-      <div className="grid-form">
+      {/* Project Select */}
+      <div className="max-w-md">
         <Select id="visit-project" label="Empreendimento" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
           <option value="">Empreendimento...</option>
           {projects.map((project) => (
@@ -211,21 +209,27 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
 
       {selectedProject && (
         <>
-          <div className="notice">
-            <div><strong>Total torres:</strong> {planning.totalTorres}</div>
-            <div><strong>Meta anual:</strong> {planning.metaAmostragem}</div>
-            <div><strong>Obrigatórias:</strong> {planning.obrigatorias.length}</div>
-            <div><strong>Amostragem selecionada (auto):</strong> {planning.amostragemSelecionada.length}</div>
-            <div><strong>Não priorizar:</strong> {planning.naoPriorizar.length}</div>
-            <div><strong>Seed:</strong> {planning.seed}</div>
+          {/* Stats Info Box */}
+          <div className="bg-brand-50 border border-brand-100 rounded-lg p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-sm">
+            <div><strong className="text-slate-700">Total torres:</strong> <span className="text-slate-600">{planning.totalTorres}</span></div>
+            <div><strong className="text-slate-700">Meta anual:</strong> <span className="text-slate-600">{planning.metaAmostragem}</span></div>
+            <div><strong className="text-slate-700">Obrigatórias:</strong> <span className="text-slate-600">{planning.obrigatorias.length}</span></div>
+            <div><strong className="text-slate-700">Amostragem (auto):</strong> <span className="text-slate-600">{planning.amostragemSelecionada.length}</span></div>
+            <div><strong className="text-slate-700">Não priorizar:</strong> <span className="text-slate-600">{planning.naoPriorizar.length}</span></div>
+            <div><strong className="text-slate-700">Seed:</strong> <span className="text-slate-600">{planning.seed}</span></div>
           </div>
 
-          <div className="notice">
-            <strong>Seleção atual:</strong> {selectedItems.length} torre(s)
-            <div><strong>Torre-alvo (última da sequência):</strong> {targetTower || 'N/D'}</div>
+          {/* Selection Summary */}
+          <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col gap-3">
+            <div className="text-sm">
+              <strong className="text-slate-700">Seleção atual:</strong> <span className="text-slate-600">{selectedItems.length} torre(s)</span>
+            </div>
+            <div className="text-sm">
+              <strong className="text-slate-700">Torre-alvo (última da sequência):</strong> <span className="text-slate-600">{targetTower || 'N/D'}</span>
+            </div>
             {priorityHotel ? (
-              <div>
-                <strong>Hotel prioritário da última torre{targetTower ? ` (T${targetTower})` : ''}:</strong>
+              <div className="text-sm text-slate-600">
+                <strong className="text-slate-700">Hotel prioritário da última torre{targetTower ? ` (T${targetTower})` : ''}:</strong>
                 {' '}
                 {priorityHotel.hotelSugeridoNome}
                 {priorityHotel.hotelSugeridoMunicipio ? ` (${priorityHotel.hotelSugeridoMunicipio})` : ''}
@@ -233,9 +237,9 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
                 {priorityHotel.hotelSugeridoDistanciaTorreAlvo !== '' ? ` | Distância ${formatHotelDistance(priorityHotel.hotelSugeridoDistanciaTorreAlvo)}` : ''}
               </div>
             ) : (
-              <div>Sem histórico de hotel para priorização da torre-alvo.</div>
+              <div className="text-sm text-slate-500 italic">Sem histórico de hotel para priorização da torre-alvo.</div>
             )}
-            <div className="row-actions">
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
               <Button variant="outline" size="sm" onClick={() => setSelectedTowers(allSelectable.map((item) => item.torre))}>
                 <AppIcon name="check" />
                 Marcar todas
@@ -251,7 +255,8 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
             </div>
           </div>
 
-          <div className="row-actions">
+          {/* Action Buttons */}
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="primary"
               onClick={() => onApplySelection?.({ projectId: selectedProject.id, towers: selectedItems, towerInput: serialized })}
@@ -270,26 +275,27 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
             </Button>
           </div>
 
-          <div className="project-cards">
-            <article className="project-card">
-              <h3>Obrigatórias</h3>
-              <div className="muted">
+          {/* Tower Cards */}
+          <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+            <article className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+              <h3 className="text-sm font-bold text-slate-800 px-4 py-3 bg-slate-50 border-b border-slate-200 m-0">Obrigatórias</h3>
+              <div>
                 {obrigatoriasItems.map((item) => renderTowerItem(item, true))}
-                {obrigatoriasItems.length === 0 && <div>Nenhuma torre obrigatória.</div>}
+                {obrigatoriasItems.length === 0 && <div className="px-4 py-6 text-sm text-slate-500 italic text-center">Nenhuma torre obrigatória.</div>}
               </div>
             </article>
-            <article className="project-card">
-              <h3>Selecionadas por amostragem</h3>
-              <div className="muted">
+            <article className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+              <h3 className="text-sm font-bold text-slate-800 px-4 py-3 bg-slate-50 border-b border-slate-200 m-0">Selecionadas por amostragem</h3>
+              <div>
                 {amostragemItems.map((item) => renderTowerItem(item, true))}
-                {amostragemItems.length === 0 && <div>Nenhuma torre em amostragem automática.</div>}
+                {amostragemItems.length === 0 && <div className="px-4 py-6 text-sm text-slate-500 italic text-center">Nenhuma torre em amostragem automática.</div>}
               </div>
             </article>
-            <article className="project-card">
-              <h3>Não priorizar</h3>
-              <div className="muted">
+            <article className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+              <h3 className="text-sm font-bold text-slate-800 px-4 py-3 bg-slate-50 border-b border-slate-200 m-0">Não priorizar</h3>
+              <div>
                 {naoPriorizarItems.map((item) => renderTowerItem(item, true))}
-                {naoPriorizarItems.length === 0 && <div>Nenhuma torre nesta categoria.</div>}
+                {naoPriorizarItems.length === 0 && <div className="px-4 py-6 text-sm text-slate-500 italic text-center">Nenhuma torre nesta categoria.</div>}
               </div>
             </article>
           </div>
@@ -314,51 +320,51 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
           </>
         }
       >
-        <div className="muted">
-          <div><strong>Empreendimento:</strong> {selectedProject?.id} - {selectedProject?.nome || '-'}</div>
-          <div><strong>Ano:</strong> {year}</div>
-          <div><strong>Total selecionado:</strong> {selectedItems.length}</div>
-          <div><strong>Torre-alvo:</strong> {targetTower || 'N/D'}</div>
+        <div className="text-sm text-slate-600 flex flex-col gap-1 mb-4">
+          <div><strong className="text-slate-700">Empreendimento:</strong> {selectedProject?.id} - {selectedProject?.nome || '-'}</div>
+          <div><strong className="text-slate-700">Ano:</strong> {year}</div>
+          <div><strong className="text-slate-700">Total selecionado:</strong> {selectedItems.length}</div>
+          <div><strong className="text-slate-700">Torre-alvo:</strong> {targetTower || 'N/D'}</div>
           {priorityHotel && (
             <div>
-              <strong>Hotel prioritário da última torre{targetTower ? ` (T${targetTower})` : ''}:</strong>
+              <strong className="text-slate-700">Hotel prioritário da última torre{targetTower ? ` (T${targetTower})` : ''}:</strong>
               {' '}
               {priorityHotel.hotelSugeridoNome}
               {priorityHotel.hotelSugeridoMunicipio ? ` (${priorityHotel.hotelSugeridoMunicipio})` : ''}
             </div>
           )}
         </div>
-        <div className="table-scroll">
-          <table>
-            <thead>
+        <div className="w-full overflow-x-auto rounded-lg border border-slate-200">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
               <tr>
-                <th>Torre</th>
-                <th>Categoria</th>
-                <th>Motivo</th>
-                <th>Hotel sugerido</th>
-                <th>Município</th>
-                <th>Logística</th>
-                <th>Reserva</th>
-                <th>Estadia</th>
-                <th>Torre base</th>
-                <th>Distância alvo</th>
-                <th>Link Maps</th>
+                <th className="px-3 py-2.5">Torre</th>
+                <th className="px-3 py-2.5">Categoria</th>
+                <th className="px-3 py-2.5">Motivo</th>
+                <th className="px-3 py-2.5">Hotel sugerido</th>
+                <th className="px-3 py-2.5">Município</th>
+                <th className="px-3 py-2.5">Logística</th>
+                <th className="px-3 py-2.5">Reserva</th>
+                <th className="px-3 py-2.5">Estadia</th>
+                <th className="px-3 py-2.5">Torre base</th>
+                <th className="px-3 py-2.5">Distância alvo</th>
+                <th className="px-3 py-2.5">Link Maps</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="bg-white divide-y divide-slate-100">
               {selectedItems.map((item) => (
-                <tr key={`guide-${item.torre}`}>
-                  <td>{item.torre}</td>
-                  <td>{item.categoria}</td>
-                  <td>{item.motivo}</td>
-                  <td>{item.hotelSugeridoNome || '-'}</td>
-                  <td>{item.hotelSugeridoMunicipio || '-'}</td>
-                  <td>{formatHotelNote(item.hotelSugeridoLogisticaNota)}</td>
-                  <td>{formatHotelNote(item.hotelSugeridoReservaNota)}</td>
-                  <td>{formatHotelNote(item.hotelSugeridoEstadiaNota)}</td>
-                  <td>{item.hotelSugeridoTorreBase || '-'}</td>
-                  <td>{item.hotelSugeridoDistanciaTorreAlvo !== '' ? formatHotelDistance(item.hotelSugeridoDistanciaTorreAlvo) : '-'}</td>
-                  <td>{item.mapsLink ? <a href={item.mapsLink} target="_blank" rel="noreferrer">Abrir</a> : '-'}</td>
+                <tr key={`guide-${item.torre}`} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-3 py-2.5 font-medium text-slate-800">{item.torre}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{item.categoria}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{item.motivo}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{item.hotelSugeridoNome || '-'}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{item.hotelSugeridoMunicipio || '-'}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{formatHotelNote(item.hotelSugeridoLogisticaNota)}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{formatHotelNote(item.hotelSugeridoReservaNota)}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{formatHotelNote(item.hotelSugeridoEstadiaNota)}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{item.hotelSugeridoTorreBase || '-'}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{item.hotelSugeridoDistanciaTorreAlvo !== '' ? formatHotelDistance(item.hotelSugeridoDistanciaTorreAlvo) : '-'}</td>
+                  <td className="px-3 py-2.5">{item.mapsLink ? <a href={item.mapsLink} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">Abrir</a> : '-'}</td>
                 </tr>
               ))}
             </tbody>

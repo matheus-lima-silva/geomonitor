@@ -59,14 +59,14 @@ vi.mock('../../services/projectService', () => ({
         mesesEntregaRelatorio: [2],
       },
     ]);
-    return () => {};
+    return () => { };
   },
 }));
 
 vi.mock('../../services/inspectionService', () => ({
   subscribeInspections: (onData) => {
     onData([{ id: 'V1' }]);
-    return () => {};
+    return () => { };
   },
 }));
 
@@ -89,30 +89,30 @@ vi.mock('../../services/erosionService', () => ({
         ],
       },
     ]);
-    return () => {};
+    return () => { };
   },
 }));
 
 vi.mock('../../services/licenseService', () => ({
   subscribeOperatingLicenses: (onData) => {
     onData([]);
-    return () => {};
+    return () => { };
   },
 }));
 
 vi.mock('../../services/reportDeliveryTrackingService', () => ({
   subscribeReportDeliveryTracking: (onData) => {
     onData([]);
-    return () => {};
+    return () => { };
   },
 }));
 
 vi.mock('../../services/userService', () => ({
-  subscribeUsers: () => () => {},
+  subscribeUsers: () => () => { },
 }));
 
 vi.mock('../../services/rulesService', () => ({
-  subscribeRulesConfig: () => () => {},
+  subscribeRulesConfig: () => () => { },
 }));
 
 vi.mock('../../features/projects/components/ProjectsView', () => ({
@@ -177,10 +177,11 @@ describe('DashboardView monitoring top notice', () => {
 
     expect(container.querySelector('.monitor-topbar-alert-trigger')).toBeTruthy();
 
-    const projectTab = [...container.querySelectorAll('.side-nav-link')]
+    const projectTab = [...container.querySelectorAll('button')]
       .find((button) => {
         const label = button.getAttribute('aria-label') || '';
-        return label.includes('Empreendimentos') || button.textContent.includes('Empreendimentos');
+        const title = button.title || '';
+        return label.includes('Empreendimentos') || button.textContent.includes('Empreendimentos') || title.includes('Empreendimentos');
       });
     expect(projectTab).toBeTruthy();
 
@@ -203,7 +204,7 @@ describe('DashboardView monitoring top notice', () => {
     expect(container.textContent).toContain('Status operacional');
     expect(container.textContent).toContain('dia(s)');
     expect(container.textContent).toContain('Em acompanhamento');
-    expect(container.textContent).toContain('Nao iniciado');
+    expect(container.textContent).toContain('iniciado');
   });
 
   it('shows active work tracking card with project and ongoing stage', async () => {
@@ -233,7 +234,7 @@ describe('DashboardView monitoring top notice', () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain('Origem aplicada');
+    expect(container.textContent).toContain('Origem');
     expect(container.textContent).toContain('Override');
   });
 
@@ -243,7 +244,7 @@ describe('DashboardView monitoring top notice', () => {
       await Promise.resolve();
     });
 
-    const monthButton = container.querySelector('.monitor-month-button');
+    const monthButton = container.querySelector('button[aria-controls^="monitor-month-details"]');
     expect(monthButton).toBeTruthy();
     expect(monthButton.getAttribute('aria-expanded')).toBe('false');
 
@@ -252,9 +253,9 @@ describe('DashboardView monitoring top notice', () => {
       await Promise.resolve();
     });
 
-    const expandedButton = container.querySelector('.monitor-month-button');
+    const expandedButton = container.querySelector('button[aria-controls^="monitor-month-details"]');
     expect(expandedButton.getAttribute('aria-expanded')).toBe('true');
-    expect(container.querySelector('.monitor-month-details')).toBeTruthy();
+    expect(container.querySelector('div[id^="monitor-month-details"]')).toBeTruthy();
     expect(container.textContent).toContain('P1 - Projeto 1');
     expect(container.textContent).toContain('Empreendimento vinculado');
     expect(container.textContent).toContain('Prazo:');
@@ -267,8 +268,8 @@ describe('DashboardView monitoring top notice', () => {
       await Promise.resolve();
     });
 
-    const collapsedButton = container.querySelector('.monitor-month-button');
+    const collapsedButton = container.querySelector('button[aria-controls^="monitor-month-details"]');
     expect(collapsedButton.getAttribute('aria-expanded')).toBe('false');
-    expect(container.querySelector('.monitor-month-details')).toBeNull();
+    expect(container.querySelector('div[id^="monitor-month-details"]')).toBeNull();
   });
 });

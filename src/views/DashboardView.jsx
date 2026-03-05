@@ -111,14 +111,14 @@ function DashboardMonitoring({ viewModel }) {
       </div>
 
       {/* KPI Cards — tamanho compacto e proporcional */}
-      <div className="monitor-kpi-grid">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {[
           { label: 'Críticas', value: criticalCount, icon: 'alert', accent: 'text-red-700' },
           { label: 'Erosões', value: erosionCount, icon: 'alert', accent: 'text-slate-700' },
           { label: 'Vistorias', value: inspectionCount, icon: 'clipboard', accent: 'text-slate-700' },
           { label: 'Empreendimentos', value: projectCount, icon: 'building', accent: 'text-slate-700' },
         ].map(({ label, value, icon, accent }) => (
-          <Card key={label} className="flex flex-col gap-1 p-4">
+          <Card key={label} className="flex flex-col gap-1 p-4 shadow-sm border border-slate-200">
             <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold uppercase tracking-wide">
               <AppIcon name={icon} />
               {label}
@@ -129,16 +129,16 @@ function DashboardMonitoring({ viewModel }) {
       </div>
 
       {/* Impact level distribution */}
-      <div className="monitor-impact-grid">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {IMPACT_LEVELS.map((impact) => (
-          <Card key={impact} variant="nested" className="flex flex-col gap-1 p-3">
-            <div className="text-2xs font-bold uppercase tracking-wide text-slate-500">{impact}</div>
+          <Card key={impact} className="flex flex-col gap-1 p-3 bg-slate-50 border border-slate-200 shadow-sm">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{impact}</div>
             <div className="text-xl font-bold text-slate-800">{impactCounts[impact]}</div>
           </Card>
         ))}
       </div>
 
-      <div className="monitor-postit-grid">
+      <div className="grid gap-5 grid-cols-1 xl:grid-cols-2 items-start mt-4">
         {/* Coluna esquerda */}
         <div className="flex flex-col gap-4">
           <Card variant="nested">
@@ -161,21 +161,21 @@ function DashboardMonitoring({ viewModel }) {
             <p className="text-xs text-slate-500 mt-2">Taxa de estabilização: {stabilizationRate.toFixed(1)}%</p>
           </Card>
 
-          <Card variant="nested" className="monitor-report-card">
+          <Card variant="nested" className="flex flex-col">
             <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Entregas de Relatórios (próximas)</h3>
-            <div className="table-scroll">
-              <table className="monitor-table">
-                <thead className="monitor-report-card-table-head">
+            <div className="w-full rounded-lg border border-slate-200">
+              <table className="w-full text-left text-sm table-fixed">
+                <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                   <tr>
-                    <th>Origem</th>
-                    <th>Escopo</th>
-                    <th>Mês/ano</th>
-                    <th>Prazo</th>
-                    <th>Status prazo</th>
-                    <th>Status operacional</th>
+                    <th className="px-4 py-3 w-[15%]">Origem</th>
+                    <th className="px-4 py-3 w-[30%]">Escopo</th>
+                    <th className="px-4 py-3 w-[10%]">Mês/ano</th>
+                    <th className="px-4 py-3 w-[15%]">Prazo</th>
+                    <th className="px-4 py-3 w-[15%]">Status prazo</th>
+                    <th className="px-4 py-3 w-[15%]">Status op.</th>
                   </tr>
                 </thead>
-                <tbody className="monitor-report-card-body">
+                <tbody className="bg-white divide-y divide-slate-100">
                   {reportOccurrences.slice(0, 8).map((item, idx) => {
                     const rowKey = `${item.scopeId || item.projectId || 'scope'}-${item.monthKey}-${idx}`;
                     const isExpanded = expandedReportRowKey === rowKey;
@@ -183,15 +183,15 @@ function DashboardMonitoring({ viewModel }) {
                     const canExpand = projectBreakdown.length > 0;
 
                     return (
-                      <tr key={rowKey}>
-                        <td className="monitor-report-main-cell">{getReportSourceLabel(item)}</td>
-                        <td>
-                          <div className="monitor-report-scope-cell">
-                            <span>{item.scopeSummary || '-'}</span>
+                      <tr key={rowKey} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-slate-800 text-sm whitespace-normal break-words">{getReportSourceLabel(item)}</td>
+                        <td className="px-4 py-3 align-top">
+                          <div className="flex flex-col items-start gap-2 overflow-hidden">
+                            <span className="text-slate-600 whitespace-normal break-words" title={item.scopeSummary || ''}>{item.scopeSummary || '-'}</span>
                             {canExpand ? (
                               <button
                                 type="button"
-                                className="monitor-report-expand-button"
+                                className="text-xs text-brand-600 font-semibold hover:text-brand-800 hover:underline px-2 py-1 rounded bg-brand-50 mt-1 self-start"
                                 aria-expanded={isExpanded ? 'true' : 'false'}
                                 onClick={() => setExpandedReportRowKey((prev) => (prev === rowKey ? '' : rowKey))}
                               >
@@ -200,40 +200,40 @@ function DashboardMonitoring({ viewModel }) {
                             ) : null}
                           </div>
                           {isExpanded && canExpand ? (
-                            <div className="monitor-report-breakdown" role="region" aria-label="Detalhes por projeto">
-                              <table className="monitor-table monitor-report-breakdown-table">
-                                <thead>
+                            <div className="mt-3 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-inner" role="region" aria-label="Detalhes por projeto">
+                              <table className="w-full text-left text-xs table-fixed">
+                                <thead className="text-slate-500 uppercase tracking-wide border-b border-slate-200">
                                   <tr>
-                                    <th>Projeto</th>
-                                    <th>Origem</th>
-                                    <th>Prazo</th>
-                                    <th>Status prazo</th>
-                                    <th>Status operacional</th>
-                                    <th>Override</th>
+                                    <th className="pb-2 font-semibold w-[20%]">Projeto</th>
+                                    <th className="pb-2 font-semibold w-[15%]">Origem</th>
+                                    <th className="pb-2 font-semibold w-[15%]">Prazo</th>
+                                    <th className="pb-2 font-semibold w-[20%]">Status prazo</th>
+                                    <th className="pb-2 font-semibold w-[20%]">Status op.</th>
+                                    <th className="pb-2 font-semibold w-[10%]">Override</th>
                                   </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-slate-100">
                                   {projectBreakdown.map((projectItem) => {
                                     const projectLabel = projectItem.projectName
                                       ? `${projectItem.projectId} - ${projectItem.projectName}`
                                       : projectItem.projectId;
                                     const sourceLabel = projectItem.sourceApplied === 'LO' ? 'LO' : 'Empreendimento';
                                     return (
-                                      <tr key={`${rowKey}-${projectItem.projectId}`}>
-                                        <td>{projectLabel}</td>
-                                        <td>{sourceLabel}</td>
-                                        <td>{formatReportDueDays(projectItem.daysUntilDue)}</td>
-                                        <td>
+                                      <tr key={`${rowKey}-${projectItem.projectId}`} className="hover:bg-slate-100/50">
+                                        <td className="py-2 pr-2 text-slate-700 whitespace-normal break-words">{projectLabel}</td>
+                                        <td className="py-2 pr-2 text-slate-600 whitespace-normal break-words">{sourceLabel}</td>
+                                        <td className="py-2 pr-2 text-slate-600">{formatReportDueDays(projectItem.daysUntilDue)}</td>
+                                        <td className="py-2 pr-2">
                                           <Badge tone={projectItem.deadlineStatusTone}>
-                                            {projectItem.deadlineStatusLabel || 'Sem prazo'}
+                                            <span className="whitespace-normal text-left">{projectItem.deadlineStatusLabel || 'Sem prazo'}</span>
                                           </Badge>
                                         </td>
-                                        <td>
+                                        <td className="py-2 pr-2">
                                           <Badge tone={projectItem.operationalStatusTone}>
-                                            {projectItem.operationalStatusLabel || 'Não iniciado'}
+                                            <span className="whitespace-normal text-left">{projectItem.operationalStatusLabel || 'Não iniciado'}</span>
                                           </Badge>
                                         </td>
-                                        <td>{projectItem.sourceOverrideLabel || 'Automático'}</td>
+                                        <td className="py-2 pr-2 text-slate-500">{projectItem.sourceOverrideLabel || 'Automático'}</td>
                                       </tr>
                                     );
                                   })}
@@ -242,16 +242,16 @@ function DashboardMonitoring({ viewModel }) {
                             </div>
                           ) : null}
                         </td>
-                        <td>{formatMonitoringMonthLabel(item.month)}/{item.year}</td>
-                        <td>{formatReportDueDays(item?.daysUntilDue)}</td>
-                        <td>
+                        <td className="px-4 py-3 text-slate-600">{formatMonitoringMonthLabel(item.month)}/{item.year}</td>
+                        <td className="px-4 py-3 text-slate-600">{formatReportDueDays(item?.daysUntilDue)}</td>
+                        <td className="px-4 py-3">
                           <Badge tone={item?.deadlineStatusTone || item?.trackingStatusTone}>
-                            {item?.deadlineStatusLabel || item?.trackingStatusLabel || 'Sem prazo'}
+                            <span className="whitespace-normal text-left">{item?.deadlineStatusLabel || item?.trackingStatusLabel || 'Sem prazo'}</span>
                           </Badge>
                         </td>
-                        <td>
+                        <td className="px-4 py-3">
                           <Badge tone={item?.operationalStatusTone}>
-                            {item?.operationalStatusLabel || 'Não iniciado'}
+                            <span className="whitespace-normal text-left">{item?.operationalStatusLabel || 'Não iniciado'}</span>
                           </Badge>
                         </td>
                       </tr>
@@ -259,7 +259,7 @@ function DashboardMonitoring({ viewModel }) {
                   })}
                   {reportOccurrences.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="monitor-report-empty-cell">Sem periodicidades de entrega cadastradas.</td>
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500 text-sm italic">Sem periodicidades de entrega cadastradas.</td>
                     </tr>
                   )}
                 </tbody>
@@ -312,30 +312,30 @@ function DashboardMonitoring({ viewModel }) {
             </p>
           </Card>
 
-          <Card variant="nested" className="monitor-month-card">
+          <Card variant="nested" className="flex flex-col">
             <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Acompanhamento mensal de entregas</h3>
-            <div className="monitor-month-list">
+            <div className="flex flex-col gap-2 mt-4">
               {reportMonthRows.map(([monthKey, count]) => {
                 const [year, monthNumber] = monthKey.split('-');
                 const detailsId = `monitor-month-details-${monthKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
                 const isExpanded = expandedMonthKey === monthKey;
                 const details = Array.isArray(reportMonthDetailsByKey?.[monthKey]) ? reportMonthDetailsByKey[monthKey] : [];
                 return (
-                  <div key={monthKey} className="monitor-month-entry">
+                  <div key={monthKey} className="flex flex-col border border-slate-200 rounded-lg overflow-hidden">
                     <button
                       type="button"
-                      className={`monitor-month-button${isExpanded ? ' is-expanded' : ''}`}
+                      className={`flex items-center justify-between w-full px-4 py-3 transition-colors focus:outline-none ${isExpanded ? 'bg-slate-50 border-b border-slate-200' : 'bg-white hover:bg-slate-50'}`}
                       aria-expanded={isExpanded ? 'true' : 'false'}
                       aria-controls={detailsId}
                       onClick={() => setExpandedMonthKey((prev) => (prev === monthKey ? null : monthKey))}
                     >
-                      <span className="monitor-month-button-main">
-                        <span className="monitor-month-button-label">{formatMonitoringMonthLabel(monthNumber)}/{year}</span>
+                      <span className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-slate-800">{formatMonitoringMonthLabel(monthNumber)}/{year}</span>
                       </span>
-                      <strong className="monitor-month-button-count">{count}</strong>
+                      <strong className="text-xs font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">{count}</strong>
                     </button>
                     {isExpanded ? (
-                      <div id={detailsId} className="monitor-month-details" role="region" aria-label={`Detalhes de ${formatMonitoringMonthLabel(monthNumber)}/${year}`}>
+                      <div id={detailsId} className="flex flex-col p-4 bg-slate-50 gap-4" role="region" aria-label={`Detalhes de ${formatMonitoringMonthLabel(monthNumber)}/${year}`}>
                         {details.map((item) => {
                           const projectId = String(item?.projectId || '').trim();
                           const projectName = String(item?.projectName || '').trim();
@@ -343,16 +343,16 @@ function DashboardMonitoring({ viewModel }) {
                             ? `${projectId} - ${projectName}`
                             : (projectId || projectName || '-');
                           return (
-                            <article key={`${monthKey}-${projectId || projectLabel}`} className="monitor-month-detail-item">
-                              <strong className="monitor-month-detail-title">{projectLabel}</strong>
-                              <span className="monitor-month-detail-meta"><strong>Origem:</strong> {item?.sourceSummary || '-'}</span>
-                              <span className="monitor-month-detail-meta"><strong>Escopo:</strong> {item?.scopeSummary || '-'}</span>
-                              <span className="monitor-month-detail-meta"><strong>Prazo:</strong> {formatReportDueDays(item?.dueInDays)}</span>
-                              <span className="monitor-month-detail-meta">
+                            <article key={`${monthKey}-${projectId || projectLabel}`} className="flex flex-col gap-1 p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+                              <strong className="text-sm font-bold text-slate-800 mb-1">{projectLabel}</strong>
+                              <span className="text-xs text-slate-600 flex justify-between"><strong>Origem:</strong> {item?.sourceSummary || '-'}</span>
+                              <span className="text-xs text-slate-600 flex justify-between"><strong>Escopo:</strong> {item?.scopeSummary || '-'}</span>
+                              <span className="text-xs text-slate-600 flex justify-between"><strong>Prazo:</strong> {formatReportDueDays(item?.dueInDays)}</span>
+                              <span className="text-xs text-slate-600 flex justify-between items-center mt-1 pt-1 border-t border-slate-50">
                                 <strong>Status prazo:</strong>{' '}
                                 <Badge tone={item?.deadlineStatusTone}>{item?.deadlineStatusLabel || 'Sem prazo'}</Badge>
                               </span>
-                              <span className="monitor-month-detail-meta">
+                              <span className="text-xs text-slate-600 flex justify-between items-center mt-1 pt-1 border-t border-slate-50">
                                 <strong>Status operacional:</strong>{' '}
                                 <Badge tone={item?.operationalStatusTone}>{item?.operationalStatusLabel || 'Não iniciado'}</Badge>
                               </span>
@@ -360,7 +360,7 @@ function DashboardMonitoring({ viewModel }) {
                           );
                         })}
                         {details.length === 0 && (
-                          <p className="monitor-month-detail-empty">Nenhum empreendimento encontrado para este mês.</p>
+                          <p className="text-sm text-slate-500 italic">Nenhum empreendimento encontrado para este mês.</p>
                         )}
                       </div>
                     ) : null}
@@ -371,32 +371,32 @@ function DashboardMonitoring({ viewModel }) {
             </div>
           </Card>
 
-          <Card variant="nested" className="monitor-work-card">
+          <Card variant="nested" className="flex flex-col">
             <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Acompanhamento de Obras</h3>
-            <div className="table-scroll">
-              <table className="monitor-table">
-                <thead>
+            <div className="w-full overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full text-left text-sm whitespace-normal">
+                <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                   <tr>
-                    <th>Erosão</th>
-                    <th>Projeto</th>
-                    <th>Torre</th>
-                    <th>Etapa</th>
-                    <th>Atualização</th>
+                    <th className="px-4 py-3">Erosão</th>
+                    <th className="px-4 py-3">Projeto</th>
+                    <th className="px-4 py-3">Torre</th>
+                    <th className="px-4 py-3">Etapa</th>
+                    <th className="px-4 py-3">Atualização</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-white divide-y divide-slate-100">
                   {workTrackingRows.slice(0, 8).map((row) => (
-                    <tr key={`monitor-work-${row.erosionId}`}>
-                      <td>{row.erosionId}</td>
-                      <td>{row.projectName ? `${row.projectId} - ${row.projectName}` : row.projectId}</td>
-                      <td>{formatTowerLabel(row.towerRef)}</td>
-                      <td>{row.stage || '-'}</td>
-                      <td>{row.timestamp ? new Date(row.timestamp).toLocaleString('pt-BR') : '-'}</td>
+                    <tr key={`monitor-work-${row.erosionId}`} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-slate-800">{row.erosionId}</td>
+                      <td className="px-4 py-3 text-slate-600">{row.projectName ? `${row.projectId} - ${row.projectName}` : row.projectId}</td>
+                      <td className="px-4 py-3 text-slate-600">{formatTowerLabel(row.towerRef)}</td>
+                      <td className="px-4 py-3 text-slate-600">{row.stage || '-'}</td>
+                      <td className="px-4 py-3 text-slate-600">{row.timestamp ? new Date(row.timestamp).toLocaleString('pt-BR') : '-'}</td>
                     </tr>
                   ))}
                   {workTrackingRows.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="text-sm text-slate-500">Sem obras ativas em Projeto ou Em andamento.</td>
+                      <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500 italic">Sem obras ativas em Projeto ou Em andamento.</td>
                     </tr>
                   ) : null}
                 </tbody>
@@ -404,38 +404,38 @@ function DashboardMonitoring({ viewModel }) {
             </div>
           </Card>
 
-          <Card variant="nested" className="monitor-table-card">
+          <Card variant="nested" className="flex flex-col">
             <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Erosões recentes</h3>
-            <div className="table-scroll">
-              <table className="monitor-table">
-                <thead>
+            <div className="w-full overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full text-left text-sm whitespace-normal">
+                <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                   <tr>
-                    <th>ID</th>
-                    <th>Projeto</th>
-                    <th>Torre</th>
-                    <th>Impacto</th>
-                    <th>Status</th>
+                    <th className="px-4 py-3">ID</th>
+                    <th className="px-4 py-3">Projeto</th>
+                    <th className="px-4 py-3">Torre</th>
+                    <th className="px-4 py-3">Impacto</th>
+                    <th className="px-4 py-3">Status</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-white divide-y divide-slate-100">
                   {recentErosions.map((item) => {
                     const projectId = String(item?.projetoId || '').trim();
                     const project = projectsById.get(projectId);
                     const projectLabel = project ? `${projectId} - ${project.nome || projectId}` : (projectId || '-');
                     const impact = getErosionImpact(item);
                     return (
-                      <tr key={item.id}>
-                        <td>{item.id}</td>
-                        <td>{projectLabel}</td>
-                        <td>{formatTowerLabel(item?.torreRef)}</td>
-                        <td><Badge tone={getImpactTone(impact)}>{impact}</Badge></td>
-                        <td>{item.status || '-'}</td>
+                      <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-slate-800">{item.id}</td>
+                        <td className="px-4 py-3 text-slate-600">{projectLabel}</td>
+                        <td className="px-4 py-3 text-slate-600">{formatTowerLabel(item?.torreRef)}</td>
+                        <td className="px-4 py-3"><Badge tone={getImpactTone(impact)}>{impact}</Badge></td>
+                        <td className="px-4 py-3 text-slate-600">{item.status || '-'}</td>
                       </tr>
                     );
                   })}
                   {recentErosions.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="text-sm text-slate-500">Nenhuma erosão registrada.</td>
+                      <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500 italic">Nenhuma erosão registrada.</td>
                     </tr>
                   )}
                 </tbody>
@@ -545,15 +545,19 @@ function DashboardView() {
   const accessStatus = normalizeUserStatus(user?.status);
   if (accessStatus !== 'Ativo') {
     return (
-      <section className="panel auth">
-        <h2>Acesso restrito</h2>
-        <p className="muted">
+      <section className="p-8 max-w-md mx-auto mt-12 bg-white rounded-xl shadow-sm border border-slate-200 text-center flex flex-col items-center gap-4">
+        <h2 className="text-xl font-bold text-slate-800 m-0">Acesso restrito</h2>
+        <p className="text-slate-500 font-medium">
           {accessStatus === 'Pendente'
-            ? 'A sua conta esta aguardando aprovacao de um administrador.'
-            : 'A sua conta esta inativa. Entre em contato com um administrador.'}
+            ? 'A sua conta está aguardando aprovação de um administrador.'
+            : 'A sua conta está inativa. Entre em contato com um administrador.'}
         </p>
-        <button type="button" onClick={logout}>
-          <AppIcon name="logout" />
+        <button
+          type="button"
+          onClick={logout}
+          className="mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+        >
+          <AppIcon name="logout" size={18} />
           Sair
         </button>
       </section>
@@ -684,7 +688,7 @@ function DashboardView() {
         searchTerm={searchTerm}
         onSearchTermChange={setSearchTerm}
       >
-        <Suspense fallback={<section className="panel">A carregar modulo...</section>}>
+        <Suspense fallback={<section className="p-6 text-sm text-slate-500">A carregar modulo...</section>}>
           {renderTab()}
         </Suspense>
       </AppShell>

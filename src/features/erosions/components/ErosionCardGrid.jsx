@@ -22,7 +22,7 @@ function ErosionCardGrid({
   const projectsById = new Map((projects || []).map((item) => [String(item?.id || '').trim(), item]));
 
   return (
-    <div className="erosions-card-grid">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
       {erosions.map((erosion) => {
         const projectId = String(erosion?.projetoId || '').trim();
         const project = projectsById.get(projectId);
@@ -31,15 +31,15 @@ function ErosionCardGrid({
         const localContexto = technical.localContexto || {};
         const localLabel = getLocalContextLabel(localContexto.localTipo) || '-';
         return (
-          <article key={erosion.id} className="erosions-card">
-            <div className="erosions-card-head">
-              <div className="erosions-card-id-row">
-                <h3>{erosion.id || '-'}</h3>
+          <article key={erosion.id} className="flex flex-col gap-4 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+            <div className="flex flex-col gap-3 p-5 pb-4 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-lg font-bold text-slate-800 m-0 truncate">{erosion.id || '-'}</h3>
                 <span className={erosionStatusClass(erosion.status)}>
                   {normalizedStatus}
                 </span>
               </div>
-              <div className="erosions-card-chips">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge tone="neutral" size="sm">{projectId || '-'}</Badge>
                 {String(erosion?.torreRef || '').trim() ? (
                   <Badge tone="neutral" size="sm">{`Torre ${erosion.torreRef}`}</Badge>
@@ -50,34 +50,34 @@ function ErosionCardGrid({
               </div>
             </div>
 
-            <div className="erosions-card-meta">
+            <div className="flex flex-col gap-2.5 p-5 pt-4 flex-1">
               {project?.nome ? (
-                <div className="erosions-card-meta-row">
+                <div className="flex justify-between items-start gap-4 text-sm text-slate-500">
                   <span>Empreendimento</span>
-                  <strong>{project.nome}</strong>
+                  <strong className="font-medium text-slate-800 text-right">{project.nome}</strong>
                 </div>
               ) : null}
-              <div className="erosions-card-meta-row">
+              <div className="flex justify-between items-start gap-4 text-sm text-slate-500">
                 <span>Tipo</span>
-                <strong>{erosion.tipo || '-'}</strong>
+                <strong className="font-medium text-slate-800 text-right">{erosion.tipo || '-'}</strong>
               </div>
-              <div className="erosions-card-meta-row">
+              <div className="flex justify-between items-start gap-4 text-sm text-slate-500">
                 <span>Estágio</span>
-                <strong>{erosion.estagio || '-'}</strong>
+                <strong className="font-medium text-slate-800 text-right">{erosion.estagio || '-'}</strong>
               </div>
-              <div className="erosions-card-meta-row">
+              <div className="flex justify-between items-start gap-4 text-sm text-slate-500">
                 <span>Local</span>
-                <strong>{localLabel}</strong>
+                <strong className="font-medium text-slate-800 text-right">{localLabel}</strong>
               </div>
               {localContexto.localTipo === 'outros' ? (
-                <div className="erosions-card-meta-row">
+                <div className="flex justify-between items-start gap-4 text-sm text-slate-500">
                   <span>Detalhe local</span>
-                  <strong>{localContexto.localDescricao || '-'}</strong>
+                  <strong className="font-medium text-slate-800 text-right">{localContexto.localDescricao || '-'}</strong>
                 </div>
               ) : null}
             </div>
 
-            <div className="erosions-card-actions">
+            <div className="flex flex-wrap items-center gap-3 p-5 pt-0 mt-auto">
               <Button variant="outline" size="sm" onClick={() => onOpenDetails(erosion)}>
                 <AppIcon name="details" />
                 Detalhes
@@ -102,8 +102,8 @@ function ErosionCardGrid({
       })}
 
       {erosions.length === 0 ? (
-        <article className="erosions-card erosions-card-empty">
-          <p className="muted">Nenhuma erosão encontrada.</p>
+        <article className="col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4 bg-slate-50 border border-slate-200 border-dashed rounded-xl p-8 text-center">
+          <p className="text-slate-500 italic m-0">Nenhuma erosão encontrada.</p>
         </article>
       ) : null}
     </div>

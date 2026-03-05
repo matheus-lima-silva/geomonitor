@@ -53,26 +53,26 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
   }
 
   return (
-    <section className="panel projects-panel">
+    <section className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto w-full">
       <input
         ref={mergeInputRef}
         type="file"
         accept=".kml,application/vnd.google-earth.kml+xml"
-        className="hidden-input"
+        className="hidden"
         onChange={handleMergeInputChange}
       />
       <input
         ref={createInputRef}
         type="file"
         accept=".kml,application/vnd.google-earth.kml+xml"
-        className="hidden-input"
+        className="hidden"
         onChange={handleCreateInputChange}
       />
 
-      <div className="topbar projects-topbar">
-        <div className="projects-topbar-copy">
-          <h2>Empreendimentos</h2>
-          <p className="muted">Cadastre e mantenha os dados base das linhas de transmissao.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl font-bold text-slate-800 m-0">Empreendimentos</h2>
+          <p className="text-slate-500 m-0">Cadastre e mantenha os dados base das linhas de transmissao.</p>
         </div>
         <Button variant="primary" size="sm" onClick={state.openNew}>
           <AppIcon name="plus" />
@@ -80,7 +80,7 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
         </Button>
       </div>
 
-      <div className="projects-grid">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         {filtered.map((p) => {
           const stats = getProjectInspectionStats(p.id, inspections);
           const reportConfig = getProjectReportConfig(p);
@@ -90,105 +90,109 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
           const hasExportGeometry = gpsCount > 0 || lineCount >= 2;
 
           return (
-            <article key={p.id} className="projects-card">
-              <header className="projects-card-head">
-                <div className="projects-card-identity">
-                  <h3 className="projects-card-title">{p.nome || p.id}</h3>
-                  <p className="projects-card-code">Codigo: {p.id}</p>
-                  <p className="projects-card-date">{p.dataCadastro || 'S/D'}</p>
+            <article key={p.id} className="flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <header className="flex justify-between items-start p-5 bg-slate-50 border-b border-slate-200">
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-lg font-bold text-slate-800 m-0">{p.nome || p.id}</h3>
+                  <p className="text-xs font-mono text-slate-500 m-0">Codigo: {p.id}</p>
+                  <p className="text-xs text-slate-400 m-0">{p.dataCadastro || 'S/D'}</p>
                 </div>
-                <div className="projects-card-icon-actions">
+                <div className="flex gap-2">
                   <button
                     type="button"
-                    className="projects-icon-btn is-edit"
+                    className="text-slate-400 hover:text-brand-600 transition-colors bg-transparent border-0 p-1 cursor-pointer focus:outline-none"
                     aria-label={`Editar empreendimento ${p.id}`}
                     onClick={() => state.openEdit(p)}
                   >
-                    <AppIcon name="edit" />
+                    <AppIcon name="edit" size={20} />
                   </button>
                   <button
                     type="button"
-                    className="projects-icon-btn is-delete"
+                    className="text-slate-400 hover:text-red-600 transition-colors bg-transparent border-0 p-1 cursor-pointer focus:outline-none"
                     aria-label={`Excluir empreendimento ${p.id}`}
                     onClick={() => state.setConfirmDelete(p.id)}
                   >
-                    <AppIcon name="trash" />
+                    <AppIcon name="trash" size={20} />
                   </button>
                 </div>
               </header>
 
-              <div className="projects-chip-row">
-                <span className="projects-chip">{p.tipo || 'Sem tipo'}</span>
-                {p.tensao && <span className="projects-chip is-tension">{p.tensao} kV</span>}
-                {p.extensao && <span className="projects-chip is-distance">{p.extensao} km</span>}
+              <div className="flex flex-wrap gap-2 px-5 py-4 border-b border-slate-100">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">{p.tipo || 'Sem tipo'}</span>
+                {p.tensao && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-orange-50 text-orange-700">{p.tensao} kV</span>}
+                {p.extensao && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">{p.extensao} km</span>}
               </div>
 
-              <div className="projects-stats">
-                <div><strong>Vistorias:</strong> {stats.count}</div>
-                <div><strong>Tempo de vistoria:</strong> {stats.spanDays ? `${stats.spanDays} dia(s)` : 'S/D'}</div>
-                <div><strong>Dias efetivamente vistoriados:</strong> {stats.visitedDays}</div>
-                <div><strong>Torres com GPS:</strong> {gpsCount}</div>
-                <div><strong>Periodicidade:</strong> {reportConfig.periodicidadeRelatorio}</div>
-                <div><strong>Meses de entrega:</strong> {formatReportMonths(reportConfig.mesesEntregaRelatorio)}</div>
+              <div className="flex flex-col gap-2 p-5 text-sm text-slate-600">
+                <div><strong className="text-slate-800">Vistorias:</strong> {stats.count}</div>
+                <div><strong className="text-slate-800">Tempo de vistoria:</strong> {stats.spanDays ? `${stats.spanDays} dia(s)` : 'S/D'}</div>
+                <div><strong className="text-slate-800">Dias efetivamente vistoriados:</strong> {stats.visitedDays}</div>
+                <div><strong className="text-slate-800">Torres com GPS:</strong> {gpsCount}</div>
+                <div><strong className="text-slate-800">Periodicidade:</strong> {reportConfig.periodicidadeRelatorio}</div>
+                <div><strong className="text-slate-800">Meses de entrega:</strong> {formatReportMonths(reportConfig.mesesEntregaRelatorio)}</div>
                 {reportConfig.periodicidadeRelatorio === 'Bienal' && (
-                  <div><strong>Ano base (bienal):</strong> {reportConfig.anoBaseBienal || 'Nao definido'}</div>
+                  <div><strong className="text-slate-800">Ano base (bienal):</strong> {reportConfig.anoBaseBienal || 'Nao definido'}</div>
                 )}
               </div>
 
-              <div className={`projects-main-actions ${hasKmlData ? 'is-two' : 'is-one'}`}>
+              <div className="flex gap-3 px-5 py-4 bg-slate-50 border-t border-slate-100 mt-auto">
                 <button
                   type="button"
-                  className="projects-main-btn is-neutral"
+                  className="flex-1 flex justify-center items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors focus:ring-2 focus:ring-brand-500 focus:outline-none"
                   onClick={() => onOpenProjectInspections?.(p.id)}
                 >
-                  <AppIcon name="clipboard" />
+                  <AppIcon name="clipboard" size={18} />
                   Vistorias
                 </button>
                 {hasKmlData && (
                   <button
                     type="button"
-                    className="projects-main-btn is-route"
+                    className="flex-1 flex justify-center items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700 transition-colors focus:ring-2 focus:ring-brand-500 focus:outline-none"
                     onClick={() => {
                       state.setRouteModalProject(p);
                       state.setRouteSelection([]);
                     }}
                   >
-                    <AppIcon name="route" />
+                    <AppIcon name="route" size={18} />
                     Tracar rota
                   </button>
                 )}
               </div>
 
               {!hasKmlData && (
-                <button
-                  type="button"
-                  className="projects-secondary-btn is-import"
-                  onClick={() => {
-                    mergeTargetProjectRef.current = p;
-                    mergeInputRef.current?.click();
-                  }}
-                >
-                  <AppIcon name="upload" />
-                  Importar KML neste empreendimento
-                </button>
+                <div className="px-5 pb-5 bg-slate-50">
+                  <button
+                    type="button"
+                    className="w-full flex justify-center items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+                    onClick={() => {
+                      mergeTargetProjectRef.current = p;
+                      mergeInputRef.current?.click();
+                    }}
+                  >
+                    <AppIcon name="upload" size={18} />
+                    Importar KML neste empreendimento
+                  </button>
+                </div>
               )}
 
               {hasExportGeometry && (
-                <button
-                  type="button"
-                  className="projects-secondary-btn is-export"
-                  onClick={() => safeRun(() => downloadProjectKml(p))}
-                >
-                  <AppIcon name="map" />
-                  Exportar KML
-                </button>
+                <div className="px-5 pb-5 bg-slate-50">
+                  <button
+                    type="button"
+                    className="w-full flex justify-center items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+                    onClick={() => safeRun(() => downloadProjectKml(p))}
+                  >
+                    <AppIcon name="map" size={18} />
+                    Exportar KML
+                  </button>
+                </div>
               )}
             </article>
           );
         })}
 
         {filtered.length === 0 && (
-          <p className="projects-empty-state">Nenhum empreendimento encontrado.</p>
+          <div className="col-span-full py-12 text-center text-slate-500 italic bg-white rounded-xl border border-slate-200 border-dashed">Nenhum empreendimento encontrado.</div>
         )}
       </div>
 

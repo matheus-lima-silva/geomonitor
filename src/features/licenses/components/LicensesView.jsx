@@ -87,7 +87,7 @@ function LicenseFormModal({
       size="lg"
       footer={footer}
     >
-      <div className="grid-form">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Select
           id="license-esfera"
           label="Esfera"
@@ -181,21 +181,21 @@ function LicenseFormModal({
         </Select>
       </div>
 
-      <div className="chips">
+      <div className="flex flex-wrap gap-2 mt-3 items-center">
         {MONTH_OPTIONS_PT.map((month) => {
           const selected = selectedMonths.includes(month.value);
           return (
             <button
               key={month.value}
               type="button"
-              className={selected ? 'chip-active' : ''}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${selected ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-slate-300 hover:border-brand-400 hover:text-brand-600'}`}
               onClick={() => toggleMonth(month.value)}
             >
               {month.label}
             </button>
           );
         })}
-        <small>{selectedMonths.length}/{required}</small>
+        <span className="text-xs text-slate-500 font-medium ml-1">{selectedMonths.length}/{required}</span>
       </div>
 
       {periodicidade === 'Bienal' && (
@@ -211,10 +211,10 @@ function LicenseFormModal({
         />
       )}
 
-      <div className="panel nested mt-3">
-        <h4>Cobertura por empreendimento/torres</h4>
+      <div className="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-4">
+        <h4 className="text-sm font-bold text-slate-800 m-0 mb-3">Cobertura por empreendimento/torres</h4>
         {(formData.cobertura || []).map((item, idx) => (
-          <div key={`coverage-${idx}`} className="grid-form">
+          <div key={`coverage-${idx}`} className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 pb-3 border-b border-slate-200 last:border-b-0 last:pb-0 last:mb-0">
             <Select
               id={`coverage-project-${idx}`}
               label="Empreendimento"
@@ -269,7 +269,7 @@ function LicenseFormModal({
         </Button>
       </div>
 
-      <div className="notice mt-3">
+      <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
         <strong>Condicionante:</strong> exige acompanhamento de processos erosivos.
       </div>
 
@@ -278,8 +278,7 @@ function LicenseFormModal({
         placeholder="Observações"
         value={formData.observacoes || ''}
         onChange={(e) => setFormData((prev) => ({ ...prev, observacoes: e.target.value }))}
-        className="mt-3"
-        style={{ width: '100%' }}
+        className="mt-4 w-full px-3 py-2.5 rounded-lg border border-slate-300 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors"
       />
     </Modal>
   );
@@ -342,11 +341,11 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast }) {
   }
 
   return (
-    <section className="panel">
-      <div className="topbar">
+    <section className="p-4 md:p-6 flex flex-col gap-5">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h2>Licenças de Operação (LO)</h2>
-          <p className="muted">Cadastro centralizado de LO com escopo por empreendimento e torres.</p>
+          <h2 className="text-xl font-bold text-slate-800 m-0">Licenças de Operação (LO)</h2>
+          <p className="text-sm text-slate-500 mt-1">Cadastro centralizado de LO com escopo por empreendimento e torres.</p>
         </div>
         <Button variant="primary" size="sm" onClick={openNew}>
           <AppIcon name="plus" />
@@ -354,15 +353,15 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast }) {
         </Button>
       </div>
 
-      <div className="project-cards">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         {(licenses || []).map((item) => (
-          <article key={item.id} className="project-card">
-            <header className="project-card-header">
+          <article key={item.id} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            <header className="flex items-start justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
               <div>
-                <h3>{item.numero || item.id}</h3>
-                <small>{item.id}</small>
+                <h3 className="text-base font-bold text-slate-800 m-0">{item.numero || item.id}</h3>
+                <span className="text-xs text-slate-500">{item.id}</span>
               </div>
-              <div className="inline-row">
+              <div className="flex items-center gap-2 shrink-0">
                 <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
                   <AppIcon name="edit" />
                   Editar
@@ -373,19 +372,19 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast }) {
                 </Button>
               </div>
             </header>
-            <div className="muted">
-              <div><strong>Esfera:</strong> {item.esfera || '-'}</div>
-              {item.esfera === 'Estadual' && <div><strong>UF:</strong> {item.uf || '-'}</div>}
-              <div><strong>Órgão:</strong> {item.orgaoAmbiental || '-'}</div>
-              <div><strong>Vigência:</strong> {item.inicioVigencia || '-'} até {item.fimVigencia || 'indeterminada'}</div>
-              <div><strong>Cobertura:</strong> {(item.cobertura || []).length} escopo(s)</div>
-              <div><strong>Acompanhamento erosivo:</strong> Sim</div>
+            <div className="px-4 py-3 text-sm text-slate-600 flex flex-col gap-1">
+              <div><strong className="text-slate-700">Esfera:</strong> {item.esfera || '-'}</div>
+              {item.esfera === 'Estadual' && <div><strong className="text-slate-700">UF:</strong> {item.uf || '-'}</div>}
+              <div><strong className="text-slate-700">Órgão:</strong> {item.orgaoAmbiental || '-'}</div>
+              <div><strong className="text-slate-700">Vigência:</strong> {item.inicioVigencia || '-'} até {item.fimVigencia || 'indeterminada'}</div>
+              <div><strong className="text-slate-700">Cobertura:</strong> {(item.cobertura || []).length} escopo(s)</div>
+              <div><strong className="text-slate-700">Acompanhamento erosivo:</strong> Sim</div>
             </div>
           </article>
         ))}
         {(licenses || []).length === 0 && (
-          <article className="project-card">
-            <p className="muted">Nenhuma LO cadastrada.</p>
+          <article className="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
+            <p className="text-sm text-slate-500 italic text-center">Nenhuma LO cadastrada.</p>
           </article>
         )}
       </div>
