@@ -32,8 +32,8 @@ function RoutePlannerModal({ project, routeSelection, setRouteSelection, onClose
   }
 
   function handleOpenRoute() {
-    if (selectedRoutePoints.length < 2) {
-      alert('Selecione pelo menos 2 torres para tracar a rota.');
+    if (selectedRoutePoints.length < 1) {
+      alert('Selecione pelo menos 1 torre para traçar a rota.');
       return;
     }
     const chunks = chunkRoutePoints(selectedRoutePoints, 8);
@@ -84,8 +84,8 @@ function RoutePlannerModal({ project, routeSelection, setRouteSelection, onClose
               key={`route-${tower.numero}`}
               type="button"
               className={`flex items-center justify-between px-3 py-2 text-sm border rounded-lg transition-all ${active
-                  ? 'bg-brand-50 border-brand-500 text-brand-700 font-bold shadow-sm'
-                  : 'bg-white border-slate-200 text-slate-700 hover:border-brand-300 hover:bg-slate-50'
+                ? 'bg-brand-50 border-brand-500 text-brand-700 font-bold shadow-sm'
+                : 'bg-white border-slate-200 text-slate-700 hover:border-brand-300 hover:bg-slate-50'
                 }`}
               onClick={() => toggleRouteTower(tower.numero)}
             >

@@ -152,8 +152,8 @@ function DashboardMonitoring({ viewModel }) {
 
           <Card variant="nested" className="flex flex-col">
             <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Entregas de Relatórios (próximas)</h3>
-            <div className="w-full rounded-lg border border-slate-200">
-              <table className="w-full text-left text-sm table-fixed">
+            <div className="w-full overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full text-left text-sm table-fixed min-w-[700px]">
                 <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3 w-[15%]">Origem</th>
@@ -189,8 +189,8 @@ function DashboardMonitoring({ viewModel }) {
                             ) : null}
                           </div>
                           {isExpanded && canExpand ? (
-                            <div className="mt-3 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-inner" role="region" aria-label="Detalhes por projeto">
-                              <table className="w-full text-left text-xs table-fixed">
+                            <div className="mt-3 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-inner overflow-x-auto" role="region" aria-label="Detalhes por projeto">
+                              <table className="w-full text-left text-xs table-fixed min-w-[500px]">
                                 <thead className="text-slate-500 uppercase tracking-wide border-b border-slate-200">
                                   <tr>
                                     <th className="pb-2 font-semibold w-[20%]">Projeto</th>
@@ -363,7 +363,7 @@ function DashboardMonitoring({ viewModel }) {
           <Card variant="nested" className="flex flex-col">
             <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Acompanhamento de Obras</h3>
             <div className="w-full overflow-x-auto rounded-lg border border-slate-200">
-              <table className="w-full text-left text-sm whitespace-normal">
+              <table className="w-full text-left text-sm whitespace-normal min-w-[500px]">
                 <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3">Erosão</th>
@@ -396,7 +396,7 @@ function DashboardMonitoring({ viewModel }) {
           <Card variant="nested" className="flex flex-col">
             <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Erosões recentes</h3>
             <div className="w-full overflow-x-auto rounded-lg border border-slate-200">
-              <table className="w-full text-left text-sm whitespace-normal">
+              <table className="w-full text-left text-sm whitespace-normal min-w-[500px]">
                 <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3">ID</th>

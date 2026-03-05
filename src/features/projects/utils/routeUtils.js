@@ -1,6 +1,6 @@
 export function buildGoogleMapsMultiStopUrl(points, opts = {}) {
   const list = Array.isArray(points) ? points : [];
-  if (list.length < 2) return '';
+  if (list.length < 1) return '';
 
   const origin = opts.origin || '';
   const destination = list[list.length - 1];
