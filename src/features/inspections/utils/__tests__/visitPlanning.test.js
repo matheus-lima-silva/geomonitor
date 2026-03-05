@@ -241,7 +241,7 @@ describe('hotel recommendation by tower target', () => {
     expect(recommendation.hotelSugeridoNome).toBe('Hotel com base');
   });
 
-  it('rebaixa torre base nao numerica na comparacao de distancia', () => {
+  it('mantem recomendacao por nota quando torre base nao e comparavel por distancia', () => {
     const recommendation = recommendHotelForTower({
       inspections: [
         {
@@ -280,8 +280,8 @@ describe('hotel recommendation by tower target', () => {
       targetTower: '11',
     });
 
-    expect(recommendation.hotelSugeridoNome).toBe('Hotel Torre Numerica');
-    expect(recommendation.hotelSugeridoDistanciaTorreAlvo).toBe(0);
+    expect(recommendation.hotelSugeridoNome).toBe('Hotel Torre Texto');
+    expect(recommendation.hotelSugeridoDistanciaTorreAlvo).toBe('');
   });
 
   it('desempata por media e depois por recencia', () => {

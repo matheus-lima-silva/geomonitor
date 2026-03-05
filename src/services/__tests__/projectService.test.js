@@ -1,29 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../features/projects/services/projectService', () => ({
-  deleteProject: vi.fn(),
-  saveProject: vi.fn(),
-  subscribeProjects: vi.fn(),
+  subscribeProjects: vi.fn()
 }));
 
-import {
-  deleteProject,
-  saveProject,
-  subscribeProjects as subscribeProjectsFeature,
-} from '../../features/projects/services/projectService';
-import {
-  createProject,
-  removeProject,
-  subscribeProjects,
-  updateProject,
-} from '../projectService';
+vi.mock('../../firebase/config', () => ({
+  auth: {
+    currentUser: {
+      getIdToken: vi.fn()
+    }
+  }
+}));
+
+import { subscribeProjects as subscribeProjectsFeature } from '../../features/projects/services/projectService';
+import { auth } from '../../firebase/config';
+import { createProject, removeProject, subscribeProjects, updateProject } from '../projectService';
 
 describe('projectService', () => {
+  const fetchMock = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', fetchMock);
+    auth.currentUser = {
+      getIdToken: vi.fn().mockResolvedValue('token-123')
+    };
   });
 
-  it('subscribeProjects delega para o serviço de feature', () => {
+  it('subscribeProjects delega para o service de feature', () => {
     const onData = vi.fn();
     const onError = vi.fn();
     vi.mocked(subscribeProjectsFeature).mockReturnValue('UNSUB');
@@ -34,42 +38,80 @@ describe('projectService', () => {
     expect(unsub).toBe('UNSUB');
   });
 
-  it('createProject normaliza ID e retorna objeto com id', async () => {
-    vi.mocked(saveProject).mockResolvedValue(undefined);
-
-    await expect(createProject({ id: ' lt-99 ' }, { updatedBy: 'ops@empresa.com' })).resolves.toEqual({
-      id: 'LT-99',
+  it('createProject normaliza id, envia POST e retorna id', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({})
     });
 
-    expect(saveProject).toHaveBeenCalledWith(
-      'LT-99',
-      { id: ' lt-99 ' },
-      { updatedBy: 'ops@empresa.com' },
-    );
+    await expect(
+      createProject({ id: ' lt-99 ' }, { updatedBy: 'ops@empresa.com' })
+    ).resolves.toEqual({ id: 'LT-99' });
+
+    expect(auth.currentUser.getIdToken).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toContain('/projects');
+
+    const request = fetchMock.mock.calls[0][1];
+    expect(request.method).toBe('POST');
+    expect(request.headers.Authorization).toBe('Bearer token-123');
+    expect(JSON.parse(request.body)).toEqual({
+      data: { id: 'LT-99' },
+      meta: { updatedBy: 'ops@empresa.com' }
+    });
   });
 
-  it('createProject falha sem ID válido', () => {
-    expect(() => createProject({ id: '   ' })).toThrow('Projeto precisa de ID');
-    expect(saveProject).not.toHaveBeenCalled();
+  it('createProject falha sem id valido', async () => {
+    await expect(createProject({ id: '   ' })).rejects.toThrow('Projeto precisa de ID');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('updateProject força merge true', async () => {
-    vi.mocked(saveProject).mockResolvedValue(undefined);
+  it('createProject falha sem token de autenticacao', async () => {
+    auth.currentUser = {
+      getIdToken: vi.fn().mockResolvedValue('')
+    };
 
-    await updateProject('P-1', { nome: 'P1' }, { merge: false, updatedBy: 'dev@empresa.com' });
-
-    expect(saveProject).toHaveBeenCalledWith(
-      'P-1',
-      { nome: 'P1' },
-      { merge: true, updatedBy: 'dev@empresa.com' },
-    );
+    await expect(createProject({ id: 'P-1' })).rejects.toThrow(/autenticado/i);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('removeProject delega exclusão', async () => {
-    vi.mocked(deleteProject).mockResolvedValue(undefined);
+  it('updateProject envia PUT com payload esperado', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({})
+    });
 
-    await removeProject('P-1');
+    await expect(
+      updateProject('P-1', { nome: 'Projeto 1' }, { updatedBy: 'dev@empresa.com' })
+    ).resolves.toEqual({ id: 'P-1' });
 
-    expect(deleteProject).toHaveBeenCalledWith('P-1');
+    const request = fetchMock.mock.calls[0][1];
+    expect(request.method).toBe('PUT');
+    expect(JSON.parse(request.body)).toEqual({
+      data: { nome: 'Projeto 1' },
+      meta: { updatedBy: 'dev@empresa.com' }
+    });
+  });
+
+  it('removeProject envia DELETE com auth', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({})
+    });
+
+    await expect(removeProject('P-1')).resolves.toBeUndefined();
+
+    const request = fetchMock.mock.calls[0][1];
+    expect(request.method).toBe('DELETE');
+    expect(request.headers.Authorization).toBe('Bearer token-123');
+  });
+
+  it('propaga erro de API ao criar projeto', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      json: vi.fn().mockResolvedValue({ message: 'Falha API' })
+    });
+
+    await expect(createProject({ id: 'P-1' })).rejects.toThrow('Falha API');
   });
 });

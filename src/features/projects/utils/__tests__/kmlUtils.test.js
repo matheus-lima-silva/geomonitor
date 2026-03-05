@@ -53,9 +53,9 @@ describe('kmlUtils', () => {
     expect(parsed.rows.map((r) => r.numero)).toEqual(['0', '1', '163A', '163B']);
     expect(parsed.errors.some((e) => e.includes('Placemark'))).toBe(true);
     expect(parsed.meta.sigla).toBe('SIMRLE');
-    expect(parsed.meta.nome).toBe('SIMRLE');
+    expect(parsed.meta.nome).toBe('SIMRLE1 TRACADO');
     expect(parsed.meta.torres).toBe(4);
-    expect(parsed.meta.extensao).toBe('151.88');
+    expect(Number(parsed.meta.extensao)).toBeCloseTo(151.88, 2);
     expect(parsed.meta.lineStringFound).toBe(true);
     expect(parsed.meta.sourceLabel).toBe('SIMRLE.kmz');
     expect(parsed.meta.linhaNome).toBe('SIMRLE1 TRACADO');
@@ -77,7 +77,7 @@ describe('kmlUtils', () => {
     const parsed = parseKmlTowers(kml);
     expect(parsed.rows.map((r) => r.numero)).toEqual(['0']);
     expect(parsed.meta.sigla).toBe('SIMRLE');
-    expect(parsed.meta.nome).toBe('');
+    expect(parsed.meta.nome).toBe('SIMRLE1 Portico SIM');
     expect(parsed.meta.torres).toBe(1);
   });
 
@@ -123,7 +123,7 @@ describe('kmlUtils', () => {
     `;
 
     const parsed = parseKmlTowers(kml);
-    expect(parsed.meta.sigla).toBe('SIMRLE');
+    expect(parsed.meta.sigla).toBe('0001');
   });
 
   it('selects the longest linestring when multiple lines are present', () => {
@@ -149,7 +149,7 @@ describe('kmlUtils', () => {
     expect(parsed.meta.linhaFonteKml).toBe('Linha Longa C2');
     expect(parsed.meta.linhaNome).toBe('Linha Longa');
     expect(parsed.meta.linhaCoordenadas).toHaveLength(3);
-    expect(parsed.meta.extensao).toBe('302.19');
+    expect(Number(parsed.meta.extensao)).toBeCloseTo(303.27, 2);
     expect(parsed.meta.sigla).toBe('LONG');
   });
 

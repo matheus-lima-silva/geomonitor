@@ -1,4 +1,4 @@
-import { act } from 'react';
+﻿import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import InspectionDetailsModal from '../InspectionDetailsModal';
@@ -56,7 +56,7 @@ describe('InspectionDetailsModal', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders summary, diary and linked erosions', () => {
+  it('renderiza resumo, diario e erosoes vinculadas', () => {
     const { inspection, inspections, erosions, project } = buildData();
     act(() => {
       root.render(
@@ -77,9 +77,10 @@ describe('InspectionDetailsModal', () => {
     expect(container.textContent).toContain('Dados de hospedagem');
   });
 
-  it('navigates to previous and next inspections', () => {
+  it('navega para vistoria anterior e seguinte', () => {
     const { inspection, inspections, erosions, project } = buildData();
     const onNavigate = vi.fn();
+
     act(() => {
       root.render(
         <InspectionDetailsModal
@@ -93,9 +94,11 @@ describe('InspectionDetailsModal', () => {
       );
     });
 
-    const navButtons = [...container.querySelectorAll('.inspection-details-head-actions button')];
-    const prevBtn = navButtons[0];
-    const nextBtn = navButtons[1];
+    const footerButtons = [...container.querySelectorAll('[role="dialog"] div.border-t button')];
+    expect(footerButtons.length).toBeGreaterThanOrEqual(4);
+
+    const prevBtn = footerButtons[0];
+    const nextBtn = footerButtons[1];
 
     act(() => {
       prevBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -109,7 +112,7 @@ describe('InspectionDetailsModal', () => {
     expect(onNavigate).toHaveBeenNthCalledWith(2, inspections[2]);
   });
 
-  it('exports PDF details through window.open', () => {
+  it('exporta PDF abrindo nova janela e chamando print', () => {
     const { inspection, inspections, erosions, project } = buildData();
     const documentWrite = vi.fn();
     const documentClose = vi.fn();
@@ -135,8 +138,10 @@ describe('InspectionDetailsModal', () => {
       );
     });
 
-    const buttons = [...container.querySelectorAll('.inspection-details-head-actions button')];
-    const pdfButton = buttons.find((button) => button.textContent.includes('Gerar PDF'));
+    const footerButtons = [...container.querySelectorAll('[role="dialog"] div.border-t button')];
+    const pdfButton = footerButtons.find((button) => /Gerar PDF/i.test(button.textContent || ''));
+    expect(pdfButton).toBeTruthy();
+
     act(() => {
       pdfButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });

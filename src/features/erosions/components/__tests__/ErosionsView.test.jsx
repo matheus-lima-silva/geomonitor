@@ -197,8 +197,10 @@ describe('ErosionsView', () => {
   it('orders cards by torre number', async () => {
     renderView(root);
     await selectProject(container, 'P1');
-    const cardTitles = [...container.querySelectorAll('article h3')]
-      .map((node) => node.textContent);
+    const cardTitles = [...container.querySelectorAll('button')]
+      .filter((button) => button.textContent.includes('Detalhes'))
+      .map((button) => button.closest('article')?.querySelector('h3')?.textContent)
+      .filter(Boolean);
     expect(cardTitles).toEqual(['ERS-1', 'ERS-2']);
   });
 
@@ -281,7 +283,7 @@ describe('ErosionsView', () => {
 
     await clickByText('Nova Erosao', container);
     expect(container.querySelector('dialog[open], [role="dialog"]')).toBeTruthy();
-    expect(container.textContent).toContain('Nova Erosão');
+    expect(container.textContent).toMatch(/Nova Eros/i);
     expect(container.textContent).toContain('Cadastro');
   });
 
@@ -313,7 +315,7 @@ describe('ErosionsView', () => {
     await clickByText('Editar', container);
 
     expect(container.querySelector('dialog[open], [role="dialog"]')).toBeTruthy();
-    expect(container.textContent).toContain('Editar Erosão');
+    expect(container.textContent).toMatch(/Editar Eros/i);
     expect(container.textContent).toContain('Salvar');
   });
 });

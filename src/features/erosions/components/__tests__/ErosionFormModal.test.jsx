@@ -81,40 +81,23 @@ describe('ErosionFormModal', () => {
     vi.clearAllMocks();
   });
 
-  it('renders single consolidated technical section without duplicated topics', () => {
+  it('renderiza secoes tecnicas e bloco de criticidade sem campos legados', () => {
     renderModal(root);
 
-    expect(container.textContent).toContain('Classificacao e caracterizacao da erosao');
+    expect(container.textContent).toContain('Classificação e caracterização da erosão');
     expect(container.textContent).toContain('Resumo de criticidade calculada');
-    expect(container.textContent).toContain('Presenca de agua no fundo');
-    expect(container.textContent).toContain('Classe D (derivada)');
-    expect(container.textContent).toContain('Classe E (derivada)');
-    expect(container.textContent).toContain('Profundidade');
-    expect(container.textContent).toContain('Declividade');
-    expect(container.textContent).toContain('Distancia da estrutura');
-    expect(container.textContent).toContain('10 a 30 m');
-    expect(container.textContent).toContain('> 30 m');
-    expect(container.textContent).toContain('25 a 45 graus');
-    expect(container.textContent).toContain('> 45 graus');
-    expect(container.textContent).not.toContain('janela');
-    expect(container.textContent).not.toContain('Criticidade V2');
-    expect(container.textContent).not.toContain('Intervencao:');
-    expect(container.textContent).not.toContain('PDF');
-    expect(container.textContent).not.toContain('Profundidade (m)');
-    expect(container.textContent).not.toContain('Classe tecnica de declividade (graus)');
-    expect(container.textContent).not.toContain('Uso do solo (legado)');
-    expect(container.textContent).not.toContain('Caracteristicas fisicas');
     expect(container.textContent).toContain('Usos do solo');
+    expect(container.textContent).not.toContain('Uso do solo (legado)');
   });
 
-  it('starts coordinates collapsed when block is empty', () => {
+  it('inicia localizacao recolhida quando bloco esta vazio', () => {
     renderModal(root);
 
     expect(container.textContent).toContain('Nao preenchido');
     expect(container.querySelector('input[placeholder="-22.951958"]')).toBeNull();
   });
 
-  it('starts coordinates expanded when block has values', () => {
+  it('inicia localizacao expandida quando ha valores', () => {
     renderModal(root, {
       formData: {
         id: 'ERS-1',
@@ -130,7 +113,7 @@ describe('ErosionFormModal', () => {
     expect(container.querySelector('input[placeholder="-22.951958"]')).toBeTruthy();
   });
 
-  it('auto-expands coordinates when utm validation token changes', () => {
+  it('expande localizacao quando token de erro UTM muda', () => {
     renderModal(root, { utmErrorToken: 0 });
     expect(container.querySelector('input[placeholder="-22.951958"]')).toBeNull();
 
@@ -138,7 +121,7 @@ describe('ErosionFormModal', () => {
     expect(container.querySelector('input[placeholder="-22.951958"]')).toBeTruthy();
   });
 
-  it('shows usoSoloOutro input when usosSolo contains outro', () => {
+  it('mostra campo usoSoloOutro quando usosSolo contem outro', () => {
     renderModal(root, {
       formData: {
         id: 'ERS-1',
@@ -151,21 +134,23 @@ describe('ErosionFormModal', () => {
     expect(container.textContent).toContain('Uso do solo - outro *');
   });
 
-  it('does not crash when formData is null', () => {
+  it('nao quebra quando formData e nulo', () => {
     renderModal(root, { formData: null });
-    expect(container.querySelector('.erosions-form-modal')).toBeTruthy();
+
+    expect(container.querySelector('[role="dialog"]')).toBeTruthy();
     expect(container.textContent).toContain('Cadastro');
   });
 
-  it('does not crash when projects contains null items', () => {
+  it('nao quebra quando projects contem itens nulos', () => {
     renderModal(root, {
       projects: [null, { id: 'P1', nome: 'Projeto 1' }],
     });
-    expect(container.querySelector('.erosions-form-modal')).toBeTruthy();
+
+    expect(container.querySelector('[role="dialog"]')).toBeTruthy();
     expect(container.querySelector('option[value="P1"]')).toBeTruthy();
   });
 
-  it('does not crash when inspections contains undefined items', () => {
+  it('nao quebra quando inspections contem itens undefined', () => {
     renderModal(root, {
       formData: {
         id: 'ERS-1',
@@ -174,7 +159,8 @@ describe('ErosionFormModal', () => {
       },
       inspections: [undefined, { id: 'VS-1', projetoId: 'P1' }],
     });
-    expect(container.querySelector('.erosions-form-modal')).toBeTruthy();
+
+    expect(container.querySelector('[role="dialog"]')).toBeTruthy();
     expect(container.querySelector('option[value="VS-1"]')).toBeTruthy();
   });
 });

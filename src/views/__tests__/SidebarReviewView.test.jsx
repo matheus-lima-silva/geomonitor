@@ -1,4 +1,4 @@
-import { act } from 'react';
+﻿import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import SidebarReviewView from '../SidebarReviewView';
@@ -41,31 +41,29 @@ describe('SidebarReviewView', () => {
     window.history.replaceState({}, '', originalPath);
   });
 
-  it('renders review shell with mock content without auth dependencies', () => {
+  it('renderiza pagina de review e shell sem depender de auth', () => {
     renderView('uiReview=sidebar');
 
     expect(container.textContent).toContain('GeoMonitor UI Review');
-    expect(container.querySelector('.app-grid')).toBeTruthy();
-    expect(container.querySelector('.side-nav')).toBeTruthy();
+    expect(container.querySelector('.sidebar-review-shell')).toBeTruthy();
+    expect(container.querySelector('[data-sidebar-review-variant="a"]')).toBeTruthy();
   });
 
-  it('applies variant and collapsed state from query string', () => {
+  it('aplica variant e estado collapsed via querystring', () => {
     renderView('uiReview=sidebar&reviewVariant=b&reviewState=collapsed');
 
-    const appGrid = container.querySelector('.app-grid');
-    const sideNav = container.querySelector('.side-nav');
-
-    expect(appGrid.classList.contains('is-sidebar-review-variant-b')).toBe(true);
-    expect(sideNav.classList.contains('is-collapsed')).toBe(true);
+    expect(container.querySelector('[data-sidebar-review-variant="b"]')).toBeTruthy();
+    const hasExpandLabel = [...container.querySelectorAll('button')]
+      .some((button) => button.getAttribute('aria-label') === 'Expandir barra lateral');
+    expect(hasExpandLabel).toBe(true);
   });
 
-  it('falls back to default variant/state when query is invalid', () => {
+  it('faz fallback para variant/state padrao quando query invalida', () => {
     renderView('uiReview=sidebar&reviewVariant=legacy&reviewState=unknown');
 
-    const appGrid = container.querySelector('.app-grid');
-    const sideNav = container.querySelector('.side-nav');
-
-    expect(appGrid.classList.contains('is-sidebar-review-variant-a')).toBe(true);
-    expect(sideNav.classList.contains('is-collapsed')).toBe(false);
+    expect(container.querySelector('[data-sidebar-review-variant="a"]')).toBeTruthy();
+    const hasCollapseLabel = [...container.querySelectorAll('button')]
+      .some((button) => button.getAttribute('aria-label') === 'Recolher barra lateral');
+    expect(hasCollapseLabel).toBe(true);
   });
 });

@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:ci:strict": "npm run test",
+    "ci:web": "npm run test && npm run build",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },

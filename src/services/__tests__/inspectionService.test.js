@@ -1,20 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../firestoreClient', () => ({
-  deleteDocById: vi.fn(),
-  saveDoc: vi.fn(),
-  subscribeCollection: vi.fn(),
+  subscribeCollection: vi.fn()
 }));
 
-import { deleteDocById, saveDoc, subscribeCollection } from '../firestoreClient';
+vi.mock('../../firebase/config', () => ({
+  auth: {
+    currentUser: {
+      getIdToken: vi.fn()
+    }
+  }
+}));
+
+import { subscribeCollection } from '../firestoreClient';
+import { auth } from '../../firebase/config';
 import { deleteInspection, saveInspection, subscribeInspections } from '../inspectionService';
 
 describe('inspectionService', () => {
+  const fetchMock = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', fetchMock);
+    auth.currentUser = {
+      getIdToken: vi.fn().mockResolvedValue('token-123')
+    };
   });
 
-  it('subscribeInspections delega para a coleção inspections', () => {
+  it('subscribeInspections delega para a colecao inspections', () => {
     const onData = vi.fn();
     const onError = vi.fn();
     vi.mocked(subscribeCollection).mockReturnValue('UNSUB');
@@ -25,65 +38,53 @@ describe('inspectionService', () => {
     expect(unsub).toBe('UNSUB');
   });
 
-  it('saveInspection gera ID automático, normaliza dataFim e detalhesDias', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2025-06-15T12:00:00.000Z'));
-    vi.mocked(saveDoc).mockResolvedValue(undefined);
-
-    const id = await saveInspection({
-      projetoId: 'P-01',
-      dataInicio: '2025-06-15',
-      detalhesDias: 'invalido',
-    }, { updatedBy: 'qa@empresa.com' });
-
-    expect(id).toBe(`VS-${Date.now()}`);
-    expect(saveDoc).toHaveBeenCalledWith(
-      'inspections',
-      id,
-      {
-        projetoId: 'P-01',
-        dataInicio: '2025-06-15',
-        detalhesDias: [],
-        id,
-        dataFim: '2025-06-15',
-      },
-      { updatedBy: 'qa@empresa.com', merge: true },
-    );
-
-    vi.useRealTimers();
-  });
-
-  it('saveInspection preserva id informado e detalhesDias em array', async () => {
-    vi.mocked(saveDoc).mockResolvedValue(undefined);
-
-    const id = await saveInspection({
-      id: ' VS-10 ',
-      projetoId: 'P-01',
-      dataInicio: '2025-06-15',
-      dataFim: '2025-06-16',
-      detalhesDias: [{ data: '2025-06-15' }],
+  it('saveInspection envia POST para API e retorna id de resposta', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ data: { id: 'VS-1' } })
     });
 
-    expect(id).toBe('VS-10');
-    expect(saveDoc).toHaveBeenCalledWith(
-      'inspections',
-      'VS-10',
-      {
-        id: 'VS-10',
-        projetoId: 'P-01',
-        dataInicio: '2025-06-15',
-        dataFim: '2025-06-16',
-        detalhesDias: [{ data: '2025-06-15' }],
-      },
-      { merge: true },
-    );
+    await expect(
+      saveInspection({ projetoId: 'P-1' }, { updatedBy: 'qa@empresa.com' })
+    ).resolves.toBe('VS-1');
+
+    const call = fetchMock.mock.calls[0];
+    const url = call[0];
+    const request = call[1];
+    expect(url).toContain('/inspections');
+    expect(request.method).toBe('POST');
+    expect(request.headers.Authorization).toBe('Bearer token-123');
+    expect(JSON.parse(request.body)).toEqual({
+      data: { projetoId: 'P-1' },
+      meta: { updatedBy: 'qa@empresa.com' }
+    });
   });
 
-  it('deleteInspection delega exclusão', async () => {
-    vi.mocked(deleteDocById).mockResolvedValue(undefined);
+  it('saveInspection falha sem autenticacao', async () => {
+    auth.currentUser = {
+      getIdToken: vi.fn().mockResolvedValue('')
+    };
 
-    await deleteInspection('VS-1');
+    await expect(saveInspection({ id: 'VS-1' })).rejects.toThrow(/autenticado/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
-    expect(deleteDocById).toHaveBeenCalledWith('inspections', 'VS-1');
+  it('saveInspection converte erro de conexao em mensagem amigavel', async () => {
+    fetchMock.mockRejectedValue(new Error('network error'));
+
+    await expect(saveInspection({ projetoId: 'P-1' })).rejects.toThrow(/conectar ao servidor/i);
+  });
+
+  it('deleteInspection envia DELETE e nao retorna payload', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({})
+    });
+
+    await expect(deleteInspection('VS-1')).resolves.toBeUndefined();
+
+    const request = fetchMock.mock.calls[0][1];
+    expect(request.method).toBe('DELETE');
+    expect(request.headers.Authorization).toBe('Bearer token-123');
   });
 });

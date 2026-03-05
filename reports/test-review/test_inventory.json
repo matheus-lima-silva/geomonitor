@@ -1,0 +1,242 @@
+{
+  "generated_at": "2026-03-05T02:19:06+00:00",
+  "repo_root": "C:\\Users\\l1ma\\OneDrive\\Documentos\\projgeo\\geomonitor",
+  "total_tests": 47,
+  "tests": [
+    {
+      "test_file": "backend/__tests__/criticality.test.js",
+      "layer": "backend",
+      "framework": "jest"
+    },
+    {
+      "test_file": "backend/__tests__/health.test.js",
+      "layer": "backend",
+      "framework": "jest"
+    },
+    {
+      "test_file": "backend/__tests__/inspections.test.js",
+      "layer": "backend",
+      "framework": "jest"
+    },
+    {
+      "test_file": "backend/__tests__/licenses.test.js",
+      "layer": "backend",
+      "framework": "jest"
+    },
+    {
+      "test_file": "backend/__tests__/projects.test.js",
+      "layer": "backend",
+      "framework": "jest"
+    },
+    {
+      "test_file": "src/components/ui/__tests__/Button.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/components/ui/__tests__/Textarea.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/erosions/components/__tests__/ErosionDetailsModal.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/erosions/components/__tests__/ErosionFormModal.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/erosions/components/__tests__/ErosionReportPanel.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/erosions/components/__tests__/ErosionsView.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/followups/components/__tests__/FollowupsView.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/inspections/components/__tests__/InspectionDetailsModal.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/inspections/components/__tests__/InspectionsView.wizard.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/inspections/utils/__tests__/hotelHistory.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/inspections/utils/__tests__/inspectionWorkflow.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/inspections/utils/__tests__/planningGuideExport.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/inspections/utils/__tests__/visitPlanning.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/licenses/models/__tests__/licenseModel.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/licenses/utils/__tests__/agencyOptions.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/licenses/utils/__tests__/scheduleResolver.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/monitoring/components/__tests__/TopPlanningAlert.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/monitoring/utils/__tests__/monitoringViewModel.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/projects/components/__tests__/KmlReviewModal.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/projects/components/__tests__/ProjectsView.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/projects/models/__tests__/projectModel.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/projects/utils/__tests__/kmlUtils.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/projects/utils/__tests__/projectKmlExport.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/projects/utils/__tests__/projectStats.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/projects/utils/__tests__/reportSchedule.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/projects/utils/__tests__/routeUtils.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/shared/__tests__/rulesConfig.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/features/shared/__tests__/statusUtils.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/layout/__tests__/AppShell.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/models/__tests__/inspectionModel.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/models/__tests__/projectModel.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/services/__tests__/authService.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/services/__tests__/erosionService.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/services/__tests__/firestoreClient.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/services/__tests__/inspectionService.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/services/__tests__/projectService.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/services/__tests__/rulesService.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/services/__tests__/userService.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/utils/__tests__/dateUtils.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/utils/__tests__/parseTowerInput.test.js",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/views/__tests__/DashboardView.monitoring.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    },
+    {
+      "test_file": "src/views/__tests__/SidebarReviewView.test.jsx",
+      "layer": "frontend",
+      "framework": "vitest"
+    }
+  ]
+}
