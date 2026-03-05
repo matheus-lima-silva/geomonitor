@@ -123,6 +123,12 @@ function normalizeLinkedInspectionIds(erosion) {
   ].filter(Boolean))];
 }
 
+function isErosionLinkedToInspection(erosion, inspectionId) {
+  const iid = String(inspectionId || '').trim();
+  if (!iid) return false;
+  return normalizeLinkedInspectionIds(erosion).includes(iid);
+}
+
 function createInspectionId(projetoId, dataInicio) {
   if (!projetoId || !dataInicio) return `VS-${Date.now()}`;
   const [yyyy, mm, dd] = String(dataInicio).split('-');
@@ -366,8 +372,10 @@ function InspectionManager({
   async function syncInspectionPendencies(inspectionId, explicitProjectId = '') {
     const projectId = resolveInspectionProjectId(explicitProjectId);
     if (!projectId || !inspectionId) return;
-    const projectErosions = (erosions || []).filter((item) => String(item?.projetoId || '').trim() === projectId);
-    await Promise.all(projectErosions.map((erosion) => saveErosion({
+    const linkedErosions = (erosions || []).filter((item) =>
+      String(item?.projetoId || '').trim() === projectId
+      && isErosionLinkedToInspection(item, inspectionId));
+    await Promise.all(linkedErosions.map((erosion) => saveErosion({
       ...erosion,
       vistoriaId: inspectionId,
       vistoriaIds: [...new Set([inspectionId, ...normalizeLinkedInspectionIds(erosion)])],
@@ -385,6 +393,7 @@ function InspectionManager({
     const projectErosions = (erosions || []).filter((item) => String(item?.projetoId || '').trim() === projectId);
     return projectErosions.filter((erosion) => {
       const pendency = getInspectionPendency(erosion, inspectionId);
+      if (!pendency) return false;
       const hasVisitDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
       return !hasVisitDate;
     });
@@ -596,9 +605,9 @@ function InspectionManager({
   }
 
   return (
-    <section className="panel nested">
-      <h3>Nova Vistoria</h3>
-      <p className="muted">Diario multi-dia com checklist por torre e cadastro de erosao.</p>
+    <section className="bg-white rounded-lg border border-slate-200 shadow-sm p-5 flex flex-col gap-4">
+      <h3 className="text-lg font-bold text-slate-800 m-0">Nova Vistoria</h3>
+      <p className="text-sm text-slate-500">Diario multi-dia com checklist por torre e cadastro de erosao.</p>
 
       <div className="grid-form">
         <select value={inspection.projetoId} onChange={(e) => setInspection((prev) => ({ ...prev, projetoId: e.target.value }))}>
@@ -640,7 +649,7 @@ function InspectionManager({
       </div>
 
       {suggestedTowerInput && (
-        <div className="notice">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800 mt-3">
           <div><strong>Torres sugeridas:</strong> {suggestedTowerInput}</div>
           <div className="row-actions">
             <button type="button" className="secondary" onClick={applySuggestedTowersToCurrentDay} disabled={!diaSelecionado}>
@@ -660,7 +669,7 @@ function InspectionManager({
       </div>
 
       {diaAtual && (
-        <div className="panel nested">
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mt-3">
           <h4>Diario de {diaAtual.data}</h4>
           <input
             placeholder="Clima"
@@ -668,7 +677,7 @@ function InspectionManager({
             onChange={(e) => atualizarDia(diaSelecionado, (dia) => ({ ...dia, clima: e.target.value }))}
           />
 
-          <div className="panel nested hotel-actions-panel">
+          <div className="bg-white border border-slate-200 rounded-lg p-4 mt-3 flex flex-col gap-3">
             <div className="grid-form hotel-actions-grid">
               <select value={selectedHotelHistoryKey} onChange={(e) => setSelectedHotelHistoryKey(e.target.value)}>
                 <option value="">Usar hotel do historico do empreendimento...</option>
@@ -688,13 +697,13 @@ function InspectionManager({
               </button>
             </div>
             {selectedHotelHistory && (
-              <small className="muted">
+              <small className="text-sm text-slate-500">
                 Selecionado: {selectedHotelHistory.hotelNome}
                 {selectedHotelHistory.hotelMunicipio ? ` (${selectedHotelHistory.hotelMunicipio})` : ''}
               </small>
             )}
             {previousDayHotel && (
-              <small className="muted">
+              <small className="text-sm text-slate-500">
                 Dia anterior disponivel ({previousDayHotel.date}): {previousDayHotel.hotelNome || 'Sem nome'}
               </small>
             )}
@@ -792,7 +801,7 @@ function InspectionManager({
                   <div className="tower-item-header">
                     <div className="tower-item-title">
                       <strong>Torre {towerKey}</strong>
-                      <span className="muted">
+                      <span className="text-sm text-slate-500">
                         {linked.length > 0 ? `${linked.length} erosao(oes) vinculada(s)` : 'Sem erosao vinculada'}
                       </span>
                     </div>
@@ -822,7 +831,7 @@ function InspectionManager({
                           }
                         />
                       </div>
-                      <div className="muted">
+                      <div className="text-sm text-slate-500">
                         <div><strong>Resumo:</strong> {linked.length > 0 ? 'Ha erosao vinculada nesta torre.' : 'Nenhuma erosao vinculada ainda.'}</div>
                         <div>
                           <strong>Pendencia desta vistoria:</strong>
@@ -856,7 +865,7 @@ function InspectionManager({
           <form className="modal" onSubmit={handleSaveErosion}>
             <h4>Erosao - Torre {torreModal.towerNumber}</h4>
             {torreModal.existingErosion?.id && (
-              <p className="muted">Editando erosao existente: {torreModal.existingErosion.id}</p>
+              <p className="text-sm text-slate-500">Editando erosao existente: {torreModal.existingErosion.id}</p>
             )}
             <select
               name="localTipo"

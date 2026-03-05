@@ -29,6 +29,7 @@ import {
   findDuplicateTowersAcrossDays,
   getInspectionPendency,
   getPendingErosionsForInspection,
+  isErosionLinkedToInspection,
   isBrDateValid,
   normalizeLinkedInspectionIds,
   toBrDate,
@@ -649,8 +650,10 @@ function InspectionFormWizardModal({
   async function syncInspectionPendencies(inspectionId, explicitProjectId = '') {
     const projectId = resolveInspectionProjectId(explicitProjectId);
     if (!projectId || !inspectionId) return;
-    const projectErosions = (erosions || []).filter((item) => String(item?.projetoId || '').trim() === projectId);
-    await Promise.all(projectErosions.map((erosion) => saveErosion({
+    const linkedErosions = (erosions || []).filter((item) =>
+      String(item?.projetoId || '').trim() === projectId
+      && isErosionLinkedToInspection(item, inspectionId));
+    await Promise.all(linkedErosions.map((erosion) => saveErosion({
       ...erosion,
       vistoriaId: inspectionId,
       vistoriaIds: [...new Set([inspectionId, ...normalizeLinkedInspectionIds(erosion)])],

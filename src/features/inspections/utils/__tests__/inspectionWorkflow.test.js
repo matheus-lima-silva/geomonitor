@@ -4,6 +4,7 @@ import {
   findDuplicateTowersAcrossDays,
   getPendingErosionsForInspection,
   isBrDateValid,
+  isErosionLinkedToInspection,
   normalizeInspectionPendencies,
   normalizeLinkedInspectionIds,
   upsertInspectionPendency,
@@ -92,5 +93,14 @@ describe('inspectionWorkflow', () => {
     expect(out[1].torresDetalhadas.map((tower) => tower.numero)).toEqual(['5']);
     expect(out[0].torresDetalhadas[0].temErosao).toBe(true);
     expect(out[1].torresDetalhadas[0].temErosao).toBe(true);
+  });
+
+  it('isErosionLinkedToInspection checks vistoriaId, vistoriaIds, and pendencies', () => {
+    expect(isErosionLinkedToInspection({ vistoriaId: 'V1' }, 'V1')).toBe(true);
+    expect(isErosionLinkedToInspection({ vistoriaIds: ['V2', 'V3'] }, 'V3')).toBe(true);
+    expect(isErosionLinkedToInspection({ pendenciasVistoria: [{ vistoriaId: 'V4' }] }, 'V4')).toBe(true);
+    expect(isErosionLinkedToInspection({ vistoriaId: 'V1' }, 'V99')).toBe(false);
+    expect(isErosionLinkedToInspection({}, 'V1')).toBe(false);
+    expect(isErosionLinkedToInspection({ vistoriaId: 'V1' }, '')).toBe(false);
   });
 });

@@ -94,15 +94,15 @@ async function clickElement(element) {
 }
 
 function getTowerPickerButton(label, scope = document.body) {
-  return [...scope.querySelectorAll('.inspections-day-tower-picker-btn')]
-    .find((item) => item.textContent.includes(label));
+  return [...scope.querySelectorAll('button')]
+    .find((item) => item.textContent.trim() === label);
 }
 
 function getHotelBaseSelect(scope = document.body) {
-  return [...scope.querySelectorAll('.inspections-day-hotel-fields select')]
+  return [...scope.querySelectorAll('select')]
     .find((item) => [...item.options]
       .some((option) => String(option.textContent || '').includes('Torre base da hospedagem')
-        || String(option.textContent || '').includes('Selecione torres visitadas no dia')));
+        || String(option.textContent || '').includes('Selecione torres')));
 }
 
 describe('InspectionsView wizard flow', () => {
@@ -153,13 +153,13 @@ describe('InspectionsView wizard flow', () => {
     expect(container.textContent).toContain('1 pendente(s)');
 
     await clickByText('Nova Vistoria');
-    expect(document.querySelector('.inspections-wizard-modal')).toBeTruthy();
+    expect(document.querySelector('[role="dialog"]')).toBeTruthy();
 
     await clickByText('Avancar');
     expect(showMock).toHaveBeenCalled();
 
-    const projectSelect = document.querySelector('.inspections-wizard-modal select');
-    const dateInputs = document.querySelectorAll('.inspections-wizard-modal input[type="date"]');
+    const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
     changeInput(dateInputs[0], '2026-02-01');
     changeInput(dateInputs[1], '2026-02-02');
@@ -176,7 +176,7 @@ describe('InspectionsView wizard flow', () => {
     await clickByText('Salvar vistoria');
 
     expect(saveInspectionMock).toHaveBeenCalled();
-    expect(document.querySelector('.inspections-wizard-modal')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it('applies suggested towers from planning draft', async () => {
@@ -190,10 +190,10 @@ describe('InspectionsView wizard flow', () => {
       onPlanningDraftConsumed,
     });
 
-    expect(document.querySelector('.inspections-wizard-modal')).toBeTruthy();
+    expect(document.querySelector('[role="dialog"]')).toBeTruthy();
     expect(onPlanningDraftConsumed).toHaveBeenCalled();
 
-    const dateInputs = document.querySelectorAll('.inspections-wizard-modal input[type="date"]');
+    const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(dateInputs[0], '2026-03-01');
     changeInput(dateInputs[1], '2026-03-01');
 
@@ -218,8 +218,8 @@ describe('InspectionsView wizard flow', () => {
 
     await clickByText('Nova Vistoria');
 
-    const projectSelect = document.querySelector('.inspections-wizard-modal select');
-    const dateInputs = document.querySelectorAll('.inspections-wizard-modal input[type="date"]');
+    const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
     changeInput(dateInputs[0], '2026-03-10');
     changeInput(dateInputs[1], '2026-03-10');
@@ -228,10 +228,10 @@ describe('InspectionsView wizard flow', () => {
     await clickByText('Avancar');
     await clickElement(getTowerPickerButton('Torre 1', document.body));
 
-    const erosionButton = document.querySelector('.inspections-tower-btn-erosion');
+    const erosionButton = document.querySelector('button[title*="erosao"]');
     await clickElement(erosionButton);
 
-    const localSelect = [...document.querySelectorAll('.inspections-inline-erosion-modal select')]
+    const localSelect = [...document.querySelectorAll('select')]
       .find((element) => [...element.options].some((option) => option.value === 'base_torre'));
     expect(localSelect).toBeTruthy();
     changeInput(localSelect, 'base_torre');
@@ -264,8 +264,8 @@ describe('InspectionsView wizard flow', () => {
 
     await clickByText('Nova Vistoria');
 
-    const projectSelect = document.querySelector('.inspections-wizard-modal select');
-    const dateInputs = document.querySelectorAll('.inspections-wizard-modal input[type="date"]');
+    const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
     changeInput(dateInputs[0], '2026-03-15');
     changeInput(dateInputs[1], '2026-03-15');
@@ -314,8 +314,8 @@ describe('InspectionsView wizard flow', () => {
     });
 
     await clickByText('Nova Vistoria');
-    const projectSelect = document.querySelector('.inspections-wizard-modal select');
-    const dateInputs = document.querySelectorAll('.inspections-wizard-modal input[type="date"]');
+    const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
     changeInput(dateInputs[0], '2026-03-20');
     changeInput(dateInputs[1], '2026-03-20');
@@ -324,17 +324,17 @@ describe('InspectionsView wizard flow', () => {
     await clickByText('Avancar');
 
     await clickByText('Selecionar hotel...');
-    const searchInput = document.querySelector('.inspections-day-hotel-picker-search input');
+    const searchInput = document.querySelector('input[type="search"]');
     expect(searchInput).toBeTruthy();
     changeInput(searchInput, 'Pousada Azul');
     await clickByText('Pousada Azul');
 
-    const hotelNameInput = document.querySelector('.inspections-day-hotel-fields input[placeholder="Hotel (opcional)"]');
+    const hotelNameInput = document.querySelector('input[placeholder="Hotel (opcional)"]');
     expect(hotelNameInput).toBeTruthy();
     expect(hotelNameInput.value).toBe('Pousada Azul');
 
     await clickByText('Pousada Azul (Cidade A)');
-    const createSearchInput = document.querySelector('.inspections-day-hotel-picker-search input');
+    const createSearchInput = document.querySelector('input[type="search"]');
     expect(createSearchInput).toBeTruthy();
     changeInput(createSearchInput, 'Hotel Centro Sul');
     await clickByText('Criar novo hotel: "Hotel Centro Sul"');
@@ -348,8 +348,8 @@ describe('InspectionsView wizard flow', () => {
     renderView(root);
 
     await clickByText('Nova Vistoria');
-    const projectSelect = document.querySelector('.inspections-wizard-modal select');
-    const dateInputs = document.querySelectorAll('.inspections-wizard-modal input[type="date"]');
+    const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
     changeInput(dateInputs[0], '2026-04-01');
     changeInput(dateInputs[1], '2026-04-01');
@@ -361,12 +361,12 @@ describe('InspectionsView wizard flow', () => {
     await clickElement(getTowerPickerButton('Portico (T0)', document.body));
     expect(document.body.textContent).toContain('Portico (T0)');
 
-    const toggleButton = document.querySelector('.inspections-day-tower-picker-toggle');
+    const toggleButton = [...document.querySelectorAll('button')].find((el) => el.textContent.includes('Ocultar'));
     expect(toggleButton).toBeTruthy();
     await clickElement(toggleButton);
-    expect(document.querySelector('.inspections-day-tower-picker-grid')).toBeFalsy();
+    expect(getTowerPickerButton('Portico (T0)', document.body)).toBeFalsy();
 
-    await clickElement(document.querySelector('.inspections-day-tower-picker-toggle'));
-    expect(document.querySelector('.inspections-day-tower-picker-grid')).toBeTruthy();
+    await clickElement(toggleButton);
+    expect(getTowerPickerButton('Portico (T0)', document.body)).toBeTruthy();
   });
 });

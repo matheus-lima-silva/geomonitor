@@ -54,6 +54,12 @@ export function normalizeLinkedInspectionIds(erosion) {
   ].filter(Boolean))];
 }
 
+export function isErosionLinkedToInspection(erosion, inspectionId) {
+  const iid = String(inspectionId || '').trim();
+  if (!iid) return false;
+  return normalizeLinkedInspectionIds(erosion).includes(iid);
+}
+
 export function toBrDate(value) {
   const text = String(value || '').trim();
   if (!text) return '';
