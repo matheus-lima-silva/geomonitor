@@ -2,12 +2,17 @@ import {
   subscribeOperatingLicenses as subscribeOperatingLicensesFeature,
 } from '../features/licenses/services/licenseService';
 import { auth } from '../firebase/config';
+import { fetchWithHateoas } from '../utils/apiClient';
 
 export function subscribeOperatingLicenses(onData, onError) {
   return subscribeOperatingLicensesFeature(onData, onError);
 }
 
 export async function saveOperatingLicense(id, payload, meta = {}) {
+  if (payload?._links?.update) {
+    return fetchWithHateoas(payload._links.update, { data: { ...payload, id }, meta });
+  }
+
   const token = await auth?.currentUser?.getIdToken();
   if (!token) throw new Error('Usuário não autenticado.');
 
@@ -30,7 +35,13 @@ export async function saveOperatingLicense(id, payload, meta = {}) {
   return response.json();
 }
 
-export async function deleteOperatingLicense(id) {
+export async function deleteOperatingLicense(licenseOrId) {
+  const _links = licenseOrId?._links || licenseOrId;
+  if (_links?.delete) {
+    return fetchWithHateoas(_links.delete);
+  }
+  const id = typeof licenseOrId === 'object' ? licenseOrId.id : licenseOrId;
+
   const token = await auth?.currentUser?.getIdToken();
   if (!token) throw new Error('Usuário não autenticado.');
 

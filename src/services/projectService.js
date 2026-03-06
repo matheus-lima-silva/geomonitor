@@ -1,5 +1,6 @@
 import { subscribeProjects as subscribeProjectsFeature, deleteProject as legacyDelete } from '../features/projects/services/projectService';
 import { auth } from '../firebase/config';
+import { fetchWithHateoas } from '../utils/apiClient';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -29,6 +30,10 @@ export async function createProject(project, meta = {}) {
 }
 
 export async function updateProject(id, project, meta = {}) {
+  if (project?._links?.update) {
+    return fetchWithHateoas(project._links.update, { data: project, meta }).then((res) => ({ id: res.data.id }));
+  }
+
   const token = await auth?.currentUser?.getIdToken();
   if (!token) throw new Error('Usuário não autenticado.');
 
@@ -47,7 +52,13 @@ export async function updateProject(id, project, meta = {}) {
   return { id };
 }
 
-export async function removeProject(id) {
+export async function removeProject(projectOrId) {
+  const _links = projectOrId?._links || projectOrId;
+  if (_links?.delete) {
+    return fetchWithHateoas(_links.delete);
+  }
+  const id = typeof projectOrId === 'object' ? projectOrId.id : projectOrId;
+
   const token = await auth?.currentUser?.getIdToken();
   if (!token) throw new Error('Usuário não autenticado.');
 

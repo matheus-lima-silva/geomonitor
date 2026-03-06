@@ -1,9 +1,8 @@
-﻿import {
-  deleteDocById, loadDoc, saveDoc, subscribeCollection,
-} from './firestoreClient';
+﻿import { deleteDocById, loadDoc, saveDoc, subscribeCollection } from './firestoreClient';
 import { deleteField } from 'firebase/firestore';
 import { auth } from '../firebase/config';
 import { normalizeErosionStatus } from '../features/shared/statusUtils';
+import { fetchWithHateoas } from '../utils/apiClient';
 function normalizeText(value) {
   return String(value || '').trim();
 }
@@ -206,6 +205,10 @@ function buildLegacyFieldCleanupPatch() {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 export async function saveErosion(payload, meta = {}) {
+  if (payload?._links?.update) {
+    return fetchWithHateoas(payload._links.update, { data: payload, meta }).then((res) => res.data.id);
+  }
+
   const token = await auth?.currentUser?.getIdToken();
   if (!token) {
     throw new Error('Usuário não autenticado. Faça login para salvar a erosão.');

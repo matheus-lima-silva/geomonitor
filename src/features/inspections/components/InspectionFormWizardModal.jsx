@@ -4,6 +4,7 @@ import AppIcon from '../../../components/AppIcon';
 import { Button, IconButton, Input, Select, Textarea } from '../../../components/ui';
 import { saveInspection } from '../../../services/inspectionService';
 import { postCalculoErosao, saveErosion } from '../../../services/erosionService';
+import { useLocalStorageDraft } from '../../../hooks/useLocalStorageDraft';
 import { useToast } from '../../../context/ToastContext';
 import { gerarPeriodoDias, preservarDetalhesDias } from '../../../utils/dateUtils';
 import { parseTowerInput } from '../../../utils/parseTowerInput';
@@ -271,7 +272,10 @@ function InspectionFormWizardModal({
 }) {
   const { show } = useToast();
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState(() => normalizeInspectionForm(initialData));
+
+  const draftKey = `geomonitor_inspection_draft_${initialData?.id || 'novo'}`;
+  const [formData, setFormData, clearDraft] = useLocalStorageDraft(draftKey, normalizeInspectionForm(initialData));
+
   const [expandedDay, setExpandedDay] = useState('');
   const [expandedTowerKey, setExpandedTowerKey] = useState('');
   const [collapsedTowerPickerDays, setCollapsedTowerPickerDays] = useState({});
@@ -343,10 +347,8 @@ function InspectionFormWizardModal({
 
   useEffect(() => {
     if (!open) return;
-    const normalized = normalizeInspectionForm(initialData);
-    setFormData(normalized);
     setStep(1);
-    setExpandedDay(normalized.detalhesDias?.[0]?.data || '');
+    setExpandedDay((prev) => prev || formData?.detalhesDias?.[0]?.data || '');
     setExpandedTowerKey('');
     setCollapsedTowerPickerDays({});
     setOpenHotelPickerDayKey('');
@@ -1064,6 +1066,7 @@ function InspectionFormWizardModal({
         return;
       }
 
+      clearDraft();
       setFormData((prev) => ({ ...prev, id: inspectionId }));
       show('Vistoria salva com sucesso.', 'success');
       onSaved?.(inspectionId, payload);
@@ -1117,10 +1120,10 @@ function InspectionFormWizardModal({
                   value={formData.projetoId}
                   onChange={(e) => updateGeneralField('projetoId', e.target.value)}
                 >
-                    <option value="">Selecione...</option>
-                    {(projects || []).map((project) => (
-                      <option key={project.id} value={project.id}>{project.id} - {project.nome}</option>
-                    ))}
+                  <option value="">Selecione...</option>
+                  {(projects || []).map((project) => (
+                    <option key={project.id} value={project.id}>{project.id} - {project.nome}</option>
+                  ))}
                 </Select>
                 <Input
                   id="inspection-responsavel"
@@ -1200,11 +1203,11 @@ function InspectionFormWizardModal({
                         <div className="p-5 border-t border-slate-100 flex flex-col gap-5 bg-slate-50/50">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Select id={`inspection-day-weather-${dayIndex}`} label="Clima" value={day.clima || ''} onChange={(e) => updateDayField(dayIndex, { clima: e.target.value })}>
-                                <option value="">Selecione...</option>
-                                <option value="Sol">Sol</option>
-                                <option value="Parcialmente Nublado">Parcialmente nublado</option>
-                                <option value="Nublado">Nublado</option>
-                                <option value="Chuva">Chuva</option>
+                              <option value="">Selecione...</option>
+                              <option value="Sol">Sol</option>
+                              <option value="Parcialmente Nublado">Parcialmente nublado</option>
+                              <option value="Nublado">Nublado</option>
+                              <option value="Chuva">Chuva</option>
                             </Select>
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex flex-col gap-1">
                               <label className="text-sm font-semibold text-slate-700 m-0">Torres selecionadas</label>

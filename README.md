@@ -4,7 +4,7 @@ Aplicacao web para gestao de empreendimentos, vistorias, licencas e erosoes com 
 
 ## Visao geral
 
-O projeto esta em migracao do fluxo legado em `app.html` para arquitetura modular em `src/`, organizada por dominio (`features`) com componentes, modelos, servicos e utilitarios separados.
+O projeto possui uma arquitetura modular em `src/`, organizada por dominio (`features`) com componentes, modelos, servicos e utilitarios separados.
 
 Capacidades atuais:
 
@@ -104,7 +104,6 @@ src/
 
 - Base Firestore padronizada em `shared/geomonitor/*`.
 - Modulos principais operando na estrutura `src/features`.
-- `app.html` ainda existe como legado durante a transicao.
 
 ## Smoke tests
 

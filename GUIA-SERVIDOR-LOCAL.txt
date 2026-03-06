@@ -18,19 +18,6 @@ GUIA RAPIDO - GEO MONITOR EM SERVIDOR LOCAL (WINDOWS/POWERSHELL)
 6) Para encerrar o servidor:
    Ctrl + C no terminal
 
-
-OPCAO LEGADO (servir app.html com Python + Uvicorn)
-
-1) Instale dependencias Python:
-   pip install -r requirements-uvicorn.txt
-
-2) Inicie o servidor legado:
-   uvicorn uvicorn_server:app --reload --host 127.0.0.1 --port 8000
-
-3) Acesse:
-   http://127.0.0.1:8000
-
-
 OPCAO COM DOCKER (RECOMENDADO PARA EXECUCAO ISOLADA)
 
 1) Preencha o arquivo .env com as variaveis VITE_FIREBASE_*.

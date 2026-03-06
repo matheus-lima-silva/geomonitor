@@ -1,5 +1,6 @@
 import { subscribeCollection } from './firestoreClient';
 import { auth } from '../firebase/config';
+import { fetchWithHateoas } from '../utils/apiClient';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
@@ -8,6 +9,10 @@ export function subscribeInspections(onData, onError) {
 }
 
 export async function saveInspection(inspection, meta = {}) {
+  if (inspection?._links?.update) {
+    return fetchWithHateoas(inspection._links.update, { data: inspection, meta }).then((res) => res.data.id || '');
+  }
+
   const token = await auth?.currentUser?.getIdToken();
   if (!token) throw new Error('Usuário não autenticado.');
 
@@ -40,7 +45,13 @@ export async function saveInspection(inspection, meta = {}) {
   return result?.data?.id || '';
 }
 
-export async function deleteInspection(id) {
+export async function deleteInspection(inspectionOrId) {
+  const _links = inspectionOrId?._links || inspectionOrId;
+  if (_links?.delete) {
+    return fetchWithHateoas(_links.delete);
+  }
+  const id = typeof inspectionOrId === 'object' ? inspectionOrId.id : inspectionOrId;
+
   const token = await auth?.currentUser?.getIdToken();
   if (!token) throw new Error('Usuário não autenticado.');
 

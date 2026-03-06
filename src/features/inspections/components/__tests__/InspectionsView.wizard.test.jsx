@@ -119,6 +119,7 @@ describe('InspectionsView wizard flow', () => {
   let root;
 
   beforeEach(() => {
+    localStorage.clear();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);

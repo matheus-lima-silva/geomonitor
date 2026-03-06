@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getCollection, getDocRef } = require('../utils/firebaseSetup');
 const { verifyToken, requireActiveUser, requireEditor, requireAdmin } = require('../utils/authMiddleware');
-const { createHateoasResponse } = require('../utils/hateoas');
+const { createHateoasResponse, generateHateoasLinks } = require('../utils/hateoas');
 
 const COLLECTION_NAME = 'inspections';
 
@@ -19,6 +19,7 @@ async function saveInspectionHandler(req, res) {
         const mergedData = {
             ...data,
             id,
+            _links: generateHateoasLinks(req, 'inspections', id),
             dataFim: data.dataFim || data.dataInicio,
             detalhesDias: Array.isArray(data.detalhesDias) ? data.detalhesDias : [],
             updatedAt: new Date().toISOString(),

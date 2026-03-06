@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getCollection, getDocRef } = require('../utils/firebaseSetup');
 const { verifyToken, requireActiveUser, requireEditor, requireAdmin } = require('../utils/authMiddleware');
-const { createHateoasResponse } = require('../utils/hateoas');
+const { createHateoasResponse, generateHateoasLinks } = require('../utils/hateoas');
 
 const COLLECTION_NAME = 'operatingLicenses';
 
@@ -19,6 +19,7 @@ async function saveLicenseHandler(req, res) {
         const mergedData = {
             ...data,
             id,
+            _links: generateHateoasLinks(req, 'licenses', id),
             updatedAt: new Date().toISOString(),
             updatedBy: meta.updatedBy || req.user?.email || 'API',
         };

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../utils/firebaseSetup');
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
-const { createHateoasResponse } = require('../utils/hateoas');
+const { createHateoasResponse, generateHateoasLinks } = require('../utils/hateoas');
 
 const { calculateCriticality } = require('../utils/criticality_dist');
 const {
@@ -135,7 +135,8 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
                 ? sanitizedPayload.alertsAtivos
                 : alertsAtivos,
             backfillEstimado: Boolean(sanitizedPayload.backfillEstimado),
-            ultimaAtualizacao: new Date().toISOString()
+            ultimaAtualizacao: new Date().toISOString(),
+            _links: generateHateoasLinks(req, 'erosions', id),
         };
 
         const history = normalizeFollowupHistory(previous?.acompanhamentosResumo);
