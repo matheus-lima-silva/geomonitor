@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { getDb } = require('../utils/firebaseSetup');
-const { verifyToken } = require('../utils/authMiddleware');
+const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
+const { createHateoasResponse } = require('../utils/hateoas');
 
 const { calculateCriticality } = require('../utils/criticality_dist');
 const {
@@ -27,7 +28,7 @@ const {
  * applies full legacy logic and criticality securely, 
  * and saves to Firestore via Admin SDK.
  */
-router.post('/', verifyToken, async (req, res) => {
+router.post('/', verifyToken, requireEditor, async (req, res) => {
     try {
         const { data, meta = {} } = req.body;
 
@@ -162,7 +163,7 @@ router.post('/', verifyToken, async (req, res) => {
         return res.status(200).json({
             status: 'success',
             message: 'Erosão calculada e salva com sucesso!',
-            data: { id }
+            data: createHateoasResponse(req, { id }, 'erosions', id)
         });
 
     } catch (error) {
@@ -171,7 +172,7 @@ router.post('/', verifyToken, async (req, res) => {
     }
 });
 
-router.post('/simulate', verifyToken, async (req, res) => {
+router.post('/simulate', verifyToken, requireActiveUser, async (req, res) => {
     try {
         const { data } = req.body;
 

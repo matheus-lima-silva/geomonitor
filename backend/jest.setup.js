@@ -96,6 +96,9 @@ jest.mock('./utils/authMiddleware', () => ({
         };
         next();
     },
+    requireActiveUser: (req, res, next) => { req.userProfile = { status: 'Ativo', perfil: 'Admin' }; next(); },
+    requireEditor: (req, res, next) => next(),
+    requireAdmin: (req, res, next) => next(),
 }));
 
 const { __resetMockDb } = require('./utils/firebaseSetup');

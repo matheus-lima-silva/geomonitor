@@ -7,7 +7,7 @@ Documentacao dos endpoints expostos pelo servidor Express em `backend/server.js`
 - Local: `http://localhost:8080`
 - Prefixo da API: `/api`
 
-## Autenticacao
+## Autenticacao e Controle de Acesso (RBAC)
 
 Todos os endpoints em `/api/*` exigem token Bearer:
 
@@ -15,16 +15,26 @@ Todos os endpoints em `/api/*` exigem token Bearer:
 Authorization: Bearer <firebase-id-token>
 ```
 
+Alem do token, os endpoints possuem middlewares de controle de acesso atrelados ao papel do usuario (`requireActiveUser`, `requireEditor`, `requireAdmin`).
+
 `GET /health` nao exige autenticacao.
 
 ## Formato de resposta
 
-Sucesso (padrao):
+Sucesso (padrao HATEOAS):
 
 ```json
 {
   "status": "success",
-  "data": {}
+  "data": {
+    "id": "...",
+    "_links": {
+      "self": { "href": "...", "method": "GET" },
+      "update": { "href": "...", "method": "PUT" },
+      "delete": { "href": "...", "method": "DELETE" },
+      "collection": { "href": "...", "method": "GET" }
+    }
+  }
 }
 ```
 
@@ -58,20 +68,20 @@ Colecao: `projects`
 
 ### GET /api/projects
 
-Lista projetos.
+Lista projetos. (Requer: `requireActiveUser`)
 
 - `200`: lista retornada
 
 ### GET /api/projects/:id
 
-Busca projeto por ID.
+Busca projeto por ID. (Requer: `requireActiveUser`)
 
 - `200`: encontrado
 - `404`: nao encontrado
 
 ### POST /api/projects
 
-Cria/atualiza projeto.
+Cria/atualiza projeto. (Requer: `requireEditor`)
 
 Body:
 
@@ -100,13 +110,13 @@ Status:
 
 ### PUT /api/projects/:id
 
-Atalho para salvar usando `:id` da URL como ID do projeto.
+Atalho para salvar usando `:id` da URL como ID do projeto. (Requer: `requireEditor`)
 
 - `201`: salvo
 
 ### DELETE /api/projects/:id
 
-Remove projeto.
+Remove projeto. (Requer: `requireAdmin`)
 
 - `200`: removido
 
@@ -116,20 +126,20 @@ Colecao: `operatingLicenses`
 
 ### GET /api/licenses
 
-Lista licencas.
+Lista licencas. (Requer: `requireActiveUser`)
 
 - `200`: lista retornada
 
 ### GET /api/licenses/:id
 
-Busca licenca por ID.
+Busca licenca por ID. (Requer: `requireActiveUser`)
 
 - `200`: encontrada
 - `404`: nao encontrada
 
 ### POST /api/licenses
 
-Cria/atualiza licenca.
+Cria/atualiza licenca. (Requer: `requireEditor`)
 
 Body:
 
@@ -159,13 +169,13 @@ Status:
 
 ### PUT /api/licenses/:id
 
-Atalho para salvar usando `:id` da URL.
+Atalho para salvar usando `:id` da URL. (Requer: `requireEditor`)
 
 - `201`: salvo
 
 ### DELETE /api/licenses/:id
 
-Remove licenca.
+Remove licenca. (Requer: `requireAdmin`)
 
 - `200`: removida
 
@@ -175,20 +185,20 @@ Colecao: `inspections`
 
 ### GET /api/inspections
 
-Lista vistorias.
+Lista vistorias. (Requer: `requireActiveUser`)
 
 - `200`: lista retornada
 
 ### GET /api/inspections/:id
 
-Busca vistoria por ID.
+Busca vistoria por ID. (Requer: `requireActiveUser`)
 
 - `200`: encontrada
 - `404`: nao encontrada
 
 ### POST /api/inspections
 
-Cria/atualiza vistoria.
+Cria/atualiza vistoria. (Requer: `requireEditor`)
 
 Body:
 
@@ -222,13 +232,13 @@ Status:
 
 ### PUT /api/inspections/:id
 
-Atalho para salvar usando `:id` da URL.
+Atalho para salvar usando `:id` da URL. (Requer: `requireEditor`)
 
 - `201`: salvo
 
 ### DELETE /api/inspections/:id
 
-Remove vistoria.
+Remove vistoria. (Requer: `requireAdmin`)
 
 - `200`: removida
 
@@ -238,7 +248,7 @@ Colecao: `erosions` (em `shared/geomonitor/erosions`)
 
 ### POST /api/erosions
 
-Calcula criticidade e salva erosao.
+Calcula criticidade e salva erosao. (Requer: `requireEditor`)
 
 Body:
 
@@ -263,7 +273,7 @@ Status:
 
 ### POST /api/erosions/simulate
 
-Executa simulacao de calculo sem persistir.
+Executa simulacao de calculo sem persistir. (Requer: `requireActiveUser`)
 
 Status:
 

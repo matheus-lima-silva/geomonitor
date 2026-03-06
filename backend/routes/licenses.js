@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getCollection, getDocRef } = require('../utils/firebaseSetup');
-const { verifyToken } = require('../utils/authMiddleware');
+const { verifyToken, requireActiveUser, requireEditor, requireAdmin } = require('../utils/authMiddleware');
 const { createHateoasResponse } = require('../utils/hateoas');
 
 const COLLECTION_NAME = 'operatingLicenses';
@@ -35,7 +35,7 @@ async function saveLicenseHandler(req, res) {
     }
 }
 
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', verifyToken, requireActiveUser, async (req, res) => {
     try {
         const snapshot = await getCollection(COLLECTION_NAME).get();
         const licenses = snapshot.docs.map((doc) => createHateoasResponse(req, doc.data(), 'licenses', doc.id));
@@ -46,7 +46,7 @@ router.get('/', verifyToken, async (req, res) => {
     }
 });
 
-router.get('/:id', verifyToken, async (req, res) => {
+router.get('/:id', verifyToken, requireActiveUser, async (req, res) => {
     try {
         const { id } = req.params;
         const doc = await getDocRef(COLLECTION_NAME, id).get();
@@ -65,9 +65,9 @@ router.get('/:id', verifyToken, async (req, res) => {
     }
 });
 
-router.post('/', verifyToken, saveLicenseHandler);
+router.post('/', verifyToken, requireEditor, saveLicenseHandler);
 
-router.put('/:id', verifyToken, async (req, res) => {
+router.put('/:id', verifyToken, requireEditor, async (req, res) => {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const data = body.data && typeof body.data === 'object' ? body.data : {};
     req.body = {
@@ -80,7 +80,7 @@ router.put('/:id', verifyToken, async (req, res) => {
     return saveLicenseHandler(req, res);
 });
 
-router.delete('/:id', verifyToken, async (req, res) => {
+router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         await getDocRef(COLLECTION_NAME, id).delete();

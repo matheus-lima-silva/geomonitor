@@ -15,11 +15,13 @@ Capacidades atuais:
 - Gestao de erosoes com criticidade, historico de acompanhamento e exportacoes.
 - Gestao de licencas de operacao (LO) com cobertura por empreendimento/torres.
 - Autenticacao e persistencia via Firebase (Auth + Firestore).
+- Controle de acesso baseado em perfis (RBAC) com Auth Middleware.
 
 ## Stack
 
 - React 18
 - Vite 5
+- Tailwind CSS
 - Firebase (Auth + Firestore)
 - Vitest (testes unitarios)
 
@@ -107,7 +109,11 @@ src/
 ## Smoke tests
 
 - Checklist manual: `docs/smoke-test-checklist.md`
-- Relatorio mais recente: `docs/smoke-test-report-2026-02-22.md`
+## CI/CD e Deploy
+
+- Workflow GitHub Actions automatizado de testes estritos (`test:ci:strict`).
+- Deploy automatizado no `Fly.io` controlado via variaveis do repositorio (Gate: `ENABLE_FLY_DEPLOY`).
+- Checklist de deploy: `docs/testing/ci-cd-fly-ops.md`
 
 ## API backend
 
