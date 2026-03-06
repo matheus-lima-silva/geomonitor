@@ -11,6 +11,7 @@ import {
   buildCriticalitySummaryFromErosion,
   formatCriticalityPoints,
 } from '../../shared/criticalitySummary';
+import { formatTowerLabel } from '../../projects/utils/kmlUtils';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -89,23 +90,12 @@ function parseTowerNumber(value) {
 function buildTowerGrouping(row) {
   const raw = String(row?.erosion?.torreRef || '').trim();
   const parsed = parseTowerNumber(raw);
-  if (Number.isFinite(parsed)) {
-    const label = parsed === 0 ? 'Portico (T0)' : `Torre ${parsed}`;
-    return {
-      key: `num:${parsed}`,
-      label,
-      sortBucket: 0,
-      sortValue: parsed,
-      sortText: '',
-    };
-  }
-
   if (raw) {
     return {
       key: `txt:${raw.toLowerCase()}`,
-      label: `Torre ${raw}`,
-      sortBucket: 1,
-      sortValue: Number.POSITIVE_INFINITY,
+      label: formatTowerLabel(raw),
+      sortBucket: Number.isFinite(parsed) ? 0 : 1,
+      sortValue: Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY,
       sortText: raw.toLowerCase(),
     };
   }

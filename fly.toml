@@ -2,7 +2,15 @@ app = 'geomonitor-web'
 primary_region = 'gru'
 
 [build]
-
+  [build.args]
+    VITE_FIREBASE_API_KEY = "AIzaSyCpXON4jDLv08olhQlgMFA6vCyAguYiLvU"
+    VITE_FIREBASE_AUTH_DOMAIN = "geomonitor-fafd6.firebaseapp.com"
+    VITE_FIREBASE_PROJECT_ID = "geomonitor-fafd6"
+    VITE_FIREBASE_STORAGE_BUCKET = "geomonitor-fafd6.firebasestorage.app"
+    VITE_FIREBASE_MESSAGING_SENDER_ID = "475025720665"
+    VITE_FIREBASE_APP_ID = "1:475025720665:web:b90abf8030e298e052b848"
+    VITE_FIREBASE_MEASUREMENT_ID = "G-W7GVHG0DLE"
+    VITE_API_BASE_URL = "https://geomonitor-api.fly.dev/api"
 [http_service]
   internal_port = 8080
   force_https = true

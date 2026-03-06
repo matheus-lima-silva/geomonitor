@@ -178,4 +178,47 @@ describe('kmlUtils', () => {
     const ordered = ['163A', '2', '163B', '163', '10', '1'].sort(compareTowerNumbers);
     expect(ordered).toEqual(['1', '2', '10', '163', '163A', '163B']);
   });
+  it('parses tower numbers with spaces before suffix (e.g. Torre 1 A) correctly', () => {
+    const kml = `
+      <kml>
+        <Document>
+          <Placemark>
+            <name>Torre 1 A</name>
+            <Point><coordinates>-42,-21,0</coordinates></Point>
+          </Placemark>
+          <Placemark>
+            <name>T 02 B</name>
+            <Point><coordinates>-42,-21,0</coordinates></Point>
+          </Placemark>
+        </Document>
+      </kml>
+    `;
+
+    const parsed = parseKmlTowers(kml);
+    expect(parsed.rows.map((r) => r.numero)).toEqual(['1A', '2B']);
+  });
+
+  it('assigns unique suffixes for multiple distinct porticos', () => {
+    const kml = `
+      <kml>
+        <Document>
+          <Placemark>
+            <name>Portico SE SIM</name>
+            <Point><coordinates>-42,-21,0</coordinates></Point>
+          </Placemark>
+          <Placemark>
+            <name>Portico SE SIM</name>
+            <Point><coordinates>-42,-21,0</coordinates></Point>
+          </Placemark>
+          <Placemark>
+            <name>Portico SE RLE</name>
+            <Point><coordinates>-42,-21,0</coordinates></Point>
+          </Placemark>
+        </Document>
+      </kml>
+    `;
+
+    const parsed = parseKmlTowers(kml);
+    expect(parsed.rows.map((r) => r.numero)).toEqual(['0', '0', '0A']);
+  });
 });

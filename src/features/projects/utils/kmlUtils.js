@@ -47,7 +47,7 @@ function normalizeTowerNumber(raw) {
   if (!text) return '';
   if (hasPorticoMarker(text)) return '0';
 
-  const explicit = text.match(/^(?:torre|tor|t)\s*[-_: ]?\s*0*(\d+)([a-zA-Z]?)$/i);
+  const explicit = text.match(/^(?:torre|tor|t)\s*[-_: ]?\s*0*(\d+)\s*([a-zA-Z]?)$/i);
   if (explicit) return formatTowerId(explicit[1], explicit[2]);
 
   return normalizeTowerToken(text);
@@ -58,7 +58,7 @@ function findTowerIdFromSource(source) {
   if (!text) return '';
   if (hasPorticoMarker(text)) return '0';
 
-  const explicit = text.match(/(?:torre|tor|t)\s*[-_: ]?\s*0*(\d+)([a-zA-Z]?)/i);
+  const explicit = text.match(/(?:torre|tor|t)\s*[-_: ]?\s*0*(\d+)\s*([a-zA-Z]?)/i);
   if (explicit) return formatTowerId(explicit[1], explicit[2]);
 
   const tokens = text.match(/[A-Za-z0-9]+/g) || [];
@@ -277,6 +277,15 @@ function extractLongestLineStringMeta(placemarks = []) {
   };
 }
 
+export function formatTowerLabel(tower) {
+  const str = String(tower ?? '');
+  if (str === '0') return 'Pórtico (T0)';
+  if (str.startsWith('0') && str.length > 1 && !str.match(/^0\d/)) {
+    return `Pórtico (${str})`;
+  }
+  return `Torre ${str}`;
+}
+
 export function compareTowerNumbers(a, b) {
   const aParts = parseTowerSortParts(a);
   const bParts = parseTowerSortParts(b);
@@ -325,6 +334,7 @@ export function parseKmlTowers(kmlText) {
 
   const rows = [];
   let ignoredPlacemarks = 0;
+  const porticoMap = new Map();
 
   placemarks.forEach((placemark) => {
     const pointNode = placemark.getElementsByTagName('Point')?.[0];
@@ -348,7 +358,17 @@ export function parseKmlTowers(kmlText) {
       return;
     }
 
-    const numero = extractTowerNumberFromText(name, description);
+    let numero = extractTowerNumberFromText(name, description);
+
+    if (numero === '0') {
+      const pName = String(name || '').trim().toUpperCase();
+      if (!porticoMap.has(pName)) {
+        const suffix = porticoMap.size === 0 ? '' : String.fromCharCode(64 + porticoMap.size);
+        porticoMap.set(pName, `0${suffix}`);
+      }
+      numero = porticoMap.get(pName);
+    }
+
     const latitude = normalizeCoordinateString(tuple.lat);
     const longitude = normalizeCoordinateString(tuple.lon);
     if (!numero || !latitude || !longitude) {

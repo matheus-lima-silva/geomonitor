@@ -31,6 +31,7 @@ import {
   buildBatchErosionFichasPdfDocument,
   buildSingleErosionFichaPdfDocument,
 } from '../utils/erosionPdfTemplates';
+import { formatTowerLabel } from '../../projects/utils/kmlUtils';
 import ErosionReportPanel from './ErosionReportPanel';
 import ErosionCardGrid from './ErosionCardGrid';
 import ErosionFormModal from './ErosionFormModal';
@@ -236,9 +237,7 @@ function parseTowerNumber(value) {
 
 function formatTowerGroupLabel(value) {
   const raw = String(value || '').trim();
-  const parsed = parseTowerNumber(raw);
-  if (Number.isFinite(parsed)) return parsed === 0 ? 'Portico (T0)' : `Torre ${parsed}`;
-  if (raw) return `Torre ${raw}`;
+  if (raw) return formatTowerLabel(raw);
   return 'Torre nao informada';
 }
 
