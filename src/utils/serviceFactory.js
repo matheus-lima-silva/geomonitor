@@ -1,16 +1,18 @@
 import { auth } from '../firebase/config';
 import { fetchWithHateoas } from './apiClient';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
+export async function getAuthToken() {
+  const token = await auth?.currentUser?.getIdToken();
+  if (!token) throw new Error('Usuário não autenticado.');
+  return token;
+}
 
 export function createCrudService({ resourcePath, itemName, defaultIdGenerator = (d) => String(d.id || '').trim() }) {
   const baseUrl = `${API_BASE_URL}/${resourcePath}`;
 
-  async function getToken() {
-    const token = await auth?.currentUser?.getIdToken();
-    if (!token) throw new Error('Usuário não autenticado.');
-    return token;
-  }
+  const getToken = getAuthToken;
 
   async function fetchWithToken(url, options) {
     try {

@@ -192,7 +192,10 @@ router.post('/simulate', verifyToken, requireActiveUser, async (req, res) => {
         });
     } catch (error) {
         console.error('Error during erosion simulation:', error);
-        res.status(500).json({ message: 'Error running simulation: ' + error.message });
+        const safeMessage = process.env.NODE_ENV === 'production'
+            ? 'Erro interno ao executar simulação.'
+            : 'Error running simulation: ' + error.message;
+        res.status(500).json({ message: safeMessage });
     }
 });
 

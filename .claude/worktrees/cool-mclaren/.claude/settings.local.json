@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(find C:/Users/l1ma/OneDrive/Documentos/projgeo/geomonitor -path */node_modules -prune -o -type f -name *Modal* -o -name *modal*)",
+      "Bash(grep -rn \"process.env\\\\|JSON.parse\\\\|eval\\\\|exec\\\\|spawn\\\\|fork\" \"C:/Users/l1ma/OneDrive/Documentos/projgeo/geomonitor/backend/\" --include=\"*.js\" ! -path \"*/node_modules/*\" ! -path \"*/_dist/*\")",
+      "Bash(grep -rn normalizeErosionStatus C:/Users/l1ma/OneDrive/Documentos/projgeo/geomonitor/src --include=*.js --include=*.jsx)",
+      "Bash(grep -rn normalizeErosionStatus C:/Users/l1ma/OneDrive/Documentos/projgeo/geomonitor/backend --include=*.js)",
+      "Bash(grep -rn \"normalizeFollowupHistory\\\\|appendFollowupEvent\" C:/Users/l1ma/OneDrive/Documentos/projgeo/geomonitor/src --include=*.js --include=*.jsx)",
+      "Bash(git -C \"C:/Users/l1ma/OneDrive/Documentos/projgeo/geomonitor\" status)",
+      "Bash(npx vitest:*)",
+      "Bash(npm run:*)",
+      "Bash(npx jest:*)"
+    ]
+  }
+}

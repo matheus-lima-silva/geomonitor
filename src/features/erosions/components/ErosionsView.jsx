@@ -10,6 +10,11 @@ import {
   saveErosionManualFollowupEvent,
 } from '../../../services/erosionService';
 import {
+  getInspectionDateScore,
+  normalizeErosionInspectionIds,
+  resolvePrimaryInspectionId,
+} from '../../../../shared/erosionHelpers';
+import {
   buildCriticalityInputFromErosion,
   buildErosionReportRows,
   buildErosionsCsv,
@@ -82,38 +87,6 @@ const BASE_FORM = {
   obs: '',
   acompanhamentosResumo: [],
 };
-
-function getInspectionDateScore(inspection) {
-  const candidates = [inspection?.dataFim, inspection?.dataInicio, inspection?.data];
-  for (let i = 0; i < candidates.length; i += 1) {
-    const date = new Date(candidates[i]);
-    if (!Number.isNaN(date.getTime())) return date.getTime();
-  }
-  return null;
-}
-
-function normalizeErosionInspectionIds(erosion) {
-  const primary = String(erosion?.vistoriaId || '').trim();
-  const list = Array.isArray(erosion?.vistoriaIds) ? erosion.vistoriaIds : [];
-  const pendencies = Array.isArray(erosion?.pendenciasVistoria) ? erosion.pendenciasVistoria : [];
-  const fromPendencies = pendencies.map((item) => String(item?.vistoriaId || '').trim());
-  return [...new Set([primary, ...list.map((item) => String(item || '').trim()), ...fromPendencies].filter(Boolean))];
-}
-
-function resolvePrimaryInspectionId(inspectionIds, inspections) {
-  if (!inspectionIds || inspectionIds.length === 0) return '';
-  const inspectionById = new Map((inspections || []).map((item) => [String(item?.id || '').trim(), item]));
-  return [...inspectionIds].sort((a, b) => {
-    const inspectionA = inspectionById.get(String(a || '').trim());
-    const inspectionB = inspectionById.get(String(b || '').trim());
-    const dateA = getInspectionDateScore(inspectionA);
-    const dateB = getInspectionDateScore(inspectionB);
-    if (dateA !== null && dateB !== null) return dateB - dateA;
-    if (dateA !== null) return -1;
-    if (dateB !== null) return 1;
-    return String(b || '').localeCompare(String(a || ''));
-  })[0];
-}
 
 function sanitizePhotoLinks(input = []) {
   if (!Array.isArray(input)) return [];

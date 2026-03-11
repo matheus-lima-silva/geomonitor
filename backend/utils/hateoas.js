@@ -1,8 +1,9 @@
 /**
  * Utility function to generate standard RESTful HATEOAS links for an entity.
+ * Uses API_BASE_URL env var to prevent Host Header Injection.
  */
 function generateHateoasLinks(req, entityType, id) {
-    const baseUrl = `${req.protocol}://${req.get('host')}/api`;
+    const baseUrl = process.env.API_BASE_URL || `${req.protocol}://${req.get('host')}/api`;
 
     return {
         self: { href: `${baseUrl}/${entityType}/${id}`, method: 'GET' },

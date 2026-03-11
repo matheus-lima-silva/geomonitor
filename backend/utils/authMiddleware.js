@@ -13,6 +13,10 @@ async function verifyToken(req, res, next) {
 
     const token = authHeader.split('Bearer ')[1];
 
+    if (!token) {
+        return res.status(401).json({ status: 'error', message: 'Acesso negado. Token malformado.' });
+    }
+
     try {
         const auth = getAuth();
         const decodedToken = await auth.verifyIdToken(token);
