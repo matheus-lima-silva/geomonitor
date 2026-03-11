@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Input, Modal, Select } from '../../../components/ui';
+import { Button, Input, Modal, Select, Textarea } from '../../../components/ui';
 import {
   hasValidDecimalCoordinates,
   isCompleteUtmCoordinates,
@@ -12,6 +12,7 @@ import {
   buildCriticalitySummaryFromCalculation,
   formatCriticalityPoints,
 } from '../../shared/criticalitySummary';
+import { isHistoricalErosionRecord } from '../../shared/viewUtils';
 import ErosionTechnicalFields from './ErosionTechnicalFields';
 
 function hasAnyLocationValue(locationCoordinates = {}) {
@@ -49,6 +50,7 @@ function ErosionFormModal({
   onCancel,
   onSave,
   utmErrorToken = 0,
+  validationErrors = {},
 }) {
   const [coordinatesExpanded, setCoordinatesExpanded] = useState(false);
   const safeFormData = formData && typeof formData === 'object' ? formData : {};
@@ -65,6 +67,7 @@ function ErosionFormModal({
     ? safeCriticality.breakdown
     : null;
   const criticalitySummary = buildCriticalitySummaryFromCalculation(safeCriticality);
+  const isHistoricalRecord = isHistoricalErosionRecord(safeFormData);
 
   const locationCoordinates = {
     latitude: '',
@@ -152,6 +155,30 @@ function ErosionFormModal({
     }));
   }
 
+  function handleStatusChange(value) {
+    setFormData((prev) => ({
+      ...((prev && typeof prev === 'object') ? prev : {}),
+      status: value,
+      registroHistorico: value === 'Estabilizado'
+        ? true
+        : Boolean(((prev && typeof prev === 'object') ? prev : {}).registroHistorico),
+    }));
+  }
+
+  function toggleHistoricalRecord(enabled) {
+    setFormData((prev) => {
+      const source = (prev && typeof prev === 'object') ? prev : {};
+      const currentStatus = String(source.status || '').trim() || 'Ativo';
+      return {
+        ...source,
+        registroHistorico: enabled,
+        status: enabled
+          ? (currentStatus === 'Ativo' ? 'Monitoramento' : currentStatus)
+          : (currentStatus === 'Estabilizado' ? 'Monitoramento' : currentStatus),
+      };
+    });
+  }
+
   const footer = (
     <>
       <Button variant="outline" size="md" onClick={onCancel}>
@@ -187,6 +214,7 @@ function ErosionFormModal({
             label="Empreendimento *"
             value={safeFormData.projetoId || ''}
             onChange={(e) => updateField('projetoId', e.target.value)}
+            error={validationErrors.projetoId}
           >
             <option value="">Selecione...</option>
             {safeProjects.map((project, index) => (
@@ -220,6 +248,35 @@ function ErosionFormModal({
               ))}
           </Select>
         </div>
+
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 flex flex-col gap-3">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={isHistoricalRecord}
+              onChange={(e) => toggleHistoricalRecord(e.target.checked)}
+            />
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-semibold text-amber-950">Cadastro apenas para histórico de acompanhamento</span>
+              <span className="text-sm text-amber-900">
+                Esse modo também é ativado automaticamente quando o status for <strong>Estabilizado</strong>.
+              </span>
+            </div>
+          </label>
+
+          {isHistoricalRecord ? (
+            <Textarea
+              id="erosion-historical-note"
+              label="Intervenção já realizada / contexto histórico *"
+              rows={3}
+              value={safeFormData.intervencaoRealizada || ''}
+              onChange={(e) => updateField('intervencaoRealizada', e.target.value)}
+              error={validationErrors.intervencaoRealizada}
+              placeholder="Ex.: drenagem e reconformação executadas em 2024; cadastro mantido apenas para acompanhamento."
+            />
+          ) : null}
+        </div>
       </section>
 
       <section className="flex flex-col gap-4 mb-8">
@@ -228,9 +285,10 @@ function ErosionFormModal({
           {towerOptions.length > 0 ? (
             <Select
               id="erosion-torre"
-              label="Torre ref."
+              label="Torre ref. *"
               value={safeFormData.torreRef || ''}
               onChange={(e) => updateField('torreRef', e.target.value)}
+              error={validationErrors.torreRef}
             >
               <option value="">Selecione...</option>
               {towerOptions.map((tower) => (
@@ -242,16 +300,18 @@ function ErosionFormModal({
           ) : (
             <Input
               id="erosion-torre-input"
-              label="Torre ref."
+              label="Torre ref. *"
               value={safeFormData.torreRef || ''}
               onChange={(e) => updateField('torreRef', e.target.value)}
+              error={validationErrors.torreRef}
             />
           )}
           <Select
             id="erosion-estagio"
-            label="Estágio (grau erosivo)"
+            label={isHistoricalRecord ? 'Estágio (grau erosivo)' : 'Estágio (grau erosivo) *'}
             value={safeFormData.estagio || ''}
             onChange={(e) => updateField('estagio', e.target.value)}
+            error={validationErrors.estagio}
           >
             <option value="">Selecione...</option>
             <option value="inicial">Inicial</option>
@@ -263,17 +323,19 @@ function ErosionFormModal({
             id="erosion-status"
             label="Status"
             value={safeFormData.status || 'Ativo'}
-            onChange={(e) => updateField('status', e.target.value)}
+            onChange={(e) => handleStatusChange(e.target.value)}
           >
             <option value="Ativo">Ativo</option>
             <option value="Monitoramento">Monitoramento</option>
-            <option value="Estabilizado">Estabilizado</option>
+            <option value="Estabilizado">Estabilizado (histórico)</option>
           </Select>
         </div>
 
         <ErosionTechnicalFields
           formData={safeFormData}
           readOnlyClasses={readOnlyClasses}
+          validationErrors={validationErrors}
+          isHistoricalRecord={isHistoricalRecord}
           onPatch={(patch) => {
             setFormData((prev) => ({
               ...((prev && typeof prev === 'object') ? prev : {}),
@@ -368,66 +430,71 @@ function ErosionFormModal({
       <section className="flex flex-col gap-4 mb-8">
         <h4 className="text-lg font-semibold text-slate-800 m-0">Medidas e anexos</h4>
         <div className="grid grid-cols-1 gap-4">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-semibold text-slate-700">Fotos (links, um por linha)</span>
-            <textarea
-              rows="2"
-              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono"
-              value={Array.isArray(safeFormData.fotosLinks) ? safeFormData.fotosLinks.join('\n') : ''}
-              onChange={(e) => {
-                const rows = String(e.target.value || '')
-                  .split('\n')
-                  .map((line) => line.trim())
-                  .filter(Boolean);
-                updateField('fotosLinks', rows);
-              }}
-            />
-          </label>
+          <Textarea
+            id="erosion-photos"
+            label="Fotos (links, um por linha)"
+            rows={2}
+            className="font-mono"
+            value={Array.isArray(safeFormData.fotosLinks) ? safeFormData.fotosLinks.join('\n') : ''}
+            onChange={(e) => {
+              const rows = String(e.target.value || '')
+                .split('\n')
+                .map((line) => line.trim())
+                .filter(Boolean);
+              updateField('fotosLinks', rows);
+            }}
+            error={validationErrors.fotosLinks}
+          />
         </div>
       </section>
 
       <section className="flex flex-col gap-4 mb-8">
         <h4 className="text-lg font-semibold text-slate-800 m-0">Observações</h4>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-slate-700">Observações gerais</span>
-          <textarea
-            rows="3"
-            className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-            value={safeFormData.obs || ''}
-            onChange={(e) => updateField('obs', e.target.value)}
-          />
-        </label>
+        <Textarea
+          id="erosion-obs"
+          label="Observações gerais"
+          rows={3}
+          value={safeFormData.obs || ''}
+          onChange={(e) => updateField('obs', e.target.value)}
+        />
       </section>
 
-      <div className="mt-8 p-4 bg-slate-50 rounded-lg border border-slate-200 text-sm text-slate-700 flex flex-col gap-2">
-        <div className="text-slate-900"><strong>Resumo de criticidade calculada</strong></div>
-        <div>
-          <strong>Impacto:</strong> {criticalitySummary.impacto} | <strong>Score:</strong> {criticalitySummary.score} | <strong>Frequência:</strong> {criticalitySummary.frequencia}
-        </div>
-        {criticalitySummary.hasBreakdown ? (
+      <div className={`mt-8 p-4 rounded-lg border text-sm flex flex-col gap-2 ${isHistoricalRecord ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
+        <div className="text-slate-900"><strong>{isHistoricalRecord ? 'Registro histórico de acompanhamento' : 'Resumo de criticidade calculada'}</strong></div>
+        {isHistoricalRecord ? (
           <div>
-            <strong>Criticidade:</strong> {criticalitySummary.criticidadeClasse} ({criticalitySummary.criticidadeCodigo}) | Pontos T/P/D/S/E: {formatCriticalityPoints(criticalityBreakdown?.pontos)}
+            A criticidade não será calculada neste salvamento. O sistema vai tratar este cadastro como histórico de acompanhamento da erosão já estabilizada ou previamente intervinda.
           </div>
-        ) : null}
-        {criticalitySummary.solucoesSugeridas.length > 0 ? (
-          <div>
-            <strong>Soluções sugeridas:</strong> {criticalitySummary.solucoesSugeridas.join(' | ')}
-          </div>
-        ) : null}
-        {criticalitySummary.sugestoesIntervencao.length > 0 ? (
-          <div>
-            <strong>Sugestões de intervenção (opcional):</strong> {criticalitySummary.sugestoesIntervencao.join(' | ')}
-          </div>
-        ) : null}
-        {criticalitySummary.alertas.length > 0 ? (
-          <div>
-            <strong>Alertas:</strong> {criticalitySummary.alertas.join(' | ')}
-          </div>
-        ) : null}
+        ) : (
+          <>
+            <div>
+              <strong>Impacto:</strong> {criticalitySummary.impacto} | <strong>Score:</strong> {criticalitySummary.score} | <strong>Frequência:</strong> {criticalitySummary.frequencia}
+            </div>
+            {criticalitySummary.hasBreakdown ? (
+              <div>
+                <strong>Criticidade:</strong> {criticalitySummary.criticidadeClasse} ({criticalitySummary.criticidadeCodigo}) | Pontos T/P/D/S/E: {formatCriticalityPoints(criticalityBreakdown?.pontos)}
+              </div>
+            ) : null}
+            {criticalitySummary.solucoesSugeridas.length > 0 ? (
+              <div>
+                <strong>Soluções sugeridas:</strong> {criticalitySummary.solucoesSugeridas.join(' | ')}
+              </div>
+            ) : null}
+            {criticalitySummary.sugestoesIntervencao.length > 0 ? (
+              <div>
+                <strong>Sugestões de intervenção (opcional):</strong> {criticalitySummary.sugestoesIntervencao.join(' | ')}
+              </div>
+            ) : null}
+            {criticalitySummary.alertas.length > 0 ? (
+              <div>
+                <strong>Alertas:</strong> {criticalitySummary.alertas.join(' | ')}
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </Modal>
   );
 }
 
 export default ErosionFormModal;
-

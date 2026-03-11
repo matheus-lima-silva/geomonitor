@@ -21,9 +21,10 @@ import {
   buildImpactSummary,
   deriveErosionTypeFromTechnicalFields,
   filterErosionsForReport,
+  isHistoricalErosionRecord,
   normalizeErosionTechnicalFields,
   normalizeFollowupHistory,
-  validateErosionLocation,
+  validateErosionRequiredFields,
   validateErosionTechnicalFields,
 } from '../../shared/viewUtils';
 import {
@@ -84,6 +85,8 @@ const BASE_FORM = {
   vegetacaoInterior: false,
   fotosLinks: [],
   status: 'Ativo',
+  registroHistorico: false,
+  intervencaoRealizada: '',
   obs: '',
   acompanhamentosResumo: [],
 };
@@ -176,6 +179,8 @@ function buildSafeErosionFormState(source, mode = 'new', inspections = []) {
     sinaisAvanco: Boolean(technical.sinaisAvanco),
     vegetacaoInterior: Boolean(technical.vegetacaoInterior),
     fotosLinks: sanitizePhotoLinksInput(raw.fotosLinks),
+    registroHistorico: isHistoricalErosionRecord(raw),
+    intervencaoRealizada: String(raw.intervencaoRealizada || '').trim(),
     acompanhamentosResumo: normalizeFollowupHistory(raw.acompanhamentosResumo),
   };
 }
@@ -286,6 +291,7 @@ function ErosionsView({
   const { show } = useToast();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formData, setFormData] = useState(BASE_FORM);
+  const [formErrors, setFormErrors] = useState({});
   const [editingId, setEditingId] = useState('');
   const [detailsModal, setDetailsModal] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null);
@@ -304,7 +310,7 @@ function ErosionsView({
     anosExtras: [],
   });
 
-  const actorName = String(user?.displayName || user?.email || user?.uid || '').trim();
+  const actorName = String(user?.nome || user?.displayName || user?.email || user?.uid || '').trim();
 
   const selectedProject = useMemo(
     () => (projects || []).find((item) => String(item?.id || '').trim() === String(reportFilters.projetoId || '').trim()) || null,
@@ -419,6 +425,7 @@ function ErosionsView({
       obs: pendingDraft.obs || (pendingDraft.origemDia ? `Origem da vistoria (${pendingDraft.origemDia}).` : ''),
     }, 'draft', inspections);
     setFormData(safeState);
+    setFormErrors({});
     setUtmErrorToken(0);
     setEditingId('');
     setIsFormOpen(true);
@@ -490,6 +497,7 @@ function ErosionsView({
   function openNew() {
     const safeState = buildSafeErosionFormState({}, 'new', inspections);
     setFormData(safeState);
+    setFormErrors({});
     setUtmErrorToken(0);
     setEditingId('');
     setIsFormOpen(true);
@@ -498,6 +506,7 @@ function ErosionsView({
   function openEdit(erosion) {
     const safeState = buildSafeErosionFormState(erosion, 'edit', inspections);
     setFormData(safeState);
+    setFormErrors({});
     setUtmErrorToken(0);
     setEditingId(String(safeState.id || ''));
     setIsFormOpen(true);
@@ -522,27 +531,18 @@ function ErosionsView({
 
   async function handleSave() {
     try {
-      if (!formData.id || !formData.projetoId) {
-        show('Preencha ID e empreendimento.', 'error');
-        return;
-      }
-
-      const locationValidation = validateErosionLocation(formData);
-      if (!locationValidation.ok) {
-        show(locationValidation.message, 'error');
+      const requiredValidation = validateErosionRequiredFields(formData);
+      setFormErrors(requiredValidation.fieldErrors);
+      if (!requiredValidation.ok) {
+        show(requiredValidation.message || 'Preencha os campos obrigatorios destacados.', 'error');
         return;
       }
 
       const photos = sanitizePhotoLinks(formData.fotosLinks);
       const photosValidation = validatePhotoLinks(photos);
       if (!photosValidation.ok) {
+        setFormErrors((prev) => ({ ...prev, fotosLinks: photosValidation.message }));
         show(photosValidation.message, 'error');
-        return;
-      }
-
-      const technicalValidation = validateErosionTechnicalFields(formData);
-      if (!technicalValidation.ok) {
-        show(technicalValidation.message, 'error');
         return;
       }
 
@@ -552,6 +552,15 @@ function ErosionsView({
           setUtmErrorToken((prev) => prev + 1);
         }
         show(locationResult.error, 'error');
+        return;
+      }
+
+      const isHistoricalRecord = requiredValidation.historical;
+      const technicalValidation = isHistoricalRecord
+        ? { ok: true, value: normalizeErosionTechnicalFields(formData) }
+        : validateErosionTechnicalFields(formData);
+      if (!technicalValidation.ok) {
+        show(technicalValidation.message, 'error');
         return;
       }
 
@@ -576,26 +585,33 @@ function ErosionsView({
         sinaisAvanco: technicalValidation.value.sinaisAvanco,
         vegetacaoInterior: technicalValidation.value.vegetacaoInterior,
       };
-      const criticalityInput = buildCriticalityInputFromErosion(normalizedTechnicalData);
-      const calculoResponse = await postCalculoErosao(criticalityInput, {
-        rulesConfig: rulesConfig?.criticalityV2 || rulesConfig,
-      });
-      const criticalidadeV2 = calculoResponse.campos_calculados;
-      const alertasValidacao = Array.isArray(calculoResponse.alertas_validacao)
-        ? calculoResponse.alertas_validacao
-        : [];
+      let criticalidadeV2 = null;
+      let alertasValidacao = [];
 
-      if (alertasValidacao.length > 0) {
-        const shouldContinue = window.confirm(
-          `Foram encontrados alertas tecnicos:\\n\\n- ${alertasValidacao.join('\\n- ')}\\n\\nDeseja salvar mesmo assim?`,
-        );
-        if (!shouldContinue) return;
+      if (!isHistoricalRecord) {
+        const criticalityInput = buildCriticalityInputFromErosion(normalizedTechnicalData);
+        const calculoResponse = await postCalculoErosao(criticalityInput, {
+          rulesConfig: rulesConfig?.criticalityV2 || rulesConfig,
+        });
+        criticalidadeV2 = calculoResponse.campos_calculados;
+        alertasValidacao = Array.isArray(calculoResponse.alertas_validacao)
+          ? calculoResponse.alertas_validacao
+          : [];
+
+        if (alertasValidacao.length > 0) {
+          const shouldContinue = window.confirm(
+            `Foram encontrados alertas tecnicos:\\n\\n- ${alertasValidacao.join('\\n- ')}\\n\\nDeseja salvar mesmo assim?`,
+          );
+          if (!shouldContinue) return;
+        }
       }
 
       const nextPayload = {
         ...formData,
         tipo: deriveErosionTypeFromTechnicalFields(normalizedTechnicalData),
         status: normalizeErosionStatus(formData.status),
+        registroHistorico: isHistoricalRecord,
+        intervencaoRealizada: String(formData.intervencaoRealizada || '').trim(),
         locationCoordinates: locationResult.locationCoordinates,
         latitude: locationResult.latitude || '',
         longitude: locationResult.longitude || '',
@@ -612,20 +628,28 @@ function ErosionsView({
         distanciaEstruturaMetros: technicalValidation.value.distanciaEstruturaMetros,
         sinaisAvanco: technicalValidation.value.sinaisAvanco,
         vegetacaoInterior: technicalValidation.value.vegetacaoInterior,
-        medidaPreventiva: Array.isArray(criticalidadeV2?.lista_solucoes_sugeridas)
-          ? (criticalidadeV2.lista_solucoes_sugeridas[0] || '')
-          : '',
+        impacto: isHistoricalRecord ? '' : formData.impacto,
+        score: isHistoricalRecord ? null : formData.score,
+        frequencia: isHistoricalRecord ? '' : formData.frequencia,
+        intervencao: isHistoricalRecord
+          ? (String(formData.intervencaoRealizada || '').trim() || 'Intervencao ja executada')
+          : formData.intervencao,
+        medidaPreventiva: isHistoricalRecord
+          ? ''
+          : (Array.isArray(criticalidadeV2?.lista_solucoes_sugeridas)
+            ? (criticalidadeV2.lista_solucoes_sugeridas[0] || '')
+            : ''),
         fotosLinks: photos,
         vistoriaId: primaryInspectionId || '',
         vistoriaIds: primaryInspectionId ? mergedInspectionIds : [],
-        criticalidadeV2,
-        alertsAtivos: alertasValidacao,
+        criticalidadeV2: isHistoricalRecord ? null : criticalidadeV2,
+        alertsAtivos: isHistoricalRecord ? [] : alertasValidacao,
       };
 
       await saveErosion(
         {
           ...nextPayload,
-          criticality: criticalidadeV2?.legacy,
+          criticality: isHistoricalRecord ? null : criticalidadeV2?.legacy,
         },
         {
           updatedBy: actorName,
@@ -635,6 +659,7 @@ function ErosionsView({
       );
 
       setIsFormOpen(false);
+      setFormErrors({});
       setUtmErrorToken(0);
       show('Erosao salva com sucesso.', 'success');
     } catch (err) {
@@ -807,6 +832,15 @@ function ErosionsView({
   }
 
   const criticality = useMemo(() => {
+    if (isHistoricalErosionRecord(formData || {})) {
+      return {
+        impacto: '',
+        score: '',
+        frequencia: '',
+        intervencao: String(formData?.intervencaoRealizada || '').trim(),
+        breakdown: null,
+      };
+    }
     try {
       return calculateCriticality(buildCriticalityInputFromErosion(formData || {}), rulesConfig);
     } catch {
@@ -977,9 +1011,11 @@ function ErosionsView({
         utmErrorToken={utmErrorToken}
         onCancel={() => {
           setIsFormOpen(false);
+          setFormErrors({});
           setUtmErrorToken(0);
         }}
         onSave={handleSave}
+        validationErrors={formErrors}
       />
 
       <ErosionDetailsModal
@@ -987,6 +1023,10 @@ function ErosionsView({
         erosion={activeDetailsErosion}
         project={(projects || []).find((project) => String(project?.id || '').trim() === String(activeDetailsErosion?.projetoId || '').trim())}
         relatedInspections={relatedInspectionsInDetails}
+        currentUser={{
+          email: String(user?.email || '').trim(),
+          nome: String(user?.nome || user?.displayName || '').trim(),
+        }}
         hasCoordinates={hasCoordinates}
         onClose={() => setDetailsModal(null)}
         onOpenMaps={openGoogleMapsRoute}

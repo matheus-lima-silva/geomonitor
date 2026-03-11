@@ -21,6 +21,7 @@ vi.mock('../../../../services/firestoreClient', () => ({
 vi.mock('../../../../context/AuthContext', () => ({
   useAuth: () => ({
     user: {
+      nome: 'Tester Nome',
       email: 'tester@example.com',
       displayName: 'Tester',
       uid: 'uid-1',
@@ -123,9 +124,11 @@ describe('InspectionsView wizard flow', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    saveInspectionMock.mockReset();
+    deleteInspectionMock.mockReset();
+    showMock.mockReset();
     saveInspectionMock.mockResolvedValue('VS-P1-01022026-0001');
     deleteInspectionMock.mockResolvedValue(undefined);
-    showMock.mockReset();
   });
 
   afterEach(() => {
@@ -220,6 +223,34 @@ describe('InspectionsView wizard flow', () => {
     expect(document.body.textContent).toContain('Torre 6');
   });
 
+  it('opens inline erosion modal without saving inspection first', async () => {
+    saveInspectionMock.mockRejectedValueOnce(new Error('nao deveria salvar ao abrir modal inline'));
+    renderView(root);
+
+    await clickByText('Nova Vistoria');
+
+    const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const dateInputs = document.querySelectorAll('input[type="date"]');
+    changeInput(projectSelect, 'P1');
+    changeInput(dateInputs[0], '2026-03-08');
+    changeInput(dateInputs[1], '2026-03-08');
+    await flush();
+
+    await clickByText('Avancar');
+    await clickElement(getTowerPickerButton('Torre 1', document.body));
+
+    const erosionButton = document.querySelector('button[title*="erosao"]');
+    await clickElement(erosionButton);
+
+    expect(document.body.textContent).toContain('Erosao - Torre 1');
+    const inlineModal = document.querySelector('[data-testid="inspection-inline-erosion-modal"]');
+    const inlineModalBody = document.querySelector('[data-testid="inspection-inline-erosion-modal-body"]');
+    expect(inlineModal?.className).toContain('items-start');
+    expect(inlineModal?.className).not.toContain('sm:items-center');
+    expect(inlineModalBody?.className).toContain('overflow-y-auto');
+    expect(saveInspectionMock).not.toHaveBeenCalled();
+  });
+
   it('opens full erosion draft from inline modal and forwards technical payload', async () => {
     const onOpenErosionDraft = vi.fn();
     renderView(root, {
@@ -246,8 +277,10 @@ describe('InspectionsView wizard flow', () => {
     expect(localSelect).toBeTruthy();
     changeInput(localSelect, 'base_torre');
     await clickByText('Abrir cadastro completo na aba Erosoes');
+    await flush();
 
     expect(onOpenErosionDraft).toHaveBeenCalledTimes(1);
+    expect(saveInspectionMock).toHaveBeenCalledTimes(1);
     expect(onOpenErosionDraft).toHaveBeenCalledWith(expect.objectContaining({
       projetoId: 'P1',
       torreRef: '1',

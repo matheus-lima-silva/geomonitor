@@ -35,6 +35,8 @@ function ErosionTechnicalFields({
   formData = {},
   onPatch,
   readOnlyClasses,
+  validationErrors = {},
+  isHistoricalRecord = false,
 }) {
   const tiposFeicao = normalizeArray(formData.tiposFeicao);
   const caracteristicasFeicao = normalizeArray(formData.caracteristicasFeicao);
@@ -145,13 +147,27 @@ function ErosionTechnicalFields({
     patch(nextPatch);
   }
 
+  function fieldClass(errorKey) {
+    return `w-full bg-white border rounded-lg px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 ${validationErrors[errorKey] ? 'border-danger ring-1 ring-danger' : 'border-slate-300'}`;
+  }
+
+  function readOnlyFieldClass(errorKey) {
+    return `w-full bg-slate-50 border rounded-lg px-3 py-2 text-sm disabled:text-slate-500 ${validationErrors[errorKey] ? 'border-danger ring-1 ring-danger text-danger' : 'border-slate-300 text-slate-500'}`;
+  }
+
   return (
     <>
+      <div className={`rounded-xl border px-4 py-3 text-sm ${isHistoricalRecord ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+        {isHistoricalRecord
+          ? 'Registro historico ativo: a caracterizacao tecnica e a criticidade ficam opcionais. Use este modo quando a intervencao ja foi executada e o cadastro serve apenas para acompanhamento do empreendimento.'
+          : 'Caracterizacao tecnica obrigatoria para calcular criticidade e orientar a frequencia de acompanhamento.'}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-slate-700">Local da erosão</span>
+          <span className="text-sm font-semibold text-slate-700">Local da erosão{isHistoricalRecord ? '' : ' *'}</span>
           <select
-            className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+            className={fieldClass('localContexto.localTipo')}
             value={localTipo}
             onChange={(e) => updateLocalContext({ localTipo: e.target.value })}
           >
@@ -160,22 +176,28 @@ function ErosionTechnicalFields({
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
+          {validationErrors['localContexto.localTipo'] ? (
+            <span className="text-2xs font-medium text-danger">{validationErrors['localContexto.localTipo']}</span>
+          ) : null}
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-slate-700">Detalhe do local</span>
+          <span className="text-sm font-semibold text-slate-700">Detalhe do local{showLocalDescricao && !isHistoricalRecord ? ' *' : ''}</span>
           <input
-            className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+            className={fieldClass('localContexto.localDescricao')}
             value={showLocalDescricao ? (localContexto.localDescricao || '') : '-'}
             onChange={(e) => updateLocalContext({ localDescricao: e.target.value })}
             disabled={!showLocalDescricao}
             placeholder={showLocalDescricao ? 'Obrigatório para Outros' : 'Não se aplica'}
           />
+          {validationErrors['localContexto.localDescricao'] ? (
+            <span className="text-2xs font-medium text-danger">{validationErrors['localContexto.localDescricao']}</span>
+          ) : null}
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-slate-700">Localização de exposição</span>
+          <span className="text-sm font-semibold text-slate-700">Localização de exposição{showExposicaoSelect && !isHistoricalRecord ? ' *' : ''}</span>
           {showExposicaoSelect ? (
             <select
-              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+              className={fieldClass('localContexto.exposicao')}
               value={localContexto.exposicao || ''}
               onChange={(e) => updateLocalContext({ exposicao: e.target.value })}
             >
@@ -185,14 +207,17 @@ function ErosionTechnicalFields({
               ))}
             </select>
           ) : (
-            <input className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-500" value={localContexto.exposicao || '-'} readOnly disabled />
+            <input className={readOnlyFieldClass('localContexto.exposicao')} value={localContexto.exposicao || '-'} readOnly disabled />
           )}
+          {validationErrors['localContexto.exposicao'] ? (
+            <span className="text-2xs font-medium text-danger">{validationErrors['localContexto.exposicao']}</span>
+          ) : null}
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-slate-700">Estrutura próxima</span>
+          <span className="text-sm font-semibold text-slate-700">Estrutura próxima{(showEstruturaSelect || lockEstruturaValue) && !isHistoricalRecord ? ' *' : ''}</span>
           {(showEstruturaSelect || lockEstruturaValue) ? (
             <select
-              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+              className={fieldClass('localContexto.estruturaProxima')}
               value={localContexto.estruturaProxima || ''}
               onChange={(e) => updateLocalContext({ estruturaProxima: e.target.value })}
               disabled={lockEstruturaValue}
@@ -203,8 +228,11 @@ function ErosionTechnicalFields({
               ))}
             </select>
           ) : (
-            <input className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-500" value={localContexto.estruturaProxima || '-'} readOnly disabled />
+            <input className={readOnlyFieldClass('localContexto.estruturaProxima')} value={localContexto.estruturaProxima || '-'} readOnly disabled />
           )}
+          {validationErrors['localContexto.estruturaProxima'] ? (
+            <span className="text-2xs font-medium text-danger">{validationErrors['localContexto.estruturaProxima']}</span>
+          ) : null}
         </label>
       </div>
 
@@ -364,7 +392,10 @@ function ErosionTechnicalFields({
       {usosSolo.includes('outro') ? (
         <label className="flex flex-col gap-1.5 mt-4">
           <span className="text-sm font-semibold text-slate-700">Uso do solo - outro *</span>
-          <input className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={formData.usoSoloOutro || ''} onChange={(e) => updateField('usoSoloOutro', e.target.value)} />
+          <input className={fieldClass('usoSoloOutro')} value={formData.usoSoloOutro || ''} onChange={(e) => updateField('usoSoloOutro', e.target.value)} />
+          {validationErrors.usoSoloOutro ? (
+            <span className="text-2xs font-medium text-danger">{validationErrors.usoSoloOutro}</span>
+          ) : null}
         </label>
       ) : null}
     </>

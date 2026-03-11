@@ -5,6 +5,7 @@ import { erosionStatusClass, normalizeErosionStatus } from '../../shared/statusU
 import {
   deriveErosionTypeFromTechnicalFields,
   getLocalContextLabel,
+  isHistoricalErosionRecord,
   normalizeErosionTechnicalFields,
   normalizeFollowupEventType,
   normalizeFollowupHistory,
@@ -29,11 +30,25 @@ function listValue(value) {
   return value.join(', ');
 }
 
+function resolveHistoryUserLabel(usuario, currentUser) {
+  const persistedValue = String(usuario || '').trim();
+  if (!persistedValue) return '-';
+
+  const currentEmail = String(currentUser?.email || '').trim().toLowerCase();
+  const currentName = String(currentUser?.nome || '').trim();
+  if (currentEmail && currentName && persistedValue.toLowerCase() === currentEmail) {
+    return currentName;
+  }
+
+  return persistedValue;
+}
+
 function ErosionDetailsModal({
   open,
   erosion,
   project,
   relatedInspections = [],
+  currentUser = null,
   hasCoordinates,
   onClose,
   onOpenMaps,
@@ -69,6 +84,7 @@ function ErosionDetailsModal({
   const technical = normalizeErosionTechnicalFields(erosion || {});
   const localContexto = technical.localContexto || {};
   const localTipoLabel = getLocalContextLabel(localContexto.localTipo) || '-';
+  const isHistoricalRecord = isHistoricalErosionRecord(erosion);
   const usosSolo = technical.usosSolo;
   const tiposFeicao = technical.tiposFeicao;
   const caracteristicasFeicao = technical.caracteristicasFeicao;
@@ -134,12 +150,16 @@ function ErosionDetailsModal({
             <div><strong className="text-slate-900">Nome:</strong> {project?.nome || '-'}</div>
             <div><strong className="text-slate-900">Torre:</strong> {erosion.torreRef || '-'}</div>
             <div><strong className="text-slate-900">Impacto:</strong> {erosion.impacto || '-'}</div>
+            <div><strong className="text-slate-900">Registro:</strong> {isHistoricalRecord ? 'Histórico de acompanhamento' : 'Cadastro técnico completo'}</div>
             <div>
               <strong className="text-slate-900">Status:</strong>{' '}
               <span className={erosionStatusClass(erosion.status)}>
                 {normalizeErosionStatus(erosion.status)}
               </span>
             </div>
+            {isHistoricalRecord ? (
+              <div className="md:col-span-2"><strong className="text-slate-900">Intervenção já realizada:</strong> {erosion.intervencaoRealizada || erosion.intervencao || '-'}</div>
+            ) : null}
             <div><strong className="text-slate-900">Vistoria principal:</strong> {erosion.vistoriaId || '-'}</div>
             <div><strong className="text-slate-900">Vistorias vinculadas:</strong> {Array.isArray(erosion.vistoriaIds) ? erosion.vistoriaIds.join(', ') || '-' : '-'}</div>
           </div>
@@ -148,6 +168,11 @@ function ErosionDetailsModal({
         <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
           <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2 mb-4">Classificacao e caracterizacao consolidada</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-700">
+            {isHistoricalRecord ? (
+              <div className="col-span-full bg-amber-50 text-amber-900 p-3 rounded-lg border border-amber-100">
+                Este registro foi salvo como histórico de acompanhamento. A criticidade técnica pode não existir porque a intervenção já havia sido executada antes do cadastro.
+              </div>
+            ) : null}
             <div><strong className="text-slate-900">Tipo (derivado):</strong> {derivedTipo || '-'}</div>
             <div><strong className="text-slate-900">Estagio:</strong> {erosion.estagio || '-'}</div>
             <div><strong className="text-slate-900">Local:</strong> {localTipoLabel}</div>
@@ -382,6 +407,7 @@ function ErosionDetailsModal({
               const itemType = normalizeFollowupEventType(item);
               const typeLabel = itemType === 'obra' ? 'Obra' : (itemType === 'autuacao' ? 'Autuacao' : 'Sistema');
               const markerColor = itemType === 'obra' ? 'bg-indigo-400' : (itemType === 'autuacao' ? 'bg-amber-400' : 'bg-slate-300');
+              const userLabel = resolveHistoryUserLabel(item.usuario, currentUser);
 
               return (
                 <article key={`${item.timestamp}-${index}`} className={`relative pl-6 before:absolute before:left-[-21px] before:top-2.5 before:w-2 before:h-2 before:rounded-full ${markerColor}`}>
@@ -400,7 +426,7 @@ function ErosionDetailsModal({
                       </div>
                     ) : null}
                     <div className="text-slate-400 text-xs mt-1 pt-2 border-t border-slate-100 font-medium">
-                      Origem: {item.origem || '-'} | Usuario: {item.usuario || '-'} | Status da erosao: {item.statusNovo || '-'}
+                      Origem: {item.origem || '-'} | Usuario: {userLabel} | Status da erosao: {item.statusNovo || '-'}
                     </div>
                   </div>
                 </article>

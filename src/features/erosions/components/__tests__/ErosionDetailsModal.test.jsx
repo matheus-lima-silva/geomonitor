@@ -118,4 +118,40 @@ describe('ErosionDetailsModal', () => {
 
     expect(container.textContent).toContain('Sem historico de acompanhamento.');
   });
+
+  it('resolves current user email to nome and keeps other persisted users unchanged', () => {
+    renderModal(root, {
+      erosion: {
+        id: 'ERS-3',
+        projetoId: 'P1',
+        acompanhamentosResumo: [
+          {
+            timestamp: '2026-03-10T10:00:00.000Z',
+            origem: 'manual',
+            usuario: 'tester@example.com',
+            statusNovo: 'Ativo',
+            resumo: 'Evento do utilizador atual',
+          },
+          {
+            timestamp: '2026-03-09T10:00:00.000Z',
+            origem: 'manual',
+            usuario: 'outra.pessoa@example.com',
+            statusNovo: 'Monitoramento',
+            resumo: 'Evento de outra pessoa',
+          },
+        ],
+        locationCoordinates: {},
+      },
+      currentUser: {
+        email: 'tester@example.com',
+        nome: 'Tester Nome',
+      },
+      hasCoordinates: () => false,
+      relatedInspections: [],
+    });
+
+    expect(container.textContent).toContain('Usuario: Tester Nome');
+    expect(container.textContent).toContain('Usuario: outra.pessoa@example.com');
+    expect(container.textContent).not.toContain('Usuario: tester@example.com');
+  });
 });

@@ -376,6 +376,101 @@ function hasValue(value) {
     return true;
 }
 
+export function isHistoricalErosionRecord(data = {}) {
+    const raw = data && typeof data === 'object' ? data : {};
+    if (normalizeErosionStatus(raw.status) === 'Estabilizado') return true;
+    if (raw.registroHistorico === true) return true;
+    const normalized = normalizeText(raw.registroHistorico || raw.registro_historico).toLowerCase();
+    return ['sim', 'true', '1', 'historico', 'histórico'].includes(normalized);
+}
+
+function buildLocationFieldErrors(localContexto = {}) {
+    const fieldErrors = {};
+    const localTipo = localContexto.localTipo || '';
+
+    if (!localTipo || !LOCAL_CONTEXTO_LABEL_BY_TIPO[localTipo]) {
+        fieldErrors['localContexto.localTipo'] = 'Selecione o local da erosao.';
+        return fieldErrors;
+    }
+
+    if (localTipo === 'outros' && !localContexto.localDescricao) {
+        fieldErrors['localContexto.localDescricao'] = 'Informe o detalhe do local para "Outros".';
+    }
+
+    if (localTipo === 'outros' && !localContexto.exposicao) {
+        fieldErrors['localContexto.exposicao'] = 'Selecione a localizacao de exposicao.';
+    }
+
+    if (!localContexto.estruturaProxima) {
+        fieldErrors['localContexto.estruturaProxima'] = 'Selecione a estrutura proxima.';
+        return fieldErrors;
+    }
+
+    if (localTipo === 'via_acesso_exclusiva' && localContexto.estruturaProxima !== 'acesso') {
+        fieldErrors['localContexto.estruturaProxima'] = 'Via de acesso exclusiva deve usar estrutura proxima igual a acesso.';
+    }
+
+    if (localTipo === 'base_torre' && localContexto.estruturaProxima !== 'torre') {
+        fieldErrors['localContexto.estruturaProxima'] = 'Base de torre deve usar estrutura proxima igual a torre.';
+    }
+
+    return fieldErrors;
+}
+
+function getFirstErrorMessage(fieldErrors = {}) {
+    return Object.values(fieldErrors).find(Boolean) || '';
+}
+
+export function validateErosionRequiredFields(data = {}) {
+    const raw = data && typeof data === 'object' ? data : {};
+    const historical = isHistoricalErosionRecord(raw);
+    const fieldErrors = {};
+
+    if (!normalizeText(raw.projetoId)) {
+        fieldErrors.projetoId = 'Selecione o empreendimento.';
+    }
+
+    if (!normalizeText(raw.torreRef)) {
+        fieldErrors.torreRef = 'Informe a torre de referencia.';
+    }
+
+    if (historical) {
+        const hasHistoricalContext = [
+            raw.intervencaoRealizada,
+            raw.intervencao,
+            raw.obs,
+            raw.descricao,
+        ].some((value) => normalizeText(value));
+        if (!hasHistoricalContext) {
+            fieldErrors.intervencaoRealizada = 'Descreva a intervencao ja realizada para registrar este historico.';
+        }
+        return {
+            ok: Object.keys(fieldErrors).length === 0,
+            message: getFirstErrorMessage(fieldErrors),
+            fieldErrors,
+            historical,
+        };
+    }
+
+    if (!normalizeText(raw.estagio)) {
+        fieldErrors.estagio = 'Selecione o estagio da erosao.';
+    }
+
+    Object.assign(fieldErrors, buildLocationFieldErrors(normalizeLocalContexto(raw)));
+
+    const normalizedTechnical = normalizeErosionTechnicalFields(raw);
+    if (normalizedTechnical.usosSolo.includes('outro') && !normalizedTechnical.usoSoloOutro) {
+        fieldErrors.usoSoloOutro = 'Preencha o campo "Uso do solo - outro".';
+    }
+
+    return {
+        ok: Object.keys(fieldErrors).length === 0,
+        message: getFirstErrorMessage(fieldErrors),
+        fieldErrors,
+        historical,
+    };
+}
+
 export function validateErosionLocation(data) {
     const localContexto = normalizeLocalContexto(data || {});
     const localTipo = localContexto.localTipo;

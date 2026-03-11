@@ -11,6 +11,7 @@ const {
     buildCriticalityInputFromErosion,
     deriveErosionTypeFromTechnicalFields,
     buildFollowupEvent,
+    isHistoricalErosionRecord,
     normalizeErosionTechnicalFields,
     normalizeFollowupHistory,
     appendFollowupEvent,
@@ -50,26 +51,34 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
         }
 
         const criticality = sanitizedPayload.criticality || null;
+        const isHistoricalRecord = isHistoricalErosionRecord(sanitizedPayload);
 
         const locationResult = resolveLocationCoordinatesForSave(sanitizedPayload);
         if (!locationResult.ok) {
             return res.status(400).json({ status: 'error', message: locationResult.error || 'Coordenadas inválidas.' });
         }
 
-        const technicalValidation = validateErosionTechnicalFields(sanitizedPayload);
+        const technicalValidation = isHistoricalRecord
+            ? { ok: true, value: normalizeErosionTechnicalFields(sanitizedPayload) }
+            : validateErosionTechnicalFields(sanitizedPayload);
         if (!technicalValidation.ok) {
             return res.status(400).json({ status: 'error', message: technicalValidation.message || 'Campos técnicos inválidos.' });
         }
 
         const technical = technicalValidation.value || normalizeErosionTechnicalFields(sanitizedPayload);
-        const criticalityInput = buildCriticalityInputFromErosion({
+        const criticalityInput = isHistoricalRecord ? null : buildCriticalityInputFromErosion({
             ...sanitizedPayload,
             tiposFeicao: technical.tiposFeicao,
         });
 
-        let calculationResult, criticalidadeV2, alertsAtivos;
+        let calculationResult;
+        let criticalidadeV2 = null;
+        let alertsAtivos = [];
 
-        if (sanitizedPayload.criticalidadeV2) {
+        if (isHistoricalRecord) {
+            criticalidadeV2 = sanitizedPayload.criticalidadeV2 ?? null;
+            alertsAtivos = Array.isArray(sanitizedPayload.alertsAtivos) ? sanitizedPayload.alertsAtivos : [];
+        } else if (sanitizedPayload.criticalidadeV2) {
             criticalidadeV2 = sanitizedPayload.criticalidadeV2;
             alertsAtivos = sanitizedPayload.alertsAtivos || [];
         } else {
@@ -102,10 +111,26 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
             vistoriaId: String(sanitizedPayload.vistoriaId || '').trim(),
             ...(vistoriaIds.length > 0 ? { vistoriaIds } : {}),
             status: normalizeErosionStatus(sanitizedPayload.status),
-            impacto: sanitizedPayload.impacto || criticality?.impacto || criticalidadeV2?.legacy?.impacto || 'Baixo',
-            score: sanitizedPayload.score ?? criticality?.score ?? criticalidadeV2?.criticidade_score ?? 0,
-            frequencia: sanitizedPayload.frequencia || criticality?.frequencia || criticalidadeV2?.legacy?.frequencia || '24 meses',
-            intervencao: sanitizedPayload.intervencao || criticality?.intervencao || criticalidadeV2?.legacy?.intervencao || 'Monitoramento visual',
+            registroHistorico: isHistoricalRecord,
+            intervencaoRealizada: String(
+                sanitizedPayload.intervencaoRealizada
+                || sanitizedPayload.intervencao
+                || sanitizedPayload.obs
+                || previous?.intervencaoRealizada
+                || ''
+            ).trim(),
+            impacto: isHistoricalRecord
+                ? String(sanitizedPayload.impacto ?? '').trim()
+                : (sanitizedPayload.impacto || criticality?.impacto || criticalidadeV2?.legacy?.impacto || 'Baixo'),
+            score: isHistoricalRecord
+                ? (sanitizedPayload.score ?? null)
+                : (sanitizedPayload.score ?? criticality?.score ?? criticalidadeV2?.criticidade_score ?? 0),
+            frequencia: isHistoricalRecord
+                ? String(sanitizedPayload.frequencia ?? '').trim()
+                : (sanitizedPayload.frequencia || criticality?.frequencia || criticalidadeV2?.legacy?.frequencia || '24 meses'),
+            intervencao: isHistoricalRecord
+                ? String(sanitizedPayload.intervencao || sanitizedPayload.intervencaoRealizada || 'Intervencao ja executada').trim()
+                : (sanitizedPayload.intervencao || criticality?.intervencao || criticalidadeV2?.legacy?.intervencao || 'Monitoramento visual'),
             localContexto: technical.localContexto,
             locationCoordinates: locationResult.locationCoordinates,
             latitude: locationResult.latitude || '',
@@ -126,9 +151,11 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
             distanciaEstruturaMetros: technical.distanciaEstruturaMetros,
             sinaisAvanco: technical.sinaisAvanco,
             vegetacaoInterior: technical.vegetacaoInterior,
-            medidaPreventiva: sanitizedPayload.medidaPreventiva
-                || criticalidadeV2?.lista_solucoes_sugeridas?.[0]
-                || '',
+            medidaPreventiva: isHistoricalRecord
+                ? String(sanitizedPayload.medidaPreventiva || '').trim()
+                : (sanitizedPayload.medidaPreventiva
+                    || criticalidadeV2?.lista_solucoes_sugeridas?.[0]
+                    || ''),
             fotosLinks,
             criticalidadeV2,
             alertsAtivos: Array.isArray(sanitizedPayload.alertsAtivos)
@@ -152,7 +179,9 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
             ...nextData,
             ...buildLegacyFieldCleanupPatch(),
             acompanhamentosResumo: appendFollowupEvent(nextData.acompanhamentosResumo ?? history, event),
-            historicoCriticidade: buildCriticalityHistory(previous, nextData, criticalidadeV2),
+            historicoCriticidade: isHistoricalRecord
+                ? (Array.isArray(previous?.historicoCriticidade) ? previous.historicoCriticidade : [])
+                : buildCriticalityHistory(previous, nextData, criticalidadeV2),
         };
 
         await db.collection('shared')

@@ -281,6 +281,14 @@ function hasValue(value) {
   return true;
 }
 
+export function isHistoricalErosionRecord(data = {}) {
+  const raw = data && typeof data === 'object' ? data : {};
+  if (normalizeErosionStatus(raw.status) === 'Estabilizado') return true;
+  if (raw.registroHistorico === true) return true;
+  const normalized = normalizeText(raw.registroHistorico || raw.registro_historico).toLowerCase();
+  return ['sim', 'true', '1', 'historico', 'histórico'].includes(normalized);
+}
+
 export function stripRemovedErosionFields(data = {}) {
   const source = data && typeof data === 'object' ? data : {};
   const next = { ...source };
@@ -532,10 +540,25 @@ export function validateErosionTechnicalFields(data = {}) {
 }
 
 function summarizeEvent(change, previous) {
+  if (change.origem === 'cadastro' && change.registroHistoricoNovo) {
+    return change.intervencaoRealizadaNova
+      ? `Cadastro historico da erosao. Intervencao ja realizada: ${change.intervencaoRealizadaNova}`
+      : 'Cadastro historico da erosao com intervencao ja realizada.';
+  }
   if (change.origem === 'cadastro') return 'Cadastro inicial da erosao.';
+  if (change.origem === 'vistoria' && change.registroHistoricoNovo) {
+    return change.intervencaoRealizadaNova
+      ? `Erosao historica registrada durante vistoria. Intervencao ja realizada: ${change.intervencaoRealizadaNova}`
+      : 'Erosao historica registrada durante vistoria.';
+  }
   if (change.origem === 'vistoria') return 'Erosao registrada durante vistoria.';
 
   const pieces = [];
+  if (change.registroHistoricoAnterior !== change.registroHistoricoNovo) {
+    pieces.push(change.registroHistoricoNovo
+      ? 'registro marcado como historico de acompanhamento'
+      : 'registro voltou ao modo tecnico');
+  }
   if (change.statusAnterior !== change.statusNovo) {
     pieces.push(`status alterado de ${change.statusAnterior} para ${change.statusNovo}`);
   }
@@ -547,6 +570,10 @@ function summarizeEvent(change, previous) {
   }
   if (String(change.obsAnterior || '') !== String(change.obsNovo || '')) {
     pieces.push('observacoes atualizadas');
+  }
+  if (change.registroHistoricoNovo
+    && String(change.intervencaoRealizadaAnterior || '') !== String(change.intervencaoRealizadaNova || '')) {
+    pieces.push('intervencao historica atualizada');
   }
 
   if (pieces.length === 0) {
@@ -579,6 +606,10 @@ export function buildFollowupEvent(previous, next, meta = {}) {
     torreNova: next?.torreRef,
     localTipoAnterior: previousLocalTipoLabel,
     localTipoNovo: nextLocalTipoLabel,
+    registroHistoricoAnterior: isHistoricalErosionRecord(previous),
+    registroHistoricoNovo: isHistoricalErosionRecord(next),
+    intervencaoRealizadaAnterior: normalizeText(previous?.intervencaoRealizada),
+    intervencaoRealizadaNova: normalizeText(next?.intervencaoRealizada),
     obsAnterior: previous?.obs,
     obsNovo: next?.obs,
   };
@@ -587,9 +618,11 @@ export function buildFollowupEvent(previous, next, meta = {}) {
 
   const hasRelevantChange = origem === 'cadastro'
     || origem === 'vistoria'
+    || event.registroHistoricoAnterior !== event.registroHistoricoNovo
     || event.statusAnterior !== event.statusNovo
     || String(event.torreAnterior || '') !== String(event.torreNova || '')
     || String(event.localTipoAnterior || '') !== String(event.localTipoNovo || '')
+    || String(event.intervencaoRealizadaAnterior || '') !== String(event.intervencaoRealizadaNova || '')
     || String(event.obsAnterior || '') !== String(event.obsNovo || '');
 
   if (!hasRelevantChange) return null;

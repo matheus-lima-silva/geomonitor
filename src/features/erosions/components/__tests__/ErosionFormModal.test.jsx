@@ -48,6 +48,7 @@ function renderModal(root, overrides = {}) {
       frequencia: '24 meses',
       intervencao: 'Monitoramento visual',
     },
+    validationErrors: {},
     onCancel: vi.fn(),
     onSave: vi.fn(),
     utmErrorToken: 0,
@@ -132,6 +133,30 @@ describe('ErosionFormModal', () => {
     });
 
     expect(container.textContent).toContain('Uso do solo - outro *');
+  });
+
+  it('ativa modo historico quando status e Estabilizado', () => {
+    renderModal(root, {
+      formData: {
+        id: 'ERS-1',
+        projetoId: 'P1',
+        status: 'Estabilizado',
+        locationCoordinates: {},
+      },
+    });
+
+    expect(container.textContent).toContain('Registro histórico de acompanhamento');
+    expect(container.textContent).toContain('Intervenção já realizada / contexto histórico *');
+  });
+
+  it('exibe erros inline recebidos do salvamento', () => {
+    renderModal(root, {
+      validationErrors: {
+        projetoId: 'Selecione o empreendimento.',
+      },
+    });
+
+    expect(container.textContent).toContain('Selecione o empreendimento.');
   });
 
   it('nao quebra quando formData e nulo', () => {

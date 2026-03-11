@@ -1,7 +1,11 @@
 import AppIcon from '../../../components/AppIcon';
 import { Badge, Button } from '../../../components/ui';
 import { erosionStatusClass, normalizeErosionStatus } from '../../shared/statusUtils';
-import { getLocalContextLabel, normalizeErosionTechnicalFields } from '../../shared/viewUtils';
+import {
+  getLocalContextLabel,
+  isHistoricalErosionRecord,
+  normalizeErosionTechnicalFields,
+} from '../../shared/viewUtils';
 
 function getImpactTone(impact) {
   if (impact === 'Muito Alto') return 'critical';
@@ -27,6 +31,7 @@ function ErosionCardGrid({
         const projectId = String(erosion?.projetoId || '').trim();
         const project = projectsById.get(projectId);
         const normalizedStatus = normalizeErosionStatus(erosion.status);
+        const isHistoricalRecord = isHistoricalErosionRecord(erosion);
         const technical = normalizeErosionTechnicalFields(erosion || {});
         const localContexto = technical.localContexto || {};
         const localLabel = getLocalContextLabel(localContexto.localTipo) || '-';
@@ -43,6 +48,9 @@ function ErosionCardGrid({
                 <Badge tone="neutral" size="sm">{projectId || '-'}</Badge>
                 {String(erosion?.torreRef || '').trim() ? (
                   <Badge tone="neutral" size="sm">{`Torre ${erosion.torreRef}`}</Badge>
+                ) : null}
+                {isHistoricalRecord ? (
+                  <Badge tone="warning" size="sm">Histórico</Badge>
                 ) : null}
                 <Badge tone={getImpactTone(erosion.impacto)} size="sm">
                   {erosion.impacto || 'Não informado'}
@@ -69,6 +77,18 @@ function ErosionCardGrid({
                 <span>Local</span>
                 <strong className="font-medium text-slate-800 text-right">{localLabel}</strong>
               </div>
+              {isHistoricalRecord ? (
+                <div className="flex justify-between items-start gap-4 text-sm text-slate-500">
+                  <span>Registro</span>
+                  <strong className="font-medium text-amber-700 text-right">Histórico de acompanhamento</strong>
+                </div>
+              ) : null}
+              {isHistoricalRecord ? (
+                <div className="flex justify-between items-start gap-4 text-sm text-slate-500">
+                  <span>Intervenção</span>
+                  <strong className="font-medium text-slate-800 text-right">{erosion.intervencaoRealizada || erosion.intervencao || '-'}</strong>
+                </div>
+              ) : null}
               {localContexto.localTipo === 'outros' ? (
                 <div className="flex justify-between items-start gap-4 text-sm text-slate-500">
                   <span>Detalhe local</span>

@@ -38,7 +38,7 @@ function InspectionsView({
   const [confirmDelete, setConfirmDelete] = useState('');
   const [detailsModal, setDetailsModal] = useState(null);
 
-  const actorName = String(user?.displayName || user?.email || user?.uid || '').trim();
+  const actorName = String(user?.nome || user?.displayName || user?.email || user?.uid || '').trim();
 
   const filtered = useMemo(() => {
     const t = String(searchTerm || '').toLowerCase();

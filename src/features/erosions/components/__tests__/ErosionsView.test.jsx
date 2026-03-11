@@ -6,10 +6,13 @@ import ErosionsView from '../ErosionsView';
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const showMock = vi.fn();
+const saveErosionMock = vi.fn();
+const saveErosionManualFollowupEventMock = vi.fn();
 
 vi.mock('../../../../context/AuthContext', () => ({
   useAuth: () => ({
     user: {
+      nome: 'Tester Nome',
       email: 'tester@example.com',
       displayName: 'Tester',
       uid: 'uid-1',
@@ -42,7 +45,8 @@ vi.mock('../../../../services/erosionService', () => ({
     },
     alertas_validacao: [],
   })),
-  saveErosion: vi.fn(),
+  saveErosion: (...args) => saveErosionMock(...args),
+  saveErosionManualFollowupEvent: (...args) => saveErosionManualFollowupEventMock(...args),
 }));
 
 function changeInput(el, value) {
@@ -141,8 +145,8 @@ function renderView(root, props = {}) {
       },
     ],
     projects: [
-      { id: 'P1', nome: 'Projeto 1' },
-      { id: 'P2', nome: 'Projeto 2' },
+      { id: 'P1', nome: 'Projeto 1', torres: '10' },
+      { id: 'P2', nome: 'Projeto 2', torres: '10' },
     ],
     inspections: [{ id: 'VS-1', projetoId: 'P1', dataInicio: '2026-01-10' }],
     rulesConfig: {},
@@ -166,6 +170,8 @@ describe('ErosionsView', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     showMock.mockReset();
+    saveErosionMock.mockReset();
+    saveErosionManualFollowupEventMock.mockReset();
     originalOpen = window.open;
   });
 
@@ -285,6 +291,39 @@ describe('ErosionsView', () => {
     expect(container.querySelector('dialog[open], [role="dialog"]')).toBeTruthy();
     expect(container.textContent).toMatch(/Nova Eros/i);
     expect(container.textContent).toContain('Cadastro');
+  });
+
+  it('bloqueia salvamento e exibe erro inline quando obrigatorios nao foram preenchidos', async () => {
+    renderView(root);
+
+    await clickByText('Nova Erosao', container);
+    await clickByText('Salvar', container);
+
+    expect(showMock).toHaveBeenCalledWith('Selecione o empreendimento.', 'error');
+    expect(container.textContent).toContain('Selecione o empreendimento.');
+  });
+
+  it('salva erosao usando user.nome como updatedBy', async () => {
+    renderView(root);
+
+    await clickByText('Nova Erosao', document.body);
+
+    changeInput(document.body.querySelector('#erosion-projeto'), 'P1');
+    changeInput(document.body.querySelector('#erosion-torre'), '1');
+    changeInput(document.body.querySelector('#erosion-estagio'), 'inicial');
+
+    const localSelect = [...document.querySelectorAll('select')]
+      .find((element) => [...element.options].some((option) => option.value === 'base_torre'));
+    expect(localSelect).toBeTruthy();
+    changeInput(localSelect, 'base_torre');
+
+    await clickByText('Salvar', document.body);
+
+    expect(saveErosionMock).toHaveBeenCalledTimes(1);
+    expect(saveErosionMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ updatedBy: 'Tester Nome' }),
+    );
   });
 
   it('opens Editar modal without crashing for incomplete legacy erosion payload', async () => {
