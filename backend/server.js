@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const admin = require('firebase-admin');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 
 // In future steps, we will configure Firebase Admin properly
 const { initFirebase } = require('./utils/firebaseSetup');
@@ -12,8 +14,27 @@ initFirebase();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-app.use(cors());
-app.use(express.json());
+app.use(helmet());
+
+const isProd = process.env.NODE_ENV === 'production';
+const corsOrigin = process.env.FRONTEND_URL || (isProd ? false : '*');
+
+app.use(cors({
+  origin: corsOrigin,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(express.json({ limit: '10mb' }));
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 300, // Limite de requisições por IP
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Aplicar rate limiter apenas em rotas da API
+app.use('/api', apiLimiter);
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', service: 'geomonitor-api' });
@@ -29,6 +50,15 @@ app.use('/api/erosions', erosionsRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/licenses', licensesRouter);
 app.use('/api/inspections', inspectionsRouter);
+
+// Global Error Handler para não expor erros ao cliente em prod
+app.use((err, req, res, next) => {
+  console.error('[Geomonitor API] Global Error:', err);
+  const message = process.env.NODE_ENV === 'production' 
+    ? 'Ocorreu um erro interno no servidor.' 
+    : err.message;
+  res.status(err.status || 500).json({ status: 'error', message });
+});
 
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, '0.0.0.0', () => {

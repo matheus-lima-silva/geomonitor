@@ -1,5 +1,5 @@
-﻿import { normalizeErosionStatus } from './statusUtils';
-import { normalizeLocationCoordinates } from './erosionCoordinates';
+import { normalizeErosionStatus } from '../../src/features/shared/statusUtils';
+import { normalizeLocationCoordinates } from '../../src/features/shared/erosionCoordinates';
 
 export const LOCAL_CONTEXTO_TIPO_OPTIONS = [
   { value: 'faixa_servidao', label: 'Na faixa de servidao' },

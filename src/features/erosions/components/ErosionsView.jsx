@@ -10,6 +10,11 @@ import {
   saveErosionManualFollowupEvent,
 } from '../../../services/erosionService';
 import {
+  getInspectionDateScore,
+  normalizeErosionInspectionIds,
+  resolvePrimaryInspectionId,
+} from '../../../../shared/erosionHelpers';
+import {
   buildCriticalityInputFromErosion,
   buildErosionReportRows,
   buildErosionsCsv,
@@ -29,14 +34,16 @@ import {
 } from '../../shared/erosionCoordinates';
 import {
   buildBatchErosionFichasPdfDocument,
+  buildReportPdfDocument,
   buildSingleErosionFichaPdfDocument,
+  openPrintableWindow,
 } from '../utils/erosionPdfTemplates';
 import { formatTowerLabel } from '../../projects/utils/kmlUtils';
 import ErosionReportPanel from './ErosionReportPanel';
 import ErosionCardGrid from './ErosionCardGrid';
 import ErosionFormModal from './ErosionFormModal';
 import ErosionDetailsModal from './ErosionDetailsModal';
-import ErosionConfirmDeleteModal from './ErosionConfirmDeleteModal';
+import { ConfirmDeleteModal } from '../../../components/ui';
 
 const BASE_FORM = {
   id: '',
@@ -80,38 +87,6 @@ const BASE_FORM = {
   obs: '',
   acompanhamentosResumo: [],
 };
-
-function getInspectionDateScore(inspection) {
-  const candidates = [inspection?.dataFim, inspection?.dataInicio, inspection?.data];
-  for (let i = 0; i < candidates.length; i += 1) {
-    const date = new Date(candidates[i]);
-    if (!Number.isNaN(date.getTime())) return date.getTime();
-  }
-  return null;
-}
-
-function normalizeErosionInspectionIds(erosion) {
-  const primary = String(erosion?.vistoriaId || '').trim();
-  const list = Array.isArray(erosion?.vistoriaIds) ? erosion.vistoriaIds : [];
-  const pendencies = Array.isArray(erosion?.pendenciasVistoria) ? erosion.pendenciasVistoria : [];
-  const fromPendencies = pendencies.map((item) => String(item?.vistoriaId || '').trim());
-  return [...new Set([primary, ...list.map((item) => String(item || '').trim()), ...fromPendencies].filter(Boolean))];
-}
-
-function resolvePrimaryInspectionId(inspectionIds, inspections) {
-  if (!inspectionIds || inspectionIds.length === 0) return '';
-  const inspectionById = new Map((inspections || []).map((item) => [String(item?.id || '').trim(), item]));
-  return [...inspectionIds].sort((a, b) => {
-    const inspectionA = inspectionById.get(String(a || '').trim());
-    const inspectionB = inspectionById.get(String(b || '').trim());
-    const dateA = getInspectionDateScore(inspectionA);
-    const dateB = getInspectionDateScore(inspectionB);
-    if (dateA !== null && dateB !== null) return dateB - dateA;
-    if (dateA !== null) return -1;
-    if (dateB !== null) return 1;
-    return String(b || '').localeCompare(String(a || ''));
-  })[0];
-}
 
 function sanitizePhotoLinks(input = []) {
   if (!Array.isArray(input)) return [];
@@ -260,117 +235,14 @@ function compareRowsByTowerAndId(a, b) {
 
 function openReportPdfWindow({ projectId, rows, selectedYears }) {
   const summary = buildImpactSummary(rows);
-  const now = new Date();
-  const statusRows = Object.entries(summary.byStatus)
-    .map(([key, value]) => `<li><strong>${key}</strong>: ${value}</li>`)
-    .join('');
-  const impactRows = Object.entries(summary.byImpact)
-    .map(([key, value]) => `<li><strong>${key}</strong>: ${value}</li>`)
-    .join('');
-
-  const sortedRows = [...(rows || [])].sort(compareRowsByTowerAndId);
-  let previousTowerGroup = null;
-  const tableRows = sortedRows.map((row) => {
-    const currentTowerGroup = formatTowerGroupLabel(row?.torreRef);
-    const groupRow = currentTowerGroup !== previousTowerGroup
-      ? `<tr><td colspan="7" style="background:#e2e8f0;font-weight:700;">Grupo da torre: ${currentTowerGroup}</td></tr>`
-      : '';
-    previousTowerGroup = currentTowerGroup;
-
-    return `
-      ${groupRow}
-      <tr>
-        <td>${row.id}</td>
-        <td>${row.vistoriaId || '-'}</td>
-        <td>${row.torreRef || '-'}</td>
-        <td>${row['localContexto.localTipoLabel'] || row['localContexto.localTipo'] || '-'}</td>
-        <td>${row.status || '-'}</td>
-        <td>${row.impacto || '-'}</td>
-        <td>${row.ultimaAtualizacao || '-'}</td>
-      </tr>
-    `;
-  }).join('');
-
-  const documentHtml = `
-    <html>
-      <head>
-        <title>Relatorio de Erosoes - ${projectId}</title>
-        <style>
-          body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; }
-          h1 { margin: 0 0 8px; }
-          .meta { margin-bottom: 16px; color: #334155; }
-          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
-          .box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-          th, td { border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; }
-          th { background: #f1f5f9; }
-        </style>
-      </head>
-      <body>
-        <h1>Relatorio de Processos Erosivos</h1>
-        <div class="meta">
-          <div><strong>Empreendimento:</strong> ${projectId}</div>
-          <div><strong>Ano(s):</strong> ${selectedYears.length > 0 ? selectedYears.join(', ') : 'Todos'}</div>
-          <div><strong>Periodo consolidado:</strong> ${selectedYears.length > 0 ? `${selectedYears[0]}-01-01 ate ${selectedYears[selectedYears.length - 1]}-12-31` : 'Historico completo do empreendimento'}</div>
-          <div><strong>Gerado em:</strong> ${now.toLocaleString('pt-BR')}</div>
-          <div><strong>Total de erosoes:</strong> ${rows.length}</div>
-        </div>
-        <div class="grid">
-          <div class="box">
-            <h3>Totais por status</h3>
-            <ul>${statusRows || '<li>Sem dados</li>'}</ul>
-          </div>
-          <div class="box">
-            <h3>Totais por impacto</h3>
-            <ul>${impactRows || '<li>Sem dados</li>'}</ul>
-          </div>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Vistoria</th>
-              <th>Torre</th>
-              <th>Local</th>
-              <th>Status</th>
-              <th>Impacto</th>
-              <th>Atualizacao</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableRows || '<tr><td colspan="7">Sem dados para o filtro selecionado.</td></tr>'}
-          </tbody>
-        </table>
-      </body>
-    </html>
-  `;
+  const documentHtml = buildReportPdfDocument({
+    projectId,
+    rows,
+    selectedYears,
+    summary,
+  });
 
   openPrintableWindow(documentHtml);
-}
-
-function openPrintableWindow(documentHtml) {
-  const win = window.open('', '_blank', 'width=1120,height=820');
-  if (!win) throw new Error('Permita pop-up para exportar PDF.');
-
-  let printed = false;
-  const printOnce = () => {
-    if (printed) return;
-    printed = true;
-    win.focus();
-    win.print();
-  };
-
-  const doc = win.document;
-  if (typeof doc?.open === 'function') doc.open();
-  if (typeof doc?.write === 'function') doc.write(documentHtml);
-  if (typeof doc?.close === 'function') doc.close();
-
-  win.onload = () => {
-    setTimeout(printOnce, 120);
-  };
-
-  // Fallback para navegadores que nao disparam onload como esperado em about:blank.
-  setTimeout(printOnce, 450);
 }
 
 function openErosionDetailsPdfWindow({
@@ -1122,15 +994,17 @@ function ErosionsView({
         onExportPdf={handleExportDetailsPdf}
       />
 
-      <ErosionConfirmDeleteModal
-        open={!!deleteModal}
-        erosionId={deleteModal?.id}
-        onConfirm={handleConfirmDelete}
-        onCancel={() => setDeleteModal(null)}
-      />
+      {deleteModal && (
+        <ConfirmDeleteModal
+          open={!!deleteModal}
+          itemName="a erosão"
+          itemId={deleteModal?.id}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteModal(null)}
+        />
+      )}
     </section>
   );
 }
 
 export default ErosionsView;
-

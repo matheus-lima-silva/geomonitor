@@ -16,7 +16,7 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// utils/erosionCoordinates.js
+// ../src/features/shared/erosionCoordinates.js
 var erosionCoordinates_exports = {};
 __export(erosionCoordinates_exports, {
   convertUtmToDecimalWgs84: () => convertUtmToDecimalWgs84,

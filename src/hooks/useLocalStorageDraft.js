@@ -1,5 +1,25 @@
 import { useEffect, useState } from 'react';
 
+const DRAFT_KEY_PREFIX = 'geomonitor_draft_';
+
+/**
+ * Remove todos os drafts do localStorage (chamado no logout).
+ */
+export function clearAllDrafts() {
+    try {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(DRAFT_KEY_PREFIX)) {
+                keysToRemove.push(k);
+            }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+    } catch {
+        // Ignored
+    }
+}
+
 /**
  * Persist state locally to avoid losing data when closing the tab/modal accidentally.
  *
@@ -8,9 +28,10 @@ import { useEffect, useState } from 'react';
  * @returns {[any, Function, Function]} [formData, setFormData, clearDraft]
  */
 export function useLocalStorageDraft(key, initialData) {
+    const prefixedKey = `${DRAFT_KEY_PREFIX}${key}`;
     const [data, setData] = useState(() => {
         try {
-            const stored = localStorage.getItem(key);
+            const stored = localStorage.getItem(prefixedKey);
             if (stored) {
                 return JSON.parse(stored);
             }
@@ -22,15 +43,15 @@ export function useLocalStorageDraft(key, initialData) {
 
     useEffect(() => {
         try {
-            localStorage.setItem(key, JSON.stringify(data));
+            localStorage.setItem(prefixedKey, JSON.stringify(data));
         } catch {
             // Ignored
         }
-    }, [key, data]);
+    }, [prefixedKey, data]);
 
     const clearDraft = () => {
         try {
-            localStorage.removeItem(key);
+            localStorage.removeItem(prefixedKey);
         } catch {
             // Ignored
         }

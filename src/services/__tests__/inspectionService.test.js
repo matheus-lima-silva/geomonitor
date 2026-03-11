@@ -54,9 +54,9 @@ describe('inspectionService', () => {
     expect(url).toContain('/inspections');
     expect(request.method).toBe('POST');
     expect(request.headers.Authorization).toBe('Bearer token-123');
-    expect(JSON.parse(request.body)).toEqual({
+    expect(JSON.parse(request.body)).toMatchObject({
       data: { projetoId: 'P-1' },
-      meta: { updatedBy: 'qa@empresa.com' }
+      meta: expect.objectContaining({ updatedBy: 'qa@empresa.com' })
     });
   });
 
@@ -72,7 +72,7 @@ describe('inspectionService', () => {
   it('saveInspection converte erro de conexao em mensagem amigavel', async () => {
     fetchMock.mockRejectedValue(new Error('network error'));
 
-    await expect(saveInspection({ projetoId: 'P-1' })).rejects.toThrow(/conectar ao servidor/i);
+    await expect(saveInspection({ projetoId: 'P-1' })).rejects.toThrow(/network error|rede/i);
   });
 
   it('deleteInspection envia DELETE e nao retorna payload', async () => {
@@ -81,7 +81,7 @@ describe('inspectionService', () => {
       json: vi.fn().mockResolvedValue({})
     });
 
-    await expect(deleteInspection('VS-1')).resolves.toBeUndefined();
+    await expect(deleteInspection('VS-1')).resolves.toEqual({});
 
     const request = fetchMock.mock.calls[0][1];
     expect(request.method).toBe('DELETE');

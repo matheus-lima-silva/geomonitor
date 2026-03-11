@@ -1,4 +1,4 @@
-import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 
@@ -36,23 +36,31 @@ export async function login(email, password) {
 
 export async function register(email, password, nome = '') {
   const result = await createUserWithEmailAndPassword(auth, email, password);
-  await setDoc(
-    doc(db, 'shared', 'geomonitor', 'users', result.user.uid),
-    {
-      id: result.user.uid,
-      nome: nome || '',
-      email,
-      cargo: '',
-      departamento: '',
-      telefone: '',
-      perfil: 'Utilizador',
-      status: 'Pendente',
-      perfilAtualizadoPrimeiroLogin: false,
-      createdAt: new Date().toISOString(),
-    },
-    { merge: true },
-  );
-  return loadProfile(result.user);
+  
+  try {
+    await setDoc(
+      doc(db, 'shared', 'geomonitor', 'users', result.user.uid),
+      {
+        id: result.user.uid,
+        nome: nome || '',
+        email,
+        cargo: '',
+        departamento: '',
+        telefone: '',
+        perfil: 'Utilizador',
+        status: 'Pendente',
+        perfilAtualizadoPrimeiroLogin: false,
+        createdAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+    return loadProfile(result.user);
+  } catch (error) {
+    if (result.user) {
+      await deleteUser(result.user).catch(console.error);
+    }
+    throw new Error('Falha ao criar perfil. A conta foi desfeita. Tente novamente.');
+  }
 }
 
 export function resetPassword(email) {
