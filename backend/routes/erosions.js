@@ -175,11 +175,16 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
 
 router.post('/simulate', verifyToken, requireActiveUser, async (req, res) => {
     try {
-        const { data } = req.body;
+        const { data, meta = {} } = req.body;
 
-        // This simulates the same calculations that happen during POST/PUT
-        // but it doesn't modify the database. It just returns the fields.
-        const scoreFields = calcular_criticidade(data);
+        const technicalValidation = validateErosionTechnicalFields(data);
+        const technical = technicalValidation.ok ? technicalValidation.value : normalizeErosionTechnicalFields(data);
+        const criticalityInput = buildCriticalityInputFromErosion({
+            ...data,
+            tiposFeicao: technical.tiposFeicao,
+        });
+
+        const scoreFields = calculateCriticality(criticalityInput, meta.rulesConfig);
 
         res.status(200).json({
             message: 'Erosion calculation simulated successfully.',

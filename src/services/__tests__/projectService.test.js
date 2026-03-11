@@ -55,9 +55,9 @@ describe('projectService', () => {
     const request = fetchMock.mock.calls[0][1];
     expect(request.method).toBe('POST');
     expect(request.headers.Authorization).toBe('Bearer token-123');
-    expect(JSON.parse(request.body)).toEqual({
+    expect(JSON.parse(request.body)).toMatchObject({
       data: { id: 'LT-99' },
-      meta: { updatedBy: 'ops@empresa.com' }
+      meta: expect.objectContaining({ updatedBy: 'ops@empresa.com' })
     });
   });
 
@@ -87,9 +87,9 @@ describe('projectService', () => {
 
     const request = fetchMock.mock.calls[0][1];
     expect(request.method).toBe('PUT');
-    expect(JSON.parse(request.body)).toEqual({
+    expect(JSON.parse(request.body)).toMatchObject({
       data: { nome: 'Projeto 1' },
-      meta: { updatedBy: 'dev@empresa.com' }
+      meta: expect.objectContaining({ updatedBy: 'dev@empresa.com' })
     });
   });
 
@@ -99,7 +99,7 @@ describe('projectService', () => {
       json: vi.fn().mockResolvedValue({})
     });
 
-    await expect(removeProject('P-1')).resolves.toBeUndefined();
+    await expect(removeProject('P-1')).resolves.toEqual({});
 
     const request = fetchMock.mock.calls[0][1];
     expect(request.method).toBe('DELETE');

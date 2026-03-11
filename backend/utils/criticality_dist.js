@@ -30,7 +30,7 @@ __export(criticalityV2_exports, {
 });
 module.exports = __toCommonJS(criticalityV2_exports);
 
-// utils/erosionCoordinates.js
+// ../src/features/shared/erosionCoordinates.js
 function toTrimmedString(value) {
   return String(value ?? "").trim();
 }

@@ -22,6 +22,30 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+export function openPrintableWindow(documentHtml) {
+  const win = window.open('', '_blank', 'width=1120,height=820');
+  if (!win) throw new Error('Permita pop-up para exportar PDF.');
+
+  let printed = false;
+  const printOnce = () => {
+    if (printed) return;
+    printed = true;
+    win.focus();
+    win.print();
+  };
+
+  const doc = win.document;
+  if (typeof doc?.open === 'function') doc.open();
+  if (typeof doc?.write === 'function') doc.write(documentHtml);
+  if (typeof doc?.close === 'function') doc.close();
+
+  win.onload = () => {
+    setTimeout(printOnce, 120);
+  };
+
+  setTimeout(printOnce, 450);
+}
+
 function listText(values = []) {
   if (!Array.isArray(values) || values.length === 0) return '-';
   return values.join(', ');
@@ -324,4 +348,95 @@ export function buildBatchErosionFichasPdfDocument({
     `Fichas de Erosoes - ${projectId || '-'}`,
     `${cover}${fichas}`,
   );
+}
+
+export function buildReportPdfDocument({
+  projectId,
+  rows,
+  selectedYears,
+  summary,
+}) {
+  const now = new Date();
+  const statusRows = Object.entries(summary.byStatus)
+    .map(([key, value]) => `<li><strong>${key}</strong>: ${value}</li>`)
+    .join('');
+  const impactRows = Object.entries(summary.byImpact)
+    .map(([key, value]) => `<li><strong>${key}</strong>: ${value}</li>`)
+    .join('');
+
+  const sortedRows = [...(rows || [])].sort((a, b) => {
+    const groupA = buildTowerGrouping({ erosion: a });
+    const groupB = buildTowerGrouping({ erosion: b });
+
+    if (groupA.sortBucket !== groupB.sortBucket) return groupA.sortBucket - groupB.sortBucket;
+    if (groupA.sortValue !== groupB.sortValue) return groupA.sortValue - groupB.sortValue;
+    if (groupA.sortText !== groupB.sortText) return groupA.sortText.localeCompare(groupB.sortText, 'pt-BR', { sensitivity: 'base', numeric: true });
+
+    const idA = String(a?.id || '');
+    const idB = String(b?.id || '');
+    return idA.localeCompare(idB, 'pt-BR', { sensitivity: 'base', numeric: true });
+  });
+
+  let previousGroupKey = null;
+  const tableRows = sortedRows.map((row) => {
+    const group = buildTowerGrouping({ erosion: row });
+    const isFirstInGroup = group.key !== previousGroupKey;
+    previousGroupKey = group.key;
+
+    const groupRow = isFirstInGroup
+      ? `<tr><td colspan="7" style="background:#e2e8f0;font-weight:700;">Grupo da torre: ${escapeHtml(group.label)}</td></tr>`
+      : '';
+
+    return `
+      ${groupRow}
+      <tr>
+        <td>${escapeHtml(row.id)}</td>
+        <td>${escapeHtml(row.vistoriaId || '-')}</td>
+        <td>${escapeHtml(row.torreRef || '-')}</td>
+        <td>${escapeHtml(row['localContexto.localTipoLabel'] || row['localContexto.localTipo'] || '-')}</td>
+        <td>${escapeHtml(row.status || '-')}</td>
+        <td>${escapeHtml(row.impacto || '-')}</td>
+        <td>${escapeHtml(row.ultimaAtualizacao || '-')}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const content = `
+    <h1>Relatorio de Processos Erosivos</h1>
+    <div class="ficha-meta-line">
+      <div><strong>Empreendimento:</strong> ${escapeHtml(projectId)}</div>
+      <div><strong>Ano(s):</strong> ${selectedYears.length > 0 ? selectedYears.join(', ') : 'Todos'}</div>
+      <div><strong>Periodo consolidado:</strong> ${selectedYears.length > 0 ? `${selectedYears[0]}-01-01 ate ${selectedYears[selectedYears.length - 1]}-12-31` : 'Historico completo do empreendimento'}</div>
+      <div><strong>Gerado em:</strong> ${now.toLocaleString('pt-BR')}</div>
+      <div><strong>Total de erosoes:</strong> ${rows.length}</div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0;">
+      <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px;">
+        <h3>Totais por status</h3>
+        <ul>${statusRows || '<li>Sem dados</li>'}</ul>
+      </div>
+      <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px;">
+        <h3>Totais por impacto</h3>
+        <ul>${impactRows || '<li>Sem dados</li>'}</ul>
+      </div>
+    </div>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+      <thead>
+        <tr>
+          <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; background: #f1f5f9;">ID</th>
+          <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; background: #f1f5f9;">Vistoria</th>
+          <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; background: #f1f5f9;">Torre</th>
+          <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; background: #f1f5f9;">Local</th>
+          <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; background: #f1f5f9;">Status</th>
+          <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; background: #f1f5f9;">Impacto</th>
+          <th style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left; background: #f1f5f9;">Atualizacao</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${tableRows || '<tr><td colspan="7" style="border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; text-align: left;">Sem dados para o filtro selecionado.</td></tr>'}
+      </tbody>
+    </table>
+  `;
+
+  return buildDocument(`Relatorio de Erosoes - ${projectId}`, content);
 }
