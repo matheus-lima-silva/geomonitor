@@ -175,16 +175,11 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
 
 router.post('/simulate', verifyToken, requireActiveUser, async (req, res) => {
     try {
-        const { data, meta = {} } = req.body;
+        const { data } = req.body;
 
-        const technicalValidation = validateErosionTechnicalFields(data);
-        const technical = technicalValidation.ok ? technicalValidation.value : normalizeErosionTechnicalFields(data);
-        const criticalityInput = buildCriticalityInputFromErosion({
-            ...data,
-            tiposFeicao: technical.tiposFeicao,
-        });
-
-        const scoreFields = calculateCriticality(criticalityInput, meta.rulesConfig);
+        // This simulates the same calculations that happen during POST/PUT
+        // but it doesn't modify the database. It just returns the fields.
+        const scoreFields = calcular_criticidade(data);
 
         res.status(200).json({
             message: 'Erosion calculation simulated successfully.',
@@ -192,10 +187,7 @@ router.post('/simulate', verifyToken, requireActiveUser, async (req, res) => {
         });
     } catch (error) {
         console.error('Error during erosion simulation:', error);
-        const safeMessage = process.env.NODE_ENV === 'production'
-            ? 'Erro interno ao executar simulação.'
-            : 'Error running simulation: ' + error.message;
-        res.status(500).json({ message: safeMessage });
+        res.status(500).json({ message: 'Error running simulation: ' + error.message });
     }
 });
 

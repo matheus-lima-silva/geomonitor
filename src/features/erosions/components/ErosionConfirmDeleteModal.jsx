@@ -1,11 +1,9 @@
-import AppIcon from '../AppIcon';
-import Modal from './Modal';
-import Button from './Button';
+import AppIcon from '../../../components/AppIcon';
+import { Button, Modal } from '../../../components/ui';
 
-function ConfirmDeleteModal({
+function ErosionConfirmDeleteModal({
   open,
-  itemName = 'o item',
-  itemId,
+  erosionId,
   onConfirm,
   onCancel,
 }) {
@@ -14,10 +12,12 @@ function ConfirmDeleteModal({
   const footer = (
     <>
       <Button variant="outline" size="md" onClick={onCancel}>
-        <AppIcon name="close" /> Cancelar
+        <AppIcon name="close" />
+        Cancelar
       </Button>
       <Button variant="danger" size="md" onClick={onConfirm}>
-        <AppIcon name="trash" /> Excluir
+        <AppIcon name="trash" />
+        Excluir
       </Button>
     </>
   );
@@ -35,10 +35,10 @@ function ConfirmDeleteModal({
       footer={footer}
     >
       <p style={{ margin: 0 }}>
-        Tem certeza que deseja excluir {itemName} <strong>{itemId}</strong>?
+        Tem certeza que deseja excluir a erosão <strong>{erosionId}</strong>?
       </p>
     </Modal>
   );
 }
 
-export default ConfirmDeleteModal;
+export default ErosionConfirmDeleteModal;

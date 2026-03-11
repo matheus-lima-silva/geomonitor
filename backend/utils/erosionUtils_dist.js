@@ -48,7 +48,7 @@ __export(erosionUtils_exports, {
 });
 module.exports = __toCommonJS(erosionUtils_exports);
 
-// ../src/features/shared/statusUtils.js
+// utils/statusUtils.js
 function normalizeErosionStatus(value) {
   const normalized = String(value || "").trim().toLowerCase();
   if (["monitorado", "monitoramento", "monitoring"].includes(normalized)) return "Monitoramento";
@@ -57,7 +57,7 @@ function normalizeErosionStatus(value) {
   return "Ativo";
 }
 
-// ../src/features/shared/erosionCoordinates.js
+// utils/erosionCoordinates.js
 function toTrimmedString(value) {
   return String(value ?? "").trim();
 }

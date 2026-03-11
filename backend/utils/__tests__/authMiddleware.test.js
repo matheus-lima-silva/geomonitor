@@ -109,18 +109,14 @@ describe('Auth Middleware', () => {
                 req.userProfile = undefined;
                 next.mockClear();
                 getDb.mockReturnValue(createMockDb({ status: 'Ativo', perfil: role }));
-                await requireEditor[0](req, res, async () => {
-                    await requireEditor[1](req, res, next);
-                });
+                await requireEditor(req, res, next);
                 expect(next).toHaveBeenCalled();
             }
         });
 
         it('requireEditor should return 403 for Utilizador', async () => {
             getDb.mockReturnValue(createMockDb({ status: 'Ativo', perfil: 'Utilizador' }));
-            await requireEditor[0](req, res, async () => {
-                await requireEditor[1](req, res, next);
-            });
+            await requireEditor(req, res, next);
             expect(res.status).toHaveBeenCalledWith(403);
             expect(next).not.toHaveBeenCalled();
         });
@@ -131,18 +127,14 @@ describe('Auth Middleware', () => {
                 req.userProfile = undefined;
                 next.mockClear();
                 getDb.mockReturnValue(createMockDb({ status: 'Ativo', perfil: role }));
-                await requireAdmin[0](req, res, async () => {
-                    await requireAdmin[1](req, res, next);
-                });
+                await requireAdmin(req, res, next);
                 expect(next).toHaveBeenCalled();
             }
         });
 
         it('requireAdmin should return 403 for Editor', async () => {
             getDb.mockReturnValue(createMockDb({ status: 'Ativo', perfil: 'Editor' }));
-            await requireAdmin[0](req, res, async () => {
-                await requireAdmin[1](req, res, next);
-            });
+            await requireAdmin(req, res, next);
             expect(res.status).toHaveBeenCalledWith(403);
             expect(next).not.toHaveBeenCalled();
         });

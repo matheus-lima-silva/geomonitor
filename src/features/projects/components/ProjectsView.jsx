@@ -9,7 +9,7 @@ import { downloadProjectKml } from '../utils/projectKmlExport';
 import ProjectFormModal from './ProjectFormModal';
 import KmlReviewModal from './KmlReviewModal';
 import RoutePlannerModal from './RoutePlannerModal';
-import { ConfirmDeleteModal } from '../../../components/ui';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 function ProjectsView({ projects, inspections, userEmail, showToast, reloadProjects, onOpenProjectInspections, searchTerm }) {
   const mergeInputRef = useRef(null);
@@ -249,9 +249,7 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
       />
 
       <ConfirmDeleteModal
-        open={!!state.confirmDelete}
-        itemName="o empreendimento"
-        itemId={state.confirmDelete}
+        projectId={state.confirmDelete}
         onCancel={() => state.setConfirmDelete(null)}
         onConfirm={() => safeRun(() => state.handleDelete(state.confirmDelete))}
       />

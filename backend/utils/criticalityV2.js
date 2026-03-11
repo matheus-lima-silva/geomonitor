@@ -1,4 +1,4 @@
-import { normalizeLocationCoordinates } from '../../src/features/shared/erosionCoordinates';
+﻿import { normalizeLocationCoordinates } from './erosionCoordinates';
 
 const TYPE_POINTS = {
   laminar: { classe: 'T1', pontos: 0 },

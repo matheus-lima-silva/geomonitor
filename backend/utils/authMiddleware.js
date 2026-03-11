@@ -13,10 +13,6 @@ async function verifyToken(req, res, next) {
 
     const token = authHeader.split('Bearer ')[1];
 
-    if (!token) {
-        return res.status(401).json({ status: 'error', message: 'Acesso negado. Token malformado.' });
-    }
-
     try {
         const auth = getAuth();
         const decodedToken = await auth.verifyIdToken(token);
@@ -65,15 +61,20 @@ async function requireActiveUser(req, res, next) {
  * Cria middleware de validação de papéis baseado nos perfis permitidos.
  */
 function requireRoles(allowedRoles) {
-    return [
-        requireActiveUser,
-        (req, res, next) => {
+    return async (req, res, next) => {
+        // Assegura que o perfil está carregado e ativo
+        await requireActiveUser(req, res, (err) => {
+            if (err) return next(err); // Se requireActiveUser falhou e chamou next com erro, repassa // wait, requireActiveUser directly sends response if failed. 
+            // Actually requireActiveUser already sends response. But we have a callback `next` which is called if successful.
+
+            // Check roles
             if (!req.userProfile || !allowedRoles.includes(req.userProfile.perfil)) {
                 return res.status(403).json({ status: 'error', message: 'Acesso negado. Nível de permissão insuficiente.' });
             }
+
             next();
-        }
-    ];
+        });
+    };
 }
 
 const requireEditor = requireRoles(['Admin', 'Administrador', 'Editor', 'Gerente']);

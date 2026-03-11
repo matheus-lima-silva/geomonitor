@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase/config';
 import { loadProfile, login as doLogin, logout as doLogout, register as doRegister, resetPassword as doResetPassword } from '../services/authService';
-import { clearAllDrafts } from '../hooks/useLocalStorageDraft';
 
 const AuthContext = createContext(null);
 
@@ -67,7 +66,6 @@ export function AuthProvider({ children }) {
       },
       async logout() {
         await doLogout();
-        clearAllDrafts();
         setUser(null);
       },
     }),

@@ -16,7 +16,7 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// ../src/features/shared/statusUtils.js
+// utils/statusUtils.js
 var statusUtils_exports = {};
 __export(statusUtils_exports, {
   erosionStatusClass: () => erosionStatusClass,
