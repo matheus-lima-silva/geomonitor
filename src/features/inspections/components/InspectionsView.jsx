@@ -232,7 +232,7 @@ function InspectionsView({
 
       {detailsModal ? (
         <InspectionDetailsModal
-          inspection={detailsModal}
+          inspection={inspections.find((i) => i?.id === detailsModal?.id) || detailsModal}
           project={projects.find((project) => project.id === detailsModal.projetoId)}
           erosions={erosions}
           inspections={filtered}

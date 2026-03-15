@@ -1661,7 +1661,7 @@ function InspectionFormWizardModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Select
                   id="inspection-erosion-stage"
-                  label={inlineIsHistoricalRecord ? 'Estágio (grau erosivo)' : 'Estágio (grau erosivo) *'}
+                  label={inlineIsHistoricalRecord ? 'Grau erosivo' : 'Grau erosivo *'}
                   value={erosionForm.estagio || ''}
                   onChange={(e) => setErosionForm((prev) => ({ ...prev, estagio: e.target.value }))}
                   error={inlineValidationErrors.estagio}

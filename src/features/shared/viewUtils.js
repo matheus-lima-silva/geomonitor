@@ -20,6 +20,18 @@ function normalizeText(value) {
     return String(value || '').trim();
 }
 
+const EROSION_TIPO_FEICAO_CANONICAL_MAP = {
+    escorregamento: 'movimento_massa',
+    deslizamento: 'movimento_massa',
+    fluxo_lama: 'movimento_massa',
+};
+
+function normalizeFeicaoTipoValue(value) {
+    const normalized = normalizeText(value).toLowerCase();
+    if (!normalized) return '';
+    return EROSION_TIPO_FEICAO_CANONICAL_MAP[normalized] || normalized;
+}
+
 const EROSION_LOCATION_ALIASES = {
     'na faixa de servidao': 'faixa_servidao',
     'na faixa de servidão': 'faixa_servidao',
@@ -47,7 +59,7 @@ export function getLocalContextLabel(localTipo) {
 
 export const EROSION_TECHNICAL_ENUMS = {
     presencaAguaFundo: ['sim', 'nao', 'nao_verificado'],
-    tiposFeicao: ['laminar', 'sulco', 'movimento_massa', 'escorregamento', 'ravina', 'vocoroca', 'deslizamento', 'fluxo_lama'],
+    tiposFeicao: ['laminar', 'sulco', 'movimento_massa', 'ravina', 'vocoroca'],
     caracteristicasFeicao: ['contato_materiais', 'alteracao_morfologia'],
     usosSolo: ['pastagem', 'cultivo', 'campo', 'veg_arborea', 'curso_agua', 'cerca', 'acesso', 'tubulacao', 'outro'],
     saturacaoPorAgua: ['sim', 'nao'],
@@ -66,11 +78,8 @@ export const EROSION_TECHNICAL_OPTIONS = {
         { value: 'laminar', label: 'Laminar' },
         { value: 'sulco', label: 'Sulco' },
         { value: 'movimento_massa', label: 'Movimento de massa' },
-        { value: 'escorregamento', label: 'Escorregamento' },
         { value: 'ravina', label: 'Ravina' },
         { value: 'vocoroca', label: 'Vocoroca' },
-        { value: 'deslizamento', label: 'Deslizamento' },
-        { value: 'fluxo_lama', label: 'Fluxo de lama' },
     ],
     caracteristicasFeicao: [
         { value: 'contato_materiais', label: 'Contato entre materiais' },
@@ -120,7 +129,12 @@ function normalizeEnumValue(value, allowedValues = []) {
 export function normalizeEnumArray(values, allowedValues = []) {
     if (!Array.isArray(values)) return [];
     const normalized = values
-        .map((item) => normalizeEnumValue(item, allowedValues))
+        .map((item) => {
+            if (allowedValues === EROSION_TECHNICAL_ENUMS.tiposFeicao) {
+                return normalizeEnumValue(normalizeFeicaoTipoValue(item), allowedValues);
+            }
+            return normalizeEnumValue(item, allowedValues);
+        })
         .filter(Boolean);
     return [...new Set(normalized)];
 }
@@ -148,14 +162,10 @@ const LOCAL_CONTEXTO_DEFAULT = {
 
 function inferLegacyExposicao(source = {}, localTipo) {
     const explicit = normalizeEnumValue(
-        source.localizacaoExposicao || source.localizacao_exposicao,
+        source.localizacaoExposicao,
         EROSION_TECHNICAL_ENUMS.localizacaoExposicao,
     );
     if (explicit) return explicit;
-
-    const oldFaixaServidao = normalizeText(source.faixaServidao).toLowerCase();
-    if (oldFaixaServidao === 'sim') return 'faixa_servidao';
-    if (oldFaixaServidao === 'nao') return 'area_terceiros';
 
     if (localTipo === 'fora_faixa_servidao') return 'area_terceiros';
     if (localTipo) return 'faixa_servidao';
@@ -164,7 +174,7 @@ function inferLegacyExposicao(source = {}, localTipo) {
 
 function inferLegacyEstrutura(source = {}, localTipo) {
     const explicit = normalizeEnumValue(
-        source.estruturaProxima || source.estrutura_proxima,
+        source.estruturaProxima,
         EROSION_TECHNICAL_ENUMS.estruturaProxima,
     );
     if (explicit) return explicit;
@@ -330,21 +340,17 @@ export function deriveCriticalityDimensionClasses(data = {}) {
 
 
 export function deriveErosionTypeFromTechnicalFields(data = {}) {
-    const explicit = normalizeText(data?.tipo).toLowerCase();
-    if (explicit) return explicit;
+    const explicit = normalizeFeicaoTipoValue(data?.tipo);
+    if (explicit && EROSION_TECHNICAL_ENUMS.tiposFeicao.includes(explicit)) return explicit;
 
     const technicalTypes = Array.isArray(data?.tiposFeicao)
-        ? data.tiposFeicao.map((item) => normalizeText(item).toLowerCase()).filter(Boolean)
+        ? data.tiposFeicao.map((item) => normalizeFeicaoTipoValue(item)).filter(Boolean)
         : [];
     if (technicalTypes.length === 0) return '';
 
-    const directMap = ['sulco', 'ravina', 'vocoroca', 'deslizamento'];
+    const directMap = ['vocoroca', 'ravina', 'movimento_massa', 'sulco'];
     const direct = technicalTypes.find((item) => directMap.includes(item));
     if (direct) return direct;
-
-    if (technicalTypes.includes('escorregamento') || technicalTypes.includes('movimento_massa') || technicalTypes.includes('fluxo_lama')) {
-        return 'deslizamento';
-    }
 
     if (technicalTypes.includes('laminar')) return 'sulco';
 
@@ -379,9 +385,7 @@ function hasValue(value) {
 export function isHistoricalErosionRecord(data = {}) {
     const raw = data && typeof data === 'object' ? data : {};
     if (normalizeErosionStatus(raw.status) === 'Estabilizado') return true;
-    if (raw.registroHistorico === true) return true;
-    const normalized = normalizeText(raw.registroHistorico || raw.registro_historico).toLowerCase();
-    return ['sim', 'true', '1', 'historico', 'histórico'].includes(normalized);
+    return raw.registroHistorico === true;
 }
 
 function buildLocationFieldErrors(localContexto = {}) {
@@ -453,7 +457,7 @@ export function validateErosionRequiredFields(data = {}) {
     }
 
     if (!normalizeText(raw.estagio)) {
-        fieldErrors.estagio = 'Selecione o estagio da erosao.';
+        fieldErrors.estagio = 'Selecione o grau erosivo da erosao.';
     }
 
     Object.assign(fieldErrors, buildLocationFieldErrors(normalizeLocalContexto(raw)));
@@ -650,10 +654,10 @@ export function buildErosionReportRows(erosions) {
             tipo: deriveErosionTypeFromTechnicalFields(item),
             estagio: item.estagio || '',
             status: normalizeErosionStatus(item.status),
-            impacto: item.impacto || '',
-            score: item.score ?? '',
-            frequencia: item.frequencia || '',
-            intervencao: item.intervencao || '',
+            impacto: item?.criticalidadeV2?.legacy?.impacto || item.impacto || '',
+            score: item?.criticalidadeV2?.criticidade_score ?? item.score ?? '',
+            frequencia: item?.criticalidadeV2?.legacy?.frequencia || item.frequencia || '',
+            intervencao: item?.criticalidadeV2?.legacy?.intervencao || item.intervencao || '',
             latitude: locationCoordinates.latitude || '',
             longitude: locationCoordinates.longitude || '',
             utmEasting: locationCoordinates.utmEasting || '',
@@ -732,7 +736,7 @@ export function buildImpactSummary(rows) {
 export function buildCriticalityInputFromErosion(data = {}) {
     const technical = normalizeErosionTechnicalFields(data);
     const derivedType = deriveErosionTypeFromTechnicalFields({ ...data, tiposFeicao: technical.tiposFeicao });
-    const tipoErosao = derivedType === 'deslizamento' ? 'movimento_massa' : derivedType;
+    const tipoErosao = derivedType;
     const localContexto = technical.localContexto || LOCAL_CONTEXTO_DEFAULT;
 
     return {

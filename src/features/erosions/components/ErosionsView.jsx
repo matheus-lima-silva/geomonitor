@@ -40,6 +40,7 @@ import {
   openPrintableWindow,
 } from '../utils/erosionPdfTemplates';
 import { formatTowerLabel } from '../../projects/utils/kmlUtils';
+import { calculateCriticality } from '../../../../backend/utils/criticalityV2';
 import ErosionReportPanel from './ErosionReportPanel';
 import ErosionCardGrid from './ErosionCardGrid';
 import ErosionFormModal from './ErosionFormModal';

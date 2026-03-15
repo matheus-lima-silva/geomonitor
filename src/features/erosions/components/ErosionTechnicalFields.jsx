@@ -21,7 +21,6 @@ const RANGE_TO_VALUE = {
     D1: 5,
     D2: 17.5,
     D3: 35,
-    D4: 50,
   },
   exposicao: {
     E1: 60,
@@ -107,8 +106,7 @@ function ErosionTechnicalFields({
     if (!Number.isFinite(value)) return '';
     if (value < 10) return 'D1';
     if (value <= 25) return 'D2';
-    if (value <= 45) return 'D3';
-    return 'D4';
+    return 'D3';
   }
 
   function deriveExposureRange(value) {
@@ -253,8 +251,7 @@ function ErosionTechnicalFields({
             <option value="">Não informado</option>
             <option value="D1">&lt; 10 graus</option>
             <option value="D2">10 a 25 graus</option>
-            <option value="D3">25 a 45 graus</option>
-            <option value="D4">&gt; 45 graus</option>
+            <option value="D3">&gt; 25 graus</option>
           </select>
         </label>
         <label className="flex flex-col gap-1.5">

@@ -190,12 +190,12 @@ function renderFicha({
       <h2>Classificacao e caracterizacao consolidada</h2>
       <div class="ficha-grid-two">
         <div><strong>Tipo (derivado):</strong> ${escapeHtml(derivedTipo || '-')}</div>
-        <div><strong>Estagio:</strong> ${escapeHtml(erosion?.estagio || '-')}</div>
+        <div><strong>Grau erosivo:</strong> ${escapeHtml(erosion?.estagio || '-')}</div>
         <div><strong>Local:</strong> ${escapeHtml(localTipoLabel)}</div>
         ${String(localContexto.localTipo || '') === 'outros' ? `<div><strong>Detalhe local:</strong> ${escapeHtml(localContexto.localDescricao || '-')}</div>` : '<div><strong>Detalhe local:</strong> -</div>'}
-        <div><strong>Profundidade:</strong> ${escapeHtml(erosion?.profundidade || '-')}</div>
-        <div><strong>Classe de declividade (graus):</strong> ${escapeHtml(technical.declividadeClasse || erosion?.declividade || erosion?.declividadeClassePdf || '-')}</div>
-        <div><strong>Classe de largura maxima (m):</strong> ${escapeHtml(technical.larguraMaximaClasse || erosion?.largura || '-')}</div>
+        <div><strong>Profundidade (m):</strong> ${escapeHtml(Number.isFinite(technical.profundidadeMetros) ? String(technical.profundidadeMetros) : (erosion?.profundidade || '-'))}</div>
+        <div><strong>Declividade (graus):</strong> ${escapeHtml(Number.isFinite(technical.declividadeGraus) ? `${technical.declividadeGraus}${criticalidadeV2?.declividade_classe ? ` (${criticalidadeV2.declividade_classe})` : ''}` : (erosion?.declividadeClassePdf || '-'))}</div>
+        <div><strong>Distancia estrutura (m):</strong> ${escapeHtml(Number.isFinite(technical.distanciaEstruturaMetros) ? `${technical.distanciaEstruturaMetros}${criticalidadeV2?.exposicao_classe ? ` (${criticalidadeV2.exposicao_classe})` : ''}` : '-')}</div>
         <div><strong>Presenca de agua no fundo:</strong> ${escapeHtml(technical.presencaAguaFundo || '-')}</div>
         <div><strong>Saturacao por agua:</strong> ${escapeHtml(saturacaoPorAgua || '-')}</div>
         <div class="ficha-full"><strong>Tipos de feicao:</strong> ${escapeHtml(listText(technical.tiposFeicao))}</div>

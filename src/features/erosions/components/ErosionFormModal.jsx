@@ -296,7 +296,7 @@ function ErosionFormModal({
       </section>
 
       <section className="flex flex-col gap-4 mb-8">
-        <h4 className="text-lg font-semibold text-slate-800 m-0">Classificação e caracterização da erosão</h4>
+        <h4 className="text-lg font-semibold text-slate-800 m-0">Grau erosivo e caracterização técnica</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {towerOptions.length > 0 ? (
             <Select
@@ -324,7 +324,7 @@ function ErosionFormModal({
           )}
           <Select
             id="erosion-estagio"
-            label={isHistoricalRecord ? 'Estágio (grau erosivo)' : 'Estágio (grau erosivo) *'}
+            label={isHistoricalRecord ? 'Grau erosivo' : 'Grau erosivo *'}
             value={safeFormData.estagio || ''}
             onChange={(e) => updateField('estagio', e.target.value)}
             error={validationErrors.estagio}

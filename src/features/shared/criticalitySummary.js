@@ -75,9 +75,9 @@ export function buildCriticalitySummaryFromErosion(erosion = {}) {
       : source.criticalidadeV2)
     : null;
   return buildCriticalitySummary({
-    impacto: source.impacto,
-    score: source.score,
-    frequencia: source.frequencia,
+    impacto: persistedCriticality?.legacy?.impacto || source.impacto,
+    score: persistedCriticality?.criticidade_score ?? source.score,
+    frequencia: persistedCriticality?.legacy?.frequencia || source.frequencia,
     breakdown: persistedCriticality,
     alertsFallback: source.alertsAtivos,
   });

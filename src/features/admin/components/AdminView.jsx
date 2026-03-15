@@ -139,7 +139,7 @@ function AdminView({
 
 
   const criterios = {
-    tipo: ['sulco', 'ravina', 'vocoroca', 'deslizamento'],
+    tipo: ['sulco', 'ravina', 'vocoroca', 'movimento_massa'],
     estagio: ['inicial', 'intermediario', 'avancado', 'critico'],
     profundidade: ['<0.5', '0.5-1.5', '1.5-3.0', '>3.0'],
     declividade: ['<15', '15-30', '30-45', '>45'],

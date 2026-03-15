@@ -176,7 +176,7 @@ function ErosionDetailsModal({
               </div>
             ) : null}
             <div><strong className="text-slate-900">Tipo (derivado):</strong> {derivedTipo || '-'}</div>
-            <div><strong className="text-slate-900">Estagio:</strong> {erosion.estagio || '-'}</div>
+            <div><strong className="text-slate-900">Grau erosivo:</strong> {erosion.estagio || '-'}</div>
             <div><strong className="text-slate-900">Local:</strong> {localTipoLabel}</div>
             {localContexto.localTipo === 'outros' ? (
               <div className="col-span-full"><strong className="text-slate-900">Detalhe local:</strong> {localContexto.localDescricao || '-'}</div>

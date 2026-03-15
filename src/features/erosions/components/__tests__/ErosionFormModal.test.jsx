@@ -85,7 +85,7 @@ describe('ErosionFormModal', () => {
   it('renderiza secoes tecnicas e bloco de criticidade sem campos legados', () => {
     renderModal(root);
 
-    expect(container.textContent).toContain('Classificação e caracterização da erosão');
+    expect(container.textContent).toContain('Grau erosivo e caracterização técnica');
     expect(container.textContent).toContain('Resumo de criticidade calculada');
     expect(container.textContent).toContain('Usos do solo');
     expect(container.textContent).not.toContain('Uso do solo (legado)');

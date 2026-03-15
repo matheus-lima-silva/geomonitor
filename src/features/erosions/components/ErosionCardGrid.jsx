@@ -70,7 +70,7 @@ function ErosionCardGrid({
                 <strong className="font-medium text-slate-800 text-right">{erosion.tipo || '-'}</strong>
               </div>
               <div className="flex justify-between items-start gap-4 text-sm text-slate-500">
-                <span>Estágio</span>
+                <span>Grau erosivo</span>
                 <strong className="font-medium text-slate-800 text-right">{erosion.estagio || '-'}</strong>
               </div>
               <div className="flex justify-between items-start gap-4 text-sm text-slate-500">

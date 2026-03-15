@@ -110,7 +110,7 @@ export const RULES_DATABASE = {
   'tipo|sulco': { impacto: 'Baixo', score: 1, frequencia: '24 meses', intervencao: 'Monitoramento visual' },
   'tipo|ravina': { impacto: 'Medio', score: 2, frequencia: '12 meses', intervencao: 'Reconformacao + revegetacao' },
   'tipo|vocoroca': { impacto: 'Alto', score: 3, frequencia: '6 meses', intervencao: 'Obra de contencao' },
-  'tipo|deslizamento': { impacto: 'Muito Alto', score: 4, frequencia: '3 meses', intervencao: 'Obra emergencial' },
+  'tipo|movimento_massa': { impacto: 'Muito Alto', score: 4, frequencia: '3 meses', intervencao: 'Obra emergencial' },
   'estagio|inicial': { impacto: 'Baixo', score: 1, frequencia: '24 meses', intervencao: 'Monitoramento preventivo' },
   'estagio|intermediario': { impacto: 'Medio', score: 2, frequencia: '12 meses', intervencao: 'Intervencao moderada' },
   'estagio|avancado': { impacto: 'Alto', score: 3, frequencia: '6 meses', intervencao: 'Obra corretiva' },
