@@ -21,12 +21,33 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
+    let isFirstEvent = true;
+    let signOutDebounceId = null;
+
     const unsub = onAuthStateChanged(auth, async (authUser) => {
+      if (signOutDebounceId) {
+        clearTimeout(signOutDebounceId);
+        signOutDebounceId = null;
+      }
+
       if (!authUser) {
-        setUser(null);
-        setLoading(false);
+        if (isFirstEvent) {
+          // Primeira checagem: usuário ainda não autenticado — mostra login imediatamente
+          setUser(null);
+          setLoading(false);
+        } else {
+          // Desconexão transitória: espera 3s antes de limpar a sessão
+          signOutDebounceId = setTimeout(() => {
+            signOutDebounceId = null;
+            setUser(null);
+            setLoading(false);
+          }, 3000);
+        }
+        isFirstEvent = false;
         return;
       }
+
+      isFirstEvent = false;
 
       try {
         const profile = await loadProfile(authUser);
@@ -46,7 +67,10 @@ export function AuthProvider({ children }) {
       }
     });
 
-    return () => unsub();
+    return () => {
+      unsub();
+      if (signOutDebounceId) clearTimeout(signOutDebounceId);
+    };
   }, []);
 
   const value = useMemo(

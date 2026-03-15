@@ -50,8 +50,10 @@ export function createCrudService({
   const getToken = getAuthToken;
 
   async function fetchWithToken(url, options) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(url, options);
+      const response = await fetch(url, { ...options, signal: controller.signal });
       if (!response.ok) {
         let message = `Erro na operação (${itemName}).`;
         try {
@@ -62,6 +64,9 @@ export function createCrudService({
       }
       return response.json();
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw new Error('Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.');
+      }
       if (isNetworkFailureError(error) && fallbackBaseUrl && typeof url === 'string' && url.startsWith(baseUrl)) {
         const retryUrl = `${fallbackBaseUrl}${url.slice(baseUrl.length)}`;
         try {
@@ -87,6 +92,8 @@ export function createCrudService({
         error,
         'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
       );
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -116,6 +123,7 @@ export function createCrudService({
     let disposed = false;
     let intervalId = null;
     let inFlight = false;
+    let retryTimeoutId = null;
 
     const run = async () => {
       if (disposed || inFlight) return;
@@ -129,6 +137,7 @@ export function createCrudService({
       } catch (error) {
         if (!disposed) {
           onError?.(error);
+          retryTimeoutId = setTimeout(() => { retryTimeoutId = null; run(); }, 5000);
         }
       } finally {
         inFlight = false;
@@ -145,6 +154,9 @@ export function createCrudService({
       disposed = true;
       if (intervalId) {
         window.clearInterval(intervalId);
+      }
+      if (retryTimeoutId) {
+        clearTimeout(retryTimeoutId);
       }
     };
   }
@@ -217,8 +229,10 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
     : `${FALLBACK_PROD_API_BASE_URL}/${resourcePath}`;
 
   async function fetchWithToken(url, options) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(url, options);
+      const response = await fetch(url, { ...options, signal: controller.signal });
       if (!response.ok) {
         let message = `Erro na operação (${itemName}).`;
         try {
@@ -229,6 +243,9 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
       }
       return response.json();
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw new Error('Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.');
+      }
       if (isNetworkFailureError(error) && fallbackBaseUrl && typeof url === 'string' && url.startsWith(baseUrl)) {
         const retryUrl = `${fallbackBaseUrl}${url.slice(baseUrl.length)}`;
         try {
@@ -254,6 +271,8 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
         error,
         'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
       );
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -289,6 +308,7 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
     let disposed = false;
     let intervalId = null;
     let inFlight = false;
+    let retryTimeoutId = null;
 
     const run = async () => {
       if (disposed || inFlight) return;
@@ -302,6 +322,7 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
       } catch (error) {
         if (!disposed) {
           onError?.(error);
+          retryTimeoutId = setTimeout(() => { retryTimeoutId = null; run(); }, 5000);
         }
       } finally {
         inFlight = false;
@@ -318,6 +339,9 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
       disposed = true;
       if (intervalId) {
         window.clearInterval(intervalId);
+      }
+      if (retryTimeoutId) {
+        clearTimeout(retryTimeoutId);
       }
     };
   }
