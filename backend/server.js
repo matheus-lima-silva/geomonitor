@@ -28,7 +28,10 @@ const trustProxyValue = trustProxyRaw === 'true'
 
 app.set('trust proxy', trustProxyValue);
 
-const corsOrigin = process.env.FRONTEND_URL || (isProd ? false : '*');
+const corsOriginEnv = process.env.FRONTEND_URL;
+const corsOrigin = corsOriginEnv
+  ? corsOriginEnv.split(',').map(o => o.trim()).filter(Boolean)
+  : (isProd ? false : '*');
 
 app.use(cors({
   origin: corsOrigin,
