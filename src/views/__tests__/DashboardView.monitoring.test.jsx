@@ -21,9 +21,19 @@ vi.mock('recharts', () => ({
 
 vi.mock('react-leaflet', () => ({
   MapContainer: ({ children }) => <div>{children}</div>,
+  LayersControl: Object.assign(
+    ({ children }) => <div>{children}</div>,
+    {
+      BaseLayer: ({ children, name }) => <div data-layer-name={name}>{children}</div>,
+    },
+  ),
   TileLayer: () => null,
   CircleMarker: ({ children }) => <div>{children}</div>,
   Popup: ({ children }) => <div>{children}</div>,
+  useMap: () => ({
+    fitBounds: vi.fn(),
+    setView: vi.fn(),
+  }),
 }));
 
 vi.mock('../../context/AuthContext', () => ({
@@ -271,5 +281,15 @@ describe('DashboardView monitoring top notice', () => {
     const collapsedButton = container.querySelector('button[aria-controls^="monitor-month-details"]');
     expect(collapsedButton.getAttribute('aria-expanded')).toBe('false');
     expect(container.querySelector('div[id^="monitor-month-details"]')).toBeNull();
+  });
+
+  it('shows default and relief base layers in the dashboard map', async () => {
+    await act(async () => {
+      root.render(<DashboardView />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-layer-name="Mapa padrão"]')).toBeTruthy();
+    expect(container.querySelector('[data-layer-name="Relevo"]')).toBeTruthy();
   });
 });

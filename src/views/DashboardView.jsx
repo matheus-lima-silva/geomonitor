@@ -9,7 +9,14 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet';
+import {
+  CircleMarker,
+  LayersControl,
+  MapContainer,
+  Popup,
+  TileLayer,
+  useMap,
+} from 'react-leaflet';
 import AppIcon from '../components/AppIcon';
 import { Badge, Card } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
@@ -69,6 +76,33 @@ function getImpactTone(impact) {
   if (impact === 'Alto') return 'danger';
   if (impact === 'Medio' || impact === 'Médio') return 'warning';
   return 'ok';
+}
+
+function DashboardHeatMapViewport({ heatPoints }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+    if (!Array.isArray(heatPoints) || heatPoints.length === 0) return;
+
+    if (heatPoints.length === 1) {
+      map.setView([heatPoints[0].latitude, heatPoints[0].longitude], 13, {
+        animate: false,
+      });
+      return;
+    }
+
+    map.fitBounds(
+      heatPoints.map((point) => [point.latitude, point.longitude]),
+      {
+        padding: [24, 24],
+        maxZoom: 13,
+        animate: false,
+      },
+    );
+  }, [heatPoints, map]);
+
+  return null;
 }
 
 function DashboardMonitoring({ viewModel }) {
@@ -268,10 +302,21 @@ function DashboardMonitoring({ viewModel }) {
                 scrollWheelZoom={false}
                 style={{ width: '100%', height: '100%' }}
               >
-                <TileLayer
-                  attribution="&copy; OpenStreetMap contributors"
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
+                <DashboardHeatMapViewport heatPoints={heatPoints} />
+                <LayersControl position="topright">
+                  <LayersControl.BaseLayer checked name="Mapa padrão">
+                    <TileLayer
+                      attribution="&copy; OpenStreetMap contributors"
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                  </LayersControl.BaseLayer>
+                  <LayersControl.BaseLayer name="Relevo">
+                    <TileLayer
+                      attribution="Map data: &copy; OpenTopoMap contributors, SRTM | &copy; OpenStreetMap contributors"
+                      url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+                    />
+                  </LayersControl.BaseLayer>
+                </LayersControl>
                 {heatPoints.map((point) => (
                   <CircleMarker
                     key={`heat-point-${point.id}-${point.latitude}-${point.longitude}`}
