@@ -7,3 +7,5 @@ __pycache__
 .env
 docs
 *.log
+serviceAccountKey.json
+backend/serviceAccountKey.json

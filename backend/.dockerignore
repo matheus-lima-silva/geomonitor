@@ -8,3 +8,4 @@ fly.toml
 jest.config.js
 jest.setup.js
 .env
+serviceAccountKey.json
