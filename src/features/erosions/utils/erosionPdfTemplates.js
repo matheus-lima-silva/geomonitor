@@ -148,7 +148,9 @@ function renderFicha({
   const derivedTipo = deriveErosionTypeFromTechnicalFields({ ...erosion, tiposFeicao: technical.tiposFeicao });
   const criticalitySummary = buildCriticalitySummaryFromErosion(erosion || {});
   const criticalidadeV2 = erosion?.criticalidadeV2 && typeof erosion.criticalidadeV2 === 'object'
-    ? erosion.criticalidadeV2
+    ? (erosion.criticalidadeV2.breakdown && typeof erosion.criticalidadeV2.breakdown === 'object'
+      ? erosion.criticalidadeV2.breakdown
+      : erosion.criticalidadeV2)
     : null;
 
   return `

@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, Input, Modal, Select, Textarea } from '../../../components/ui';
+import { compareTowerNumbers } from '../../projects/utils/kmlUtils';
 import {
   hasValidDecimalCoordinates,
   isCompleteUtmCoordinates,
@@ -117,8 +118,23 @@ function ErosionFormModal({
     [safeProjects, safeFormData.projetoId],
   );
   const towerOptions = useMemo(() => {
-    const totalTowers = Number(selectedProject?.torres || 0);
     const currentTower = String(safeFormData.torreRef || '').trim();
+    const projectTowers = Array.isArray(selectedProject?.torresCoordenadas)
+      ? [...new Set(
+        selectedProject.torresCoordenadas
+          .map((row) => String(row?.numero || '').trim())
+          .filter(Boolean),
+      )].sort(compareTowerNumbers)
+      : [];
+
+    if (projectTowers.length > 0) {
+      if (currentTower && !projectTowers.includes(currentTower)) {
+        return [currentTower, ...projectTowers];
+      }
+      return projectTowers;
+    }
+
+    const totalTowers = Number(selectedProject?.torres || 0);
 
     if (!Number.isFinite(totalTowers) || totalTowers < 0 || totalTowers > 5000) {
       return currentTower ? [currentTower] : [];
@@ -134,7 +150,7 @@ function ErosionFormModal({
     }
 
     return options;
-  }, [selectedProject?.torres, safeFormData.torreRef]);
+  }, [selectedProject?.torres, selectedProject?.torresCoordenadas, safeFormData.torreRef]);
 
   if (!open) return null;
 

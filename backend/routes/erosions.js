@@ -23,6 +23,14 @@ const {
     buildLegacyFieldCleanupPatch
 } = require('../utils/internalErosionHelpers');
 
+function normalizeCriticalityPayload(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    if (payload.breakdown && typeof payload.breakdown === 'object') {
+        return payload.breakdown;
+    }
+    return payload;
+}
+
 /**
  * POST /api/erosions
  * Receives { data, meta } from the frontend,
@@ -76,10 +84,10 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
         let alertsAtivos = [];
 
         if (isHistoricalRecord) {
-            criticalidadeV2 = sanitizedPayload.criticalidadeV2 ?? null;
+            criticalidadeV2 = normalizeCriticalityPayload(sanitizedPayload.criticalidadeV2) ?? null;
             alertsAtivos = Array.isArray(sanitizedPayload.alertsAtivos) ? sanitizedPayload.alertsAtivos : [];
         } else if (sanitizedPayload.criticalidadeV2) {
-            criticalidadeV2 = sanitizedPayload.criticalidadeV2;
+            criticalidadeV2 = normalizeCriticalityPayload(sanitizedPayload.criticalidadeV2);
             alertsAtivos = sanitizedPayload.alertsAtivos || [];
         } else {
             try {

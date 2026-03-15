@@ -188,4 +188,23 @@ describe('ErosionFormModal', () => {
     expect(container.querySelector('[role="dialog"]')).toBeTruthy();
     expect(container.querySelector('option[value="VS-1"]')).toBeTruthy();
   });
+
+  it('usa torresCoordenadas do projeto para montar a selecao de torres', () => {
+    renderModal(root, {
+      projects: [{
+        id: 'P1',
+        torres: '',
+        torresCoordenadas: [
+          { numero: '0' },
+          { numero: '10' },
+          { numero: '2' },
+          { numero: '163A' },
+        ],
+      }],
+    });
+
+    const options = [...container.querySelectorAll('#erosion-torre option')].map((option) => option.value);
+
+    expect(options).toEqual(['', '0', '2', '10', '163A']);
+  });
 });

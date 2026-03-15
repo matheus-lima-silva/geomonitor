@@ -69,11 +69,16 @@ export function buildCriticalitySummaryFromCalculation(criticality = {}) {
 
 export function buildCriticalitySummaryFromErosion(erosion = {}) {
   const source = erosion && typeof erosion === 'object' ? erosion : {};
+  const persistedCriticality = source.criticalidadeV2 && typeof source.criticalidadeV2 === 'object'
+    ? (source.criticalidadeV2.breakdown && typeof source.criticalidadeV2.breakdown === 'object'
+      ? source.criticalidadeV2.breakdown
+      : source.criticalidadeV2)
+    : null;
   return buildCriticalitySummary({
     impacto: source.impacto,
     score: source.score,
     frequencia: source.frequencia,
-    breakdown: source.criticalidadeV2,
+    breakdown: persistedCriticality,
     alertsFallback: source.alertsAtivos,
   });
 }

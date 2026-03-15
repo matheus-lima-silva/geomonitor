@@ -17,6 +17,7 @@ import { deleteDocById, subscribeCollection } from '../firestoreClient';
 import { auth } from '../../firebase/config';
 import {
   deleteErosion,
+  postCalculoErosao,
   saveErosion,
   saveErosionManualFollowupEvent,
   subscribeErosions
@@ -73,6 +74,50 @@ describe('erosionService', () => {
 
     await expect(saveErosion({ id: 'ERS-1' })).rejects.toThrow(/autenticado/i);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('postCalculoErosao normaliza o breakdown completo da API', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        data: {
+          criticidade_score: 8,
+          criticidade_classe: 'Medio',
+          codigo: 'C2',
+          alertas_validacao: [],
+          breakdown: {
+            criticidade_score: 8,
+            criticidade_classe: 'Medio',
+            codigo: 'C2',
+            pontos: { T: 2, P: 1, D: 2, S: 1, E: 2 },
+            tipo_erosao_classe: 'T2',
+            profundidade_classe: 'P1',
+            declividade_classe: 'D2',
+            solo_classe: 'S2',
+            exposicao_classe: 'E2',
+            tipo_medida_recomendada: 'monitoramento',
+            lista_solucoes_sugeridas: ['Monitoramento visual'],
+            alertas_validacao: [],
+            legacy: {
+              impacto: 'Medio',
+              score: 8,
+              frequencia: '12 meses',
+              intervencao: 'Monitoramento visual'
+            }
+          }
+        }
+      })
+    });
+
+    const result = await postCalculoErosao({ tipo_erosao: 'sulco' });
+
+    expect(result.campos_calculados).toEqual(expect.objectContaining({
+      criticidade_score: 8,
+      criticidade_classe: 'Medio',
+      codigo: 'C2',
+      pontos: { T: 2, P: 1, D: 2, S: 1, E: 2 },
+      tipo_erosao_classe: 'T2'
+    }));
   });
 
   it('saveErosionManualFollowupEvent falha com erosao invalida', async () => {

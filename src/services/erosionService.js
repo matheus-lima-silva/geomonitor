@@ -44,6 +44,14 @@ function buildCriticalityHistory(previous, nextData, criticalidadeV2) {
   });
 }
 
+function normalizeCriticalityCalculationPayload(calculation) {
+  if (!calculation || typeof calculation !== 'object') return null;
+  if (calculation.breakdown && typeof calculation.breakdown === 'object') {
+    return calculation.breakdown;
+  }
+  return calculation;
+}
+
 // ── Subscriptions ───────────────────────────────────────────────
 
 export function subscribeErosions(onData, onError) {
@@ -74,7 +82,7 @@ export async function postCalculoErosao(payload = {}, options = {}) {
     const calculation = result.data;
 
     return {
-      campos_calculados: calculation,
+      campos_calculados: normalizeCriticalityCalculationPayload(calculation),
       alertas_validacao: calculation.alertas_validacao || [],
     };
   } catch (error) {

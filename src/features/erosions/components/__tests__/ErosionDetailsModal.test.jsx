@@ -104,6 +104,57 @@ describe('ErosionDetailsModal', () => {
     expect(container.textContent).not.toContain('Score V2');
   });
 
+  it('uses nested breakdown when criticalidadeV2 was saved in compact format', () => {
+    renderModal(root, {
+      erosion: {
+        id: 'ERS-1',
+        projetoId: 'P1',
+        torreRef: '12',
+        status: 'Ativo',
+        impacto: 'Medio',
+        vistoriaId: 'VS-1',
+        vistoriaIds: ['VS-1'],
+        tiposFeicao: ['ravina'],
+        caracteristicasFeicao: [],
+        usosSolo: [],
+        localContexto: {
+          localTipo: 'base_torre',
+          exposicao: 'faixa_servidao',
+          estruturaProxima: 'torre',
+          localDescricao: '',
+        },
+        criticalidadeV2: {
+          criticidade_classe: 'Medio',
+          codigo: 'C2',
+          criticidade_score: 8,
+          breakdown: {
+            criticidade_classe: 'Medio',
+            codigo: 'C2',
+            criticidade_score: 8,
+            pontos: { T: 2, P: 1, D: 2, S: 1, E: 2 },
+            tipo_erosao_classe: 'T2',
+            profundidade_classe: 'P1',
+            declividade_classe: 'D2',
+            solo_classe: 'S2',
+            exposicao_classe: 'E2',
+            tipo_medida_recomendada: 'Monitoramento',
+            lista_solucoes_sugeridas: ['Monitoramento visual'],
+          },
+        },
+        acompanhamentosResumo: [],
+        fotosLinks: [],
+        locationCoordinates: {},
+      },
+      hasCoordinates: () => false,
+      relatedInspections: [],
+    });
+
+    expect(container.textContent).toContain('Criticidade: Medio (C2)');
+    expect(container.textContent).toContain('2/1/2/1/2');
+    expect(container.textContent).toContain('Classe tipo erosao:');
+    expect(container.textContent).toContain('T2');
+  });
+
   it('shows empty history state when no followup data exists', () => {
     renderModal(root, {
       erosion: {
