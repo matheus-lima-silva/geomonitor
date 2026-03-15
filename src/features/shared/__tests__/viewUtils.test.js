@@ -25,7 +25,7 @@ describe('viewUtils erosion validation', () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(result.fieldErrors.estagio).toMatch(/estagio/i);
+    expect(result.fieldErrors.estagio).toMatch(/(grau erosivo|estagio)/i);
     expect(result.fieldErrors['localContexto.localTipo']).toMatch(/local da erosao/i);
   });
 

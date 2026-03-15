@@ -208,7 +208,8 @@ function ensureDayShape(day) {
   const torresDetalhadas = torresDetalhadasRaw
     .map((tower) => ({
       numero: String(tower?.numero || '').trim(),
-      obs: String(tower?.obs || '').trim(),
+      // Preserve trailing spaces while the user is typing in the daily checklist comment.
+      obs: String(tower?.obs || ''),
       temErosao: !!tower?.temErosao,
     }))
     .filter((tower) => tower.numero)
