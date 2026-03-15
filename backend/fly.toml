@@ -2,6 +2,7 @@ app = 'geomonitor-api'
 primary_region = 'gru'
 
 [build]
+  dockerfile = "backend/Dockerfile"
 
 [env]
   PORT = '8080'
