@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken, requireAdmin } = require('../utils/authMiddleware');
+const { verifyToken, requireAdmin, getCachedProfile, setCachedProfile, invalidateCachedProfile } = require('../utils/authMiddleware');
 const { getCollection, getDocRef } = require('../utils/firebaseSetup');
 const { createHateoasResponse } = require('../utils/hateoas');
 
@@ -13,8 +13,15 @@ async function loadRequesterProfile(req) {
     const userId = String(req.user?.uid || '').trim();
     if (!userId) return null;
 
-    const doc = await getDocRef('users', userId).get();
-    req.userProfile = doc.exists ? doc.data() : null;
+    const cached = getCachedProfile(userId);
+    if (cached) {
+        req.userProfile = cached;
+        return req.userProfile;
+    }
+
+    const userDoc = await getDocRef('users', userId).get();
+    req.userProfile = userDoc.exists ? userDoc.data() : null;
+    if (req.userProfile) setCachedProfile(userId, req.userProfile);
     return req.userProfile;
 }
 
@@ -65,6 +72,7 @@ async function saveUserHandler(req, res, isUpdate = false) {
         }
 
         await getDocRef('users', id).set(nextData, { merge: true });
+        invalidateCachedProfile(id);
 
         return res.status(isUpdate ? 200 : 201).json({
             status: 'success',

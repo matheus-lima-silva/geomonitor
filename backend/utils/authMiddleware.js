@@ -114,5 +114,7 @@ module.exports = {
     requireActiveUser,
     requireEditor,
     requireAdmin,
+    getCachedProfile,
+    setCachedProfile,
     invalidateCachedProfile,
 };
