@@ -1,15 +1,34 @@
+function resolveApiBaseUrl(req) {
+    return process.env.API_BASE_URL || `${req.protocol}://${req.get('host')}/api`;
+}
+
+function buildApiHref(baseUrl, resourcePath) {
+    return `${baseUrl}/${String(resourcePath || '').replace(/^\/+/, '')}`;
+}
+
 /**
  * Utility function to generate standard RESTful HATEOAS links for an entity.
  * Uses API_BASE_URL env var to prevent Host Header Injection.
  */
 function generateHateoasLinks(req, entityType, id) {
-    const baseUrl = process.env.API_BASE_URL || `${req.protocol}://${req.get('host')}/api`;
+    const baseUrl = resolveApiBaseUrl(req);
+    const itemPath = `${entityType}/${id}`;
 
     return {
-        self: { href: `${baseUrl}/${entityType}/${id}`, method: 'GET' },
-        update: { href: `${baseUrl}/${entityType}/${id}`, method: 'PUT' },
-        delete: { href: `${baseUrl}/${entityType}/${id}`, method: 'DELETE' },
-        collection: { href: `${baseUrl}/${entityType}`, method: 'GET' }
+        self: { href: buildApiHref(baseUrl, itemPath), method: 'GET' },
+        update: { href: buildApiHref(baseUrl, itemPath), method: 'PUT' },
+        delete: { href: buildApiHref(baseUrl, itemPath), method: 'DELETE' },
+        collection: { href: buildApiHref(baseUrl, entityType), method: 'GET' }
+    };
+}
+
+function generateSingletonHateoasLinks(req, resourcePath) {
+    const baseUrl = resolveApiBaseUrl(req);
+    const normalizedPath = String(resourcePath || '').replace(/^\/+/, '');
+
+    return {
+        self: { href: buildApiHref(baseUrl, normalizedPath), method: 'GET' },
+        update: { href: buildApiHref(baseUrl, normalizedPath), method: 'PUT' }
     };
 }
 
@@ -24,7 +43,16 @@ function createHateoasResponse(req, data, entityType, id) {
     };
 }
 
+function createSingletonHateoasResponse(req, data, resourcePath) {
+    return {
+        ...data,
+        _links: generateSingletonHateoasLinks(req, resourcePath)
+    };
+}
+
 module.exports = {
     generateHateoasLinks,
-    createHateoasResponse
+    generateSingletonHateoasLinks,
+    createHateoasResponse,
+    createSingletonHateoasResponse
 };

@@ -17,6 +17,17 @@ const PORT = process.env.PORT || 8080;
 app.use(helmet());
 
 const isProd = process.env.NODE_ENV === 'production';
+const trustProxyRaw = String(process.env.TRUST_PROXY || (isProd ? '1' : 'false')).trim().toLowerCase();
+const trustProxyValue = trustProxyRaw === 'true'
+  ? true
+  : trustProxyRaw === 'false'
+    ? false
+    : Number.isFinite(Number(trustProxyRaw))
+      ? Number(trustProxyRaw)
+      : trustProxyRaw;
+
+app.set('trust proxy', trustProxyValue);
+
 const corsOrigin = process.env.FRONTEND_URL || (isProd ? false : '*');
 
 app.use(cors({
@@ -45,11 +56,17 @@ const erosionsRouter = require('./routes/erosions');
 const projectsRouter = require('./routes/projects');
 const licensesRouter = require('./routes/licenses');
 const inspectionsRouter = require('./routes/inspections');
+const usersRouter = require('./routes/users');
+const reportDeliveryTrackingRouter = require('./routes/reportDeliveryTracking');
+const rulesRouter = require('./routes/rules');
 
 app.use('/api/erosions', erosionsRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/licenses', licensesRouter);
 app.use('/api/inspections', inspectionsRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/report-delivery-tracking', reportDeliveryTrackingRouter);
+app.use('/api/rules', rulesRouter);
 
 // Global Error Handler para não expor erros ao cliente em prod
 app.use((err, req, res, next) => {

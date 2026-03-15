@@ -1,13 +1,17 @@
-import { deleteDocById, saveDoc, subscribeCollection } from '../../../services/firestoreClient';
+import {
+  deleteOperatingLicense as removeOperatingLicense,
+  saveOperatingLicense as saveOperatingLicenseApi,
+  subscribeOperatingLicenses as subscribeOperatingLicensesApi,
+} from '../../../services/licenseService';
 
 export function subscribeOperatingLicenses(onData, onError) {
-  return subscribeCollection('operatingLicenses', onData, onError);
+  return subscribeOperatingLicensesApi(onData, onError);
 }
 
 export function saveOperatingLicense(licenseId, payload, meta = {}) {
-  return saveDoc('operatingLicenses', licenseId, payload, meta);
+  return saveOperatingLicenseApi(licenseId, payload, meta);
 }
 
 export function deleteOperatingLicense(licenseId) {
-  return deleteDocById('operatingLicenses', licenseId);
+  return removeOperatingLicense(licenseId);
 }

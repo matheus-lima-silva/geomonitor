@@ -442,7 +442,7 @@ function InspectionManager({
   function alertPendingTowers(pendingErosions) {
     const towers = [...new Set((pendingErosions || []).map((item) => String(item?.torreRef || '').trim()).filter(Boolean))]
       .sort((a, b) => Number(a) - Number(b));
-    show(`Pendências de visita em erosões: ${towers.join(', ') || '-'}. As torres já foram carregadas para marcação da data.`, 'error');
+    show(`Pendências de visita em erosões: ${towers.join(', ') || '-'}. As torres já foram carregadas para marcação da data.`, 'info');
   }
 
   async function checkInspectionPendencies({
@@ -590,6 +590,10 @@ function InspectionManager({
         projectId: inspection.projetoId,
         syncBeforeCheck: true,
         notifyWhenPending: true,
+      }).catch(() => {
+        // A vistoria foi persistida; não bloquear finalização por falha de sincronização auxiliar.
+        show('Vistoria salva, mas não foi possível sincronizar pendências de erosão agora.', 'info');
+        return [];
       });
       if (pending.length > 0) {
         setInspection((prev) => ({ ...prev, id: inspectionId }));

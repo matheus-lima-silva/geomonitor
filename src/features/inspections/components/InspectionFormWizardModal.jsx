@@ -758,7 +758,7 @@ function InspectionFormWizardModal({
         const towers = [...new Set(
           pending.map((item) => String(item?.torreRef || '').trim()).filter(Boolean),
         )].sort(compareTowerNumbers);
-        show(`Pendencias de visita em erosoes: ${towers.join(', ') || '-'}. As torres foram carregadas.`, 'error');
+        show(`Pendencias de visita em erosoes: ${towers.join(', ') || '-'}. As torres foram carregadas.`, 'info');
       }
     }
 
@@ -1141,12 +1141,18 @@ function InspectionFormWizardModal({
       const payload = buildInspectionPayload({ ...formData, id: inspectionId }, inspectionId);
       await saveInspection(payload, { merge: true, updatedBy: actorName });
 
-      const pending = await checkInspectionPendencies({
-        inspectionId,
-        projectId: formData.projetoId,
-        syncBeforeCheck: true,
-        notifyWhenPending: true,
-      });
+      let pending = [];
+      try {
+        pending = await checkInspectionPendencies({
+          inspectionId,
+          projectId: formData.projetoId,
+          syncBeforeCheck: true,
+          notifyWhenPending: true,
+        });
+      } catch {
+        // A vistoria já foi persistida; não bloquear fechamento por falha de sincronização auxiliar.
+        show('Vistoria salva, mas nao foi possivel sincronizar pendencias de erosao agora.', 'info');
+      }
 
       if (pending.length > 0) {
         setFormData((prev) => ({ ...prev, id: inspectionId }));

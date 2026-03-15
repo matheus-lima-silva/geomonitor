@@ -1,14 +1,14 @@
-import { docRef, saveDoc } from './firestoreClient';
-import { onSnapshot } from 'firebase/firestore';
+import { createSingletonService } from '../utils/serviceFactory';
+
+const service = createSingletonService({
+  resourcePath: 'rules',
+  itemName: 'Regras'
+});
 
 export function subscribeRulesConfig(onData, onError) {
-  return onSnapshot(
-    docRef('config', 'rules'),
-    (snap) => onData(snap.exists() ? snap.data() : null),
-    onError,
-  );
+  return service.subscribe(onData, onError);
 }
 
 export function saveRulesConfig(rules, meta = {}) {
-  return saveDoc('config', 'rules', rules, { ...meta, merge: true });
+  return service.save(rules, { ...meta, merge: true });
 }

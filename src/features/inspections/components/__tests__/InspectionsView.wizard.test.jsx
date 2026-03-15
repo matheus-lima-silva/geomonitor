@@ -14,10 +14,6 @@ vi.mock('../../../../firebase/config', () => ({
   db: {},
 }));
 
-vi.mock('../../../../services/firestoreClient', () => ({
-  subscribeCollection: vi.fn(),
-}));
-
 vi.mock('../../../../context/AuthContext', () => ({
   useAuth: () => ({
     user: {

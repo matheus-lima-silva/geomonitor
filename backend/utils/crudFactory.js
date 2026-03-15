@@ -6,6 +6,11 @@ const { createHateoasResponse, generateHateoasLinks } = require('./hateoas');
 function createCrudRouter(collectionName, options = {}) {
     const router = express.Router();
     const routerName = options.routerName || collectionName;
+    const listGuards = options.listGuards || [verifyToken, requireActiveUser];
+    const getGuards = options.getGuards || [verifyToken, requireActiveUser];
+    const createGuards = options.createGuards || [verifyToken, requireEditor];
+    const updateGuards = options.updateGuards || [verifyToken, requireEditor];
+    const deleteGuards = options.deleteGuards || [verifyToken, requireAdmin];
 
     const prepareData = options.prepareData || ((data) => data);
     const generateId = options.generateId || ((data) => String(data.id || '').trim());
@@ -39,7 +44,7 @@ function createCrudRouter(collectionName, options = {}) {
 
             return res.status(201).json({
                 status: 'success',
-                data: createHateoasResponse(req, { id }, routerName, id),
+                data: createHateoasResponse(req, mergedData, routerName, id),
             });
         } catch (error) {
             console.error(`[${collectionName} API] Error POST/PUT:`, error);
@@ -47,7 +52,7 @@ function createCrudRouter(collectionName, options = {}) {
         }
     }
 
-    router.get('/', verifyToken, requireActiveUser, async (req, res) => {
+    router.get('/', ...listGuards, async (req, res) => {
         try {
             const snapshot = await getCollection(collectionName).get();
             const items = snapshot.docs.map((doc) => createHateoasResponse(req, doc.data(), routerName, doc.id));
@@ -58,7 +63,7 @@ function createCrudRouter(collectionName, options = {}) {
         }
     });
 
-    router.get('/:id', verifyToken, requireActiveUser, async (req, res) => {
+    router.get('/:id', ...getGuards, async (req, res) => {
         try {
             const { id } = req.params;
             const doc = await getDocRef(collectionName, id).get();
@@ -77,9 +82,9 @@ function createCrudRouter(collectionName, options = {}) {
         }
     });
 
-    router.post('/', verifyToken, requireEditor, (req, res) => saveHandler(req, res, false));
+    router.post('/', ...createGuards, (req, res) => saveHandler(req, res, false));
 
-    router.put('/:id', verifyToken, requireEditor, async (req, res) => {
+    router.put('/:id', ...updateGuards, async (req, res) => {
         const body = req.body && typeof req.body === 'object' ? req.body : {};
         const data = body.data && typeof body.data === 'object' ? body.data : {};
         req.body = {
@@ -92,7 +97,7 @@ function createCrudRouter(collectionName, options = {}) {
         return saveHandler(req, res, true);
     });
 
-    router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
+    router.delete('/:id', ...deleteGuards, async (req, res) => {
         try {
             const { id } = req.params;
             await getDocRef(collectionName, id).delete();

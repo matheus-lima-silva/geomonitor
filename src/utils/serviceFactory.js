@@ -1,5 +1,8 @@
 import { auth } from '../firebase/config';
-import { fetchWithHateoas, normalizeRequestError } from './apiClient';
+import { fetchWithHateoas, isNetworkFailureError, normalizeRequestError } from './apiClient';
+
+const FALLBACK_PROD_API_BASE_URL = 'https://geomonitor-api.fly.dev/api';
+const DEFAULT_POLL_INTERVAL_MS = 30000;
 
 function resolveApiBaseUrl() {
   const configured = String(import.meta.env.VITE_API_BASE_URL || '').trim();
@@ -26,8 +29,23 @@ export async function getAuthToken() {
   return token;
 }
 
-export function createCrudService({ resourcePath, itemName, defaultIdGenerator = (d) => String(d.id || '').trim() }) {
+function extractPayload(result, fallbackValue) {
+  if (result && typeof result === 'object' && 'data' in result) {
+    return result.data;
+  }
+  return fallbackValue;
+}
+
+export function createCrudService({
+  resourcePath,
+  itemName,
+  defaultIdGenerator = (d) => String(d.id || '').trim(),
+  pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
+}) {
   const baseUrl = `${API_BASE_URL}/${resourcePath}`;
+  const fallbackBaseUrl = API_BASE_URL === FALLBACK_PROD_API_BASE_URL
+    ? ''
+    : `${FALLBACK_PROD_API_BASE_URL}/${resourcePath}`;
 
   const getToken = getAuthToken;
 
@@ -44,6 +62,27 @@ export function createCrudService({ resourcePath, itemName, defaultIdGenerator =
       }
       return response.json();
     } catch (error) {
+      if (isNetworkFailureError(error) && fallbackBaseUrl && typeof url === 'string' && url.startsWith(baseUrl)) {
+        const retryUrl = `${fallbackBaseUrl}${url.slice(baseUrl.length)}`;
+        try {
+          const retryResponse = await fetch(retryUrl, options);
+          if (!retryResponse.ok) {
+            let retryMessage = `Erro na operação (${itemName}).`;
+            try {
+              const retryErrorData = await retryResponse.json();
+              if (retryErrorData?.message) retryMessage = retryErrorData.message;
+            } catch { /* ignore */ }
+            throw new Error(retryMessage);
+          }
+          return retryResponse.json();
+        } catch (retryError) {
+          throw normalizeRequestError(
+            retryError,
+            'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
+          );
+        }
+      }
+
       throw normalizeRequestError(
         error,
         'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
@@ -51,7 +90,70 @@ export function createCrudService({ resourcePath, itemName, defaultIdGenerator =
     }
   }
 
+  async function list() {
+    const token = await getToken();
+    return fetchWithToken(baseUrl, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+  }
+
+  async function get(itemOrId) {
+    const _links = itemOrId?._links || itemOrId;
+    if (_links?.self) {
+      return fetchWithHateoas(_links.self, null, API_BASE_URL);
+    }
+
+    const id = typeof itemOrId === 'object' ? itemOrId.id : itemOrId;
+    const token = await getToken();
+    return fetchWithToken(`${baseUrl}/${id}`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+  }
+
+  function subscribe(onData, onError) {
+    let disposed = false;
+    let intervalId = null;
+    let inFlight = false;
+
+    const run = async () => {
+      if (disposed || inFlight) return;
+      inFlight = true;
+
+      try {
+        const result = await list();
+        if (!disposed) {
+          onData?.(Array.isArray(extractPayload(result, [])) ? extractPayload(result, []) : []);
+        }
+      } catch (error) {
+        if (!disposed) {
+          onError?.(error);
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    run();
+
+    if (pollIntervalMs > 0) {
+      intervalId = window.setInterval(run, pollIntervalMs);
+    }
+
+    return () => {
+      disposed = true;
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }
+
   return {
+    list,
+    get,
+    subscribe,
+
     async create(data, meta = {}, generateId = defaultIdGenerator) {
       const id = generateId(data);
       if (!id) throw new Error(`${itemName} precisa de ID`);
@@ -105,5 +207,124 @@ export function createCrudService({ resourcePath, itemName, defaultIdGenerator =
         headers: { 'Authorization': `Bearer ${token}` }
       });
     }
+  };
+}
+
+export function createSingletonService({ resourcePath, itemName, pollIntervalMs = DEFAULT_POLL_INTERVAL_MS }) {
+  const baseUrl = `${API_BASE_URL}/${resourcePath}`;
+  const fallbackBaseUrl = API_BASE_URL === FALLBACK_PROD_API_BASE_URL
+    ? ''
+    : `${FALLBACK_PROD_API_BASE_URL}/${resourcePath}`;
+
+  async function fetchWithToken(url, options) {
+    try {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        let message = `Erro na operação (${itemName}).`;
+        try {
+          const errorData = await response.json();
+          if (errorData?.message) message = errorData.message;
+        } catch { /* ignore */ }
+        throw new Error(message);
+      }
+      return response.json();
+    } catch (error) {
+      if (isNetworkFailureError(error) && fallbackBaseUrl && typeof url === 'string' && url.startsWith(baseUrl)) {
+        const retryUrl = `${fallbackBaseUrl}${url.slice(baseUrl.length)}`;
+        try {
+          const retryResponse = await fetch(retryUrl, options);
+          if (!retryResponse.ok) {
+            let retryMessage = `Erro na operação (${itemName}).`;
+            try {
+              const retryErrorData = await retryResponse.json();
+              if (retryErrorData?.message) retryMessage = retryErrorData.message;
+            } catch { /* ignore */ }
+            throw new Error(retryMessage);
+          }
+          return retryResponse.json();
+        } catch (retryError) {
+          throw normalizeRequestError(
+            retryError,
+            'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
+          );
+        }
+      }
+
+      throw normalizeRequestError(
+        error,
+        'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
+      );
+    }
+  }
+
+  async function get(document) {
+    if (document?._links?.self) {
+      return fetchWithHateoas(document._links.self, null, API_BASE_URL);
+    }
+
+    const token = await getAuthToken();
+    return fetchWithToken(baseUrl, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+  }
+
+  async function save(data, meta = {}) {
+    if (data?._links?.update) {
+      return fetchWithHateoas(data._links.update, { data, meta }, API_BASE_URL);
+    }
+
+    const token = await getAuthToken();
+    return fetchWithToken(baseUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ data, meta })
+    });
+  }
+
+  function subscribe(onData, onError) {
+    let disposed = false;
+    let intervalId = null;
+    let inFlight = false;
+
+    const run = async () => {
+      if (disposed || inFlight) return;
+      inFlight = true;
+
+      try {
+        const result = await get();
+        if (!disposed) {
+          onData?.(extractPayload(result, null));
+        }
+      } catch (error) {
+        if (!disposed) {
+          onError?.(error);
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    run();
+
+    if (pollIntervalMs > 0) {
+      intervalId = window.setInterval(run, pollIntervalMs);
+    }
+
+    return () => {
+      disposed = true;
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }
+
+  return {
+    get,
+    save,
+    subscribe,
   };
 }

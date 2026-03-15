@@ -2,6 +2,7 @@ import { normalizeErosionStatus } from '../../shared/statusUtils';
 import { normalizeLocationCoordinates } from '../../shared/erosionCoordinates';
 import {
   deriveErosionTypeFromTechnicalFields,
+  EROSION_TECHNICAL_OPTIONS,
   getLocalContextLabel,
   normalizeErosionTechnicalFields,
   normalizeFollowupEventType,
@@ -49,6 +50,31 @@ export function openPrintableWindow(documentHtml) {
 function listText(values = []) {
   if (!Array.isArray(values) || values.length === 0) return '-';
   return values.join(', ');
+}
+
+function buildLabelMap(options = []) {
+  return (Array.isArray(options) ? options : []).reduce((acc, item) => {
+    const key = String(item?.value || '').trim();
+    if (key) acc[key] = String(item?.label || '').trim() || key;
+    return acc;
+  }, {});
+}
+
+const feicaoLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.tiposFeicao);
+const caracteristicaLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.caracteristicasFeicao);
+const usoSoloLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.usosSolo);
+const exposicaoLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.localizacaoExposicao);
+const estruturaLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.estruturaProxima);
+
+function labelText(value, labelMap = {}) {
+  const key = String(value || '').trim();
+  if (!key) return '-';
+  return labelMap[key] || key.replace(/_/g, ' ');
+}
+
+function listLabelText(values = [], labelMap = {}) {
+  if (!Array.isArray(values) || values.length === 0) return '-';
+  return values.map((item) => labelText(item, labelMap)).join(', ');
 }
 
 function renderHistory(history = []) {
@@ -181,15 +207,15 @@ function renderFicha({
         <div><strong>UTM Northing:</strong> ${escapeHtml(locationCoordinates.utmNorthing || '-')}</div>
         <div><strong>UTM Zona/Hemisferio:</strong> ${escapeHtml(`${locationCoordinates.utmZone || '-'} ${locationCoordinates.utmHemisphere || '-'}`)}</div>
         <div><strong>Referencia:</strong> ${escapeHtml(locationCoordinates.reference || '-')}</div>
-        <div><strong>Exposicao:</strong> ${escapeHtml(localContexto.exposicao || '-')}</div>
-        <div><strong>Estrutura proxima:</strong> ${escapeHtml(localContexto.estruturaProxima || '-')}</div>
+        <div><strong>Exposicao:</strong> ${escapeHtml(labelText(localContexto.exposicao, exposicaoLabelMap))}</div>
+        <div><strong>Estrutura proxima:</strong> ${escapeHtml(labelText(localContexto.estruturaProxima, estruturaLabelMap))}</div>
       </div>
     </section>
 
     <section class="ficha-section">
       <h2>Classificacao e caracterizacao consolidada</h2>
       <div class="ficha-grid-two">
-        <div><strong>Tipo (derivado):</strong> ${escapeHtml(derivedTipo || '-')}</div>
+        <div><strong>Tipo:</strong> ${escapeHtml(labelText(derivedTipo, feicaoLabelMap))}</div>
         <div><strong>Grau erosivo:</strong> ${escapeHtml(erosion?.estagio || '-')}</div>
         <div><strong>Local:</strong> ${escapeHtml(localTipoLabel)}</div>
         ${String(localContexto.localTipo || '') === 'outros' ? `<div><strong>Detalhe local:</strong> ${escapeHtml(localContexto.localDescricao || '-')}</div>` : '<div><strong>Detalhe local:</strong> -</div>'}
@@ -198,16 +224,16 @@ function renderFicha({
         <div><strong>Distancia estrutura (m):</strong> ${escapeHtml(Number.isFinite(technical.distanciaEstruturaMetros) ? `${technical.distanciaEstruturaMetros}${criticalidadeV2?.exposicao_classe ? ` (${criticalidadeV2.exposicao_classe})` : ''}` : '-')}</div>
         <div><strong>Presenca de agua no fundo:</strong> ${escapeHtml(technical.presencaAguaFundo || '-')}</div>
         <div><strong>Saturacao por agua:</strong> ${escapeHtml(saturacaoPorAgua || '-')}</div>
-        <div class="ficha-full"><strong>Tipos de feicao:</strong> ${escapeHtml(listText(technical.tiposFeicao))}</div>
-        <div class="ficha-full"><strong>Caracteristicas da feicao:</strong> ${escapeHtml(listText(technical.caracteristicasFeicao))}</div>
-        <div class="ficha-full"><strong>Usos do solo:</strong> ${escapeHtml(listText(technical.usosSolo))}</div>
+        <div class="ficha-full"><strong>Tipos de feicao:</strong> ${escapeHtml(listLabelText(technical.tiposFeicao, feicaoLabelMap))}</div>
+        <div class="ficha-full"><strong>Caracteristicas da feicao:</strong> ${escapeHtml(listLabelText(technical.caracteristicasFeicao, caracteristicaLabelMap))}</div>
+        <div class="ficha-full"><strong>Usos do solo:</strong> ${escapeHtml(listLabelText(technical.usosSolo, usoSoloLabelMap))}</div>
         ${technical.usosSolo.includes('outro') ? `<div class="ficha-full"><strong>Uso do solo - outro:</strong> ${escapeHtml(technical.usoSoloOutro || '-')}</div>` : ''}
         ${technical.usosSolo.length === 0 && String(erosion?.usoSolo || '').trim() ? `<div class="ficha-full"><strong>Uso do solo (legado):</strong> ${escapeHtml(erosion?.usoSolo || '-')}</div>` : ''}
         <div class="ficha-full"><strong>Resumo de criticidade calculada:</strong> ${escapeHtml(`Impacto: ${criticalitySummary.impacto} | Score: ${criticalitySummary.score} | Frequencia: ${criticalitySummary.frequencia}`)}</div>
         ${criticalitySummary.hasBreakdown ? `<div class="ficha-full"><strong>Criticidade:</strong> ${escapeHtml(criticalitySummary.criticidadeClasse)} (${escapeHtml(criticalitySummary.criticidadeCodigo)}) | Pontos T/P/D/S/E: ${escapeHtml(formatCriticalityPoints(criticalidadeV2?.pontos))}</div>` : ''}
         ${criticalitySummary.solucoesSugeridas.length > 0 ? `<div class="ficha-full"><strong>Solucoes sugeridas:</strong> ${escapeHtml(criticalitySummary.solucoesSugeridas.join(' | '))}</div>` : ''}
         ${criticalitySummary.sugestoesIntervencao.length > 0 ? `<div class="ficha-full"><strong>Sugestoes de intervencao (opcional):</strong> ${escapeHtml(criticalitySummary.sugestoesIntervencao.join(' | '))}</div>` : ''}
-        ${criticalidadeV2?.tipo_medida_recomendada ? `<div class="ficha-full"><strong>Tipo de medida recomendada:</strong> ${escapeHtml(criticalidadeV2.tipo_medida_recomendada)}</div>` : ''}
+        ${criticalidadeV2?.tipo_medida_recomendada ? `<div class="ficha-full"><strong>Tipo de medida recomendada:</strong> ${escapeHtml(labelText(criticalidadeV2.tipo_medida_recomendada))}</div>` : ''}
         ${criticalitySummary.regraContextual ? `<div class="ficha-full"><strong>Regra contextual:</strong> ${escapeHtml(criticalitySummary.regraContextual)}</div>` : ''}
         ${criticalitySummary.alertas.length > 0 ? `<div class="ficha-full"><strong>Alertas ativos:</strong> ${escapeHtml(criticalitySummary.alertas.join(' | '))}</div>` : ''}
         <div class="ficha-full"><strong>Medida preventiva:</strong> ${escapeHtml(erosion?.medidaPreventiva || '-')}</div>
@@ -248,13 +274,10 @@ function buildDocument(title, content) {
           .ficha-history-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #e2e8f0; color: #334155; }
           .ficha-history-summary { font-weight: 600; color: #1f2937; margin-bottom: 2px; }
           .ficha-history-details { font-size: 11px; color: #334155; margin-bottom: 2px; }
-          .pdf-cover { border: 1px solid #dbe4ee; border-radius: 12px; background: #f8fafc; padding: 16px; margin-bottom: 16px; }
-          .pdf-cover h1 { margin-bottom: 10px; }
           .pdf-group-head { border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; padding: 10px 12px; margin-bottom: 10px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
           .pdf-page-break { page-break-before: always; }
           @media print {
             body { padding: 0; }
-            .pdf-cover { page-break-after: always; margin-bottom: 0; }
           }
         </style>
       </head>
@@ -289,16 +312,6 @@ export function buildBatchErosionFichasPdfDocument({
   rows = [],
   generatedAt = new Date().toLocaleString('pt-BR'),
 }) {
-  const projectName = project?.nome ? ` - ${project.nome}` : '';
-  const cover = `
-    <section class="pdf-cover">
-      <h1>Fichas de Cadastro de Erosoes</h1>
-      <div class="ficha-meta-line"><strong>Empreendimento:</strong> ${escapeHtml(projectId || '-')} ${escapeHtml(projectName)}</div>
-      <div class="ficha-meta-line"><strong>Total de fichas:</strong> ${rows.length}</div>
-      <div class="ficha-meta-line"><strong>Gerado em:</strong> ${escapeHtml(generatedAt)}</div>
-    </section>
-  `;
-
   const sortedRows = [...rows].sort((a, b) => {
     const groupA = buildTowerGrouping(a);
     const groupB = buildTowerGrouping(b);
@@ -346,9 +359,18 @@ export function buildBatchErosionFichasPdfDocument({
   });
   const fichas = fichasParts.join('');
 
+  const summaryHeader = `
+    <section>
+      <h1>Fichas de Cadastro de Erosoes</h1>
+      <div class="ficha-meta-line"><strong>Empreendimento:</strong> ${escapeHtml(projectId || '-')} ${project?.nome ? `(${escapeHtml(project.nome)})` : ''}</div>
+      <div class="ficha-meta-line"><strong>Total de fichas:</strong> ${rows.length}</div>
+      <div class="ficha-meta-line"><strong>Gerado em:</strong> ${escapeHtml(generatedAt)}</div>
+    </section>
+  `;
+
   return buildDocument(
     `Fichas de Erosoes - ${projectId || '-'}`,
-    `${cover}${fichas}`,
+    `${summaryHeader}${fichas}`,
   );
 }
 

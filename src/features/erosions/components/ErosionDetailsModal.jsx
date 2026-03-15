@@ -42,7 +42,8 @@ function buildLabelMap(options = []) {
 function labelValue(value, labelMap = {}) {
   const key = String(value || '').trim();
   if (!key) return '-';
-  return labelMap[key] || key;
+  if (labelMap[key]) return labelMap[key];
+  return key.replace(/_/g, ' ');
 }
 
 function listLabelValue(value, labelMap = {}) {
@@ -288,7 +289,7 @@ function ErosionDetailsModal({
                 Este registro foi salvo como histórico de acompanhamento. A criticidade técnica pode não existir porque a intervenção já havia sido executada antes do cadastro.
               </div>
             ) : null}
-            <div><strong className="text-slate-900">Tipo (derivado):</strong> {labelValue(derivedTipo, feicaoLabelMap)}</div>
+            <div><strong className="text-slate-900">Tipo:</strong> {labelValue(derivedTipo, feicaoLabelMap)}</div>
             <div><strong className="text-slate-900">Grau erosivo:</strong> {erosion.estagio || '-'}</div>
             <div><strong className="text-slate-900">Local:</strong> {localTipoLabel}</div>
             {localContexto.localTipo === 'outros' ? (
@@ -346,7 +347,7 @@ function ErosionDetailsModal({
                 <div><strong className="text-slate-900">Classe solo:</strong> {criticalidadeV2.solo_classe || '-'}</div>
                 <div><strong className="text-slate-900">Classe exposicao:</strong> {criticalidadeV2.exposicao_classe || '-'}</div>
                 <div className="col-span-full bg-indigo-50 text-indigo-900 p-3 rounded-lg border border-indigo-100">
-                  <strong className="font-bold">Tipo de medida recomendada:</strong> {criticalidadeV2.tipo_medida_recomendada || '-'}
+                  <strong className="font-bold">Tipo de medida recomendada:</strong> {labelValue(criticalidadeV2.tipo_medida_recomendada, {})}
                 </div>
                 {criticalitySummary.regraContextual ? (
                   <div className="col-span-full">

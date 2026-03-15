@@ -1,68 +1,80 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('firebase/firestore', () => ({
-  onSnapshot: vi.fn(),
+vi.mock('../../firebase/config', () => ({
+  auth: {
+    currentUser: {
+      getIdToken: vi.fn()
+    }
+  }
 }));
 
-vi.mock('../firestoreClient', () => ({
-  docRef: vi.fn(),
-  saveDoc: vi.fn(),
-}));
-
-import { onSnapshot } from 'firebase/firestore';
-import { docRef, saveDoc } from '../firestoreClient';
+import { auth } from '../../firebase/config';
 import { saveRulesConfig, subscribeRulesConfig } from '../rulesService';
 
+async function flushPromises() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 describe('rulesService', () => {
+  const fetchMock = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', fetchMock);
+    auth.currentUser = {
+      getIdToken: vi.fn().mockResolvedValue('token-123')
+    };
   });
 
-  it('subscribeRulesConfig assina config/rules e envia snapshot existente', () => {
+  it('subscribeRulesConfig busca configuração via API', async () => {
     const onData = vi.fn();
     const onError = vi.fn();
-    vi.mocked(docRef).mockReturnValue('RULES_DOC_REF');
-    vi.mocked(onSnapshot).mockImplementation((_ref, onNext) => {
-      onNext({
-        exists: () => true,
-        data: () => ({ regra: 'ok' }),
-      });
-      return 'UNSUB';
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ data: { regra: 'ok', _links: { self: { href: '/api/rules', method: 'GET' } } } })
     });
 
     const unsub = subscribeRulesConfig(onData, onError);
+    await flushPromises();
 
-    expect(docRef).toHaveBeenCalledWith('config', 'rules');
-    expect(onSnapshot).toHaveBeenCalledWith('RULES_DOC_REF', expect.any(Function), onError);
-    expect(onData).toHaveBeenCalledWith({ regra: 'ok' });
-    expect(unsub).toBe('UNSUB');
+    expect(fetchMock.mock.calls[0][0]).toContain('/rules');
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: 'GET',
+      headers: { Authorization: 'Bearer token-123' }
+    });
+    expect(onData).toHaveBeenCalledWith(expect.objectContaining({ regra: 'ok', _links: expect.any(Object) }));
+    expect(onError).not.toHaveBeenCalled();
+    expect(typeof unsub).toBe('function');
+    unsub();
   });
 
-  it('subscribeRulesConfig envia null quando snapshot não existe', () => {
+  it('subscribeRulesConfig envia null quando API não possui configuração', async () => {
     const onData = vi.fn();
-    vi.mocked(docRef).mockReturnValue('RULES_DOC_REF');
-    vi.mocked(onSnapshot).mockImplementation((_ref, onNext) => {
-      onNext({
-        exists: () => false,
-      });
-      return 'UNSUB';
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ data: null })
     });
 
-    subscribeRulesConfig(onData, vi.fn());
+    const unsub = subscribeRulesConfig(onData, vi.fn());
+    await flushPromises();
 
     expect(onData).toHaveBeenCalledWith(null);
+    unsub();
   });
 
-  it('saveRulesConfig salva sempre com merge true', async () => {
-    vi.mocked(saveDoc).mockResolvedValue(undefined);
+  it('saveRulesConfig envia PUT e mantém merge true', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ data: { a: 1 } })
+    });
 
     await saveRulesConfig({ a: 1 }, { merge: false, updatedBy: 'ops@empresa.com' });
 
-    expect(saveDoc).toHaveBeenCalledWith(
-      'config',
-      'rules',
-      { a: 1 },
-      { merge: true, updatedBy: 'ops@empresa.com' },
-    );
+    expect(fetchMock.mock.calls[0][0]).toContain('/rules');
+    expect(fetchMock.mock.calls[0][1].method).toBe('PUT');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      data: { a: 1 },
+      meta: { merge: true, updatedBy: 'ops@empresa.com' }
+    });
   });
 });

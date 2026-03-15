@@ -1,4 +1,3 @@
-import { subscribeOperatingLicenses as subscribeOperatingLicensesFeature } from '../features/licenses/services/licenseService';
 import { createCrudService } from '../utils/serviceFactory';
 
 const service = createCrudService({
@@ -7,7 +6,7 @@ const service = createCrudService({
 });
 
 export function subscribeOperatingLicenses(onData, onError) {
-  return subscribeOperatingLicensesFeature(onData, onError);
+  return service.subscribe(onData, onError);
 }
 
 export async function saveOperatingLicense(id, payload, meta = {}) {

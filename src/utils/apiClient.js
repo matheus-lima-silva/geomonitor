@@ -1,5 +1,15 @@
 import { auth } from '../firebase/config';
 
+export function isNetworkFailureError(error) {
+    const message = String(error?.message || '').trim();
+    const normalized = message.toLowerCase();
+    return error?.name === 'TypeError'
+        || normalized.includes('failed to fetch')
+        || normalized.includes('networkerror')
+        || normalized.includes('network request failed')
+        || normalized.includes('load failed');
+}
+
 export async function extractApiErrorMessage(response, fallbackMessage = 'Erro de API.') {
     try {
         const errorData = await response.json();
@@ -20,12 +30,7 @@ export async function extractApiErrorMessage(response, fallbackMessage = 'Erro d
 
 export function normalizeRequestError(error, fallbackMessage) {
     const message = String(error?.message || '').trim();
-    const normalized = message.toLowerCase();
-    const isNetworkFailure = error?.name === 'TypeError'
-        || normalized.includes('failed to fetch')
-        || normalized.includes('networkerror')
-        || normalized.includes('network request failed')
-        || normalized.includes('load failed');
+    const isNetworkFailure = isNetworkFailureError(error);
 
     if (isNetworkFailure) {
         return new Error(fallbackMessage);

@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../features/projects/services/projectService', () => ({
-  subscribeProjects: vi.fn()
-}));
-
 vi.mock('../../firebase/config', () => ({
   auth: {
     currentUser: {
@@ -12,9 +8,12 @@ vi.mock('../../firebase/config', () => ({
   }
 }));
 
-import { subscribeProjects as subscribeProjectsFeature } from '../../features/projects/services/projectService';
 import { auth } from '../../firebase/config';
 import { createProject, removeProject, subscribeProjects, updateProject } from '../projectService';
+
+async function flushPromises() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 describe('projectService', () => {
   const fetchMock = vi.fn();
@@ -27,15 +26,31 @@ describe('projectService', () => {
     };
   });
 
-  it('subscribeProjects delega para o service de feature', () => {
+  it('subscribeProjects busca lista via API e entrega itens com HATEOAS', async () => {
     const onData = vi.fn();
     const onError = vi.fn();
-    vi.mocked(subscribeProjectsFeature).mockReturnValue('UNSUB');
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        data: [{ id: 'P-1', nome: 'Projeto A', _links: { self: { href: '/api/projects/P-1', method: 'GET' } } }]
+      })
+    });
 
     const unsub = subscribeProjects(onData, onError);
+    await flushPromises();
 
-    expect(subscribeProjectsFeature).toHaveBeenCalledWith(onData, onError);
-    expect(unsub).toBe('UNSUB');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toContain('/projects');
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: 'GET',
+      headers: { Authorization: 'Bearer token-123' }
+    });
+    expect(onData).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'P-1', nome: 'Projeto A', _links: expect.any(Object) })
+    ]);
+    expect(onError).not.toHaveBeenCalled();
+    expect(typeof unsub).toBe('function');
+    unsub();
   });
 
   it('createProject normaliza id, envia POST e retorna id', async () => {
@@ -93,6 +108,28 @@ describe('projectService', () => {
     });
   });
 
+  it('updateProject usa _links.update quando payload inclui HATEOAS', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ data: { id: 'P-1' } })
+    });
+
+    await expect(
+      updateProject('P-1', {
+        nome: 'Projeto por link',
+        _links: {
+          update: {
+            href: 'https://geomonitor-api.fly.dev/api/projects/P-1',
+            method: 'PUT'
+          }
+        }
+      }, { updatedBy: 'dev@empresa.com' })
+    ).resolves.toEqual({ id: 'P-1' });
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/projects/P-1');
+    expect(fetchMock.mock.calls[0][1].method).toBe('PUT');
+  });
+
   it('removeProject envia DELETE com auth', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
@@ -104,6 +141,26 @@ describe('projectService', () => {
     const request = fetchMock.mock.calls[0][1];
     expect(request.method).toBe('DELETE');
     expect(request.headers.Authorization).toBe('Bearer token-123');
+  });
+
+  it('removeProject usa _links.delete quando recurso inclui HATEOAS', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({})
+    });
+
+    await expect(removeProject({
+      id: 'P-1',
+      _links: {
+        delete: {
+          href: 'https://geomonitor-api.fly.dev/api/projects/P-1',
+          method: 'DELETE'
+        }
+      }
+    })).resolves.toEqual({});
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/projects/P-1');
+    expect(fetchMock.mock.calls[0][1].method).toBe('DELETE');
   });
 
   it('propaga erro de API ao criar projeto', async () => {

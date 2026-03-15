@@ -1,4 +1,3 @@
-import { subscribeProjects as subscribeProjectsFeature } from '../features/projects/services/projectService';
 import { createCrudService } from '../utils/serviceFactory';
 
 const service = createCrudService({
@@ -7,7 +6,7 @@ const service = createCrudService({
 });
 
 export function subscribeProjects(onData, onError) {
-  return subscribeProjectsFeature(onData, onError);
+  return service.subscribe(onData, onError);
 }
 
 export async function createProject(project, meta = {}) {

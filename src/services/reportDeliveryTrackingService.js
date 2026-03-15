@@ -1,4 +1,4 @@
-import { saveDoc, subscribeCollection } from './firestoreClient';
+import { createCrudService } from '../utils/serviceFactory';
 import {
   REPORT_OPERATIONAL_STATUS,
   normalizeOperationalStatus,
@@ -6,6 +6,11 @@ import {
 } from '../features/monitoring/utils/reportTracking';
 
 const MONTH_KEY_PATTERN = /^\d{4}-\d{2}$/;
+const service = createCrudService({
+  resourcePath: 'report-delivery-tracking',
+  itemName: 'Acompanhamento de entrega',
+  defaultIdGenerator: (payload) => buildReportDeliveryTrackingId(payload?.projectId, payload?.monthKey),
+});
 
 export function buildReportDeliveryTrackingId(projectId, monthKey) {
   const normalizedProjectId = String(projectId || '').trim();
@@ -42,12 +47,13 @@ export function normalizeReportDeliveryTrackingPayload(payload = {}) {
 }
 
 export function subscribeReportDeliveryTracking(onData, onError) {
-  return subscribeCollection('reportDeliveryTracking', (rows) => {
+  return service.subscribe((rows) => {
     const normalizedRows = (Array.isArray(rows) ? rows : []).map((row) => {
       try {
         return {
           id: row?.id,
           ...normalizeReportDeliveryTrackingPayload(row),
+          ...(row?._links ? { _links: row._links } : {}),
         };
       } catch {
         return null;
@@ -64,7 +70,11 @@ export async function saveReportDeliveryTracking(projectId, monthKey, payload, m
     monthKey,
   });
   const docId = buildReportDeliveryTrackingId(normalized.projectId, normalized.monthKey);
-  await saveDoc('reportDeliveryTracking', docId, normalized, { ...meta, merge: true });
+  await service.save(docId, {
+    ...normalized,
+    id: docId,
+    ...(payload?._links ? { _links: payload._links } : {}),
+  }, { ...meta, merge: true });
   return docId;
 }
 

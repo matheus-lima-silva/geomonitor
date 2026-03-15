@@ -4,7 +4,11 @@ const { getDb } = require('../utils/firebaseSetup');
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
 const { createHateoasResponse, generateHateoasLinks } = require('../utils/hateoas');
 
-const { calculateCriticality } = require('../utils/criticality_dist');
+const {
+    calculateCriticality,
+    calcularCriticidade,
+    calcular_criticidade,
+} = require('../utils/criticality_dist');
 const {
     stripRemovedErosionFields,
     validateErosionTechnicalFields,
@@ -22,6 +26,7 @@ const {
     buildCriticalityHistory,
     buildLegacyFieldCleanupPatch
 } = require('../utils/internalErosionHelpers');
+const { getCollection, getDocRef } = require('../utils/firebaseSetup');
 
 function normalizeCriticalityPayload(payload) {
     if (!payload || typeof payload !== 'object') return null;
@@ -31,13 +36,46 @@ function normalizeCriticalityPayload(payload) {
     return payload;
 }
 
-/**
- * POST /api/erosions
- * Receives { data, meta } from the frontend,
- * applies full legacy logic and criticality securely, 
- * and saves to Firestore via Admin SDK.
- */
-router.post('/', verifyToken, requireEditor, async (req, res) => {
+function runCriticalityCalculation(input, rulesConfig) {
+    try {
+        return calculateCriticality(input, rulesConfig);
+    } catch (error) {
+        const isLegacyWrapperReferenceError = error instanceof ReferenceError
+            && String(error.message || '').includes('calcular_criticidade is not defined');
+
+        if (!isLegacyWrapperReferenceError) throw error;
+
+        if (typeof calcularCriticidade === 'function') {
+            const breakdown = calcularCriticidade(input, rulesConfig);
+            return {
+                ...breakdown.legacy,
+                codigo: breakdown.codigo,
+                criticidade_classe: breakdown.criticidade_classe,
+                tipo_medida_recomendada: breakdown.tipo_medida_recomendada,
+                lista_solucoes_sugeridas: breakdown.lista_solucoes_sugeridas,
+                alertas_validacao: breakdown.alertas_validacao,
+                breakdown,
+            };
+        }
+
+        if (typeof calcular_criticidade === 'function') {
+            const breakdown = calcular_criticidade(input, rulesConfig);
+            return {
+                ...breakdown.legacy,
+                codigo: breakdown.codigo,
+                criticidade_classe: breakdown.criticidade_classe,
+                tipo_medida_recomendada: breakdown.tipo_medida_recomendada,
+                lista_solucoes_sugeridas: breakdown.lista_solucoes_sugeridas,
+                alertas_validacao: breakdown.alertas_validacao,
+                breakdown,
+            };
+        }
+
+        throw error;
+    }
+}
+
+async function saveErosionHandler(req, res) {
     try {
         const { data, meta = {} } = req.body;
 
@@ -88,7 +126,7 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
             alertsAtivos = Array.isArray(sanitizedPayload.alertsAtivos) ? sanitizedPayload.alertsAtivos : [];
         } else {
             try {
-                calculationResult = calculateCriticality(criticalityInput, meta.rulesConfig);
+                calculationResult = runCriticalityCalculation(criticalityInput, meta.rulesConfig);
                 criticalidadeV2 = calculationResult;
                 alertsAtivos = calculationResult.alertas_validacao || [];
             } catch (calcError) {
@@ -193,15 +231,68 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
             .doc(id)
             .set(finalDocument, { merge: true });
 
-        return res.status(200).json({
+        return res.status(req.method === 'PUT' ? 200 : 201).json({
             status: 'success',
             message: 'Erosão calculada e salva com sucesso!',
-            data: createHateoasResponse(req, { id }, 'erosions', id)
+            data: createHateoasResponse(req, finalDocument, 'erosions', id)
         });
 
     } catch (error) {
         console.error('[Geomonitor API] Erro interno no endpoint /api/erosions:', error);
         return res.status(500).json({ status: 'error', message: 'Erro interno no servidor' });
+    }
+}
+
+router.get('/', verifyToken, requireActiveUser, async (req, res) => {
+    try {
+        const snapshot = await getCollection('erosions').get();
+        const items = snapshot.docs.map((doc) => createHateoasResponse(req, doc.data(), 'erosions', doc.id));
+        return res.status(200).json({ status: 'success', data: items });
+    } catch (error) {
+        console.error('[Geomonitor API] Erro ao listar erosões:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao buscar erosoes' });
+    }
+});
+
+router.get('/:id', verifyToken, requireActiveUser, async (req, res) => {
+    try {
+        const doc = await getDocRef('erosions', req.params.id).get();
+        if (!doc.exists) {
+            return res.status(404).json({ status: 'error', message: 'Registro nao encontrado' });
+        }
+
+        return res.status(200).json({
+            status: 'success',
+            data: createHateoasResponse(req, doc.data(), 'erosions', doc.id),
+        });
+    } catch (error) {
+        console.error('[Geomonitor API] Erro ao buscar erosão:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao buscar erosao' });
+    }
+});
+
+router.post('/', verifyToken, requireEditor, saveErosionHandler);
+
+router.put('/:id', verifyToken, requireEditor, async (req, res) => {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const data = body.data && typeof body.data === 'object' ? body.data : {};
+    req.body = {
+        ...body,
+        data: {
+            ...data,
+            id: req.params.id,
+        },
+    };
+    return saveErosionHandler(req, res);
+});
+
+router.delete('/:id', verifyToken, requireEditor, async (req, res) => {
+    try {
+        await getDocRef('erosions', req.params.id).delete();
+        return res.status(200).json({ status: 'success', message: 'Registro deletado' });
+    } catch (error) {
+        console.error('[Geomonitor API] Erro ao deletar erosão:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao deletar erosao' });
     }
 });
 
@@ -223,7 +314,7 @@ router.post('/simulate', verifyToken, requireActiveUser, async (req, res) => {
             tiposFeicao: technical.tiposFeicao,
         });
 
-        const scoreFields = calculateCriticality(criticalityInput, meta.rulesConfig);
+        const scoreFields = runCriticalityCalculation(criticalityInput, meta.rulesConfig);
 
         res.status(200).json({
             message: 'Erosion calculation simulated successfully.',

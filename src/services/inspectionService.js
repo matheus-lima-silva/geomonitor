@@ -1,4 +1,3 @@
-import { subscribeCollection } from './firestoreClient';
 import { createCrudService } from '../utils/serviceFactory';
 
 const service = createCrudService({
@@ -7,7 +6,7 @@ const service = createCrudService({
 });
 
 export function subscribeInspections(onData, onError) {
-  return subscribeCollection('inspections', onData, onError);
+  return service.subscribe(onData, onError);
 }
 
 export async function saveInspection(inspection, meta = {}) {

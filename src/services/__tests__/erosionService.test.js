@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../firestoreClient', () => ({
-  deleteDocById: vi.fn(),
-  subscribeCollection: vi.fn()
-}));
-
 vi.mock('../../firebase/config', () => ({
   auth: {
     currentUser: {
@@ -13,7 +8,6 @@ vi.mock('../../firebase/config', () => ({
   }
 }));
 
-import { deleteDocById, subscribeCollection } from '../firestoreClient';
 import { auth } from '../../firebase/config';
 import {
   deleteErosion,
@@ -22,6 +16,10 @@ import {
   saveErosionManualFollowupEvent,
   subscribeErosions
 } from '../erosionService';
+
+async function flushPromises() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 describe('erosionService', () => {
   const fetchMock = vi.fn();
@@ -34,15 +32,26 @@ describe('erosionService', () => {
     };
   });
 
-  it('subscribeErosions delega para collection erosions', () => {
+  it('subscribeErosions busca lista via API', async () => {
     const onData = vi.fn();
     const onError = vi.fn();
-    vi.mocked(subscribeCollection).mockReturnValue('UNSUB');
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ data: [{ id: 'ERS-1', projetoId: 'P-1' }] })
+    });
 
     const unsub = subscribeErosions(onData, onError);
+    await flushPromises();
 
-    expect(subscribeCollection).toHaveBeenCalledWith('erosions', onData, onError);
-    expect(unsub).toBe('UNSUB');
+    expect(fetchMock.mock.calls[0][0]).toContain('/erosions');
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: 'GET',
+      headers: { Authorization: 'Bearer token-123' }
+    });
+    expect(onData).toHaveBeenCalledWith([expect.objectContaining({ id: 'ERS-1' })]);
+    expect(onError).not.toHaveBeenCalled();
+    expect(typeof unsub).toBe('function');
+    unsub();
   });
 
   it('saveErosion envia POST e retorna id da resposta', async () => {
@@ -179,10 +188,17 @@ describe('erosionService', () => {
     );
   });
 
-  it('deleteErosion delega para deleteDocById', async () => {
-    vi.mocked(deleteDocById).mockResolvedValue(undefined);
+  it('deleteErosion envia DELETE para a API', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({})
+    });
 
-    await expect(deleteErosion('ERS-1')).resolves.toBeUndefined();
-    expect(deleteDocById).toHaveBeenCalledWith('erosions', 'ERS-1');
+    await expect(deleteErosion('ERS-1')).resolves.toEqual({});
+    expect(fetchMock.mock.calls[0][0]).toContain('/erosions/ERS-1');
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer token-123' }
+    });
   });
 });

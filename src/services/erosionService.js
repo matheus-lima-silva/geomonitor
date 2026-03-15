@@ -1,8 +1,20 @@
-import { deleteDocById, loadDoc, saveDoc, subscribeCollection } from './firestoreClient';
 import { deleteField } from 'firebase/firestore';
 import { normalizeErosionStatus } from '../features/shared/statusUtils';
-import { extractApiErrorMessage, fetchWithHateoas, normalizeRequestError } from '../utils/apiClient';
-import { API_BASE_URL, getAuthToken } from '../utils/serviceFactory';
+import { extractApiErrorMessage, isNetworkFailureError, normalizeRequestError } from '../utils/apiClient';
+import { API_BASE_URL, createCrudService, getAuthToken } from '../utils/serviceFactory';
+
+const FALLBACK_PROD_API_BASE_URL = 'https://geomonitor-api.fly.dev/api';
+
+function getApiBaseCandidates() {
+  if (API_BASE_URL === FALLBACK_PROD_API_BASE_URL) return [API_BASE_URL];
+  return [API_BASE_URL, FALLBACK_PROD_API_BASE_URL];
+}
+
+const erosionCrudService = createCrudService({
+  resourcePath: 'erosions',
+  itemName: 'Erosao',
+  defaultIdGenerator: (payload) => String(payload?.id || '').trim(),
+});
 
 // ── Shared pure functions (single source of truth) ──────────────
 import {
@@ -55,7 +67,7 @@ function normalizeCriticalityCalculationPayload(calculation) {
 // ── Subscriptions ───────────────────────────────────────────────
 
 export function subscribeErosions(onData, onError) {
-  return subscribeCollection('erosions', onData, onError);
+  return erosionCrudService.subscribe(onData, onError);
 }
 
 // ── API calls ───────────────────────────────────────────────────
@@ -63,22 +75,38 @@ export function subscribeErosions(onData, onError) {
 export async function postCalculoErosao(payload = {}, options = {}) {
   try {
     const token = await getAuthToken();
-
-    const response = await fetch(`${API_BASE_URL}/erosions/simulate`, {
+    const requestOptions = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({ data: payload })
-    });
+    };
 
-    if (!response.ok) {
-      const message = await extractApiErrorMessage(response, 'Erro ao simular calculo via API.');
-      throw new Error(message);
+    let result = null;
+    let lastNetworkError = null;
+
+    for (const apiBase of getApiBaseCandidates()) {
+      try {
+        const response = await fetch(`${apiBase}/erosions/simulate`, requestOptions);
+        if (!response.ok) {
+          const message = await extractApiErrorMessage(response, 'Erro ao simular calculo via API.');
+          throw new Error(message);
+        }
+        result = await response.json();
+        lastNetworkError = null;
+        break;
+      } catch (error) {
+        if (!isNetworkFailureError(error)) throw error;
+        lastNetworkError = error;
+      }
     }
 
-    const result = await response.json();
+    if (!result) {
+      throw lastNetworkError || new Error('Erro ao simular calculo via API.');
+    }
+
     const calculation = result.data;
 
     return {
@@ -106,35 +134,8 @@ function buildLegacyFieldCleanupPatch() {
 }
 
 export async function saveErosion(payload, meta = {}) {
-  try {
-    if (payload?._links?.update) {
-      return fetchWithHateoas(payload._links.update, { data: payload, meta }, API_BASE_URL).then((res) => res.data.id);
-    }
-
-    const token = await getAuthToken();
-
-    const response = await fetch(`${API_BASE_URL}/erosions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ data: payload, meta })
-    });
-
-    if (!response.ok) {
-      const message = await extractApiErrorMessage(response, 'Erro ao salvar a erosao via API.');
-      throw new Error(message);
-    }
-
-    const result = await response.json();
-    return result.data.id;
-  } catch (error) {
-    throw normalizeRequestError(
-      error,
-      'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
-    );
-  }
+  const result = await erosionCrudService.save(String(payload?.id || '').trim(), payload, meta);
+  return result?.data?.id || String(payload?.id || '').trim();
 }
 
 export async function saveErosionManualFollowupEvent(erosion, eventData, meta = {}) {
@@ -173,6 +174,6 @@ export async function saveErosionManualFollowupEvent(erosion, eventData, meta = 
   };
 }
 
-export function deleteErosion(id) {
-  return deleteDocById('erosions', id);
+export function deleteErosion(erosionOrId) {
+  return erosionCrudService.remove(erosionOrId);
 }

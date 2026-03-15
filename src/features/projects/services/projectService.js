@@ -1,13 +1,17 @@
-import { deleteDocById, saveDoc, subscribeCollection } from '../../../services/firestoreClient';
+import {
+  removeProject,
+  subscribeProjects as subscribeProjectsApi,
+  updateProject,
+} from '../../../services/projectService';
 
 export function subscribeProjects(onData, onError) {
-  return subscribeCollection('projects', onData, onError);
+  return subscribeProjectsApi(onData, onError);
 }
 
 export function saveProject(projectId, payload, meta = {}) {
-  return saveDoc('projects', projectId, payload, meta);
+  return updateProject(projectId, payload, meta);
 }
 
 export function deleteProject(projectId) {
-  return deleteDocById('projects', projectId);
+  return removeProject(projectId);
 }
