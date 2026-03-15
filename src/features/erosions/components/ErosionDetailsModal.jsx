@@ -4,6 +4,7 @@ import { Badge, Button, Input, Modal, Select } from '../../../components/ui';
 import { erosionStatusClass, normalizeErosionStatus } from '../../shared/statusUtils';
 import {
   deriveErosionTypeFromTechnicalFields,
+  EROSION_TECHNICAL_OPTIONS,
   getLocalContextLabel,
   isHistoricalErosionRecord,
   normalizeErosionTechnicalFields,
@@ -28,6 +29,95 @@ const EMPTY_EVENT_FORM = {
 function listValue(value) {
   if (!Array.isArray(value) || value.length === 0) return '-';
   return value.join(', ');
+}
+
+function buildLabelMap(options = []) {
+  return (Array.isArray(options) ? options : []).reduce((acc, item) => {
+    const key = String(item?.value || '').trim();
+    if (key) acc[key] = String(item?.label || '').trim() || key;
+    return acc;
+  }, {});
+}
+
+function labelValue(value, labelMap = {}) {
+  const key = String(value || '').trim();
+  if (!key) return '-';
+  return labelMap[key] || key;
+}
+
+function listLabelValue(value, labelMap = {}) {
+  if (!Array.isArray(value) || value.length === 0) return '-';
+  return value
+    .map((item) => labelValue(item, labelMap))
+    .join(', ');
+}
+
+const CLASS_RANGE_LABELS = {
+  profundidade: {
+    P1: '<= 1 m',
+    P2: '> 1 a 10 m',
+    P3: '> 10 a 30 m',
+    P4: '> 30 m',
+  },
+  declividade: {
+    D1: '< 10 graus',
+    D2: '10 a 25 graus',
+    D3: '> 25 graus',
+  },
+  exposicao: {
+    E1: '> 50 m',
+    E2: '20 a 50 m',
+    E3: '5 a < 20 m',
+    E4: '< 5 m',
+  },
+};
+
+const LEGACY_CLASS_CODE_ALIASES = {
+  '<0.5': 'P1',
+  '0.5-1.5': 'P2',
+  '1.5-3.0': 'P3',
+  '>3.0': 'P4',
+  '<15': 'D1',
+  '15-30': 'D2',
+  '30-45': 'D3',
+  '>45': 'D3',
+};
+
+function deriveDepthClass(value) {
+  if (!Number.isFinite(value)) return '';
+  if (value <= 1) return 'P1';
+  if (value <= 10) return 'P2';
+  if (value <= 30) return 'P3';
+  return 'P4';
+}
+
+function deriveSlopeClass(value) {
+  if (!Number.isFinite(value)) return '';
+  if (value < 10) return 'D1';
+  if (value <= 25) return 'D2';
+  return 'D3';
+}
+
+function deriveExposureClass(value) {
+  if (!Number.isFinite(value)) return '';
+  if (value > 50) return 'E1';
+  if (value >= 20) return 'E2';
+  if (value >= 5) return 'E3';
+  return 'E4';
+}
+
+function resolveClassCode(rawClassCode, rangeLabels, fallbackClassCode = '') {
+  const raw = String(rawClassCode || '').trim();
+  if (raw && rangeLabels[raw]) return raw;
+  if (raw && LEGACY_CLASS_CODE_ALIASES[raw]) return LEGACY_CLASS_CODE_ALIASES[raw];
+  return fallbackClassCode;
+}
+
+function formatClassWithRange(classCode, rangeLabels = {}) {
+  const code = String(classCode || '').trim();
+  if (!code) return '-';
+  const range = rangeLabels[code];
+  return range ? `${code} (${range})` : code;
 }
 
 function resolveHistoryUserLabel(usuario, currentUser) {
@@ -96,6 +186,29 @@ function ErosionDetailsModal({
       : erosion.criticalidadeV2)
     : null;
   const alertasAtivos = criticalitySummary.alertas;
+  const feicaoLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.tiposFeicao), []);
+  const caracteristicaLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.caracteristicasFeicao), []);
+  const usoSoloLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.usosSolo), []);
+  const presencaAguaLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.presencaAguaFundo), []);
+  const saturacaoLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.saturacaoPorAgua), []);
+  const soloLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.tipoSolo), []);
+  const exposicaoLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.localizacaoExposicao), []);
+  const estruturaLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.estruturaProxima), []);
+  const profundidadeClasse = resolveClassCode(
+    criticalidadeV2?.profundidade_classe,
+    CLASS_RANGE_LABELS.profundidade,
+    deriveDepthClass(technical.profundidadeMetros),
+  );
+  const declividadeClasse = resolveClassCode(
+    criticalidadeV2?.declividade_classe,
+    CLASS_RANGE_LABELS.declividade,
+    deriveSlopeClass(technical.declividadeGraus),
+  );
+  const exposicaoClasse = resolveClassCode(
+    criticalidadeV2?.exposicao_classe,
+    CLASS_RANGE_LABELS.exposicao,
+    deriveExposureClass(technical.distanciaEstruturaMetros),
+  );
 
   async function handleSaveEvent() {
     const tipo = String(eventForm.tipoEvento || '').trim();
@@ -175,25 +288,34 @@ function ErosionDetailsModal({
                 Este registro foi salvo como histórico de acompanhamento. A criticidade técnica pode não existir porque a intervenção já havia sido executada antes do cadastro.
               </div>
             ) : null}
-            <div><strong className="text-slate-900">Tipo (derivado):</strong> {derivedTipo || '-'}</div>
+            <div><strong className="text-slate-900">Tipo (derivado):</strong> {labelValue(derivedTipo, feicaoLabelMap)}</div>
             <div><strong className="text-slate-900">Grau erosivo:</strong> {erosion.estagio || '-'}</div>
             <div><strong className="text-slate-900">Local:</strong> {localTipoLabel}</div>
             {localContexto.localTipo === 'outros' ? (
               <div className="col-span-full"><strong className="text-slate-900">Detalhe local:</strong> {localContexto.localDescricao || '-'}</div>
             ) : null}
-            <div><strong className="text-slate-900">Profundidade real (m):</strong> {Number.isFinite(technical.profundidadeMetros) ? technical.profundidadeMetros : '-'}</div>
-            <div><strong className="text-slate-900">Declividade real (graus):</strong> {Number.isFinite(technical.declividadeGraus) ? technical.declividadeGraus : '-'}</div>
-            <div><strong className="text-slate-900">Distancia da estrutura (m):</strong> {Number.isFinite(technical.distanciaEstruturaMetros) ? technical.distanciaEstruturaMetros : '-'}</div>
-            <div><strong className="text-slate-900">Presenca de agua no fundo:</strong> {technical.presencaAguaFundo || '-'}</div>
-            <div><strong className="text-slate-900">Saturacao por agua:</strong> {saturacaoPorAgua || '-'}</div>
-            <div><strong className="text-slate-900">Tipo de solo:</strong> {technical.tipoSolo || '-'}</div>
-            <div><strong className="text-slate-900">Localizacao de exposicao:</strong> {localContexto.exposicao || '-'}</div>
-            <div><strong className="text-slate-900">Estrutura proxima:</strong> {localContexto.estruturaProxima || '-'}</div>
-            <div><strong className="text-slate-900">Sinais de avanco:</strong> {technical.sinaisAvanco ? 'sim' : 'nao'}</div>
-            <div><strong className="text-slate-900">Vegetacao interior:</strong> {technical.vegetacaoInterior ? 'sim' : 'nao'}</div>
-            <div className="col-span-full"><strong className="text-slate-900">Tipos de feicao:</strong> {listValue(tiposFeicao)}</div>
-            <div className="col-span-full"><strong className="text-slate-900">Caracteristicas da feicao:</strong> {listValue(caracteristicasFeicao)}</div>
-            <div className="col-span-full"><strong className="text-slate-900">Usos do solo:</strong> {listValue(usosSolo)}</div>
+            <div>
+              <strong className="text-slate-900">Profundidade (faixa informada):</strong>{' '}
+              {formatClassWithRange(profundidadeClasse, CLASS_RANGE_LABELS.profundidade)}
+            </div>
+            <div>
+              <strong className="text-slate-900">Declividade (faixa informada):</strong>{' '}
+              {formatClassWithRange(declividadeClasse, CLASS_RANGE_LABELS.declividade)}
+            </div>
+            <div>
+              <strong className="text-slate-900">Distancia da estrutura (faixa informada):</strong>{' '}
+              {formatClassWithRange(exposicaoClasse, CLASS_RANGE_LABELS.exposicao)}
+            </div>
+            <div><strong className="text-slate-900">Presenca de agua no fundo:</strong> {labelValue(technical.presencaAguaFundo, presencaAguaLabelMap)}</div>
+            <div><strong className="text-slate-900">Saturacao por agua:</strong> {labelValue(saturacaoPorAgua, saturacaoLabelMap)}</div>
+            <div><strong className="text-slate-900">Tipo de solo:</strong> {labelValue(technical.tipoSolo, soloLabelMap)}</div>
+            <div><strong className="text-slate-900">Localizacao de exposicao:</strong> {labelValue(localContexto.exposicao, exposicaoLabelMap)}</div>
+            <div><strong className="text-slate-900">Estrutura proxima:</strong> {labelValue(localContexto.estruturaProxima, estruturaLabelMap)}</div>
+            <div><strong className="text-slate-900">Sinais de avanco:</strong> {technical.sinaisAvanco ? 'Sim' : 'Nao'}</div>
+            <div><strong className="text-slate-900">Vegetacao interior:</strong> {technical.vegetacaoInterior ? 'Sim' : 'Nao'}</div>
+            <div className="col-span-full"><strong className="text-slate-900">Tipos de feicao:</strong> {listLabelValue(tiposFeicao, feicaoLabelMap)}</div>
+            <div className="col-span-full"><strong className="text-slate-900">Caracteristicas da feicao:</strong> {listLabelValue(caracteristicasFeicao, caracteristicaLabelMap)}</div>
+            <div className="col-span-full"><strong className="text-slate-900">Usos do solo:</strong> {listLabelValue(usosSolo, usoSoloLabelMap)}</div>
             {usosSolo.includes('outro') ? (
               <div className="col-span-full"><strong className="text-slate-900">Uso do solo - outro:</strong> {erosion.usoSoloOutro || '-'}</div>
             ) : null}

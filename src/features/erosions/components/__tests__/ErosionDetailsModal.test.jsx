@@ -87,13 +87,17 @@ describe('ErosionDetailsModal', () => {
     renderModal(root);
 
     expect(container.textContent).toContain('Classificacao e caracterizacao consolidada');
-    expect(container.textContent).toContain('Declividade real (graus):');
-    expect(container.textContent).toContain('Distancia da estrutura (m):');
+    expect(container.textContent).toContain('Profundidade (faixa informada):');
+    expect(container.textContent).toContain('Declividade (faixa informada):');
+    expect(container.textContent).toContain('Distancia da estrutura (faixa informada):');
+    expect(container.textContent).toContain('P1 (<= 1 m)');
+    expect(container.textContent).toContain('D1 (< 10 graus)');
+    expect(container.textContent).toContain('E3 (5 a < 20 m)');
     expect(container.textContent).not.toContain('Altura maxima');
     expect(container.textContent).toContain('Presenca de agua no fundo:');
-    expect(container.textContent).toContain('ravina, sulco');
-    expect(container.textContent).toContain('contato_materiais');
-    expect(container.textContent).toContain('pastagem, outro');
+    expect(container.textContent).toContain('Ravina, Sulco');
+    expect(container.textContent).toContain('Contato entre materiais');
+    expect(container.textContent).toContain('Pastagem, Outro');
     expect(container.textContent).toContain('Uso do solo - outro:');
     expect(container.textContent).toContain('acesso rural');
     expect(container.textContent).toContain('Resumo de criticidade calculada:');
