@@ -982,8 +982,8 @@ function InspectionFormWizardModal({
       setInlineCoordinatesExpanded(false);
       setInlineUtmErrorToken(0);
       show(existing ? 'Erosao atualizada com sucesso.' : 'Erosao cadastrada com sucesso.', 'success');
-    } catch {
-      show('Erro ao salvar erosao.', 'error');
+    } catch (err) {
+      show(err?.message || 'Erro ao salvar erosao.', 'error');
     }
   }
 

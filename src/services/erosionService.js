@@ -1,7 +1,7 @@
 import { deleteDocById, loadDoc, saveDoc, subscribeCollection } from './firestoreClient';
 import { deleteField } from 'firebase/firestore';
 import { normalizeErosionStatus } from '../features/shared/statusUtils';
-import { fetchWithHateoas } from '../utils/apiClient';
+import { extractApiErrorMessage, fetchWithHateoas, normalizeRequestError } from '../utils/apiClient';
 import { API_BASE_URL, getAuthToken } from '../utils/serviceFactory';
 
 // ── Shared pure functions (single source of truth) ──────────────
@@ -53,29 +53,36 @@ export function subscribeErosions(onData, onError) {
 // ── API calls ───────────────────────────────────────────────────
 
 export async function postCalculoErosao(payload = {}, options = {}) {
-  const token = await getAuthToken();
+  try {
+    const token = await getAuthToken();
 
-  const response = await fetch(`${API_BASE_URL}/erosions/simulate`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ data: payload })
-  });
+    const response = await fetch(`${API_BASE_URL}/erosions/simulate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ data: payload })
+    });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'Erro ao simular calculo via API.');
+    if (!response.ok) {
+      const message = await extractApiErrorMessage(response, 'Erro ao simular calculo via API.');
+      throw new Error(message);
+    }
+
+    const result = await response.json();
+    const calculation = result.data;
+
+    return {
+      campos_calculados: calculation,
+      alertas_validacao: calculation.alertas_validacao || [],
+    };
+  } catch (error) {
+    throw normalizeRequestError(
+      error,
+      'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
+    );
   }
-
-  const result = await response.json();
-  const calculation = result.data;
-
-  return {
-    campos_calculados: calculation,
-    alertas_validacao: calculation.alertas_validacao || [],
-  };
 }
 
 function buildLegacyFieldCleanupPatch() {
@@ -91,28 +98,35 @@ function buildLegacyFieldCleanupPatch() {
 }
 
 export async function saveErosion(payload, meta = {}) {
-  if (payload?._links?.update) {
-    return fetchWithHateoas(payload._links.update, { data: payload, meta }).then((res) => res.data.id);
+  try {
+    if (payload?._links?.update) {
+      return fetchWithHateoas(payload._links.update, { data: payload, meta }, API_BASE_URL).then((res) => res.data.id);
+    }
+
+    const token = await getAuthToken();
+
+    const response = await fetch(`${API_BASE_URL}/erosions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ data: payload, meta })
+    });
+
+    if (!response.ok) {
+      const message = await extractApiErrorMessage(response, 'Erro ao salvar a erosao via API.');
+      throw new Error(message);
+    }
+
+    const result = await response.json();
+    return result.data.id;
+  } catch (error) {
+    throw normalizeRequestError(
+      error,
+      'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
+    );
   }
-
-  const token = await getAuthToken();
-
-  const response = await fetch(`${API_BASE_URL}/erosions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ data: payload, meta })
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'Erro ao salvar a erosão via API.');
-  }
-
-  const result = await response.json();
-  return result.data.id;
 }
 
 export async function saveErosionManualFollowupEvent(erosion, eventData, meta = {}) {

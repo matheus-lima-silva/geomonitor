@@ -1,7 +1,24 @@
 import { auth } from '../firebase/config';
-import { fetchWithHateoas } from './apiClient';
+import { fetchWithHateoas, normalizeRequestError } from './apiClient';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+function resolveApiBaseUrl() {
+  const configured = String(import.meta.env.VITE_API_BASE_URL || '').trim();
+  const hasWindow = typeof window !== 'undefined';
+  const hostname = hasWindow ? String(window.location.hostname || '').toLowerCase() : '';
+  const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
+
+  if (configured) {
+    const pointsToLocal = /localhost|127\.0\.0\.1/i.test(configured);
+    if (!isLocalHost && pointsToLocal) {
+      return 'https://geomonitor-api.fly.dev/api';
+    }
+    return configured;
+  }
+
+  return isLocalHost ? 'http://localhost:8080/api' : 'https://geomonitor-api.fly.dev/api';
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 export async function getAuthToken() {
   const token = await auth?.currentUser?.getIdToken();
@@ -27,10 +44,10 @@ export function createCrudService({ resourcePath, itemName, defaultIdGenerator =
       }
       return response.json();
     } catch (error) {
-      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        throw new Error('Não foi possível conectar ao servidor. Verifique se o backend está rodando.');
-      }
-      throw error;
+      throw normalizeRequestError(
+        error,
+        'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
+      );
     }
   }
 
@@ -49,7 +66,7 @@ export function createCrudService({ resourcePath, itemName, defaultIdGenerator =
 
     async update(id, data, meta = {}) {
       if (data?._links?.update) {
-        return fetchWithHateoas(data._links.update, { data: { ...data, id }, meta });
+        return fetchWithHateoas(data._links.update, { data: { ...data, id }, meta }, API_BASE_URL);
       }
 
       const token = await getToken();
@@ -62,7 +79,7 @@ export function createCrudService({ resourcePath, itemName, defaultIdGenerator =
 
     async save(id, data, meta = {}) {
       if (data?._links?.update) {
-        return fetchWithHateoas(data._links.update, { data: { ...data, id }, meta });
+        return fetchWithHateoas(data._links.update, { data: { ...data, id }, meta }, API_BASE_URL);
       }
 
       const token = await getToken();
@@ -79,7 +96,7 @@ export function createCrudService({ resourcePath, itemName, defaultIdGenerator =
     async remove(itemOrId) {
       const _links = itemOrId?._links || itemOrId;
       if (_links?.delete) {
-        return fetchWithHateoas(_links.delete);
+        return fetchWithHateoas(_links.delete, null, API_BASE_URL);
       }
       const id = typeof itemOrId === 'object' ? itemOrId.id : itemOrId;
       const token = await getToken();
