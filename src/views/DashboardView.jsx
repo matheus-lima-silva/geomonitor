@@ -105,6 +105,33 @@ function DashboardHeatMapViewport({ heatPoints }) {
   return null;
 }
 
+const EMPTY_MONITORING_VIEW_MODEL = {
+  searchTermApplied: '',
+  reportOccurrences: [],
+  reportProjectMonthRows: [],
+  reportMonthRows: [],
+  reportMonthDetailsByKey: {},
+  workTrackingRows: [],
+  impactCounts: {
+    'Muito Alto': 0,
+    Alto: 0,
+    Medio: 0,
+    Baixo: 0,
+  },
+  criticalCount: 0,
+  criticalityDistributionRows: [],
+  stabilizationRate: 0,
+  heatPoints: [],
+  heatPointsWithoutCoordinates: 0,
+  recentErosions: [],
+  projectsById: new Map(),
+  projectCount: 0,
+  inspectionCount: 0,
+  erosionCount: 0,
+  reportPlanningAlerts: [],
+  reportInvalidOverrides: [],
+};
+
 function DashboardMonitoring({ viewModel }) {
   const {
     searchTermApplied,
@@ -124,7 +151,7 @@ function DashboardMonitoring({ viewModel }) {
     projectCount,
     inspectionCount,
     erosionCount,
-  } = viewModel;
+  } = viewModel || EMPTY_MONITORING_VIEW_MODEL;
   const [expandedMonthKey, setExpandedMonthKey] = useState(null);
   const [expandedReportRowKey, setExpandedReportRowKey] = useState('');
   const upcomingScopeCount = reportOccurrences.length;
@@ -515,14 +542,21 @@ function DashboardView() {
   const [pendingErosionDraft, setPendingErosionDraft] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-  const dashboardViewModel = useMemo(() => buildMonitoringViewModel({
-    projects,
-    inspections,
-    erosions,
-    operatingLicenses,
-    deliveryTracking,
-    searchTerm,
-  }), [projects, inspections, erosions, operatingLicenses, deliveryTracking, searchTerm]);
+  const dashboardViewModel = useMemo(() => {
+    try {
+      return buildMonitoringViewModel({
+        projects,
+        inspections,
+        erosions,
+        operatingLicenses,
+        deliveryTracking,
+        searchTerm,
+      });
+    } catch (error) {
+      console.error('[DashboardView] Falha ao montar view model de monitoramento:', error);
+      return EMPTY_MONITORING_VIEW_MODEL;
+    }
+  }, [projects, inspections, erosions, operatingLicenses, deliveryTracking, searchTerm]);
 
   const topNotice = activeTab === 'dashboard' && dashboardViewModel.reportPlanningAlerts.length > 0
     ? <TopPlanningAlert alerts={dashboardViewModel.reportPlanningAlerts} />
