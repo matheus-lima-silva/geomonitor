@@ -1,5 +1,28 @@
 const { getAuth, getDb } = require('./firebaseSetup');
 
+// In-memory profile cache: evita 1 leitura Firestore por request
+// TTL de 5 minutos por uid — mudancas de status levam ate 5 min para propagar
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+const profileCache = new Map(); // uid -> { profile, expiresAt }
+
+function getCachedProfile(uid) {
+    const entry = profileCache.get(uid);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+        profileCache.delete(uid);
+        return null;
+    }
+    return entry.profile;
+}
+
+function setCachedProfile(uid, profile) {
+    profileCache.set(uid, { profile, expiresAt: Date.now() + PROFILE_CACHE_TTL_MS });
+}
+
+function invalidateCachedProfile(uid) {
+    profileCache.delete(uid);
+}
+
 /**
  * Express middleware to verify Firebase ID Tokens.
  * Ensures that only authenticated users can access the route.
@@ -41,13 +64,19 @@ async function requireActiveUser(req, res, next) {
 
     try {
         if (!req.userProfile) {
-            const db = getDb();
-            const userDoc = await db.collection('shared').doc('geomonitor').collection('users').doc(req.user.uid).get();
+            const cached = getCachedProfile(req.user.uid);
+            if (cached) {
+                req.userProfile = cached;
+            } else {
+                const db = getDb();
+                const userDoc = await db.collection('shared').doc('geomonitor').collection('users').doc(req.user.uid).get();
 
-            if (!userDoc.exists) {
-                return res.status(403).json({ status: 'error', message: 'Perfil não encontrado.' });
+                if (!userDoc.exists) {
+                    return res.status(403).json({ status: 'error', message: 'Perfil não encontrado.' });
+                }
+                req.userProfile = userDoc.data();
+                setCachedProfile(req.user.uid, req.userProfile);
             }
-            req.userProfile = userDoc.data();
         }
 
         if (req.userProfile.status !== 'Ativo') {
@@ -56,6 +85,7 @@ async function requireActiveUser(req, res, next) {
 
         next();
     } catch (error) {
+        invalidateCachedProfile(req.user?.uid);
         console.error('[Geomonitor API] requireActiveUser Error:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao verificar perfil do usuário.' });
     }
@@ -83,5 +113,6 @@ module.exports = {
     verifyToken,
     requireActiveUser,
     requireEditor,
-    requireAdmin
+    requireAdmin,
+    invalidateCachedProfile,
 };

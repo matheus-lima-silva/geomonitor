@@ -26,7 +26,7 @@ export function clearAllServiceCaches() {
     toRemove.forEach((k) => sessionStorage.removeItem(k));
   } catch { /* ignore */ }
 }
-const DEFAULT_POLL_INTERVAL_MS = 30000;
+const DEFAULT_POLL_INTERVAL_MS = 120000;
 
 function resolveApiBaseUrl() {
   const configured = String(import.meta.env.VITE_API_BASE_URL || '').trim();
