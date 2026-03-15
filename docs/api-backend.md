@@ -278,5 +278,6 @@ Executa simulacao de calculo sem persistir. (Requer: `requireActiveUser`)
 Status:
 
 - `200`: simulacao executada
+- `400`: campos tecnicos invalidos para simulacao
 - `500`: erro interno
 

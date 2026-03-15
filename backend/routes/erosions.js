@@ -86,9 +86,6 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
         if (isHistoricalRecord) {
             criticalidadeV2 = normalizeCriticalityPayload(sanitizedPayload.criticalidadeV2) ?? null;
             alertsAtivos = Array.isArray(sanitizedPayload.alertsAtivos) ? sanitizedPayload.alertsAtivos : [];
-        } else if (sanitizedPayload.criticalidadeV2) {
-            criticalidadeV2 = normalizeCriticalityPayload(sanitizedPayload.criticalidadeV2);
-            alertsAtivos = sanitizedPayload.alertsAtivos || [];
         } else {
             try {
                 calculationResult = calculateCriticality(criticalityInput, meta.rulesConfig);
@@ -122,8 +119,6 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
             registroHistorico: isHistoricalRecord,
             intervencaoRealizada: String(
                 sanitizedPayload.intervencaoRealizada
-                || sanitizedPayload.intervencao
-                || sanitizedPayload.obs
                 || previous?.intervencaoRealizada
                 || ''
             ).trim(),
@@ -215,7 +210,14 @@ router.post('/simulate', verifyToken, requireActiveUser, async (req, res) => {
         const { data, meta = {} } = req.body;
 
         const technicalValidation = validateErosionTechnicalFields(data);
-        const technical = technicalValidation.ok ? technicalValidation.value : normalizeErosionTechnicalFields(data);
+        if (!technicalValidation.ok) {
+            return res.status(400).json({
+                status: 'error',
+                message: technicalValidation.message || 'Campos técnicos inválidos para simulação.',
+            });
+        }
+
+        const technical = technicalValidation.value || normalizeErosionTechnicalFields(data);
         const criticalityInput = buildCriticalityInputFromErosion({
             ...data,
             tiposFeicao: technical.tiposFeicao,

@@ -1,7 +1,7 @@
 # Contrato Futuro - POST /api/erosoes/calcular
 
 ## Status
-Fase 2 (nao implementado em backend nesta etapa). O contrato abaixo ja e atendido localmente pelo adapter `postCalculoErosao(payload)` no frontend.
+Fase 2. O contrato abaixo ja e atendido localmente pelo adapter `postCalculoErosao(payload)` no frontend.
 
 ## Request
 `POST /api/erosoes/calcular`
