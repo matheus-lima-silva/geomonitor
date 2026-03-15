@@ -1,11 +1,29 @@
 import { gerarPeriodoDias, preservarDetalhesDias } from '../dateUtils';
 
 describe('gerarPeriodoDias', () => {
-  it('gera período inclusivo entre início e fim', () => {
+  it('gera período inclusivo apenas com dias úteis', () => {
     expect(gerarPeriodoDias('2025-01-01', '2025-01-03')).toEqual([
       '2025-01-01',
       '2025-01-02',
       '2025-01-03',
+    ]);
+  });
+
+  it('ignora sábado e domingo quando o período atravessa fim de semana', () => {
+    expect(gerarPeriodoDias('2025-01-03', '2025-01-06')).toEqual([
+      '2025-01-03',
+      '2025-01-06',
+    ]);
+  });
+
+  it('retorna vazio quando o período contém apenas fim de semana', () => {
+    expect(gerarPeriodoDias('2025-01-04', '2025-01-05')).toEqual([]);
+  });
+
+  it('descarta extremidades que caiam no fim de semana', () => {
+    expect(gerarPeriodoDias('2025-01-04', '2025-01-07')).toEqual([
+      '2025-01-06',
+      '2025-01-07',
     ]);
   });
 

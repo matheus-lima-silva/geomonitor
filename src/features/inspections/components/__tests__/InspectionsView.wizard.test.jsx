@@ -174,9 +174,11 @@ describe('InspectionsView wizard flow', () => {
     const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
-    changeInput(dateInputs[0], '2026-02-01');
-    changeInput(dateInputs[1], '2026-02-02');
+    changeInput(dateInputs[0], '2026-02-06');
+    changeInput(dateInputs[1], '2026-02-09');
     await flush();
+
+    expect(document.body.textContent).toContain('Dias gerados: 2');
 
     await clickByText('Avancar');
     expect(document.body.textContent).toContain('Detalhar dia');
@@ -207,8 +209,8 @@ describe('InspectionsView wizard flow', () => {
     expect(onPlanningDraftConsumed).toHaveBeenCalled();
 
     const dateInputs = document.querySelectorAll('input[type="date"]');
-    changeInput(dateInputs[0], '2026-03-01');
-    changeInput(dateInputs[1], '2026-03-01');
+    changeInput(dateInputs[0], '2026-03-02');
+    changeInput(dateInputs[1], '2026-03-02');
 
     await flush();
     await clickByText('Avancar');
@@ -232,8 +234,8 @@ describe('InspectionsView wizard flow', () => {
     const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
-    changeInput(dateInputs[0], '2026-03-08');
-    changeInput(dateInputs[1], '2026-03-08');
+    changeInput(dateInputs[0], '2026-03-09');
+    changeInput(dateInputs[1], '2026-03-09');
     await flush();
 
     await clickByText('Avancar');
@@ -315,8 +317,8 @@ describe('InspectionsView wizard flow', () => {
     const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
-    changeInput(dateInputs[0], '2026-03-15');
-    changeInput(dateInputs[1], '2026-03-15');
+    changeInput(dateInputs[0], '2026-03-16');
+    changeInput(dateInputs[1], '2026-03-16');
     await flush();
 
     await clickByText('Avancar');

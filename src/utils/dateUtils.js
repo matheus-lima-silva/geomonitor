@@ -1,5 +1,10 @@
 const toISO = (date) => date.toISOString().slice(0, 10);
 
+const isBusinessDay = (date) => {
+  const dayOfWeek = date.getDay();
+  return dayOfWeek >= 1 && dayOfWeek <= 5;
+};
+
 export function gerarPeriodoDias(dataInicio, dataFim) {
   if (!dataInicio || !dataFim) return [];
 
@@ -10,7 +15,7 @@ export function gerarPeriodoDias(dataInicio, dataFim) {
   const dias = [];
   const cursor = new Date(start);
   while (cursor <= end) {
-    dias.push(toISO(cursor));
+    if (isBusinessDay(cursor)) dias.push(toISO(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
   return dias;
