@@ -3,6 +3,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase/config';
 import { loadProfile, login as doLogin, logout as doLogout, register as doRegister, resetPassword as doResetPassword } from '../services/authService';
 import { clearAllDrafts } from '../hooks/useLocalStorageDraft';
+import { clearAllServiceCaches } from '../utils/serviceFactory';
 
 const AuthContext = createContext(null);
 
@@ -92,6 +93,7 @@ export function AuthProvider({ children }) {
       async logout() {
         await doLogout();
         clearAllDrafts();
+        clearAllServiceCaches();
         setUser(null);
       },
     }),

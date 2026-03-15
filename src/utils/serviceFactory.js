@@ -2,6 +2,30 @@ import { auth } from '../firebase/config';
 import { fetchWithHateoas, isNetworkFailureError, normalizeRequestError } from './apiClient';
 
 const FALLBACK_PROD_API_BASE_URL = 'https://geomonitor-api.fly.dev/api';
+
+const CACHE_PREFIX = '__geocache_v1_';
+
+function readCache(key) {
+  try {
+    const raw = sessionStorage.getItem(CACHE_PREFIX + key);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function writeCache(key, data) {
+  try { sessionStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data)); } catch { /* ignore */ }
+}
+
+export function clearAllServiceCaches() {
+  try {
+    const toRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith(CACHE_PREFIX)) toRemove.push(k);
+    }
+    toRemove.forEach((k) => sessionStorage.removeItem(k));
+  } catch { /* ignore */ }
+}
 const DEFAULT_POLL_INTERVAL_MS = 30000;
 
 function resolveApiBaseUrl() {
@@ -125,6 +149,10 @@ export function createCrudService({
     let inFlight = false;
     let retryTimeoutId = null;
 
+    // Serve cached data immediately so the UI is never blank on remount
+    const cached = readCache(resourcePath);
+    if (Array.isArray(cached)) onData?.(cached);
+
     const run = async () => {
       if (disposed || inFlight) return;
       inFlight = true;
@@ -132,7 +160,9 @@ export function createCrudService({
       try {
         const result = await list();
         if (!disposed) {
-          onData?.(Array.isArray(extractPayload(result, [])) ? extractPayload(result, []) : []);
+          const data = Array.isArray(extractPayload(result, [])) ? extractPayload(result, []) : [];
+          onData?.(data);
+          writeCache(resourcePath, data);
         }
       } catch (error) {
         if (!disposed) {
@@ -310,6 +340,10 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
     let inFlight = false;
     let retryTimeoutId = null;
 
+    // Serve cached data immediately so the UI is never blank on remount
+    const cached = readCache(resourcePath);
+    if (cached !== null) onData?.(cached);
+
     const run = async () => {
       if (disposed || inFlight) return;
       inFlight = true;
@@ -317,7 +351,9 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
       try {
         const result = await get();
         if (!disposed) {
-          onData?.(extractPayload(result, null));
+          const data = extractPayload(result, null);
+          onData?.(data);
+          if (data !== null) writeCache(resourcePath, data);
         }
       } catch (error) {
         if (!disposed) {
