@@ -295,6 +295,8 @@ function InspectionFormWizardModal({
   const autoPendingCheckRef = useRef('');
   const hotelPickerRef = useRef(null);
   const hotelPickerSearchRef = useRef(null);
+  const inlineErosionOverlayRef = useRef(null);
+  const inlineErosionBodyRef = useRef(null);
 
   const selectedProject = useMemo(
     () => (projects || []).find((item) => item.id === formData.projetoId) || null,
@@ -432,6 +434,16 @@ function InspectionFormWizardModal({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [openHotelPickerDayKey]);
+
+  useEffect(() => {
+    if (!erosionModal) return;
+    if (inlineErosionOverlayRef.current) {
+      inlineErosionOverlayRef.current.scrollTop = 0;
+    }
+    if (inlineErosionBodyRef.current) {
+      inlineErosionBodyRef.current.scrollTop = 0;
+    }
+  }, [erosionModal]);
 
   if (!open) return null;
   const portalTarget = typeof document !== 'undefined' ? document.body : null;
@@ -1628,10 +1640,11 @@ function InspectionFormWizardModal({
       {erosionModal ? (
         <div
           data-testid="inspection-inline-erosion-modal"
-          className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-start justify-center p-4 sm:p-6 overflow-y-auto"
+          ref={inlineErosionOverlayRef}
+          className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex min-h-[100dvh] items-start justify-center p-4 sm:p-6 overflow-y-auto overscroll-contain"
         >
           <form
-            className="bg-white w-full max-w-4xl max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] min-h-0 rounded-2xl shadow-2xl flex flex-col relative overflow-hidden"
+            className="bg-white w-full max-w-4xl max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)] min-h-0 rounded-2xl shadow-2xl flex flex-col relative overflow-hidden"
             onSubmit={handleSaveErosion}
           >
             <div className="p-5 border-b border-slate-100">
@@ -1642,7 +1655,8 @@ function InspectionFormWizardModal({
             </div>
             <div
               data-testid="inspection-inline-erosion-modal-body"
-              className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-5"
+              ref={inlineErosionBodyRef}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 flex flex-col gap-5"
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Select

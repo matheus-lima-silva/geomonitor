@@ -244,10 +244,15 @@ describe('InspectionsView wizard flow', () => {
 
     expect(document.body.textContent).toContain('Erosao - Torre 1');
     const inlineModal = document.querySelector('[data-testid="inspection-inline-erosion-modal"]');
+    const inlineModalForm = inlineModal?.querySelector('form');
     const inlineModalBody = document.querySelector('[data-testid="inspection-inline-erosion-modal-body"]');
     expect(inlineModal?.className).toContain('items-start');
+    expect(inlineModal?.className).toContain('min-h-[100dvh]');
+    expect(inlineModal?.className).toContain('overscroll-contain');
     expect(inlineModal?.className).not.toContain('sm:items-center');
     expect(inlineModalBody?.className).toContain('overflow-y-auto');
+    expect(inlineModalBody?.className).toContain('overscroll-contain');
+    expect(inlineModalForm?.className).toContain('max-h-[calc(100dvh-2rem)]');
     expect(saveInspectionMock).not.toHaveBeenCalled();
   });
 

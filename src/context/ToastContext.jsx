@@ -18,7 +18,15 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      {toast && <div className={`toast toast-${toast.type}`}>{toast.message}</div>}
+      {toast && (
+        <div className={[
+          'fixed bottom-5 right-5 z-[200] text-white rounded-xl px-4 py-3 shadow-lg text-sm font-medium max-w-sm',
+          toast.type === 'error' ? 'bg-red-700' :
+          toast.type === 'success' ? 'bg-green-700' : 'bg-slate-700',
+        ].join(' ')}>
+          {toast.message}
+        </div>
+      )}
     </ToastContext.Provider>
   );
 }
