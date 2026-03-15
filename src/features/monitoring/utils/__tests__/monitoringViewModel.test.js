@@ -343,6 +343,31 @@ describe('monitoringViewModel', () => {
     expect(model.recentErosions.map((item) => item.id)).toEqual(['ER-011', 'ER-010', 'ER-009']);
   });
 
+  it('deduplicates entities by id before computing KPI counts', () => {
+    const model = buildMonitoringViewModel({
+      projects: [
+        { id: 'P1', nome: 'Projeto 1' },
+        { id: 'p1', nome: 'Projeto 1 duplicado' },
+      ],
+      inspections: [
+        { id: 'V1', projetoId: 'P1' },
+        { id: 'v1', projetoId: 'P1' },
+      ],
+      erosions: [
+        { id: 'ER-1', projetoId: 'P1', impacto: 'Alto' },
+        { id: 'er-1', projetoId: 'P1', impacto: 'Muito Alto' },
+      ],
+      operatingLicenses: [],
+      searchTerm: '',
+      nowMs,
+    });
+
+    expect(model.projectCount).toBe(1);
+    expect(model.inspectionCount).toBe(1);
+    expect(model.erosionCount).toBe(1);
+    expect(model.recentErosions).toHaveLength(1);
+  });
+
   it('computes criticality distribution, stabilization rate and heat points', () => {
     const model = buildMonitoringViewModel({
       projects: [],

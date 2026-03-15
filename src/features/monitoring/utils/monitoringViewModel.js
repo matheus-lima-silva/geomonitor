@@ -41,6 +41,27 @@ function parseNumeric(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function dedupeById(list = [], idSelector = (item) => item?.id) {
+  const rows = Array.isArray(list) ? list : [];
+  const seen = new Set();
+  const unique = [];
+
+  rows.forEach((item) => {
+    const rawId = String(idSelector(item) || '').trim();
+    if (!rawId) {
+      unique.push(item);
+      return;
+    }
+
+    const normalizedId = rawId.toUpperCase();
+    if (seen.has(normalizedId)) return;
+    seen.add(normalizedId);
+    unique.push(item);
+  });
+
+  return unique;
+}
+
 function matchesDashboardSearch(erosion, searchTerm) {
   const term = String(searchTerm || '').trim().toLowerCase();
   if (!term) return true;
@@ -394,14 +415,15 @@ export function buildMonitoringViewModel({
   searchTerm,
   nowMs = Date.now(),
 } = {}) {
-  const projectsList = Array.isArray(projects) ? projects : [];
-  const inspectionsList = Array.isArray(inspections) ? inspections : [];
-  const erosionsList = Array.isArray(erosions) ? erosions : [];
-  const licensesList = Array.isArray(operatingLicenses) ? operatingLicenses : [];
+  const projectsList = dedupeById(projects);
+  const inspectionsList = dedupeById(inspections);
+  const erosionsList = dedupeById(erosions);
+  const licensesList = dedupeById(operatingLicenses);
   const trackingRows = Array.isArray(deliveryTracking) ? deliveryTracking : [];
   const currentYear = new Date(nowMs).getFullYear();
+  const searchTermApplied = String(searchTerm || '').trim();
 
-  const filteredErosions = erosionsList.filter((item) => matchesDashboardSearch(item, searchTerm));
+  const filteredErosions = erosionsList.filter((item) => matchesDashboardSearch(item, searchTermApplied));
   const projectsById = new Map(projectsList.map((item) => [String(item?.id || '').trim(), item]));
   const trackingMap = normalizeTrackingRows(trackingRows);
 
@@ -508,6 +530,7 @@ export function buildMonitoringViewModel({
   const workTrackingRows = buildWorkTrackingRows(filteredErosions, projectsById);
 
   return {
+    searchTermApplied,
     reportOccurrences,
     reportProjectMonthRows,
     reportInvalidOverrides: reportPlan.invalidOverrides,

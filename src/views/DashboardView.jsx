@@ -107,7 +107,9 @@ function DashboardHeatMapViewport({ heatPoints }) {
 
 function DashboardMonitoring({ viewModel }) {
   const {
+    searchTermApplied,
     reportOccurrences,
+    reportProjectMonthRows,
     reportMonthRows,
     reportMonthDetailsByKey,
     workTrackingRows,
@@ -125,6 +127,9 @@ function DashboardMonitoring({ viewModel }) {
   } = viewModel;
   const [expandedMonthKey, setExpandedMonthKey] = useState(null);
   const [expandedReportRowKey, setExpandedReportRowKey] = useState('');
+  const upcomingScopeCount = reportOccurrences.length;
+  const upcomingProjectCount = reportProjectMonthRows.length;
+  const hasSearchFilter = Boolean(searchTermApplied);
 
   return (
     <section className="flex flex-col gap-5 p-2">
@@ -150,6 +155,12 @@ function DashboardMonitoring({ viewModel }) {
           </Card>
         ))}
       </div>
+
+      {hasSearchFilter ? (
+        <p className="text-xs text-slate-500 -mt-1">
+          Filtro ativo: "{searchTermApplied}". Críticas e Erosões refletem o filtro; Vistorias e Empreendimentos mostram o total geral.
+        </p>
+      ) : null}
 
       {/* Impact level distribution */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -186,6 +197,9 @@ function DashboardMonitoring({ viewModel }) {
 
           <Card variant="nested" className="flex flex-col">
             <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Entregas de Relatórios (próximas)</h3>
+            <p className="text-xs text-slate-500 mt-0 mb-3">
+              Escopos agregados: {upcomingScopeCount} | Projetos (competência): {upcomingProjectCount}
+            </p>
             <div className="w-full overflow-x-auto rounded-lg border border-slate-200">
               <table className="w-full text-left text-sm table-fixed min-w-[700px]">
                 <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
@@ -348,6 +362,7 @@ function DashboardMonitoring({ viewModel }) {
 
           <Card variant="nested" className="flex flex-col">
             <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Acompanhamento mensal de entregas</h3>
+            <p className="text-xs text-slate-500 mt-0 mb-3">Contagem mensal por projeto e competência.</p>
             <div className="flex flex-col gap-2 mt-4">
               {reportMonthRows.map(([monthKey, count]) => {
                 const [year, monthNumber] = monthKey.split('-');
