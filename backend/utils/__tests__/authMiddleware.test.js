@@ -1,5 +1,5 @@
 jest.unmock('../authMiddleware');
-const { verifyToken, requireActiveUser, requireEditor, requireAdmin } = require('../authMiddleware');
+const { verifyToken, requireActiveUser, requireEditor, requireAdmin, invalidateCachedProfile } = require('../authMiddleware');
 const { getAuth, getDb } = require('../firebaseSetup');
 
 jest.mock('../firebaseSetup', () => {
@@ -21,6 +21,7 @@ describe('Auth Middleware', () => {
             json: jest.fn(),
         };
         next = jest.fn();
+        invalidateCachedProfile('user_123');
         jest.clearAllMocks();
     });
 

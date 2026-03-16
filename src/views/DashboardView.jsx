@@ -541,6 +541,7 @@ function DashboardView() {
   const [inspectionPlanningDraft, setInspectionPlanningDraft] = useState(null);
   const [pendingErosionDraft, setPendingErosionDraft] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   const dashboardViewModel = useMemo(() => {
     try {
@@ -558,19 +559,27 @@ function DashboardView() {
     }
   }, [projects, inspections, erosions, operatingLicenses, deliveryTracking, searchTerm]);
 
-  const topNotice = activeTab === 'dashboard' && dashboardViewModel.reportPlanningAlerts.length > 0
-    ? <TopPlanningAlert alerts={dashboardViewModel.reportPlanningAlerts} />
-    : null;
+  const topNotice = (
+    <div className="flex items-center gap-2">
+      {activeTab === 'dashboard' && dashboardViewModel.reportPlanningAlerts.length > 0
+        ? <TopPlanningAlert alerts={dashboardViewModel.reportPlanningAlerts} />
+        : null}
+      <button
+        type="button"
+        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold"
+        onClick={() => setRefreshNonce((value) => value + 1)}
+        title="Atualizar dados da aba atual"
+      >
+        <AppIcon name="reset" size={14} />
+        Atualizar
+      </button>
+    </div>
+  );
 
   useEffect(() => {
     const unsubProjects = subscribeProjects(
       (data) => setProjects(data),
       () => show('Erro ao carregar empreendimentos.', 'error'),
-    );
-
-    const unsubLicenses = subscribeOperatingLicenses(
-      (data) => setOperatingLicenses(data),
-      () => show('Erro ao carregar licencas de operacao.', 'error'),
     );
 
     const unsubInspections = subscribeInspections(
@@ -583,23 +592,40 @@ function DashboardView() {
       () => show('Erro ao carregar erosoes.', 'error'),
     );
 
+    return () => {
+      unsubProjects?.();
+      unsubInspections?.();
+      unsubErosions?.();
+    };
+  }, [show, refreshNonce]);
+
+  useEffect(() => {
+    const needsMonitoringData = activeTab === 'dashboard' || activeTab === 'followups';
+    if (!needsMonitoringData) {
+      return () => { };
+    }
+
+    const unsubLicenses = subscribeOperatingLicenses(
+      (data) => setOperatingLicenses(data),
+      () => show('Erro ao carregar licencas de operacao.', 'error'),
+    );
+
     const unsubTracking = subscribeReportDeliveryTracking(
       (data) => setDeliveryTracking(data),
       () => show('Erro ao carregar acompanhamentos de entrega.', 'error'),
     );
 
     return () => {
-      unsubProjects?.();
       unsubLicenses?.();
-      unsubInspections?.();
-      unsubErosions?.();
       unsubTracking?.();
     };
-  }, [show]);
+  }, [activeTab, show, refreshNonce]);
 
   useEffect(() => {
     const isAdminMenu = user?.role === 'admin' || user?.role === 'manager';
-    if (!isAdminMenu) {
+    const shouldLoadAdminData = isAdminMenu && activeTab === 'admin';
+
+    if (!shouldLoadAdminData) {
       setUsers([]);
       return () => { };
     }
@@ -618,7 +644,7 @@ function DashboardView() {
       unsubUsers?.();
       unsubRules?.();
     };
-  }, [show, user?.role]);
+  }, [activeTab, show, user?.role, refreshNonce]);
 
   function openProjectInspections(projectId) {
     setInspectionProjectFilterId(projectId || null);

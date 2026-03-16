@@ -80,26 +80,41 @@ jest.mock('./utils/firebaseSetup', () => {
     };
 });
 
-jest.mock('./utils/authMiddleware', () => ({
-    verifyToken: (req, res, next) => {
-        const authHeader = String(req.headers?.authorization || '');
-        if (!authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({
-                status: 'error',
-                message: 'Token nao informado',
-            });
-        }
+jest.mock('./utils/authMiddleware', () => {
+    const profileCache = new Map();
 
-        req.user = {
-            uid: 'test-admin-123',
-            email: 'admin@test.com',
-        };
-        next();
-    },
-    requireActiveUser: (req, res, next) => { req.userProfile = { status: 'Ativo', perfil: 'Admin' }; next(); },
-    requireEditor: (req, res, next) => next(),
-    requireAdmin: (req, res, next) => next(),
-}));
+    const getCachedProfile = (uid) => profileCache.get(uid) || null;
+    const setCachedProfile = (uid, profile) => {
+        profileCache.set(uid, profile);
+    };
+    const invalidateCachedProfile = (uid) => {
+        profileCache.delete(uid);
+    };
+
+    return {
+        verifyToken: (req, res, next) => {
+            const authHeader = String(req.headers?.authorization || '');
+            if (!authHeader.startsWith('Bearer ')) {
+                return res.status(401).json({
+                    status: 'error',
+                    message: 'Token nao informado',
+                });
+            }
+
+            req.user = {
+                uid: 'test-admin-123',
+                email: 'admin@test.com',
+            };
+            next();
+        },
+        requireActiveUser: (req, res, next) => { req.userProfile = { status: 'Ativo', perfil: 'Admin' }; next(); },
+        requireEditor: (req, res, next) => next(),
+        requireAdmin: (req, res, next) => next(),
+        getCachedProfile,
+        setCachedProfile,
+        invalidateCachedProfile,
+    };
+});
 
 const { __resetMockDb } = require('./utils/firebaseSetup');
 

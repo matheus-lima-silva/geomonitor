@@ -26,7 +26,7 @@ export function clearAllServiceCaches() {
     toRemove.forEach((k) => sessionStorage.removeItem(k));
   } catch { /* ignore */ }
 }
-const DEFAULT_POLL_INTERVAL_MS = 180000;
+const DEFAULT_POLL_INTERVAL_MS = 900000;
 
 function resolveApiBaseUrl() {
   const configured = String(import.meta.env.VITE_API_BASE_URL || '').trim();
@@ -148,6 +148,7 @@ export function createCrudService({
     let intervalId = null;
     let inFlight = false;
     let retryTimeoutId = null;
+    let visibilityChangeHandler = null;
 
     // Serve cached data immediately so the UI is never blank on remount
     const cached = readCache(resourcePath);
@@ -155,6 +156,7 @@ export function createCrudService({
 
     const run = async () => {
       if (disposed || inFlight) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       inFlight = true;
 
       try {
@@ -178,6 +180,12 @@ export function createCrudService({
 
     if (pollIntervalMs > 0) {
       intervalId = window.setInterval(run, pollIntervalMs);
+      if (typeof document !== 'undefined') {
+        visibilityChangeHandler = () => {
+          if (document.visibilityState === 'visible') run();
+        };
+        document.addEventListener('visibilitychange', visibilityChangeHandler);
+      }
     }
 
     return () => {
@@ -187,6 +195,9 @@ export function createCrudService({
       }
       if (retryTimeoutId) {
         clearTimeout(retryTimeoutId);
+      }
+      if (visibilityChangeHandler && typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', visibilityChangeHandler);
       }
     };
   }
@@ -339,6 +350,7 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
     let intervalId = null;
     let inFlight = false;
     let retryTimeoutId = null;
+    let visibilityChangeHandler = null;
 
     // Serve cached data immediately so the UI is never blank on remount
     const cached = readCache(resourcePath);
@@ -346,6 +358,7 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
 
     const run = async () => {
       if (disposed || inFlight) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       inFlight = true;
 
       try {
@@ -369,6 +382,12 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
 
     if (pollIntervalMs > 0) {
       intervalId = window.setInterval(run, pollIntervalMs);
+      if (typeof document !== 'undefined') {
+        visibilityChangeHandler = () => {
+          if (document.visibilityState === 'visible') run();
+        };
+        document.addEventListener('visibilitychange', visibilityChangeHandler);
+      }
     }
 
     return () => {
@@ -378,6 +397,9 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
       }
       if (retryTimeoutId) {
         clearTimeout(retryTimeoutId);
+      }
+      if (visibilityChangeHandler && typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', visibilityChangeHandler);
       }
     };
   }
