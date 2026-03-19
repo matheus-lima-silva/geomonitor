@@ -1,9 +1,16 @@
-﻿import { act } from 'react';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ErosionDetailsModal from '../ErosionDetailsModal';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+vi.mock('react-leaflet', () => ({
+  MapContainer: ({ children }) => <div>{children}</div>,
+  TileLayer: () => null,
+  CircleMarker: ({ children }) => <div>{children}</div>,
+  Polyline: () => null,
+}));
 
 function renderModal(root, overrides = {}) {
   const props = {

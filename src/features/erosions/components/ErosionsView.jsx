@@ -1,3 +1,4 @@
+import html2canvas from 'html2canvas';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { useAuth } from '../../../context/AuthContext';
@@ -256,12 +257,16 @@ function openErosionDetailsPdfWindow({
   project,
   history,
   relatedInspections,
+  criticalityHistory,
+  mapImageBase64,
 }) {
   const documentHtml = buildSingleErosionFichaPdfDocument({
     erosion,
     project,
     history,
     relatedInspections,
+    criticalityHistory,
+    mapImageBase64,
   });
   openPrintableWindow(documentHtml);
 }
@@ -821,13 +826,44 @@ function ErosionsView({
     }
   }
 
-  function handleExportDetailsPdf() {
+  async function handleExportDetailsPdf() {
     if (!activeDetailsErosion) return;
+
+    let mapImageBase64 = null;
+    const mapEl = document.getElementById('erosion-details-map');
+    if (mapEl) {
+      try {
+        const canvas = await html2canvas(mapEl, {
+          useCORS: true,
+          allowTaint: false,
+          scale: 2,
+          onclone: (_doc, clonedEl) => {
+            const panes = clonedEl.querySelectorAll('.leaflet-pane, .leaflet-proxy, .leaflet-map-pane');
+            panes.forEach((pane) => {
+              const transform = pane.style.transform;
+              if (!transform) return;
+              const match = transform.match(/translate3d\(\s*([^,]+),\s*([^,]+),\s*[^)]+\)/);
+              if (match) {
+                pane.style.transform = 'none';
+                pane.style.left = match[1].trim();
+                pane.style.top = match[2].trim();
+              }
+            });
+          },
+        });
+        mapImageBase64 = canvas.toDataURL('image/png');
+      } catch (err) {
+        console.warn('[PDF] Falha ao capturar mapa:', err);
+      }
+    }
+
     openErosionDetailsPdfWindow({
       erosion: activeDetailsErosion,
       project: projects.find((project) => project.id === activeDetailsErosion.projetoId),
       history: getSortedHistory(activeDetailsErosion),
       relatedInspections: relatedInspectionsInDetails,
+      criticalityHistory: activeDetailsErosion.historicoCriticidade || [],
+      mapImageBase64,
     });
     show('PDF de detalhes preparado para impressao.', 'success');
   }
