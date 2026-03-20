@@ -8,8 +8,8 @@ export function subscribeProjects(onData, onError) {
   return subscribeProjectsApi(onData, onError);
 }
 
-export function saveProject(projectId, payload, meta = {}) {
-  return updateProject(projectId, payload, meta);
+export function saveProject(projectId, payload, meta = {}, options = {}) {
+  return updateProject(projectId, payload, meta, options);
 }
 
 export function deleteProject(projectId) {

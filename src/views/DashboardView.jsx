@@ -142,7 +142,121 @@ const EMPTY_MONITORING_VIEW_MODEL = {
   reportInvalidOverrides: [],
 };
 
-function DashboardMonitoring({ viewModel, onCriticalityBarClick }) {
+function PendingProjectsPanel({ pendingProjects, onFixSchedule, onFixLO }) {
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+
+  const scheduleCount = pendingProjects.filter((i) => i.missingSchedule).length;
+  const loCount = pendingProjects.filter((i) => i.missingLO).length;
+
+  const filtered = useMemo(() => {
+    let items = pendingProjects;
+    if (filter === 'schedule') items = items.filter((i) => i.missingSchedule);
+    if (filter === 'lo') items = items.filter((i) => i.missingLO);
+    if (search.trim()) {
+      const term = search.trim().toLowerCase();
+      items = items.filter(
+        (i) => String(i.id || '').toLowerCase().includes(term) || String(i.nome || '').toLowerCase().includes(term),
+      );
+    }
+    return items;
+  }, [pendingProjects, filter, search]);
+
+  const filterButtons = [
+    { key: 'all', label: 'Todas', count: pendingProjects.length },
+    { key: 'schedule', label: 'Sem data', count: scheduleCount },
+    { key: 'lo', label: 'Sem LO', count: loCount },
+  ];
+
+  return (
+    <Card variant="nested" className="mt-1">
+      <h3 className="text-sm font-bold text-amber-800 m-0 mb-3 flex items-center gap-2">
+        <AppIcon name="alert" size={16} />
+        Empreendimentos com pendencias ({pendingProjects.length})
+      </h3>
+
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-3">
+        <input
+          type="text"
+          placeholder="Buscar por sigla ou nome..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 min-w-0 px-3 py-1.5 text-xs border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none bg-white"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          {filterButtons.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setFilter(f.key)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                filter === f.key
+                  ? 'bg-amber-200 border-amber-400 text-amber-900'
+                  : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-50'
+              }`}
+            >
+              {f.label} ({f.count})
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="overflow-auto max-h-[440px] rounded-lg border border-amber-200">
+        <table className="w-full text-left text-sm whitespace-normal min-w-[400px]">
+          <thead className="bg-amber-50 text-xs font-semibold text-amber-700 uppercase tracking-wider border-b border-amber-200 sticky top-0 z-10">
+            <tr>
+              <th className="px-4 py-3">Empreendimento</th>
+              <th className="px-4 py-3">Pendencias</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-amber-100">
+            {filtered.map((item) => (
+              <tr key={item.id} className="hover:bg-amber-50/50 transition-colors">
+                <td className="px-4 py-3 font-medium text-slate-800">{item.id} - {item.nome || item.id}</td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-2">
+                    {item.missingSchedule && (
+                      <button
+                        type="button"
+                        onClick={() => onFixSchedule?.(item.id)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors cursor-pointer"
+                      >
+                        Sem data de relatorio
+                        <AppIcon name="chevron-right" size={12} />
+                      </button>
+                    )}
+                    {item.missingLO && (
+                      <button
+                        type="button"
+                        onClick={() => onFixLO?.(item.id)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors cursor-pointer"
+                      >
+                        Sem LO associada
+                        <AppIcon name="chevron-right" size={12} />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={2} className="text-center p-4 text-amber-600 text-xs">
+                  Nenhum empreendimento encontrado.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {filtered.length !== pendingProjects.length && (
+        <p className="text-xs text-amber-600 mt-2 m-0">{filtered.length} de {pendingProjects.length} empreendimentos</p>
+      )}
+    </Card>
+  );
+}
+
+function DashboardMonitoring({ viewModel, pendingProjects, onCriticalityBarClick, onFixSchedule, onFixLO }) {
   const {
     searchTermApplied,
     reportOccurrences,
@@ -544,6 +658,14 @@ function DashboardMonitoring({ viewModel, onCriticalityBarClick }) {
           </Card>
         </div>
       </div>
+
+      {pendingProjects && pendingProjects.length > 0 && (
+        <PendingProjectsPanel
+          pendingProjects={pendingProjects}
+          onFixSchedule={onFixSchedule}
+          onFixLO={onFixLO}
+        />
+      )}
     </section>
   );
 }
@@ -561,6 +683,7 @@ function DashboardView() {
   const [rulesConfig, setRulesConfig] = useState(() => normalizeRulesConfig({}));
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
+  const [editProjectId, setEditProjectId] = useState(null);
   const [inspectionProjectFilterId, setInspectionProjectFilterId] = useState(null);
   const [inspectionPlanningDraft, setInspectionPlanningDraft] = useState(null);
   const [pendingErosionDraft, setPendingErosionDraft] = useState(null);
@@ -583,6 +706,25 @@ function DashboardView() {
       return EMPTY_MONITORING_VIEW_MODEL;
     }
   }, [projects, inspections, erosions, operatingLicenses, deliveryTracking, searchTerm]);
+
+  const pendingProjects = useMemo(() => {
+    const coveredIds = new Set();
+    operatingLicenses.forEach((lo) => {
+      (lo.cobertura || []).forEach((c) => {
+        if (c.projetoId) coveredIds.add(String(c.projetoId).toUpperCase());
+      });
+    });
+    return projects
+      .map((p) => {
+        const config = p?.mesesEntregaRelatorio;
+        const months = Array.isArray(config) ? config.filter((m) => Number.isInteger(Number(m)) && Number(m) >= 1 && Number(m) <= 12) : [];
+        const missingSchedule = months.length === 0;
+        const missingLO = !coveredIds.has(String(p.id).toUpperCase());
+        if (!missingSchedule && !missingLO) return null;
+        return { id: p.id, nome: p.nome, missingSchedule, missingLO };
+      })
+      .filter(Boolean);
+  }, [projects, operatingLicenses]);
 
   const topNotice = (
     <div className="flex items-center gap-2">
@@ -625,7 +767,7 @@ function DashboardView() {
   }, [show, refreshNonce]);
 
   useEffect(() => {
-    const needsMonitoringData = activeTab === 'dashboard' || activeTab === 'followups';
+    const needsMonitoringData = activeTab === 'dashboard' || activeTab === 'followups' || activeTab === 'projects';
     if (!needsMonitoringData) {
       return () => { };
     }
@@ -711,11 +853,14 @@ function DashboardView() {
         <ProjectsView
           projects={projects}
           inspections={inspections}
+          operatingLicenses={operatingLicenses}
           userEmail={user?.email}
           showToast={show}
           reloadProjects={async () => null}
           onOpenProjectInspections={openProjectInspections}
           searchTerm={searchTerm}
+          editProjectId={editProjectId}
+          onEditProjectHandled={() => setEditProjectId(null)}
         />
       );
     }
@@ -728,6 +873,7 @@ function DashboardView() {
           erosions={erosions}
           userEmail={user?.email}
           showToast={show}
+          searchTerm={searchTerm}
         />
       );
     }
@@ -805,9 +951,18 @@ function DashboardView() {
       return (
         <DashboardMonitoring
           viewModel={dashboardViewModel}
+          pendingProjects={pendingProjects}
           onCriticalityBarClick={(level) => {
             setCriticalityFilter(level);
             setActiveTab('erosions');
+          }}
+          onFixSchedule={(projectId) => {
+            setEditProjectId(projectId);
+            setActiveTab('projects');
+          }}
+          onFixLO={(projectId) => {
+            setSearchTerm(projectId);
+            setActiveTab('licenses');
           }}
         />
       );

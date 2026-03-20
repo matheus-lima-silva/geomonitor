@@ -42,7 +42,7 @@ describe('features/projects/services/projectService', () => {
 
     await expect(saveProject('P-1', payload, { updatedBy: 'qa@empresa.com' })).resolves.toEqual({ id: 'P-1' });
 
-    expect(updateProject).toHaveBeenCalledWith('P-1', payload, { updatedBy: 'qa@empresa.com' });
+    expect(updateProject).toHaveBeenCalledWith('P-1', payload, { updatedBy: 'qa@empresa.com' }, {});
   });
 
   it('deleteProject delega remoção com id', async () => {

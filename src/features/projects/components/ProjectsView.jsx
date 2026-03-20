@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, IconButton } from '../../../components/ui';
 import { useProjectsFeatureState } from '../hooks/useProjectsFeatureState';
@@ -8,13 +8,24 @@ import { getProjectInspectionStats } from '../utils/projectStats';
 import { downloadProjectKml } from '../utils/projectKmlExport';
 import ProjectFormModal from './ProjectFormModal';
 import KmlReviewModal from './KmlReviewModal';
+import KmlLinePickerModal from './KmlLinePickerModal';
 import RoutePlannerModal from './RoutePlannerModal';
 import { ConfirmDeleteModal } from '../../../components/ui';
 
-function ProjectsView({ projects, inspections, userEmail, showToast, reloadProjects, onOpenProjectInspections, searchTerm }) {
+function ProjectsView({ projects, inspections, operatingLicenses, userEmail, showToast, reloadProjects, onOpenProjectInspections, searchTerm, editProjectId, onEditProjectHandled }) {
   const mergeInputRef = useRef(null);
   const createInputRef = useRef(null);
   const mergeTargetProjectRef = useRef(null);
+
+  const projectsWithLO = useMemo(() => {
+    const coveredIds = new Set();
+    (operatingLicenses || []).forEach((lo) => {
+      (lo.cobertura || []).forEach((c) => {
+        if (c.projetoId) coveredIds.add(String(c.projetoId).toUpperCase());
+      });
+    });
+    return coveredIds;
+  }, [operatingLicenses]);
 
   const state = useProjectsFeatureState({
     projects,
@@ -30,6 +41,15 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
       (p) => String(p.id || '').toLowerCase().includes(t) || String(p.nome || '').toLowerCase().includes(t),
     );
   }, [projects, searchTerm]);
+
+  useEffect(() => {
+    if (!editProjectId) return;
+    const project = projects.find((p) => p.id === editProjectId);
+    if (project) {
+      state.openEdit(project);
+      onEditProjectHandled?.();
+    }
+  }, [editProjectId, projects]);
 
   async function handleMergeInputChange(e) {
     const file = e.target.files?.[0];
@@ -88,9 +108,12 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
           const lineCount = Array.isArray(p.linhaCoordenadas) ? p.linhaCoordenadas.length : 0;
           const hasKmlData = gpsCount > 0;
           const hasExportGeometry = gpsCount > 0 || lineCount >= 2;
+          const missingSchedule = reportConfig.mesesEntregaRelatorio.length === 0;
+          const missingLO = !projectsWithLO.has(String(p.id).toUpperCase());
+          const hasPendencies = missingSchedule || missingLO;
 
           return (
-            <article key={p.id} className="flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <article key={p.id} className={`flex flex-col bg-white rounded-xl shadow-sm border overflow-hidden ${hasPendencies ? 'border-amber-300' : 'border-slate-200'}`}>
               <header className="flex justify-between items-start p-5 bg-slate-50 border-b border-slate-200">
                 <div className="flex flex-col gap-1">
                   <h3 className="text-lg font-bold text-slate-800 m-0">{p.nome || p.id}</h3>
@@ -119,6 +142,23 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
                   </IconButton>
                 </div>
               </header>
+
+              {hasPendencies && (
+                <div className="flex flex-wrap gap-2 px-5 py-2.5 bg-amber-50 border-b border-amber-200 text-xs font-medium text-amber-800">
+                  {missingSchedule && (
+                    <span className="inline-flex items-center gap-1">
+                      <AppIcon name="alert" size={14} />
+                      Sem data de relatorio
+                    </span>
+                  )}
+                  {missingLO && (
+                    <span className="inline-flex items-center gap-1">
+                      <AppIcon name="alert" size={14} />
+                      Sem LO associada
+                    </span>
+                  )}
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-2 px-5 py-4 border-b border-slate-100">
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">{p.tipo || 'Sem tipo'}</span>
@@ -239,6 +279,16 @@ function ProjectsView({ projects, inspections, userEmail, showToast, reloadProje
         setKmlRows={state.setKmlRows}
         onCancel={state.closeKmlReview}
         onApply={() => safeRun(state.kmlReviewMode === 'create' ? state.createProjectFromKml : state.applyKmlToForm)}
+      />
+
+      <KmlLinePickerModal
+        open={state.kmlLinePickerOpen}
+        lines={state.kmlDetectedLines}
+        existingProjectIds={projects.map((p) => p.id)}
+        onSelect={(lineGroup) => state.selectKmlLine(lineGroup)}
+        onBatchCreate={state.kmlPendingMode === 'create' ? (groups) => safeRun(() => state.batchCreateFromKml(groups)) : undefined}
+        batchCreating={state.batchCreating}
+        onCancel={state.closeKmlLinePicker}
       />
 
       <RoutePlannerModal

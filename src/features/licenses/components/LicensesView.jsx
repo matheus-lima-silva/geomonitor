@@ -284,7 +284,7 @@ function LicenseFormModal({
   );
 }
 
-function LicensesView({ licenses, projects, erosions, userEmail, showToast }) {
+function LicensesView({ licenses, projects, erosions, userEmail, showToast, searchTerm }) {
   const [open, setOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(createEmptyOperatingLicense());
@@ -298,6 +298,17 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast }) {
     () => new Map((projects || []).map((project) => [String(project.id || '').trim(), project])),
     [projects],
   );
+
+  const filteredLicenses = useMemo(() => {
+    const t = String(searchTerm || '').toLowerCase();
+    if (!t) return licenses || [];
+    return (licenses || []).filter(
+      (lo) =>
+        String(lo.numero || '').toLowerCase().includes(t) ||
+        String(lo.id || '').toLowerCase().includes(t) ||
+        (lo.cobertura || []).some((c) => String(c.projetoId || '').toLowerCase().includes(t)),
+    );
+  }, [licenses, searchTerm]);
 
   async function handleSave() {
     const normalized = normalizeOperatingLicensePayload({
@@ -354,7 +365,7 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast }) {
       </div>
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-        {(licenses || []).map((item) => (
+        {filteredLicenses.map((item) => (
           <article key={item.id} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
             <header className="flex items-start justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
               <div>
@@ -382,9 +393,11 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast }) {
             </div>
           </article>
         ))}
-        {(licenses || []).length === 0 && (
+        {filteredLicenses.length === 0 && (
           <article className="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
-            <p className="text-sm text-slate-500 italic text-center">Nenhuma LO cadastrada.</p>
+            <p className="text-sm text-slate-500 italic text-center">
+              {(licenses || []).length === 0 ? 'Nenhuma LO cadastrada.' : 'Nenhuma LO encontrada para a busca.'}
+            </p>
           </article>
         )}
       </div>

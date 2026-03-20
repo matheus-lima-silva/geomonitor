@@ -15,8 +15,8 @@ export async function createProject(project, meta = {}) {
   return { id: result?.data?.id || String(project.id).trim().toUpperCase() };
 }
 
-export async function updateProject(id, project, meta = {}) {
-  const result = await service.update(id, project, meta);
+export async function updateProject(id, project, meta = {}, options = {}) {
+  const result = await service.update(id, project, meta, options);
   return { id: result?.data?.id || id };
 }
 

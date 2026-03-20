@@ -50,6 +50,13 @@ function createHookState() {
     applyKmlToForm: vi.fn(),
     createProjectFromKml: vi.fn(),
     closeKmlReview: vi.fn(),
+    kmlLinePickerOpen: false,
+    kmlDetectedLines: [],
+    selectKmlLine: vi.fn(),
+    closeKmlLinePicker: vi.fn(),
+    batchCreateFromKml: vi.fn(),
+    batchCreating: false,
+    kmlPendingMode: 'create',
   };
 }
 
@@ -61,6 +68,7 @@ function renderView(root, overrides = {}) {
   const props = {
     projects: [],
     inspections: [],
+    operatingLicenses: [],
     userEmail: 'tester@example.com',
     showToast: vi.fn(),
     reloadProjects: vi.fn(),

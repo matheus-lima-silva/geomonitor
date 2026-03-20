@@ -303,34 +303,9 @@ export function compareTowerNumbers(a, b) {
   return String(a ?? '').localeCompare(String(b ?? ''));
 }
 
-export function parseKmlTowers(kmlText) {
-  const parser = new DOMParser();
-  const xml = parser.parseFromString(String(kmlText || ''), 'application/xml');
-  const baseMeta = {
-    sigla: '',
-    nome: '',
-    torres: 0,
-    extensao: '',
-    lineStringFound: false,
-    sourceLabel: '',
-    linhaCoordenadas: [],
-    linhaNome: '',
-    linhaFonteKml: '',
-  };
-
-  if (xml.querySelector('parsererror')) {
-    return { rows: [], errors: ['Arquivo KML invalido ou corrompido.'], meta: baseMeta };
-  }
-
-  const documentName = extractDocumentName(xml);
-  baseMeta.sourceLabel = documentName;
-  const placemarks = Array.from(xml.getElementsByTagName('Placemark'));
-  if (placemarks.length === 0) {
-    return { rows: [], errors: ['Nenhum Placemark encontrado no KML.'], meta: baseMeta };
-  }
+function _parseKmlPlacemarks(placemarks, documentName) {
   const lineMeta = extractLongestLineStringMeta(placemarks);
   const projectName = lineMeta.linhaNome || extractProjectNameFromDocument(documentName);
-  baseMeta.nome = projectName;
 
   const rows = [];
   let ignoredPlacemarks = 0;
@@ -406,6 +381,219 @@ export function parseKmlTowers(kmlText) {
   };
 
   return { rows, errors, meta };
+}
+
+export function parseKmlTowers(kmlText) {
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(String(kmlText || ''), 'application/xml');
+  const baseMeta = {
+    sigla: '',
+    nome: '',
+    torres: 0,
+    extensao: '',
+    lineStringFound: false,
+    sourceLabel: '',
+    linhaCoordenadas: [],
+    linhaNome: '',
+    linhaFonteKml: '',
+  };
+
+  if (xml.querySelector('parsererror')) {
+    return { rows: [], errors: ['Arquivo KML invalido ou corrompido.'], meta: baseMeta };
+  }
+
+  const documentName = extractDocumentName(xml);
+  baseMeta.sourceLabel = documentName;
+  const placemarks = Array.from(xml.getElementsByTagName('Placemark'));
+  if (placemarks.length === 0) {
+    return { rows: [], errors: ['Nenhum Placemark encontrado no KML.'], meta: baseMeta };
+  }
+
+  return _parseKmlPlacemarks(placemarks, documentName);
+}
+
+function _findSiglaFolders(xml) {
+  const allFolders = Array.from(xml.getElementsByTagName('Folder'));
+  const siglaFolders = [];
+
+  for (let i = 0; i < allFolders.length; i++) {
+    const folder = allFolders[i];
+    const folderName = folder.querySelector(':scope > name')?.textContent?.trim() || '';
+    if (!folderName) continue;
+
+    const hasLineString = folder.getElementsByTagName('LineString').length > 0;
+    const hasPoint = folder.getElementsByTagName('Point').length > 0;
+    if (!hasLineString || !hasPoint) continue;
+
+    const childFolders = Array.from(folder.querySelectorAll(':scope > Folder'));
+    const childHasLineStrings = childFolders.some(
+      (cf) => cf.getElementsByTagName('LineString').length > 0 && cf.getElementsByTagName('Point').length > 0
+    );
+    if (childHasLineStrings) continue;
+
+    const parentFolder = folder.parentElement?.closest?.('Folder');
+    const parentName = parentFolder?.querySelector?.(':scope > name')?.textContent?.trim() || '';
+
+    siglaFolders.push({ folder, folderName, parentName, index: i });
+  }
+
+  return siglaFolders;
+}
+
+function _stripCircuitNumber(sigla) {
+  return String(sigla || '').replace(/\d+$/, '');
+}
+
+function _stripDescriptiveCircuitSuffix(name) {
+  return String(name || '').trim().replace(/\s+\d+\s*$/, '').trim();
+}
+
+function _getDescriptiveName(folder) {
+  const childFolders = Array.from(folder.querySelectorAll(':scope > Folder'));
+  for (const cf of childFolders) {
+    const name = cf.querySelector(':scope > name')?.textContent?.trim() || '';
+    if (name && !/^numer/i.test(name)) return name;
+  }
+  const placemarks = Array.from(folder.querySelectorAll(':scope > Placemark'));
+  for (const pm of placemarks) {
+    if (!pm.getElementsByTagName('LineString')?.[0]) continue;
+    const name = pm.getElementsByTagName('name')?.[0]?.textContent?.trim() || '';
+    if (name) return name;
+  }
+  return '';
+}
+
+function _countUniquePoints(folders) {
+  const seen = new Set();
+  let count = 0;
+  for (const folder of folders) {
+    const placemarks = Array.from(folder.getElementsByTagName('Placemark'));
+    for (const pm of placemarks) {
+      const pointNode = pm.getElementsByTagName('Point')?.[0];
+      if (!pointNode) continue;
+      const name = pm.getElementsByTagName('name')?.[0]?.textContent || '';
+      const numero = extractTowerNumberFromText(name, '');
+      if (!numero) continue;
+      if (seen.has(numero)) continue;
+      seen.add(numero);
+      count++;
+    }
+  }
+  return count;
+}
+
+function _getLongestLineStringKm(folders) {
+  let bestKm = 0;
+  for (const folder of folders) {
+    const placemarks = Array.from(folder.getElementsByTagName('Placemark'));
+    for (const pm of placemarks) {
+      const lineNode = pm.getElementsByTagName('LineString')?.[0];
+      if (!lineNode) continue;
+      const coordsText = lineNode.getElementsByTagName('coordinates')?.[0]?.textContent || '';
+      const path = parseCoordinatePath(coordsText);
+      const km = getPathLengthKm(path);
+      if (km > bestKm) bestKm = km;
+    }
+  }
+  return bestKm;
+}
+
+export function detectKmlLines(kmlText) {
+  const empty = { isMultiLine: false, lines: [] };
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(String(kmlText || ''), 'application/xml');
+  if (xml.querySelector('parsererror')) return empty;
+
+  const siglaFolders = _findSiglaFolders(xml);
+  if (siglaFolders.length < 2) return empty;
+
+  const groups = new Map();
+  for (const entry of siglaFolders) {
+    const baseSigla = _stripCircuitNumber(sanitizeProjectId(entry.folderName));
+    if (!baseSigla) continue;
+
+    if (!groups.has(baseSigla)) {
+      const descriptiveRaw = _getDescriptiveName(entry.folder);
+      groups.set(baseSigla, {
+        sigla: baseSigla,
+        descriptiveName: _stripDescriptiveCircuitSuffix(descriptiveRaw),
+        tensaoKv: entry.parentName,
+        folders: [entry.folder],
+        folderIndices: [entry.index],
+        circuitCount: 1,
+      });
+    } else {
+      const group = groups.get(baseSigla);
+      group.folders.push(entry.folder);
+      group.folderIndices.push(entry.index);
+      group.circuitCount += 1;
+    }
+  }
+
+  if (groups.size < 2) return empty;
+
+  const lines = [];
+  for (const group of groups.values()) {
+    lines.push({
+      sigla: group.sigla,
+      descriptiveName: group.descriptiveName,
+      tensaoKv: group.tensaoKv,
+      towerCount: _countUniquePoints(group.folders),
+      lengthKm: Number(_getLongestLineStringKm(group.folders).toFixed(2)),
+      circuitCount: group.circuitCount,
+      folderIndices: group.folderIndices,
+    });
+  }
+
+  lines.sort((a, b) => a.sigla.localeCompare(b.sigla));
+  return { isMultiLine: true, lines };
+}
+
+export function parseKmlTowersFromGroup(kmlText, folderIndices) {
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(String(kmlText || ''), 'application/xml');
+  const baseMeta = {
+    sigla: '',
+    nome: '',
+    torres: 0,
+    extensao: '',
+    lineStringFound: false,
+    sourceLabel: '',
+    linhaCoordenadas: [],
+    linhaNome: '',
+    linhaFonteKml: '',
+  };
+
+  if (xml.querySelector('parsererror')) {
+    return { rows: [], errors: ['Arquivo KML invalido ou corrompido.'], meta: baseMeta };
+  }
+
+  const allFolders = Array.from(xml.getElementsByTagName('Folder'));
+  const targetFolders = folderIndices
+    .map((idx) => allFolders[idx])
+    .filter(Boolean);
+
+  if (targetFolders.length === 0) {
+    return { rows: [], errors: ['Folders selecionadas nao encontradas no KML.'], meta: baseMeta };
+  }
+
+  const placemarkSet = new Set();
+  const placemarks = [];
+  for (const folder of targetFolders) {
+    for (const pm of Array.from(folder.getElementsByTagName('Placemark'))) {
+      if (!placemarkSet.has(pm)) {
+        placemarkSet.add(pm);
+        placemarks.push(pm);
+      }
+    }
+  }
+
+  const documentName = extractDocumentName(xml);
+  if (placemarks.length === 0) {
+    return { rows: [], errors: ['Nenhum Placemark encontrado nas folders selecionadas.'], meta: baseMeta };
+  }
+
+  return _parseKmlPlacemarks(placemarks, documentName);
 }
 
 export function validateTowerCoordinatesAsString(list) {

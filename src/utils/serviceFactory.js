@@ -4,8 +4,28 @@ import { fetchWithHateoas, isNetworkFailureError, normalizeRequestError } from '
 const FALLBACK_PROD_API_BASE_URL = 'https://geomonitor-api.fly.dev/api';
 
 const CACHE_PREFIX = '__geocache_v1_';
-const CACHE_TTL_MS = 60 * 1000;
+const CACHE_TTL_MS = 20 * 60 * 1000;
 const ACTIVE_REFRESHERS = new Map();
+
+const RETRY_BASE_MS = 5000;
+const RETRY_MAX_MS = 60000;
+const RETRY_JITTER = 0.2;
+
+function isAuthError(error) {
+  const msg = String(error?.message || '').toLowerCase();
+  return msg.includes('não autenticado')
+    || msg.includes('nao autenticado')
+    || msg.includes('401')
+    || msg.includes('403')
+    || msg.includes('unauthorized')
+    || msg.includes('forbidden');
+}
+
+function getRetryDelay(attempt) {
+  const base = Math.min(RETRY_BASE_MS * Math.pow(2, attempt), RETRY_MAX_MS);
+  const jitter = base * RETRY_JITTER * (Math.random() * 2 - 1);
+  return Math.round(base + jitter);
+}
 
 function getCacheStorageKey(key) {
   return CACHE_PREFIX + key;
@@ -115,8 +135,8 @@ function resolveApiBaseUrl() {
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
-export async function getAuthToken() {
-  const token = await auth?.currentUser?.getIdToken();
+export async function getAuthToken(forceRefresh = false) {
+  const token = await auth?.currentUser?.getIdToken(forceRefresh);
   if (!token) throw new Error('Usuário não autenticado.');
   return token;
 }
@@ -196,8 +216,8 @@ export function createCrudService({
     }
   }
 
-  async function list() {
-    const token = await getToken();
+  async function list(options = {}) {
+    const token = await getToken(options.forceTokenRefresh || false);
     return fetchWithToken(baseUrl, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` }
@@ -225,13 +245,15 @@ export function createCrudService({
     let rerunRequested = false;
     let retryTimeoutId = null;
     let visibilityChangeHandler = null;
+    let retryCount = 0;
+    let inErrorState = false;
 
     // Serve cached data immediately so the UI is never blank on remount
     const cached = readCache(resourcePath);
     if (Array.isArray(cached)) onData?.(cached);
 
     const run = async (options = {}) => {
-      const { force = false } = options;
+      const { force = false, forceTokenRefresh = false } = options;
       if (disposed) return;
       if (inFlight) {
         if (force) rerunRequested = true;
@@ -241,16 +263,27 @@ export function createCrudService({
       inFlight = true;
 
       try {
-        const result = await list();
+        const result = await list({ forceTokenRefresh });
         if (!disposed) {
           const data = Array.isArray(extractPayload(result, [])) ? extractPayload(result, []) : [];
           onData?.(data);
           writeCache(resourcePath, data);
+          retryCount = 0;
+          if (inErrorState) inErrorState = false;
         }
       } catch (error) {
         if (!disposed) {
-          onError?.(error);
-          retryTimeoutId = setTimeout(() => { retryTimeoutId = null; run(); }, 5000);
+          if (!inErrorState) {
+            inErrorState = true;
+            onError?.(error);
+          }
+          const delay = getRetryDelay(retryCount);
+          retryCount++;
+          const shouldForceToken = isAuthError(error);
+          retryTimeoutId = setTimeout(() => {
+            retryTimeoutId = null;
+            run({ force: true, forceTokenRefresh: shouldForceToken });
+          }, delay);
         }
       } finally {
         inFlight = false;
@@ -264,6 +297,8 @@ export function createCrudService({
     };
 
     const unregisterRefresher = registerActiveRefresher(resourcePath, () => {
+      if (retryTimeoutId) { clearTimeout(retryTimeoutId); retryTimeoutId = null; }
+      retryCount = 0;
       run({ force: true });
     });
 
@@ -273,7 +308,10 @@ export function createCrudService({
       intervalId = window.setInterval(run, pollIntervalMs);
       if (typeof document !== 'undefined') {
         visibilityChangeHandler = () => {
-          if (document.visibilityState === 'visible') run();
+          if (document.visibilityState === 'visible') {
+            if (retryTimeoutId) { clearTimeout(retryTimeoutId); retryTimeoutId = null; }
+            run({ force: true });
+          }
         };
         document.addEventListener('visibilitychange', visibilityChangeHandler);
       }
@@ -314,11 +352,11 @@ export function createCrudService({
       return result;
     },
 
-    async update(id, data, meta = {}) {
+    async update(id, data, meta = {}, options = {}) {
       if (data?._links?.update) {
         const result = await fetchWithHateoas(data._links.update, { data: { ...data, id }, meta }, API_BASE_URL);
         clearCache(resourcePath);
-        triggerActiveRefresh(resourcePath);
+        if (!options.skipRefresh) triggerActiveRefresh(resourcePath);
         return result;
       }
 
@@ -329,7 +367,7 @@ export function createCrudService({
         body: JSON.stringify({ data: { ...data, id }, meta })
       });
       clearCache(resourcePath);
-      triggerActiveRefresh(resourcePath);
+      if (!options.skipRefresh) triggerActiveRefresh(resourcePath);
       return result;
     },
 
@@ -437,12 +475,12 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
     }
   }
 
-  async function get(document) {
+  async function get(document, options = {}) {
     if (document?._links?.self) {
       return fetchWithHateoas(document._links.self, null, API_BASE_URL);
     }
 
-    const token = await getAuthToken();
+    const token = await getAuthToken(options.forceTokenRefresh || false);
     return fetchWithToken(baseUrl, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` }
@@ -478,13 +516,15 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
     let rerunRequested = false;
     let retryTimeoutId = null;
     let visibilityChangeHandler = null;
+    let retryCount = 0;
+    let inErrorState = false;
 
     // Serve cached data immediately so the UI is never blank on remount
     const cached = readCache(resourcePath);
     if (cached !== null) onData?.(cached);
 
     const run = async (options = {}) => {
-      const { force = false } = options;
+      const { force = false, forceTokenRefresh = false } = options;
       if (disposed) return;
       if (inFlight) {
         if (force) rerunRequested = true;
@@ -494,16 +534,27 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
       inFlight = true;
 
       try {
-        const result = await get();
+        const result = await get(undefined, { forceTokenRefresh });
         if (!disposed) {
           const data = extractPayload(result, null);
           onData?.(data);
           if (data !== null) writeCache(resourcePath, data);
+          retryCount = 0;
+          if (inErrorState) inErrorState = false;
         }
       } catch (error) {
         if (!disposed) {
-          onError?.(error);
-          retryTimeoutId = setTimeout(() => { retryTimeoutId = null; run(); }, 5000);
+          if (!inErrorState) {
+            inErrorState = true;
+            onError?.(error);
+          }
+          const delay = getRetryDelay(retryCount);
+          retryCount++;
+          const shouldForceToken = isAuthError(error);
+          retryTimeoutId = setTimeout(() => {
+            retryTimeoutId = null;
+            run({ force: true, forceTokenRefresh: shouldForceToken });
+          }, delay);
         }
       } finally {
         inFlight = false;
@@ -517,6 +568,8 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
     };
 
     const unregisterRefresher = registerActiveRefresher(resourcePath, () => {
+      if (retryTimeoutId) { clearTimeout(retryTimeoutId); retryTimeoutId = null; }
+      retryCount = 0;
       run({ force: true });
     });
 
@@ -526,7 +579,10 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
       intervalId = window.setInterval(run, pollIntervalMs);
       if (typeof document !== 'undefined') {
         visibilityChangeHandler = () => {
-          if (document.visibilityState === 'visible') run();
+          if (document.visibilityState === 'visible') {
+            if (retryTimeoutId) { clearTimeout(retryTimeoutId); retryTimeoutId = null; }
+            run({ force: true });
+          }
         };
         document.addEventListener('visibilitychange', visibilityChangeHandler);
       }

@@ -6,7 +6,7 @@ import {
   normalizeReportPeriodicity,
   validateReportSchedule,
 } from '../utils/reportSchedule';
-import { mergeTowerCoordinates, parseKmlTowers, validateTowerCoordinatesAsString } from '../utils/kmlUtils';
+import { mergeTowerCoordinates, parseKmlTowers, parseKmlTowersFromGroup, detectKmlLines, validateTowerCoordinatesAsString } from '../utils/kmlUtils';
 import { deleteProject, saveProject } from '../services/projectService';
 
 const emptyKmlMeta = {
@@ -55,6 +55,13 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
   const [applyKmlMetadataOnMerge, setApplyKmlMetadataOnMerge] = useState(false);
   const [routeModalProject, setRouteModalProject] = useState(null);
   const [routeSelection, setRouteSelection] = useState([]);
+  const [kmlLinePickerOpen, setKmlLinePickerOpen] = useState(false);
+  const [kmlDetectedLines, setKmlDetectedLines] = useState([]);
+  const [kmlPendingText, setKmlPendingText] = useState('');
+  const [kmlPendingMode, setKmlPendingMode] = useState('create');
+  const [kmlPendingTargetProject, setKmlPendingTargetProject] = useState(null);
+  const [kmlPendingFileName, setKmlPendingFileName] = useState('');
+  const [batchCreating, setBatchCreating] = useState(false);
 
   const reviewedKml = useMemo(() => validateTowerCoordinatesAsString(kmlRows), [kmlRows]);
 
@@ -101,13 +108,14 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
     const mesesEntregaRelatorio = normalizeReportMonths(formData.mesesEntregaRelatorio);
     const anoBaseBienal = periodicidadeRelatorio === 'Bienal' ? Number(formData.anoBaseBienal) : null;
 
-    const scheduleValidation = validateReportSchedule({
-      periodicidadeRelatorio,
-      mesesEntregaRelatorio,
-      anoBaseBienal,
-    });
-
-    if (!scheduleValidation.ok) throw new Error(scheduleValidation.message);
+    if (mesesEntregaRelatorio.length > 0) {
+      const scheduleValidation = validateReportSchedule({
+        periodicidadeRelatorio,
+        mesesEntregaRelatorio,
+        anoBaseBienal,
+      });
+      if (!scheduleValidation.ok) throw new Error(scheduleValidation.message);
+    }
 
     const payload = normalizeProjectPayload({
       ...formData,
@@ -145,12 +153,9 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
     setApplyKmlMetadataOnMerge(false);
   }
 
-  async function parseKmlFile(file, mode, targetProject = null) {
-    if (!file) return;
-    const text = await file.text();
-    const parsed = parseKmlTowers(text);
+  function _applyParsedKml(parsed, mode, targetProject, fileName, overrides = {}) {
     const parsedMeta = parsed?.meta || emptyKmlMeta;
-    const baseId = String(file.name || 'PROJ').replace(/\.[^/.]+$/, '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || 'PROJ';
+    const baseId = String(fileName || 'PROJ').replace(/\.[^/.]+$/, '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || 'PROJ';
 
     if (mode === 'merge') {
       if (targetProject) openEdit(targetProject);
@@ -170,10 +175,11 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
       setIsEditing(false);
       setCreateFromKmlData({
         ...baseCreateFromKml,
-        id: String(parsedMeta.sigla || baseId).toUpperCase(),
-        nome: String(parsedMeta.linhaNome || parsedMeta.nome || file.name || 'Empreendimento').replace(/\.[^/.]+$/, ''),
+        id: String(overrides.sigla || parsedMeta.sigla || baseId).toUpperCase(),
+        nome: String(overrides.nome || parsedMeta.linhaNome || parsedMeta.nome || fileName || 'Empreendimento').replace(/\.[^/.]+$/, ''),
         extensao: String(parsedMeta.extensao || ''),
         torres: String(parsedMeta.torres ?? parsed.rows.length ?? ''),
+        tensao: String(overrides.tensao || ''),
       });
     }
 
@@ -183,6 +189,87 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
     setKmlRows(parsed.rows);
     setKmlImportErrors(parsed.errors || []);
     setKmlReviewOpen(true);
+  }
+
+  async function parseKmlFile(file, mode, targetProject = null) {
+    if (!file) return;
+    const text = await file.text();
+
+    const detection = detectKmlLines(text);
+    if (detection.isMultiLine) {
+      setKmlPendingText(text);
+      setKmlPendingMode(mode);
+      setKmlPendingTargetProject(targetProject);
+      setKmlPendingFileName(file.name || '');
+      setKmlDetectedLines(detection.lines);
+      setKmlLinePickerOpen(true);
+      return;
+    }
+
+    const parsed = parseKmlTowers(text);
+    _applyParsedKml(parsed, mode, targetProject, file.name);
+  }
+
+  function selectKmlLine(lineGroup) {
+    const parsed = parseKmlTowersFromGroup(kmlPendingText, lineGroup.folderIndices);
+    const overrides = {
+      sigla: lineGroup.sigla,
+      nome: lineGroup.descriptiveName,
+      tensao: lineGroup.tensaoKv,
+    };
+    _applyParsedKml(parsed, kmlPendingMode, kmlPendingTargetProject, kmlPendingFileName, overrides);
+    closeKmlLinePicker();
+  }
+
+  async function batchCreateFromKml(lineGroups) {
+    if (!kmlPendingText || lineGroups.length === 0) return;
+    setBatchCreating(true);
+    try {
+      let created = 0;
+      let skipped = 0;
+      for (const group of lineGroups) {
+        if (projects.some((p) => p.id === group.sigla.toUpperCase())) {
+          skipped += 1;
+          continue;
+        }
+        const parsed = parseKmlTowersFromGroup(kmlPendingText, group.folderIndices);
+        const parsedMeta = parsed?.meta || emptyKmlMeta;
+        const payload = normalizeProjectPayload({
+          id: group.sigla.toUpperCase(),
+          nome: group.descriptiveName || parsedMeta.linhaNome || parsedMeta.nome || group.sigla,
+          tipo: 'Linha de Transmissão',
+          tensao: group.tensaoKv || '',
+          extensao: parsedMeta.extensao || '',
+          torres: String(parsedMeta.torres ?? parsed.rows.length ?? ''),
+          periodicidadeRelatorio: '',
+          mesesEntregaRelatorio: [],
+          anoBaseBienal: null,
+          torresCoordenadas: mergeTowerCoordinates([], parsed.rows),
+          linhaCoordenadas: Array.isArray(parsedMeta.linhaCoordenadas) ? parsedMeta.linhaCoordenadas : [],
+          linhaFonteKml: String(parsedMeta.linhaFonteKml || ''),
+          dataCadastro: new Date().toISOString().split('T')[0],
+        });
+        await saveProject(payload.id, payload, { updatedBy: currentUserEmail }, { skipRefresh: true });
+        created += 1;
+      }
+      closeKmlLinePicker();
+      await onSaved?.();
+      const parts = [`${created} empreendimento(s) criado(s)`];
+      if (skipped > 0) parts.push(`${skipped} já existente(s)`);
+      showToast?.(parts.join(', ') + '.', 'success');
+    } catch (e) {
+      showToast?.(e.message || 'Erro na criação em lote.', 'error');
+    } finally {
+      setBatchCreating(false);
+    }
+  }
+
+  function closeKmlLinePicker() {
+    setKmlLinePickerOpen(false);
+    setKmlDetectedLines([]);
+    setKmlPendingText('');
+    setKmlPendingTargetProject(null);
+    setKmlPendingFileName('');
   }
 
   function applyKmlToForm() {
@@ -219,13 +306,14 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
     const mesesEntregaRelatorio = normalizeReportMonths(createFromKmlData.mesesEntregaRelatorio);
     const anoBaseBienal = periodicidadeRelatorio === 'Bienal' ? Number(createFromKmlData.anoBaseBienal) : null;
 
-    const scheduleValidation = validateReportSchedule({
-      periodicidadeRelatorio,
-      mesesEntregaRelatorio,
-      anoBaseBienal,
-    });
-
-    if (!scheduleValidation.ok) throw new Error(scheduleValidation.message);
+    if (mesesEntregaRelatorio.length > 0) {
+      const scheduleValidation = validateReportSchedule({
+        periodicidadeRelatorio,
+        mesesEntregaRelatorio,
+        anoBaseBienal,
+      });
+      if (!scheduleValidation.ok) throw new Error(scheduleValidation.message);
+    }
 
     const payload = normalizeProjectPayload({
       id: createFromKmlData.id,
@@ -284,5 +372,12 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
     applyKmlToForm,
     createProjectFromKml,
     closeKmlReview,
+    kmlLinePickerOpen,
+    kmlDetectedLines,
+    selectKmlLine,
+    closeKmlLinePicker,
+    batchCreateFromKml,
+    batchCreating,
+    kmlPendingMode,
   };
 }
