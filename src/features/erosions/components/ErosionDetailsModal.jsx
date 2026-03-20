@@ -16,6 +16,7 @@ import {
   buildCriticalitySummaryFromErosion,
   formatCriticalityPoints,
 } from '../../shared/criticalitySummary';
+import { recalculateAndSaveErosion } from '../../../services/erosionService';
 
 const EMPTY_EVENT_FORM = {
   tipoEvento: 'obra',
@@ -63,7 +64,8 @@ const CLASS_RANGE_LABELS = {
   declividade: {
     D1: '< 10 graus',
     D2: '10 a 25 graus',
-    D3: '> 25 graus',
+    D3: '25 a 45 graus',
+    D4: '> 45 graus',
   },
   exposicao: {
     E1: '> 50 m',
@@ -155,6 +157,14 @@ function ErosionDetailsModal({
     setShowAddEventForm(false);
     setSavingEvent(false);
     setEventForm(EMPTY_EVENT_FORM);
+  }, [open, erosion?.id]);
+
+  useEffect(() => {
+    if (!open || !erosion?.id) return;
+    const breakdown = erosion?.criticalidadeV2?.breakdown || erosion?.criticalidadeV2;
+    const needsRecalc = breakdown && typeof breakdown === 'object' && breakdown.pontos && breakdown.pontos.A === undefined;
+    if (!needsRecalc) return;
+    recalculateAndSaveErosion(erosion).catch(() => {});
   }, [open, erosion?.id]);
 
   const locationCoordinates = normalizeLocationCoordinates(erosion || {});
@@ -326,7 +336,7 @@ function ErosionDetailsModal({
             </div>
             {criticalitySummary.hasBreakdown ? (
               <div className="col-span-full">
-                <strong className="text-slate-900">Criticidade:</strong> {criticalitySummary.criticidadeClasse} ({criticalitySummary.criticidadeCodigo}) | Pontos T/P/D/S/E: {formatCriticalityPoints(criticalidadeV2?.pontos)}
+                <strong className="text-slate-900">Criticidade:</strong> {criticalitySummary.criticidadeClasse} ({criticalitySummary.criticidadeCodigo}) | Pontos T/P/D/S/E/A: {formatCriticalityPoints(criticalidadeV2?.pontos)}
               </div>
             ) : null}
             {criticalitySummary.solucoesSugeridas.length > 0 ? (
@@ -346,6 +356,7 @@ function ErosionDetailsModal({
                 <div><strong className="text-slate-900">Classe declividade:</strong> {criticalidadeV2.declividade_classe || '-'}</div>
                 <div><strong className="text-slate-900">Classe solo:</strong> {criticalidadeV2.solo_classe || '-'}</div>
                 <div><strong className="text-slate-900">Classe exposicao:</strong> {criticalidadeV2.exposicao_classe || '-'}</div>
+                <div><strong className="text-slate-900">Classe atividade:</strong> {criticalidadeV2.atividade_classe || '-'}</div>
                 <div className="col-span-full bg-indigo-50 text-indigo-900 p-3 rounded-lg border border-indigo-100">
                   <strong className="font-bold">Tipo de medida recomendada:</strong> {labelValue(criticalidadeV2.tipo_medida_recomendada, {})}
                 </div>

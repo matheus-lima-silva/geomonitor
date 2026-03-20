@@ -192,6 +192,7 @@ async function saveErosionHandler(req, res) {
             distanciaEstruturaMetros: technical.distanciaEstruturaMetros,
             sinaisAvanco: technical.sinaisAvanco,
             vegetacaoInterior: technical.vegetacaoInterior,
+            impactoVia: technical.impactoVia || null,
             medidaPreventiva: isHistoricalRecord
                 ? String(sanitizedPayload.medidaPreventiva || '').trim()
                 : (sanitizedPayload.medidaPreventiva

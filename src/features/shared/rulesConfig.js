@@ -15,12 +15,20 @@ export const CRITICALITY_V2_DEFAULTS = {
     declividade: {
       D1: { descricao: '< 10', pontos: 0 },
       D2: { descricao: '10 - 25', pontos: 2 },
-      D3: { descricao: '> 25', pontos: 4 },
+      D3: { descricao: '25 - 45', pontos: 4 },
+      D4: { descricao: '> 45', pontos: 6 },
     },
     solo: {
       S1: { tipos: ['lateritico'], pontos: 0 },
       S2: { tipos: ['argiloso'], pontos: 2 },
-      S3: { tipos: ['solos_rasos', 'arenoso'], pontos: 4 },
+      S3: { tipos: ['solos_rasos'], pontos: 4 },
+      S4: { tipos: ['arenoso'], pontos: 6 },
+    },
+    atividade: {
+      A1: { descricao: 'estabilizado (vegetacao interior, sem avanco)', pontos: 0 },
+      A2: { descricao: 'indeterminado (sem vegetacao, sem avanco)', pontos: 2 },
+      A3: { descricao: 'atividade parcial (avanco com vegetacao)', pontos: 4 },
+      A4: { descricao: 'avanco ativo (avanco sem vegetacao)', pontos: 6 },
     },
     exposicao: {
       E1: { descricao: '> 50', pontos: 0 },
@@ -30,10 +38,10 @@ export const CRITICALITY_V2_DEFAULTS = {
     },
   },
   faixas: [
-    { codigo: 'C1', classe: 'Baixo', min: 0, max: 7 },
-    { codigo: 'C2', classe: 'Médio', min: 8, max: 15 },
-    { codigo: 'C3', classe: 'Alto', min: 16, max: 23 },
-    { codigo: 'C4', classe: 'Muito Alto', min: 24, max: Infinity },
+    { codigo: 'C1', classe: 'Baixo', min: 0, max: 9 },
+    { codigo: 'C2', classe: 'Médio', min: 10, max: 18 },
+    { codigo: 'C3', classe: 'Alto', min: 19, max: 27 },
+    { codigo: 'C4', classe: 'Muito Alto', min: 28, max: Infinity },
   ],
   solucoes_por_criticidade: {
     C1: {

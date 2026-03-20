@@ -12,7 +12,7 @@ const SOIL_POINTS = {
   lateritico: { classe: 'S1', pontos: 0 },
   argiloso: { classe: 'S2', pontos: 2 },
   solos_rasos: { classe: 'S3', pontos: 4 },
-  arenoso: { classe: 'S3', pontos: 4 },
+  arenoso: { classe: 'S4', pontos: 6 },
 };
 
 const DISTANCE_POINTS = {
@@ -25,7 +25,8 @@ const DISTANCE_POINTS = {
 const SLOPE_POINTS = {
   D1: { classe: 'D1', pontos: 0, min: -Infinity, max: 10, minInclusive: true, maxInclusive: false },
   D2: { classe: 'D2', pontos: 2, min: 10, max: 25, minInclusive: true, maxInclusive: true },
-  D3: { classe: 'D3', pontos: 4, min: 25, max: Infinity, minInclusive: false, maxInclusive: true },
+  D3: { classe: 'D3', pontos: 4, min: 25, max: 45, minInclusive: false, maxInclusive: true },
+  D4: { classe: 'D4', pontos: 6, min: 45, max: Infinity, minInclusive: false, maxInclusive: true },
 };
 
 const DEPTH_POINTS = {
@@ -34,6 +35,20 @@ const DEPTH_POINTS = {
   P3: { classe: 'P3', pontos: 4, min: 10, max: 30, minInclusive: false, maxInclusive: true },
   P4: { classe: 'P4', pontos: 6, min: 30, max: Infinity, minInclusive: false, maxInclusive: true },
 };
+
+const ACTIVITY_RULES = {
+  A1: { classe: 'A1', pontos: 0, label: 'estabilizado' },
+  A2: { classe: 'A2', pontos: 2, label: 'indeterminado' },
+  A3: { classe: 'A3', pontos: 4, label: 'atividade_parcial' },
+  A4: { classe: 'A4', pontos: 6, label: 'avanco_ativo' },
+};
+
+function resolveActivityScore(sinaisAvanco, vegetacaoInterior) {
+  if (sinaisAvanco && !vegetacaoInterior) return { ...ACTIVITY_RULES.A4, inferred: false };
+  if (sinaisAvanco && vegetacaoInterior) return { ...ACTIVITY_RULES.A3, inferred: false };
+  if (!sinaisAvanco && !vegetacaoInterior) return { ...ACTIVITY_RULES.A2, inferred: false };
+  return { ...ACTIVITY_RULES.A1, inferred: false };
+}
 
 export const CRITICALITY_V2_DEFAULTS = {
   pontos: {
@@ -52,12 +67,14 @@ export const CRITICALITY_V2_DEFAULTS = {
     declividade: {
       D1: { descricao: '< 10', pontos: 0 },
       D2: { descricao: '10 - 25', pontos: 2 },
-      D3: { descricao: '> 25', pontos: 4 },
+      D3: { descricao: '25 - 45', pontos: 4 },
+      D4: { descricao: '> 45', pontos: 6 },
     },
     solo: {
       S1: { tipos: ['lateritico'], pontos: 0 },
       S2: { tipos: ['argiloso'], pontos: 2 },
-      S3: { tipos: ['solos_rasos', 'arenoso'], pontos: 4 },
+      S3: { tipos: ['solos_rasos'], pontos: 4 },
+      S4: { tipos: ['arenoso'], pontos: 6 },
     },
     exposicao: {
       E1: { descricao: '> 50', pontos: 0 },
@@ -65,12 +82,18 @@ export const CRITICALITY_V2_DEFAULTS = {
       E3: { descricao: '5 - 20', pontos: 4 },
       E4: { descricao: '< 5', pontos: 6 },
     },
+    atividade: {
+      A1: { descricao: 'vegetacao interior, sem avanco (estabilizado)', pontos: 0 },
+      A2: { descricao: 'sem vegetacao, sem avanco (indeterminado)', pontos: 2 },
+      A3: { descricao: 'avanco com vegetacao (atividade parcial)', pontos: 4 },
+      A4: { descricao: 'avanco sem vegetacao (avanco ativo)', pontos: 6 },
+    },
   },
   faixas: [
-    { codigo: 'C1', classe: 'Baixo', min: 0, max: 7 },
-    { codigo: 'C2', classe: 'Médio', min: 8, max: 15 },
-    { codigo: 'C3', classe: 'Alto', min: 16, max: 23 },
-    { codigo: 'C4', classe: 'Muito Alto', min: 24, max: Infinity },
+    { codigo: 'C1', classe: 'Baixo', min: 0, max: 9 },
+    { codigo: 'C2', classe: 'Médio', min: 10, max: 18 },
+    { codigo: 'C3', classe: 'Alto', min: 19, max: 27 },
+    { codigo: 'C4', classe: 'Muito Alto', min: 28, max: Infinity },
   ],
   solucoes_por_criticidade: {
     C1: {
@@ -119,6 +142,75 @@ export const CRITICALITY_V2_DEFAULTS = {
     },
   },
 };
+
+const TIPO_MEDIDA_POR_FAIXA = {
+  C1: 'preventiva',
+  C2: 'corretiva_leve',
+  C3: 'corretiva_estrutural',
+  C4: 'engenharia_PRAD',
+};
+
+const SOLUCOES_DATABASE = [
+  // --- C1: Preventivas ---
+  { id: 'S01', texto: 'Cobertura vegetal (gramineas, ressemeadura)', faixa: ['C1', 'C2'], local: ['faixa_servidao', 'via_acesso_exclusiva', 'base_torre'], tipo: ['laminar', 'sulco'] },
+  { id: 'S02', texto: 'Curvas de nivel, plantio em faixas', faixa: ['C1'], local: ['faixa_servidao'], tipo: ['laminar', 'sulco'] },
+  { id: 'S03', texto: 'Mulching / palhada / biomanta leve', faixa: ['C1', 'C2'], local: ['faixa_servidao', 'via_acesso_exclusiva', 'base_torre'], tipo: ['laminar', 'sulco', 'ravina'] },
+  { id: 'S04', texto: 'Controle de trafego (evitar compactacao)', faixa: ['C1'], local: ['via_acesso_exclusiva'], tipo: ['laminar', 'sulco'] },
+  { id: 'S05', texto: 'Regularizacao leve de acesso (coroamento)', faixa: ['C1', 'C2'], local: ['via_acesso_exclusiva'], tipo: ['laminar', 'sulco'] },
+
+  // --- C2: Corretivas leves ---
+  { id: 'S06', texto: 'Barraginhas e pequenos terracos', faixa: ['C2'], local: ['faixa_servidao', 'via_acesso_exclusiva'], tipo: ['sulco', 'ravina'] },
+  { id: 'S07', texto: 'Sangradouros laterais / lombadas de agua', faixa: ['C2'], local: ['via_acesso_exclusiva'], tipo: ['sulco', 'ravina'] },
+  { id: 'S08', texto: 'Canaletas vegetadas / valetas rasas', faixa: ['C2', 'C3'], local: ['faixa_servidao', 'via_acesso_exclusiva', 'base_torre'], tipo: ['sulco', 'ravina'] },
+  { id: 'S09', texto: 'Hidrossemeadura + biomantas leves', faixa: ['C2'], local: ['faixa_servidao', 'via_acesso_exclusiva', 'base_torre'], tipo: ['laminar', 'sulco', 'ravina'] },
+  { id: 'S10', texto: 'Reperfilamento de caixa de estrada', faixa: ['C2', 'C3'], local: ['via_acesso_exclusiva'], tipo: ['sulco', 'ravina', 'vocoroca'] },
+
+  // --- C3: Corretivas estruturais ---
+  { id: 'S11', texto: 'Reconformacao de taludes (suavizar inclinacoes)', faixa: ['C3'], local: ['faixa_servidao', 'via_acesso_exclusiva'], tipo: ['ravina', 'vocoroca', 'movimento_massa'] },
+  { id: 'S12', texto: 'Sarjetas de crista / canaletas revestidas', faixa: ['C3'], local: ['faixa_servidao', 'via_acesso_exclusiva', 'base_torre'], tipo: ['ravina', 'vocoroca'] },
+  { id: 'S13', texto: 'Escadas hidraulicas / bacias de dissipacao', faixa: ['C3', 'C4'], local: ['faixa_servidao', 'via_acesso_exclusiva'], tipo: ['ravina', 'vocoroca'] },
+  { id: 'S14', texto: 'Check dams (degraus com pedra/gabioes/sacos solo-cimento)', faixa: ['C3', 'C4'], local: ['faixa_servidao', 'via_acesso_exclusiva'], tipo: ['ravina', 'vocoroca'] },
+  { id: 'S15', texto: 'Bioengenharia robusta (biomantas reforcadas + estacas vivas)', faixa: ['C3'], local: ['faixa_servidao', 'via_acesso_exclusiva'], tipo: ['ravina', 'vocoroca', 'movimento_massa'] },
+  { id: 'S16', texto: 'Enrocamento lateral em acessos criticos', faixa: ['C3', 'C4'], local: ['via_acesso_exclusiva'], tipo: ['ravina', 'vocoroca', 'movimento_massa'] },
+  { id: 'S17', texto: 'Protecao de base de torres (anel drenante + enrocamento)', faixa: ['C3', 'C4'], local: ['base_torre'], tipo: ['ravina', 'vocoroca', 'movimento_massa'] },
+
+  // --- C4: Engenharia / PRAD ---
+  { id: 'S18', texto: 'Rede completa de drenagem da bacia (terracos, valas contorno)', faixa: ['C4'], local: ['faixa_servidao', 'via_acesso_exclusiva', 'base_torre'], tipo: ['vocoroca', 'movimento_massa'] },
+  { id: 'S19', texto: 'Drenos profundos (espinha de peixe) para piping', faixa: ['C4'], local: ['faixa_servidao', 'base_torre'], tipo: ['vocoroca'] },
+  { id: 'S20', texto: 'Diques de terra / barragens com vertedouros protegidos', faixa: ['C4'], local: ['faixa_servidao', 'via_acesso_exclusiva'], tipo: ['vocoroca', 'movimento_massa'] },
+  { id: 'S21', texto: 'Estruturas de contencao (muros, gabioes) em taludes criticos', faixa: ['C4'], local: ['faixa_servidao', 'via_acesso_exclusiva', 'base_torre'], tipo: ['vocoroca', 'movimento_massa'] },
+  { id: 'S22', texto: 'Reperfilamento amplo + revegetacao com nativas', faixa: ['C3', 'C4'], local: ['faixa_servidao', 'via_acesso_exclusiva'], tipo: ['ravina', 'vocoroca', 'movimento_massa'] },
+  { id: 'S23', texto: 'Monitoramento periodico com marcos (recuo de cabeceira)', faixa: ['C3', 'C4'], local: ['faixa_servidao', 'via_acesso_exclusiva', 'base_torre'], tipo: ['ravina', 'vocoroca', 'movimento_massa'] },
+  { id: 'S24', texto: 'PRAD especifico com acompanhamento semestral/anual', faixa: ['C4'], local: ['faixa_servidao', 'via_acesso_exclusiva', 'base_torre'], tipo: ['vocoroca', 'movimento_massa'] },
+
+  // --- Monitoramento (para fora_faixa e C1 geral) ---
+  { id: 'S25', texto: 'Monitoramento visual periodico', faixa: ['C1', 'C2', 'C3', 'C4'], local: ['fora_faixa_servidao', 'faixa_servidao', 'via_acesso_exclusiva', 'base_torre'], tipo: ['laminar', 'sulco', 'ravina', 'vocoroca', 'movimento_massa'] },
+  { id: 'S26', texto: 'Registro fotografico de evolucao', faixa: ['C1', 'C2', 'C3', 'C4'], local: ['fora_faixa_servidao', 'faixa_servidao', 'via_acesso_exclusiva', 'base_torre'], tipo: ['laminar', 'sulco', 'ravina', 'vocoroca', 'movimento_massa'] },
+  { id: 'S27', texto: 'Notificacao ao proprietario', faixa: ['C1', 'C2', 'C3', 'C4'], local: ['fora_faixa_servidao'], tipo: ['laminar', 'sulco', 'ravina', 'vocoroca', 'movimento_massa'] },
+];
+
+function normalizeLocalTipoForSolutions(localTipo) {
+  const key = normalizeTextLower(localTipo);
+  if (key.includes('fora_faixa')) return 'fora_faixa_servidao';
+  if (key.includes('base_torre') || key.includes('torre')) return 'base_torre';
+  if (key.includes('acesso')) return 'via_acesso_exclusiva';
+  return 'faixa_servidao';
+}
+
+function getSolutionsForContext(codigo, localTipo, tipoErosao) {
+  const normalizedLocal = normalizeLocalTipoForSolutions(localTipo);
+  const normalizedTipo = normalizeTextLower(tipoErosao) || 'sulco';
+  const matched = SOLUCOES_DATABASE.filter(
+    (s) => s.faixa.includes(codigo)
+      && s.local.includes(normalizedLocal)
+      && s.tipo.includes(normalizedTipo),
+  );
+  const tipoMedida = TIPO_MEDIDA_POR_FAIXA[codigo] || 'preventiva';
+  return {
+    tipo_medida_recomendada: tipoMedida,
+    lista_solucoes_sugeridas: matched.map((s) => s.texto),
+  };
+}
 
 function normalizeText(value) {
   return String(value || '').trim();
@@ -239,21 +331,48 @@ function normalizeAguaFundo(input) {
   return raw;
 }
 
+function normalizeImpactoVia(vistoriaData = {}) {
+  const raw = vistoriaData?.impactoVia && typeof vistoriaData.impactoVia === 'object'
+    ? vistoriaData.impactoVia
+    : {};
+  return {
+    posicaoRelativaVia: normalizeTextLower(raw.posicaoRelativaVia),
+    tipoImpactoVia: normalizeTextLower(raw.tipoImpactoVia),
+    grauObstrucao: normalizeTextLower(raw.grauObstrucao),
+    extensaoAfetadaMetros: parseNumeric(raw.extensaoAfetadaMetros),
+    larguraComprometidaMetros: parseNumeric(raw.larguraComprometidaMetros),
+    volumeEstimadoM3: parseNumeric(raw.volumeEstimadoM3),
+    possibilidadeDesvio: booleanFromUnknown(raw.possibilidadeDesvio),
+    rotaAlternativaDisponivel: booleanFromUnknown(raw.rotaAlternativaDisponivel),
+    presencaDrenagemVia: booleanFromUnknown(raw.presencaDrenagemVia),
+    estadoVia: normalizeTextLower(raw.estadoVia),
+    integridadeEstruturalComprometida: booleanFromUnknown(raw.integridadeEstruturalComprometida),
+  };
+}
+
 function buildNormalizedInput(vistoriaData = {}) {
   const locationCoordinates = normalizeLocationCoordinates(vistoriaData || {});
+  const localTipo = normalizeLocalTipo(vistoriaData);
+  const impactoVia = normalizeImpactoVia(vistoriaData);
+
+  let distancia = parseNumeric(vistoriaData?.exposicao?.distancia_estrutura_m ?? vistoriaData?.distancia_estrutura_m ?? vistoriaData?.distanciaEstruturaMetros);
+  if (localTipo.includes('acesso') && impactoVia.posicaoRelativaVia === 'leito') {
+    distancia = 0;
+  }
 
   return {
     tipo_erosao: normalizeFeicaoTipo(vistoriaData),
     profundidade_m: parseNumeric(vistoriaData?.feicao?.profundidade_m ?? vistoriaData?.profundidade_m ?? vistoriaData?.profundidadeMetros ?? vistoriaData?.profundidadeM),
     declividade_graus: parseNumeric(vistoriaData?.contexto_fisico?.declividade_graus ?? vistoriaData?.declividade_graus ?? vistoriaData?.declividadeGraus),
-    distancia_estrutura_m: parseNumeric(vistoriaData?.exposicao?.distancia_estrutura_m ?? vistoriaData?.distancia_estrutura_m ?? vistoriaData?.distanciaEstruturaMetros),
+    distancia_estrutura_m: distancia,
     tipo_solo: normalizeSolo(vistoriaData),
     estrutura_proxima: normalizeStructure(vistoriaData),
     localizacao_exposicao: normalizeLocation(vistoriaData),
-    local_tipo: normalizeLocalTipo(vistoriaData),
+    local_tipo: localTipo,
     sinais_avanco: booleanFromUnknown(vistoriaData?.contexto_fisico?.sinais_avanco ?? vistoriaData?.sinais_avanco),
     vegetacao_interior: booleanFromUnknown(vistoriaData?.contexto_fisico?.vegetacao_interior ?? vistoriaData?.vegetacao_interior),
     agua_fundo: normalizeAguaFundo(vistoriaData),
+    impactoVia,
     latitude: parseNumeric(locationCoordinates.latitude),
     longitude: parseNumeric(locationCoordinates.longitude),
   };
@@ -320,6 +439,27 @@ export function mergeCriticalityV2Config(rawConfig) {
   };
 }
 
+function resolveViaModifier(normalized) {
+  const localTipo = normalizeTextLower(normalized?.local_tipo);
+  const isViaAccess = localTipo.includes('acesso');
+  if (!isViaAccess) return 0;
+
+  const iv = normalized?.impactoVia;
+  if (!iv || typeof iv !== 'object') return 0;
+  if (!iv.grauObstrucao && !iv.tipoImpactoVia && !iv.estadoVia) return 0;
+
+  let mod = 0;
+  if (iv.grauObstrucao === 'total') {
+    mod += 3;
+  } else if (iv.grauObstrucao === 'parcial') {
+    mod += iv.rotaAlternativaDisponivel ? 1 : 2;
+  }
+  if (iv.tipoImpactoVia === 'ruptura_plataforma') mod += 2;
+  if (iv.estadoVia === 'terra') mod += 1;
+
+  return Math.min(mod, 4);
+}
+
 function resolveTypeScore(tipo) {
   const key = normalizeTextLower(tipo).replace('voçoroca', 'vocoroca');
   if (!key) return { classe: 'T1', pontos: 0, inferred: true };
@@ -355,6 +495,22 @@ function applySolutionContextFilters(baseSolutions, normalized) {
   const estrutura = normalizeTextLower(normalized?.estrutura_proxima);
   const localTipo = normalizeTextLower(normalized?.local_tipo);
   const distancia = Number.isFinite(normalized?.distancia_estrutura_m) ? normalized.distancia_estrutura_m : null;
+
+  const isForaFaixa = localTipo.includes('fora_faixa')
+    || normalized?.localizacao_exposicao === 'area_terceiros';
+  if (isForaFaixa) {
+    return {
+      ...baseSolutions,
+      tipo_medida_recomendada: 'monitoramento',
+      lista_solucoes_sugeridas: [
+        'Monitoramento visual periodico',
+        'Registro fotografico de evolucao',
+        'Notificacao ao proprietario',
+      ],
+      recomendacao_contextual_filtros: 'Erosao fora da faixa de servidao: apenas monitoramento recomendado. Responsabilidade do proprietario terceiro.',
+    };
+  }
+
   const isAccessContext = estrutura === 'acesso' || localTipo.includes('acesso');
   const isFarFromTower = Number.isFinite(distancia) ? distancia >= 20 : false;
   const isTowerContext = ['torre', 'fundacao'].includes(estrutura) || localTipo.includes('torre');
@@ -416,7 +572,7 @@ function applyRecommendationPolicy({
     };
   }
 
-  const monitoring = getSolutionsForCode(config, 'C1');
+  const monitoring = getSolutionsForContext('C1', normalized?.local_tipo, normalized?.tipo_erosao);
   const suggestions = Array.isArray(monitoring.lista_solucoes_sugeridas) && monitoring.lista_solucoes_sugeridas.length > 0
     ? monitoring.lista_solucoes_sugeridas
     : ['Monitoramento visual periodico'];
@@ -452,10 +608,27 @@ export function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_V2_
   const declividade = resolveRange(SLOPE_POINTS, normalized.declividade_graus, 'D1');
   const solo = resolveSoilScore(normalized.tipo_solo);
   const exposicao = resolveRange(DISTANCE_POINTS, normalized.distancia_estrutura_m, 'E1');
+  const atividade = resolveActivityScore(normalized.sinais_avanco, normalized.vegetacao_interior);
+  const viaModifier = resolveViaModifier(normalized);
 
-  const criticidade_score = tipo.pontos + profundidade.pontos + declividade.pontos + solo.pontos + exposicao.pontos;
-  const classification = resolveCriticalityBand(criticidade_score, mergedConfig);
-  const baseSolutions = getSolutionsForCode(mergedConfig, classification.codigo);
+  const criticidade_score = tipo.pontos + profundidade.pontos + declividade.pontos + solo.pontos + exposicao.pontos + atividade.pontos + viaModifier;
+  let classification = resolveCriticalityBand(criticidade_score, mergedConfig);
+
+  const isBaseTorre = normalizeTextLower(normalized.local_tipo).includes('base_torre')
+    || normalizeTextLower(normalized.estrutura_proxima) === 'torre';
+  const isHighRiskType = ['vocoroca', 'movimento_massa'].includes(normalized.tipo_erosao);
+  const isCloseToStructure = Number.isFinite(normalized.distancia_estrutura_m) && normalized.distancia_estrutura_m < 5;
+  if (isBaseTorre && isHighRiskType && isCloseToStructure && ['C1', 'C2'].includes(classification.codigo)) {
+    classification = { codigo: 'C3', classe: 'Alto' };
+  }
+
+  const isForaFaixa = normalizeTextLower(normalized.local_tipo).includes('fora_faixa')
+    || normalized.localizacao_exposicao === 'area_terceiros';
+  if (isForaFaixa && ['C3', 'C4'].includes(classification.codigo)) {
+    classification = { codigo: 'C2', classe: 'Médio' };
+  }
+
+  const baseSolutions = getSolutionsForContext(classification.codigo, normalized.local_tipo, normalized.tipo_erosao);
   const solutions = applyRecommendationPolicy({
     normalized,
     declividadeClasse: declividade.classe,
@@ -472,12 +645,15 @@ export function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_V2_
     declividade_classe: declividade.classe,
     solo_classe: solo.classe,
     exposicao_classe: exposicao.classe,
+    atividade_classe: atividade.classe,
     pontos: {
       T: tipo.pontos,
       P: profundidade.pontos,
       D: declividade.pontos,
       S: solo.pontos,
       E: exposicao.pontos,
+      A: atividade.pontos,
+      V: viaModifier,
     },
     criticidade_score,
     criticidade_classe: classification.classe,
@@ -540,8 +716,11 @@ export function inferCriticalityInputFromLegacyErosion(erosion = {}) {
     } else if (slopeClass === '15-30') {
       declividade = 20;
       estimado = true;
-    } else if (slopeClass === '30-45' || slopeClass === '>45' || slopeClass === 'maior_25') {
+    } else if (slopeClass === '30-45' || slopeClass === 'maior_25') {
       declividade = 32;
+      estimado = true;
+    } else if (slopeClass === '>45') {
+      declividade = 50;
       estimado = true;
     }
   }
@@ -579,6 +758,9 @@ export function inferCriticalityInputFromLegacyErosion(erosion = {}) {
       sinais_avanco: Boolean(erosion.sinais_avanco),
       vegetacao_interior: Boolean(erosion.vegetacao_interior),
       presencaAguaFundo: erosion.presencaAguaFundo,
+      local_tipo: erosion.localTipo || erosion.local_tipo || '',
+      localizacao_exposicao: erosion.localizacaoExposicao || erosion.localizacao_exposicao || '',
+      estrutura_proxima: erosion.estruturaProxima || erosion.estrutura_proxima || '',
       locationCoordinates: erosion.locationCoordinates,
       latitude: erosion.latitude,
       longitude: erosion.longitude,

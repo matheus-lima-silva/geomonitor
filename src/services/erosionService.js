@@ -1,5 +1,6 @@
 import { deleteField } from 'firebase/firestore';
 import { normalizeErosionStatus } from '../features/shared/statusUtils';
+import { buildCriticalityInputFromErosion } from '../features/shared/viewUtils';
 import { extractApiErrorMessage, isNetworkFailureError, normalizeRequestError } from '../utils/apiClient';
 import { API_BASE_URL, createCrudService, getAuthToken } from '../utils/serviceFactory';
 
@@ -136,6 +137,31 @@ function buildLegacyFieldCleanupPatch() {
 export async function saveErosion(payload, meta = {}) {
   const result = await erosionCrudService.save(String(payload?.id || '').trim(), payload, meta);
   return result?.data?.id || String(payload?.id || '').trim();
+}
+
+export async function recalculateAndSaveErosion(erosion) {
+  if (!erosion?.id) return null;
+  const input = buildCriticalityInputFromErosion(erosion);
+  const { campos_calculados } = await postCalculoErosao(input);
+  if (!campos_calculados) return null;
+  const previousCriticality = erosion.criticalidadeV2 || null;
+  const historicoCriticidade = normalizeCriticalityHistory(erosion.historicoCriticidade);
+  if (previousCriticality) {
+    historicoCriticidade.push({
+      ...previousCriticality,
+      data: new Date().toISOString(),
+      motivo: 'recalculo_v3',
+    });
+  }
+  await saveErosion({
+    id: erosion.id,
+    criticalidadeV2: campos_calculados,
+    historicoCriticidade,
+    impacto: campos_calculados.legacy?.impacto || erosion.impacto,
+    score: campos_calculados.criticidade_score ?? erosion.score,
+    frequencia: campos_calculados.legacy?.frequencia || erosion.frequencia,
+  }, { merge: true });
+  return campos_calculados;
 }
 
 export async function saveErosionManualFollowupEvent(erosion, eventData, meta = {}) {

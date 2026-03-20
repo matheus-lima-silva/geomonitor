@@ -46,6 +46,10 @@ export const EROSION_TECHNICAL_ENUMS = {
   tipoSolo: ['lateritico', 'argiloso', 'solos_rasos', 'arenoso'],
   localizacaoExposicao: ['faixa_servidao', 'area_terceiros'],
   estruturaProxima: ['torre', 'fundacao', 'acesso', 'app', 'curso_agua', 'nenhuma'],
+  posicaoRelativaVia: ['leito', 'talude_montante', 'talude_jusante', 'margem_lateral'],
+  tipoImpactoVia: ['soterramento_parcial', 'soterramento_total', 'cedimento_lateral', 'ruptura_plataforma', 'obstrucao_drenagem', 'degradacao_superficie', 'nenhum'],
+  grauObstrucao: ['sem_obstrucao', 'parcial', 'total'],
+  estadoVia: ['pavimentada', 'cascalho', 'terra'],
 };
 
 export const EROSION_TECHNICAL_OPTIONS = {
@@ -57,7 +61,7 @@ export const EROSION_TECHNICAL_OPTIONS = {
   tiposFeicao: [
     { value: 'laminar', label: 'Laminar' },
     { value: 'sulco', label: 'Sulco' },
-    { value: 'movimento_massa', label: 'Movimento de massa' },
+    { value: 'movimento_massa', label: 'Movimento de massa (escorregamento, deslizamento, fluxo)' },
     { value: 'ravina', label: 'Ravina' },
     { value: 'vocoroca', label: 'Vocoroca' },
   ],
@@ -326,6 +330,7 @@ export function normalizeErosionTechnicalFields(data = {}) {
     distanciaEstruturaMetros: parseDecimal(source.distanciaEstruturaMetros),
     sinaisAvanco: normalizeBoolean(source.sinaisAvanco),
     vegetacaoInterior: normalizeBoolean(source.vegetacaoInterior),
+    impactoVia: source.impactoVia && typeof source.impactoVia === 'object' ? source.impactoVia : null,
   };
 }
 
@@ -359,7 +364,8 @@ function mapSlopeClass(value) {
   if (!Number.isFinite(value)) return '';
   if (value < 10) return 'D1';
   if (value <= 25) return 'D2';
-  return 'D3';
+  if (value <= 45) return 'D3';
+  return 'D4';
 }
 
 function mapExposureClass(value) {
@@ -394,9 +400,11 @@ export function buildCriticalityInputFromErosion(data = {}) {
     tipo_solo: technical.tipoSolo,
     estrutura_proxima: localContexto.estruturaProxima,
     localizacao_exposicao: localContexto.exposicao,
+    local_tipo: localContexto.localTipo,
     localContexto,
     sinais_avanco: technical.sinaisAvanco,
     vegetacao_interior: technical.vegetacaoInterior,
+    impactoVia: technical.impactoVia,
   };
 }
 

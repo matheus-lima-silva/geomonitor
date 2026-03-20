@@ -21,6 +21,7 @@ const RANGE_TO_VALUE = {
     D1: 5,
     D2: 17.5,
     D3: 35,
+    D4: 50,
   },
   exposicao: {
     E1: 60,
@@ -40,6 +41,7 @@ function ErosionTechnicalFields({
   const tiposFeicao = normalizeArray(formData.tiposFeicao);
   const caracteristicasFeicao = normalizeArray(formData.caracteristicasFeicao);
   const usosSolo = normalizeArray(formData.usosSolo);
+  const impactoVia = formData.impactoVia && typeof formData.impactoVia === 'object' ? formData.impactoVia : {};
 
   const classes = useMemo(
     () => readOnlyClasses || deriveCriticalityDimensionClasses(formData),
@@ -81,6 +83,10 @@ function ErosionTechnicalFields({
     updateField('declividadeGraus', Number.isFinite(numeric) ? numeric : '');
   }
 
+  function updateImpactoVia(field, value) {
+    patch({ impactoVia: { ...impactoVia, [field]: value } });
+  }
+
   function updateExposureRange(rangeCode) {
     const numeric = RANGE_TO_VALUE.exposicao[rangeCode];
     updateField('distanciaEstruturaMetros', Number.isFinite(numeric) ? numeric : '');
@@ -106,7 +112,8 @@ function ErosionTechnicalFields({
     if (!Number.isFinite(value)) return '';
     if (value < 10) return 'D1';
     if (value <= 25) return 'D2';
-    return 'D3';
+    if (value <= 45) return 'D3';
+    return 'D4';
   }
 
   function deriveExposureRange(value) {
@@ -119,7 +126,7 @@ function ErosionTechnicalFields({
 
   const selectedDepthRange = deriveDepthRange(parseNumeric(formData.profundidadeMetros)) || classes.profundidadeClasse || '';
   const selectedSlopeRange = deriveSlopeRange(parseNumeric(formData.declividadeGraus))
-    || (classes.declividadeClasse === 'D3' ? 'D3' : classes.declividadeClasse || '');
+    || classes.declividadeClasse || '';
   const selectedExposureRange = deriveExposureRange(parseNumeric(formData.distanciaEstruturaMetros)) || classes.exposicaoClasse || '';
 
   const localTipo = localContexto.localTipo || '';
@@ -251,18 +258,30 @@ function ErosionTechnicalFields({
             <option value="">Não informado</option>
             <option value="D1">&lt; 10 graus</option>
             <option value="D2">10 a 25 graus</option>
-            <option value="D3">&gt; 25 graus</option>
+            <option value="D3">25 a 45 graus</option>
+            <option value="D4">&gt; 45 graus</option>
           </select>
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-slate-700">Distância da estrutura</span>
-          <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={selectedExposureRange} onChange={(e) => updateExposureRange(e.target.value)}>
-            <option value="">Não informado</option>
-            <option value="E1">&gt; 50 m</option>
-            <option value="E2">20 a 50 m</option>
-            <option value="E3">5 a &lt; 20 m</option>
-            <option value="E4">&lt; 5 m</option>
-          </select>
+          <span className="text-sm font-semibold text-slate-700">
+            {localTipo === 'via_acesso_exclusiva' ? 'Distância até a borda da via' : 'Distância da estrutura'}
+          </span>
+          {localTipo === 'via_acesso_exclusiva' && impactoVia.posicaoRelativaVia === 'leito' ? (
+            <input
+              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-500"
+              value="0 m (no leito da via)"
+              readOnly
+              disabled
+            />
+          ) : (
+            <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={selectedExposureRange} onChange={(e) => updateExposureRange(e.target.value)}>
+              <option value="">Não informado</option>
+              <option value="E1">&gt; 50 m</option>
+              <option value="E2">20 a 50 m</option>
+              <option value="E3">5 a &lt; 20 m</option>
+              <option value="E4">&lt; 5 m</option>
+            </select>
+          )}
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-semibold text-slate-700">Tipo de solo</span>
@@ -274,6 +293,76 @@ function ErosionTechnicalFields({
           </select>
         </label>
       </div>
+
+      {localTipo === 'via_acesso_exclusiva' && (
+        <fieldset className="flex flex-col gap-4 p-4 bg-amber-50 border border-amber-200 rounded-xl relative mt-6 pt-6">
+          <legend className="absolute -top-3 left-3 px-2 bg-amber-50 text-sm font-bold text-slate-800 rounded-md">Impacto na via de acesso</legend>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-slate-700">Posição relativa à via</span>
+              <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={impactoVia.posicaoRelativaVia || ''} onChange={(e) => updateImpactoVia('posicaoRelativaVia', e.target.value)}>
+                <option value="">Selecione...</option>
+                {EROSION_TECHNICAL_OPTIONS.posicaoRelativaVia.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-slate-700">Tipo de impacto</span>
+              <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={impactoVia.tipoImpactoVia || ''} onChange={(e) => updateImpactoVia('tipoImpactoVia', e.target.value)}>
+                <option value="">Selecione...</option>
+                {EROSION_TECHNICAL_OPTIONS.tipoImpactoVia.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-slate-700">Grau de obstrução</span>
+              <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={impactoVia.grauObstrucao || ''} onChange={(e) => updateImpactoVia('grauObstrucao', e.target.value)}>
+                <option value="">Selecione...</option>
+                {EROSION_TECHNICAL_OPTIONS.grauObstrucao.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-slate-700">Estado da via</span>
+              <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={impactoVia.estadoVia || ''} onChange={(e) => updateImpactoVia('estadoVia', e.target.value)}>
+                <option value="">Selecione...</option>
+                {EROSION_TECHNICAL_OPTIONS.estadoVia.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-slate-700">Extensão afetada (m)</span>
+              <input type="number" className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={impactoVia.extensaoAfetadaMetros ?? ''} onChange={(e) => updateImpactoVia('extensaoAfetadaMetros', e.target.value)} min="0" step="1" />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-slate-700">Largura comprometida (m)</span>
+              <input type="number" className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={impactoVia.larguraComprometidaMetros ?? ''} onChange={(e) => updateImpactoVia('larguraComprometidaMetros', e.target.value)} min="0" step="0.1" />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-slate-700">Possibilidade de desvio</span>
+              <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={impactoVia.possibilidadeDesvio === true ? 'sim' : impactoVia.possibilidadeDesvio === false ? 'nao' : ''} onChange={(e) => updateImpactoVia('possibilidadeDesvio', e.target.value === 'sim' ? true : e.target.value === 'nao' ? false : null)}>
+                <option value="">Não informado</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-slate-700">Rota alternativa</span>
+              <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={impactoVia.rotaAlternativaDisponivel === true ? 'sim' : impactoVia.rotaAlternativaDisponivel === false ? 'nao' : ''} onChange={(e) => updateImpactoVia('rotaAlternativaDisponivel', e.target.value === 'sim' ? true : e.target.value === 'nao' ? false : null)}>
+                <option value="">Não informado</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
+              </select>
+            </label>
+          </div>
+        </fieldset>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
         <label className="flex flex-col gap-1.5">

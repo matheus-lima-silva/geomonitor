@@ -23,7 +23,7 @@ function sanitizeBreakdown(source) {
 
 export function formatCriticalityPoints(pontos = {}) {
   const source = pontos && typeof pontos === 'object' ? pontos : {};
-  return `${source.T ?? 0}/${source.P ?? 0}/${source.D ?? 0}/${source.S ?? 0}/${source.E ?? 0}`;
+  return `${source.T ?? 0}/${source.P ?? 0}/${source.D ?? 0}/${source.S ?? 0}/${source.E ?? 0}/${source.A ?? 0}`;
 }
 
 function buildCriticalitySummary({

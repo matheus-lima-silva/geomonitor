@@ -66,6 +66,10 @@ export const EROSION_TECHNICAL_ENUMS = {
     tipoSolo: ['lateritico', 'argiloso', 'solos_rasos', 'arenoso'],
     localizacaoExposicao: ['faixa_servidao', 'area_terceiros'],
     estruturaProxima: ['torre', 'fundacao', 'acesso', 'app', 'curso_agua', 'nenhuma'],
+    posicaoRelativaVia: ['leito', 'talude_montante', 'talude_jusante', 'margem_lateral'],
+    tipoImpactoVia: ['soterramento_parcial', 'soterramento_total', 'cedimento_lateral', 'ruptura_plataforma', 'obstrucao_drenagem', 'degradacao_superficie', 'nenhum'],
+    grauObstrucao: ['sem_obstrucao', 'parcial', 'total'],
+    estadoVia: ['pavimentada', 'cascalho', 'terra'],
 };
 
 export const EROSION_TECHNICAL_OPTIONS = {
@@ -77,7 +81,7 @@ export const EROSION_TECHNICAL_OPTIONS = {
     tiposFeicao: [
         { value: 'laminar', label: 'Laminar' },
         { value: 'sulco', label: 'Sulco' },
-        { value: 'movimento_massa', label: 'Movimento de massa' },
+        { value: 'movimento_massa', label: 'Movimento de massa (escorregamento, deslizamento, fluxo)' },
         { value: 'ravina', label: 'Ravina' },
         { value: 'vocoroca', label: 'Vocoroca' },
     ],
@@ -117,6 +121,31 @@ export const EROSION_TECHNICAL_OPTIONS = {
         { value: 'app', label: 'APP' },
         { value: 'curso_agua', label: 'Curso de agua' },
         { value: 'nenhuma', label: 'Nenhuma' },
+    ],
+    posicaoRelativaVia: [
+        { value: 'leito', label: 'Leito da via' },
+        { value: 'talude_montante', label: 'Talude montante' },
+        { value: 'talude_jusante', label: 'Talude jusante' },
+        { value: 'margem_lateral', label: 'Margem lateral' },
+    ],
+    tipoImpactoVia: [
+        { value: 'soterramento_parcial', label: 'Soterramento parcial' },
+        { value: 'soterramento_total', label: 'Soterramento total' },
+        { value: 'cedimento_lateral', label: 'Cedimento lateral' },
+        { value: 'ruptura_plataforma', label: 'Ruptura de plataforma' },
+        { value: 'obstrucao_drenagem', label: 'Obstrucao de drenagem' },
+        { value: 'degradacao_superficie', label: 'Degradacao de superficie' },
+        { value: 'nenhum', label: 'Nenhum' },
+    ],
+    grauObstrucao: [
+        { value: 'sem_obstrucao', label: 'Sem obstrucao' },
+        { value: 'parcial', label: 'Parcial' },
+        { value: 'total', label: 'Total' },
+    ],
+    estadoVia: [
+        { value: 'pavimentada', label: 'Pavimentada' },
+        { value: 'cascalho', label: 'Cascalho' },
+        { value: 'terra', label: 'Terra' },
     ],
 };
 
@@ -302,6 +331,7 @@ export function normalizeErosionTechnicalFields(data = {}) {
         distanciaEstruturaMetros: parseDecimal(source.distanciaEstruturaMetros),
         sinaisAvanco: normalizeBoolean(source.sinaisAvanco),
         vegetacaoInterior: normalizeBoolean(source.vegetacaoInterior),
+        impactoVia: source.impactoVia && typeof source.impactoVia === 'object' ? source.impactoVia : null,
     };
 }
 
@@ -317,7 +347,8 @@ function mapSlopeClass(value) {
     if (!Number.isFinite(value)) return '';
     if (value < 10) return 'D1';
     if (value <= 25) return 'D2';
-    return 'D3';
+    if (value <= 45) return 'D3';
+    return 'D4';
 }
 
 function mapExposureClass(value) {
@@ -749,8 +780,10 @@ export function buildCriticalityInputFromErosion(data = {}) {
         tipo_solo: technical.tipoSolo,
         estrutura_proxima: localContexto.estruturaProxima,
         localizacao_exposicao: localContexto.exposicao,
+        local_tipo: localContexto.localTipo,
         localContexto,
         sinais_avanco: technical.sinaisAvanco,
         vegetacao_interior: technical.vegetacaoInterior,
+        impactoVia: technical.impactoVia,
     };
 }
