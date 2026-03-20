@@ -1,6 +1,9 @@
 app = 'geomonitor-web'
 primary_region = 'gru'
 
+[deploy]
+  strategy = 'rolling'
+
 [build]
   [build.args]
     VITE_FIREBASE_API_KEY = "AIzaSyCpXON4jDLv08olhQlgMFA6vCyAguYiLvU"

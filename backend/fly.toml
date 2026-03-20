@@ -1,6 +1,9 @@
 app = 'geomonitor-api'
 primary_region = 'gru'
 
+[deploy]
+  strategy = 'rolling'
+
 [build]
 
 [env]

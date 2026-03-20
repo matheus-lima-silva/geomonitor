@@ -72,6 +72,16 @@ jobs:
           --config backend/fly.toml
           --dockerfile backend/Dockerfile
           --remote-only
+          --ha=false
+          --strategy rolling
+
+      - name: Enforce single API machine in GRU
+        run: flyctl scale count 1 --app geomonitor-api --region gru --yes
+
+      - name: Verify API single-machine policy
+        run: |
+          flyctl scale show -a geomonitor-api | tee api-scale.txt
+          grep -E '^app[[:space:]]+1[[:space:]]+' api-scale.txt
 
       - name: API health check
         run: curl -fsS https://geomonitor-api.fly.dev/health
@@ -95,6 +105,8 @@ jobs:
           --config fly.toml
           --dockerfile Dockerfile
           --remote-only
+          --ha=false
+          --strategy rolling
           --build-arg VITE_FIREBASE_API_KEY=${{ secrets.VITE_FIREBASE_API_KEY }}
           --build-arg VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
           --build-arg VITE_FIREBASE_PROJECT_ID=${{ secrets.VITE_FIREBASE_PROJECT_ID }}
@@ -103,6 +115,14 @@ jobs:
           --build-arg VITE_FIREBASE_APP_ID=${{ secrets.VITE_FIREBASE_APP_ID }}
           --build-arg VITE_FIREBASE_MEASUREMENT_ID=${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
           --build-arg VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}
+
+      - name: Enforce single Web machine in GRU
+        run: flyctl scale count 1 --app geomonitor-web --region gru --yes
+
+      - name: Verify Web single-machine policy
+        run: |
+          flyctl scale show -a geomonitor-web | tee web-scale.txt
+          grep -E '^app[[:space:]]+1[[:space:]]+' web-scale.txt
 
       - name: Web smoke check
         run: curl -fsS https://geomonitor-web.fly.dev/

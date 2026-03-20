@@ -5,6 +5,7 @@
 - Implementado no repositorio:
   - workflow de CI estrito (`web-strict`, `api-strict`)
   - workflow de deploy Fly com gate por `ENABLE_FLY_DEPLOY`
+  - workflow de deploy Fly forca politica de maquina unica (`count=1`) em `gru`
   - scripts `test:ci:strict` e `ci:web`
   - backlog de revisao de testes fechado (`DONE=47`)
 
@@ -32,3 +33,14 @@
 3. Confirmar:
    - `https://geomonitor-api.fly.dev/health` responde 200.
    - `https://geomonitor-web.fly.dev/` responde HTTP OK.
+   - `flyctl scale show -a geomonitor-api` mostra `COUNT 1`.
+   - `flyctl scale show -a geomonitor-web` mostra `COUNT 1`.
+
+## Politica de maquina unica
+
+- API e Web devem operar com `COUNT 1` em `gru`.
+- O workflow usa `flyctl deploy --ha=false` para evitar maquina extra em first deploy/scale-zero.
+- O workflow reaplica `flyctl scale count 1` apos cada deploy para corrigir drift operacional.
+- Remediacao manual, se necessario:
+  - `flyctl scale count 1 --app geomonitor-api --region gru --yes`
+  - `flyctl scale count 1 --app geomonitor-web --region gru --yes`
