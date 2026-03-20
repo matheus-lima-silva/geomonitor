@@ -64,6 +64,17 @@ const feicaoLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.tiposFeicao);
 const usoSoloLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.usosSolo);
 const exposicaoLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.localizacaoExposicao);
 const estruturaLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.estruturaProxima);
+const tipoSoloLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.tipoSolo);
+const posicaoViaLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.posicaoRelativaVia);
+const grauObstrucaoLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.grauObstrucao);
+const estadoViaLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.estadoVia);
+const tipoImpactoViaLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.tipoImpactoVia);
+
+function boolLabel(value) {
+  if (value === true) return 'Sim';
+  if (value === false) return 'Nao';
+  return '-';
+}
 
 function labelText(value, labelMap = {}) {
   const key = String(value || '').trim();
@@ -227,8 +238,13 @@ function renderFicha({
         <div class="ficha-full"><strong>Usos do solo:</strong> ${escapeHtml(listLabelText(technical.usosSolo, usoSoloLabelMap))}</div>
         ${technical.usosSolo.includes('outro') ? `<div class="ficha-full"><strong>Uso do solo - outro:</strong> ${escapeHtml(technical.usoSoloOutro || '-')}</div>` : ''}
         ${technical.usosSolo.length === 0 && String(erosion?.usoSolo || '').trim() ? `<div class="ficha-full"><strong>Uso do solo (legado):</strong> ${escapeHtml(erosion?.usoSolo || '-')}</div>` : ''}
+        <div><strong>Tipo de solo:</strong> ${escapeHtml(labelText(technical.tipoSolo, tipoSoloLabelMap))}</div>
+        <div><strong>Sinais de avanco:</strong> ${escapeHtml(boolLabel(technical.sinaisAvanco))}</div>
+        <div><strong>Vegetacao no interior:</strong> ${escapeHtml(boolLabel(technical.vegetacaoInterior))}</div>
+        ${(() => { const iv = erosion?.impactoVia || technical.impactoVia; const isVia = String(localContexto.localTipo || '').includes('acesso'); return (iv && isVia) ? `<div class="ficha-full"><strong>Impacto na via:</strong> Posicao: ${escapeHtml(labelText(iv.posicaoRelativaVia, posicaoViaLabelMap))} | Tipo: ${escapeHtml(labelText(iv.tipoImpactoVia, tipoImpactoViaLabelMap))} | Obstrucao: ${escapeHtml(labelText(iv.grauObstrucao, grauObstrucaoLabelMap))} | Estado: ${escapeHtml(labelText(iv.estadoVia, estadoViaLabelMap))} | Rota alternativa: ${escapeHtml(boolLabel(iv.rotaAlternativaDisponivel))}</div>` : ''; })()}
         <div class="ficha-full"><strong>Resumo de criticidade calculada:</strong> ${escapeHtml(`Impacto: ${criticalitySummary.impacto} | Score: ${criticalitySummary.score} | Frequencia: ${criticalitySummary.frequencia}`)}</div>
-        ${criticalitySummary.hasBreakdown ? `<div class="ficha-full"><strong>Criticidade:</strong> ${escapeHtml(criticalitySummary.criticidadeClasse)} (${escapeHtml(criticalitySummary.criticidadeCodigo)}) | Pontos T/P/D/S/E: ${escapeHtml(formatCriticalityPoints(criticalidadeV2?.pontos))}</div>` : ''}
+        ${criticalitySummary.hasBreakdown ? `<div class="ficha-full"><strong>Criticidade:</strong> ${escapeHtml(criticalitySummary.criticidadeClasse)} (${escapeHtml(criticalitySummary.criticidadeCodigo)}) | Pontos T/P/D/S/E/A: ${escapeHtml(formatCriticalityPoints(criticalidadeV2?.pontos))}${Number(criticalidadeV2?.pontos?.V) > 0 ? ` + V: ${criticalidadeV2.pontos.V}` : ''}</div>` : ''}
+        ${criticalitySummary.hasBreakdown ? `<div class="ficha-full"><strong>Classes:</strong> T=${escapeHtml(criticalidadeV2?.tipo_classe || criticalidadeV2?.tipo_erosao_classe || '-')} | P=${escapeHtml(criticalidadeV2?.profundidade_classe || '-')} | D=${escapeHtml(criticalidadeV2?.declividade_classe || '-')} | S=${escapeHtml(criticalidadeV2?.solo_classe || '-')} | E=${escapeHtml(criticalidadeV2?.exposicao_classe || '-')} | A=${escapeHtml(criticalidadeV2?.atividade_classe || '-')}</div>` : ''}
         ${criticalitySummary.solucoesSugeridas.length > 0 ? `<div class="ficha-full"><strong>Solucoes sugeridas:</strong> ${escapeHtml(criticalitySummary.solucoesSugeridas.join(' | '))}</div>` : ''}
         ${criticalitySummary.sugestoesIntervencao.length > 0 ? `<div class="ficha-full"><strong>Sugestoes de intervencao (opcional):</strong> ${escapeHtml(criticalitySummary.sugestoesIntervencao.join(' | '))}</div>` : ''}
         ${criticalidadeV2?.tipo_medida_recomendada ? `<div class="ficha-full"><strong>Tipo de medida recomendada:</strong> ${escapeHtml(labelText(criticalidadeV2.tipo_medida_recomendada))}</div>` : ''}
