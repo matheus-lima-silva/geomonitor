@@ -782,14 +782,7 @@ function InspectionFormWizardModal({
   async function markPendingErosionVisit(dayIndex, towerNumber) {
     try {
       const dayDate = String(formData.detalhesDias?.[dayIndex]?.data || '').trim();
-      const defaultDate = toBrDate(dayDate) || toBrDate(new Date().toISOString().slice(0, 10));
-      const typed = window.prompt('Informe a data da visita (DD/MM/AAAA):', defaultDate);
-      if (typed === null) return;
-      const visitDate = String(typed || '').trim();
-      if (!isBrDateValid(visitDate)) {
-        show('Data invalida. Use DD/MM/AAAA.', 'error');
-        return;
-      }
+      const visitDate = toBrDate(dayDate) || toBrDate(new Date().toISOString().slice(0, 10));
 
       const inspectionId = await ensureInspectionSavedForInlineActions();
       const projectId = String(formData.projetoId || '').trim();
@@ -801,6 +794,14 @@ function InspectionFormWizardModal({
       if (targetErosions.length === 0) {
         show('Nao ha erosao cadastrada nessa torre para marcar visita.', 'error');
         return;
+      }
+
+      if (targetErosions.length > 1) {
+        const ids = targetErosions.map((e) => String(e?.id || '').trim()).filter(Boolean);
+        const confirmed = window.confirm(
+          `Esta torre possui ${targetErosions.length} erosoes cadastradas (${ids.join(', ')}).\n\nConfirmar visita em todas?`,
+        );
+        if (!confirmed) return;
       }
 
       await Promise.all(targetErosions.map((erosion) => saveErosion({
@@ -950,6 +951,11 @@ function InspectionFormWizardModal({
         obs: String(erosionForm.descricao || '').trim(),
         criticalidade: isHistoricalRecord ? null : criticalidade,
         alertsAtivos: isHistoricalRecord ? [] : alertasValidacao,
+        pendenciasVistoria: upsertInspectionPendency(
+          existing || {},
+          inspectionId,
+          { status: 'visitada', dia: toBrDate(String(formData.detalhesDias?.[erosionModal.dayIndex]?.data || '').trim()) || toBrDate(new Date().toISOString().slice(0, 10)) },
+        ),
       };
 
       await saveErosion(payload, {
@@ -1272,6 +1278,14 @@ function InspectionFormWizardModal({
                     && String(hotelPickerSearch || '').trim() !== ''
                     && !hasExactHotelMatch;
                   const previousHotel = findPreviousDayHotel(formData.detalhesDias, day.data);
+                  const towersInOtherDays = new Set();
+                  formData.detalhesDias.forEach((otherDay, otherIndex) => {
+                    if (otherIndex === dayIndex) return;
+                    (otherDay.torresDetalhadas || []).forEach((t) => {
+                      const k = String(t?.numero || '').trim();
+                      if (k) towersInOtherDays.add(k);
+                    });
+                  });
                   return (
                     <article key={day.data || dayIndex} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-shadow hover:shadow-md">
                       <div className="flex items-center justify-between p-4 bg-white cursor-pointer select-none" onClick={() => setExpandedDay((prev) => (prev === day.data ? '' : day.data))}>
@@ -1325,18 +1339,26 @@ function InspectionFormWizardModal({
                                 <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1.5 p-3 max-h-[30vh] overflow-y-auto bg-slate-50">
                                   {projectTowerOptions.map((towerNumber) => {
                                     const active = selectedDayTowerKeys.has(String(towerNumber));
+                                    const usedElsewhere = !active && towersInOtherDays.has(String(towerNumber));
                                     return (
                                       <button
                                         key={`${dayKey}-picker-${towerNumber}`}
                                         type="button"
-                                        className={`flex items-center justify-center p-2 border rounded-lg text-xs font-medium transition-colors ${active ? 'bg-brand-600 border-brand-600 text-white hover:bg-brand-700 hover:border-brand-700 shadow-inner' : 'bg-white border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50'}`}
+                                        className={`flex items-center justify-center p-2 border rounded-lg text-xs font-medium transition-colors ${active ? 'bg-brand-600 border-brand-600 text-white hover:bg-brand-700 hover:border-brand-700 shadow-inner' : usedElsewhere ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400' : 'bg-white border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50'}`}
                                         onClick={() => toggleDayTower(dayIndex, towerNumber)}
+                                        title={usedElsewhere ? 'Ja selecionada em outro dia' : ''}
                                       >
                                         {formatTowerLabel(towerNumber)}
                                       </button>
                                     );
                                   })}
                                 </div>
+                                {towersInOtherDays.size > 0 ? (
+                                  <div className="text-xs text-amber-600 px-3 pb-2 flex items-center gap-1.5">
+                                    <span className="inline-block w-3 h-3 bg-amber-50 border border-amber-300 rounded flex-shrink-0" />
+                                    Torres ja selecionadas em outro dia desta vistoria
+                                  </div>
+                                ) : null}
                                 {projectTowerOptions.length === 0 ? (
                                   <p className="text-sm text-slate-500 m-0 py-2 px-3">
                                     Este empreendimento nao possui total de torres valido para selecao.
@@ -1502,10 +1524,13 @@ function InspectionFormWizardModal({
                                     const linkedTowerErosions = (erosions || []).filter((item) =>
                                       String(item?.projetoId || '').trim() === String(formData.projetoId || '').trim()
                                       && String(item?.torreRef || '').trim() === towerKey);
-                                    const pendency = linkedTowerErosions
+                                    const towerPendencies = linkedTowerErosions
                                       .map((item) => getInspectionPendency(item, formData.id))
-                                      .find(Boolean);
-                                    const hasVisitedDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
+                                      .filter(Boolean);
+                                    const allVisited = towerPendencies.length > 0
+                                      && towerPendencies.every((p) => p?.status === 'visitada' && String(p?.dia || '').trim());
+                                    const pendency = towerPendencies.find((p) => p?.status === 'visitada' && String(p?.dia || '').trim()) || towerPendencies[0] || null;
+                                    const hasVisitedDate = allVisited;
                                     const hasErosion = !!tower?.temErosao || linkedTowerErosions.length > 0;
                                     const key = `${day.data}|${towerKey}`;
                                     const expandedTower = expandedTowerKey === key;
@@ -1550,7 +1575,11 @@ function InspectionFormWizardModal({
                                               <AppIcon name="alert" />
                                             </button>
                                             {linkedTowerErosions.length > 0 ? (
-                                              <button type="button" className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1" onClick={() => markPendingErosionVisit(dayIndex, towerKey)}>
+                                              <button
+                                                type="button"
+                                                className={`px-2 py-1.5 border rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${hasVisitedDate ? 'bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+                                                onClick={() => markPendingErosionVisit(dayIndex, towerKey)}
+                                              >
                                                 <AppIcon name="check" />
                                                 {hasVisitedDate ? `Visitada ${pendency.dia}` : 'Marcar visita'}
                                               </button>
