@@ -117,7 +117,11 @@ export function mergeCriticalityV2Config(rawConfig) {
       ...(source.solucoes_por_criticidade || {}),
     },
     faixas: Array.isArray(source.faixas) && source.faixas.length > 0
-      ? source.faixas
+      ? source.faixas.map((f) => ({
+        ...f,
+        min: Number.isFinite(f.min) ? f.min : 0,
+        max: Number.isFinite(f.max) ? f.max : Infinity,
+      }))
       : CRITICALITY_V2_DEFAULTS.faixas,
   };
 }

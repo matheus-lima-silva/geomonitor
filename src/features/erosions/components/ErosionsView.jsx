@@ -281,6 +281,30 @@ function openBatchErosionFichasPdfWindow({
   openPrintableWindow(documentHtml);
 }
 
+function resolveCriticalityCodeForFilter(erosion) {
+  const source = erosion?.criticalidadeV2
+    || erosion?.criticidadeV2
+    || erosion?.criticalityV2
+    || null;
+  if (!source || typeof source !== 'object') return '';
+  const nested = source.breakdown || source.campos_calculados || source.calculation || source.resultado || source;
+  const code = String(nested?.codigo || nested?.criticidade_codigo || nested?.criticidadeCodigo || nested?.criticality_code || nested?.criticalityCode || '').trim().toUpperCase();
+  if (['C1', 'C2', 'C3', 'C4'].includes(code)) return code;
+  const classe = String(nested?.criticidade_classe || nested?.criticidadeClasse || nested?.criticality_class || nested?.criticalityClass || erosion?.impacto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (classe.includes('muito alto')) return 'C4';
+  if (classe.includes('alto')) return 'C3';
+  if (classe.includes('medio')) return 'C2';
+  if (classe.includes('baixo')) return 'C1';
+  return '';
+}
+
+const CRITICALITY_FILTER_LABELS = {
+  C1: 'C1 — Baixo',
+  C2: 'C2 — Medio',
+  C3: 'C3 — Alto',
+  C4: 'C4 — Muito Alto',
+};
+
 function ErosionsView({
   erosions = [],
   projects = [],
@@ -289,6 +313,8 @@ function ErosionsView({
   searchTerm = '',
   pendingDraft = null,
   onDraftConsumed,
+  criticalityFilter = '',
+  onClearCriticalityFilter,
 }) {
   const { user } = useAuth();
   const { show } = useToast();
@@ -331,8 +357,10 @@ function ErosionsView({
   }, [projects, projectSearchTerm]);
 
   const filteredCards = useMemo(() => {
+    const activeCritFilter = String(criticalityFilter || '').trim().toUpperCase();
     const selectedProjectKey = String(reportFilters.projetoId || '').trim().toLowerCase();
-    if (!selectedProjectKey) return [];
+
+    if (!activeCritFilter && !selectedProjectKey) return [];
 
     const term = String(searchTerm || '').toLowerCase();
     const base = (erosions || [])
@@ -341,14 +369,17 @@ function ErosionsView({
         ...item,
         tipo: deriveErosionTypeFromTechnicalFields(item),
       }))
-      .filter((item) => String(item?.projetoId || '').trim().toLowerCase() === selectedProjectKey)
+      .filter((item) => {
+        if (activeCritFilter) return resolveCriticalityCodeForFilter(item) === activeCritFilter;
+        return String(item?.projetoId || '').trim().toLowerCase() === selectedProjectKey;
+      })
       .sort(compareRowsByTowerAndId);
     if (!term) return base;
     return base.filter((erosion) => String(erosion.id || '').toLowerCase().includes(term)
       || String(erosion.projetoId || '').toLowerCase().includes(term)
       || String(erosion.torreRef || '').toLowerCase().includes(term)
       || String(erosion.impacto || '').toLowerCase().includes(term));
-  }, [erosions, reportFilters.projetoId, searchTerm]);
+  }, [erosions, reportFilters.projetoId, searchTerm, criticalityFilter]);
 
   const reportYears = useMemo(() => {
     if (!reportFilters.projetoId) return [currentYear];
@@ -605,7 +636,7 @@ function ErosionsView({
 
         if (alertasValidacao.length > 0) {
           const shouldContinue = window.confirm(
-            `Foram encontrados alertas tecnicos:\\n\\n- ${alertasValidacao.join('\\n- ')}\\n\\nDeseja salvar mesmo assim?`,
+            `Foram encontrados alertas tecnicos:\n\n- ${alertasValidacao.join('\n- ')}\n\nDeseja salvar mesmo assim?`,
           );
           if (!shouldContinue) return;
         }
@@ -960,29 +991,47 @@ function ErosionsView({
         </div>
 
         <div className="text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
-          {!reportFilters.projetoId
-            ? 'Selecione um empreendimento para iniciar a leitura de erosoes.'
-            : (
-              isCardsVisible
-                ? `Exibindo ${filteredCards.length} erosao(oes) em ${selectedProject?.nome || reportFilters.projetoId}.`
-                : `Empreendimento ${selectedProject?.nome || reportFilters.projetoId} selecionado. Cards ocultos.`
-            )}
+          {criticalityFilter
+            ? `Filtro por criticidade: ${CRITICALITY_FILTER_LABELS[criticalityFilter] || criticalityFilter}. Exibindo ${filteredCards.length} erosao(oes).`
+            : !reportFilters.projetoId
+              ? 'Selecione um empreendimento para iniciar a leitura de erosoes.'
+              : (
+                isCardsVisible
+                  ? `Exibindo ${filteredCards.length} erosao(oes) em ${selectedProject?.nome || reportFilters.projetoId}.`
+                  : `Empreendimento ${selectedProject?.nome || reportFilters.projetoId} selecionado. Cards ocultos.`
+              )}
         </div>
+
+        {criticalityFilter ? (
+          <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+            <span className="text-sm font-semibold text-blue-800">
+              Filtro ativo: {CRITICALITY_FILTER_LABELS[criticalityFilter] || criticalityFilter}
+            </span>
+            <button
+              type="button"
+              className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-md bg-blue-100 text-blue-700 text-xs font-semibold hover:bg-blue-200 transition-colors"
+              onClick={() => { if (onClearCriticalityFilter) onClearCriticalityFilter(); }}
+            >
+              <AppIcon name="close" size={12} />
+              Limpar filtro
+            </button>
+          </div>
+        ) : null}
       </article>
 
-      {!reportFilters.projetoId ? (
+      {!criticalityFilter && !reportFilters.projetoId ? (
         <article className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-8 text-center">
           <p className="text-slate-500 italic m-0">Selecione um empreendimento para visualizar erosoes.</p>
         </article>
       ) : null}
 
-      {reportFilters.projetoId && !isCardsVisible ? (
+      {!criticalityFilter && reportFilters.projetoId && !isCardsVisible ? (
         <article className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-8 text-center">
           <p className="text-slate-500 italic m-0">Cards ocultos. Clique em "Mostrar cards" para exibir.</p>
         </article>
       ) : null}
 
-      {reportFilters.projetoId && isCardsVisible ? (
+      {criticalityFilter || (reportFilters.projetoId && isCardsVisible) ? (
         <ErosionCardGrid
           erosions={filteredCards}
           projects={projects}

@@ -24,8 +24,11 @@ function normalizeImpactLabel(rawValue) {
 
   const normalized = text
     .toLowerCase()
+    .replace(/[\-_]+/g, ' ')
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   if (normalized.includes('muito alto') || normalized.includes('critico')) return 'Muito Alto';
   if (normalized.includes('alto')) return 'Alto';
@@ -34,12 +37,36 @@ function normalizeImpactLabel(rawValue) {
   return text;
 }
 
-function getPersistedCriticality(erosion) {
-  const source = erosion?.criticalidadeV2;
-  if (!source || typeof source !== 'object') return null;
-  if (source.breakdown && typeof source.breakdown === 'object') {
-    return source.breakdown;
+function pickFirst(...values) {
+  for (const value of values) {
+    if (value !== null && value !== undefined && String(value).trim() !== '') {
+      return value;
+    }
   }
+  return '';
+}
+
+function getPersistedCriticality(erosion) {
+  const source = erosion?.criticalidadeV2
+    || erosion?.criticidadeV2
+    || erosion?.criticalityV2
+    || erosion?.criticality
+    || null;
+  if (!source || typeof source !== 'object') return null;
+
+  const nestedCandidates = [
+    source.breakdown,
+    source.campos_calculados,
+    source.calculation,
+    source.resultado,
+  ];
+
+  for (const candidate of nestedCandidates) {
+    if (candidate && typeof candidate === 'object') {
+      return candidate;
+    }
+  }
+
   return source;
 }
 
@@ -72,23 +99,42 @@ function mapScoreToCriticalityCode(score) {
 }
 
 function resolveCriticalityCode(erosion, persistedCriticality, impact) {
-  const directCode = String(persistedCriticality?.codigo || '').trim().toUpperCase();
+  const directCode = String(pickFirst(
+    persistedCriticality?.codigo,
+    persistedCriticality?.criticidade_codigo,
+    persistedCriticality?.criticidadeCodigo,
+    persistedCriticality?.criticality_code,
+    persistedCriticality?.criticalityCode,
+    erosion?.criticidadeCodigo,
+    erosion?.criticalityCode,
+  )).trim().toUpperCase();
   if (CRITICALITY_LEVELS.includes(directCode)) return directCode;
 
   const impactDerivedCode = mapImpactToCriticalityCode(
-    persistedCriticality?.criticidade_classe
-    || persistedCriticality?.legacy?.impacto
-    || impact
-    || erosion?.impacto
-    || erosion?.grauFinal
-    || erosion?.grauTecnico,
+    pickFirst(
+      persistedCriticality?.criticidade_classe,
+      persistedCriticality?.criticidadeClasse,
+      persistedCriticality?.criticality_class,
+      persistedCriticality?.criticalityClass,
+      persistedCriticality?.legacy?.impacto,
+      impact,
+      erosion?.impacto,
+      erosion?.grauFinal,
+      erosion?.grauTecnico,
+    ),
   );
   if (impactDerivedCode) return impactDerivedCode;
 
   return mapScoreToCriticalityCode(
-    persistedCriticality?.criticidade_score
-    ?? erosion?.score
-    ?? null,
+    pickFirst(
+      persistedCriticality?.criticidade_score,
+      persistedCriticality?.criticidadeScore,
+      persistedCriticality?.criticality_score,
+      persistedCriticality?.criticalityScore,
+      erosion?.score,
+      erosion?.criticidadeScore,
+      erosion?.criticalityScore,
+    ),
   );
 }
 
@@ -153,13 +199,23 @@ function normalizeTrackingRows(deliveryTracking) {
 export function getErosionImpact(erosion) {
   const persistedCriticality = getPersistedCriticality(erosion);
   return normalizeImpactLabel(
-    erosion?.grauFinal
-    || erosion?.grauTecnico
-    || erosion?.impacto
-    || persistedCriticality?.legacy?.impacto
-    || persistedCriticality?.criticidade_classe
-    || mapCriticalityCodeToImpact(persistedCriticality?.codigo)
-    || '',
+    pickFirst(
+      erosion?.grauFinal,
+      erosion?.grauTecnico,
+      erosion?.impacto,
+      persistedCriticality?.legacy?.impacto,
+      persistedCriticality?.criticidade_classe,
+      persistedCriticality?.criticidadeClasse,
+      persistedCriticality?.criticality_class,
+      persistedCriticality?.criticalityClass,
+      mapCriticalityCodeToImpact(pickFirst(
+        persistedCriticality?.codigo,
+        persistedCriticality?.criticidade_codigo,
+        persistedCriticality?.criticidadeCodigo,
+        persistedCriticality?.criticality_code,
+        persistedCriticality?.criticalityCode,
+      )),
+    ),
   );
 }
 
@@ -574,8 +630,17 @@ export function buildMonitoringViewModel({
       return;
     }
 
-    const score = Number(persistedCriticality?.criticidade_score ?? item?.score ?? 0);
-    const safeScore = Number.isFinite(score) ? Math.max(0, Math.min(26, score)) : 0;
+    const score = Number(pickFirst(
+      persistedCriticality?.criticidade_score,
+      persistedCriticality?.criticidadeScore,
+      persistedCriticality?.criticality_score,
+      persistedCriticality?.criticalityScore,
+      item?.score,
+      item?.criticidadeScore,
+      item?.criticalityScore,
+      0,
+    ));
+    const safeScore = Number.isFinite(score) ? Math.max(0, Math.min(40, score)) : 0;
     heatPoints.push({
       id: String(item?.id || ''),
       projetoId: String(item?.projetoId || ''),
@@ -583,8 +648,15 @@ export function buildMonitoringViewModel({
       latitude,
       longitude,
       score: safeScore,
-      peso: safeScore / 26,
-      criticidade: String(persistedCriticality?.criticidade_classe || impact || 'Baixo'),
+      peso: safeScore / 40,
+      criticidade: String(pickFirst(
+        persistedCriticality?.criticidade_classe,
+        persistedCriticality?.criticidadeClasse,
+        persistedCriticality?.criticality_class,
+        persistedCriticality?.criticalityClass,
+        impact,
+        'Baixo',
+      )),
     });
   });
 
@@ -608,7 +680,7 @@ export function buildMonitoringViewModel({
     reportMonthDetailsByKey,
     workTrackingRows,
     impactCounts,
-    criticalCount: impactCounts['Muito Alto'] + impactCounts.Alto,
+    criticalCount: criticalityDistribution.C3 + criticalityDistribution.C4,
     criticalityDistribution,
     criticalityDistributionRows: CRITICALITY_LEVELS.map((level) => ({
       level,

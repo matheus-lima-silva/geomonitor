@@ -267,7 +267,7 @@ describe('DashboardView monitoring top notice', () => {
     expect(container.textContent).toContain('ER-C4');
     expect(container.textContent).toContain('Torre 17');
     expect(container.textContent).toContain('Criticidade: Muito Alto');
-    expect(container.textContent).toContain('Score: 26');
+    expect(container.textContent).toContain('Score: 28');
   });
 
   it('expands LO/project aggregated row in upcoming reports card', async () => {

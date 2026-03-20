@@ -902,7 +902,7 @@ function InspectionFormWizardModal({
 
         if (alertasValidacao.length > 0) {
           const shouldContinue = window.confirm(
-            `Foram encontrados alertas tecnicos:\\n\\n- ${alertasValidacao.join('\\n- ')}\\n\\nDeseja salvar mesmo assim?`,
+            `Foram encontrados alertas tecnicos:\n\n- ${alertasValidacao.join('\n- ')}\n\nDeseja salvar mesmo assim?`,
           );
           if (!shouldContinue) return;
         }

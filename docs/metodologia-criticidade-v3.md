@@ -112,15 +112,15 @@ O escore base maximo e **36** (6 dimensoes x 6 pontos). As faixas de criticidade
 
 Quando o ponto erosivo afeta diretamente uma via de acesso, aplica-se um modificador adicional ao escore base. O valor do modificador varia de **+1 a +4** conforme a severidade da situacao, sendo limitado (cap) a **+4 pontos**.
 
-| Condicao                          | Modificador |
-|-----------------------------------|-------------|
-| Grau de obstrucao parcial da via  | +1          |
-| Grau de obstrucao significativa   | +2          |
-| Obstrucao total da via            | +3          |
-| Ruptura da plataforma da via      | +4          |
-| Estado precario da via de terra   | +1 a +2     |
+| Condicao                                                          | Modificador |
+|-------------------------------------------------------------------|-------------|
+| `grauObstrucao = total`                                           | +3          |
+| `grauObstrucao = parcial` e `rotaAlternativaDisponivel = false`   | +2          |
+| `grauObstrucao = parcial` e `rotaAlternativaDisponivel = true`    | +1          |
+| `tipoImpactoVia = ruptura_plataforma`                             | +2          |
+| `estadoVia = terra`                                               | +1          |
 
-O modificador total acumulado e limitado a **+4**, independentemente da combinacao de condicoes observadas.
+Os modificadores sao **cumulativos** entre si, porem o total acumulado e limitado a **+4**, independentemente da combinacao de condicoes observadas.
 
 ### 5.2 Cap de Monitoramento
 
@@ -140,6 +140,20 @@ Um piso minimo de **C3 (Alto)** e aplicado automaticamente quando as tres condic
 
 Nesse caso, mesmo que o escore calculado resulte em C1 ou C2, a classificacao final e elevada para C3.
 
+### 5.5 Teto C2 para Fora da Faixa de Servidao
+
+Quando o ponto erosivo esta **fora da faixa de servidao** (`local_tipo = fora_faixa_servidao`) e em **area de terceiros** (`localizacao_exposicao = area_terceiros`), a classificacao final nunca ultrapassa **C2 (Medio)**, mesmo que o escore bruto indique C3 ou C4.
+
+Justificativa: erosoes fora da faixa de servidao nao afetam diretamente a linha de transmissao e a responsabilidade pela intervencao e do proprietario do terreno. O monitoramento pela equipe de manutencao e suficiente.
+
+### 5.6 Monitoramento Exclusivo para Fora da Faixa
+
+Quando `local_tipo = fora_faixa_servidao`, o sistema remove todas as solucoes de intervencao fisica e mantem apenas:
+
+- Monitoramento visual periodico;
+- Registro fotografico de evolucao;
+- Notificacao ao proprietario.
+
 ---
 
 ## 6. Regra Especial — Via de Acesso (Dimensao E)
@@ -153,6 +167,8 @@ A dimensao **E (Exposicao)** possui regras especiais quando o ponto erosivo esta
 ---
 
 ## 7. Solucoes Tecnicas por Faixa
+
+O sistema utiliza um banco de 27 solucoes tagueadas (`SOLUCOES_DATABASE`), filtradas por tres eixos: **faixa de criticidade** (C1–C4), **local** (faixa_servidao, via_acesso_exclusiva, base_torre, fora_faixa_servidao) e **tipo de erosao** (laminar, sulco, ravina, vocoroca, movimento_massa). A funcao `getSolutionsForContext()` retorna apenas as solucoes aplicaveis ao contexto especifico de cada ponto erosivo. Abaixo, exemplos representativos por faixa.
 
 ### C1 — Baixo (Preventiva)
 

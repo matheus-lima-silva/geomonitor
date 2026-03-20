@@ -268,7 +268,11 @@ function resolveRange(rangeMap, value, fallbackClass) {
 
 function resolveCriticalityBand(score, config) {
   const bands = Array.isArray(config?.faixas) ? config.faixas : CRITICALITY_V2_DEFAULTS.faixas;
-  const found = bands.find((item) => score >= item.min && score <= item.max);
+  const found = bands.find((item) => {
+    const min = Number.isFinite(item.min) ? item.min : 0;
+    const max = Number.isFinite(item.max) ? item.max : Infinity;
+    return score >= min && score <= max;
+  });
   return found || { codigo: 'C1', classe: 'Baixo' };
 }
 
@@ -447,7 +451,11 @@ export function mergeCriticalityV2Config(rawConfig) {
       ...(source.solucoes_por_criticidade || {}),
     },
     faixas: Array.isArray(source.faixas) && source.faixas.length > 0
-      ? source.faixas
+      ? source.faixas.map((f) => ({
+        ...f,
+        min: Number.isFinite(f.min) ? f.min : 0,
+        max: Number.isFinite(f.max) ? f.max : Infinity,
+      }))
       : CRITICALITY_V2_DEFAULTS.faixas,
   };
 }

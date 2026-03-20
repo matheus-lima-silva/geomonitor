@@ -387,4 +387,37 @@ describe('Criticality V3 engine', () => {
             expect(Array.isArray(out.lista_solucoes_possiveis_intervencao)).toBe(true);
         });
     });
+
+    describe('Firestore Infinity serialization', () => {
+        it('resolves C4 when faixas have null max (Firestore loses Infinity)', () => {
+            const firestoreConfig = {
+                faixas: [
+                    { codigo: 'C1', classe: 'Baixo', min: 0, max: 9 },
+                    { codigo: 'C2', classe: 'Médio', min: 10, max: 18 },
+                    { codigo: 'C3', classe: 'Alto', min: 19, max: 27 },
+                    { codigo: 'C4', classe: 'Muito Alto', min: 28, max: null },
+                ],
+            };
+
+            const out = calcular_criticidade({
+                tipo_erosao: 'ravina',
+                profundidade_m: 5,
+                declividade_graus: 30,
+                tipo_solo: 'argiloso',
+                distancia_estrutura_m: 3,
+                sinais_avanco: true,
+                vegetacao_interior: false,
+                localTipo: 'via_acesso_exclusiva',
+                impactoVia: {
+                    grauObstrucao: 'total',
+                    estadoVia: 'terra',
+                },
+            }, firestoreConfig);
+
+            // T3=4, P2=2, D3=4, S2=2, E4=6, A4=6 = 24, via modifier capped at 4 = 28
+            expect(out.criticidade_score).toBe(28);
+            expect(out.codigo).toBe('C4');
+            expect(out.criticidade_classe).toBe('Muito Alto');
+        });
+    });
 });

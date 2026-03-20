@@ -509,4 +509,69 @@ describe('monitoringViewModel', () => {
     expect(model.criticalCount).toBe(1);
     expect(model.criticalityDistributionRows).toContainEqual({ level: 'C4', total: 1 });
   });
+
+  it('supports legacy criticality field names and nested calculation payloads', () => {
+    const model = buildMonitoringViewModel({
+      projects: [],
+      inspections: [],
+      erosions: [
+        {
+          id: 'ER-C4-LEGACY-NAME',
+          projetoId: 'P1',
+          criticidadeV2: {
+            campos_calculados: {
+              codigo: 'C4',
+              criticidade_classe: 'Muito Alto',
+              criticidade_score: 28,
+            },
+          },
+          locationCoordinates: { latitude: '-10.2', longitude: '-50.3' },
+        },
+      ],
+      operatingLicenses: [],
+      searchTerm: '',
+      nowMs,
+    });
+
+    expect(model.criticalityDistributionRows).toContainEqual({ level: 'C4', total: 1 });
+    expect(model.heatPoints).toEqual([
+      expect.objectContaining({
+        id: 'ER-C4-LEGACY-NAME',
+        score: 28,
+      }),
+    ]);
+  });
+
+  it('maps alternate criticality aliases to C-level distribution', () => {
+    const model = buildMonitoringViewModel({
+      projects: [],
+      inspections: [],
+      erosions: [
+        {
+          id: 'ER-C3-ALIAS',
+          projetoId: 'P1',
+          criticalidadeV2: {
+            resultado: {
+              criticidadeCodigo: 'c3',
+              criticidadeClasse: 'Alto',
+              criticidadeScore: 21,
+            },
+          },
+          locationCoordinates: { latitude: '-10.2', longitude: '-50.3' },
+        },
+      ],
+      operatingLicenses: [],
+      searchTerm: '',
+      nowMs,
+    });
+
+    expect(model.impactCounts.Alto).toBe(1);
+    expect(model.criticalityDistributionRows).toContainEqual({ level: 'C3', total: 1 });
+    expect(model.heatPoints).toEqual([
+      expect.objectContaining({
+        id: 'ER-C3-ALIAS',
+        score: 21,
+      }),
+    ]);
+  });
 });

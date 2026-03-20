@@ -142,7 +142,7 @@ const EMPTY_MONITORING_VIEW_MODEL = {
   reportInvalidOverrides: [],
 };
 
-function DashboardMonitoring({ viewModel }) {
+function DashboardMonitoring({ viewModel, onCriticalityBarClick }) {
   const {
     searchTermApplied,
     reportOccurrences,
@@ -202,16 +202,6 @@ function DashboardMonitoring({ viewModel }) {
         </p>
       ) : null}
 
-      {/* Impact level distribution */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-        {IMPACT_LEVELS.map((impact) => (
-          <Card key={impact} className="flex flex-col gap-1 p-3 bg-slate-50 border border-slate-200 shadow-sm">
-            <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{impact}</div>
-            <div className="text-xl font-bold text-slate-800">{impactCounts[impact]}</div>
-          </Card>
-        ))}
-      </div>
-
       <div className="grid gap-5 grid-cols-1 xl:grid-cols-2 items-start mt-4">
         {/* Coluna esquerda */}
         <div className="flex flex-col gap-4">
@@ -219,7 +209,9 @@ function DashboardMonitoring({ viewModel }) {
             <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Distribuição por criticidade (C1–C4)</h3>
             <div style={{ width: '100%', height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={criticalityDistributionRows}>
+                <BarChart data={criticalityDistributionRows} style={{ cursor: 'pointer' }} onClick={(state) => {
+                  if (state?.activeLabel && onCriticalityBarClick) onCriticalityBarClick(state.activeLabel);
+                }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="level" tick={{ fontSize: 11 }} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
@@ -572,6 +564,7 @@ function DashboardView() {
   const [inspectionProjectFilterId, setInspectionProjectFilterId] = useState(null);
   const [inspectionPlanningDraft, setInspectionPlanningDraft] = useState(null);
   const [pendingErosionDraft, setPendingErosionDraft] = useState(null);
+  const [criticalityFilter, setCriticalityFilter] = useState('');
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
@@ -768,6 +761,8 @@ function DashboardView() {
           searchTerm={searchTerm}
           pendingDraft={pendingErosionDraft}
           onDraftConsumed={() => setPendingErosionDraft(null)}
+          criticalityFilter={criticalityFilter}
+          onClearCriticalityFilter={() => setCriticalityFilter('')}
         />
       );
     }
@@ -810,6 +805,10 @@ function DashboardView() {
       return (
         <DashboardMonitoring
           viewModel={dashboardViewModel}
+          onCriticalityBarClick={(level) => {
+            setCriticalityFilter(level);
+            setActiveTab('erosions');
+          }}
         />
       );
     }
