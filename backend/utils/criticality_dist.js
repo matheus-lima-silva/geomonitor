@@ -16,19 +16,20 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// utils/criticalityV2.js
-var criticalityV2_exports = {};
-__export(criticalityV2_exports, {
-  CRITICALITY_V2_DEFAULTS: () => CRITICALITY_V2_DEFAULTS,
+// utils/criticality.js
+var criticality_exports = {};
+__export(criticality_exports, {
+  CRITICALITY_DEFAULTS: () => CRITICALITY_DEFAULTS,
   buildCriticalityTrend: () => buildCriticalityTrend,
   calcularCriticidade: () => calcularCriticidade,
   calcular_criticidade: () => calcular_criticidade,
   calculateCriticality: () => calculateCriticality,
   inferCriticalityInputFromLegacyErosion: () => inferCriticalityInputFromLegacyErosion,
+  mergeCriticalityConfig: () => mergeCriticalityConfig,
   mergeCriticalityV2Config: () => mergeCriticalityV2Config,
   normalizeCriticalityHistory: () => normalizeCriticalityHistory
 });
-module.exports = __toCommonJS(criticalityV2_exports);
+module.exports = __toCommonJS(criticality_exports);
 
 // ../src/features/shared/erosionCoordinates.js
 function toTrimmedString(value) {
@@ -48,7 +49,7 @@ function normalizeLocationCoordinates(erosion = {}) {
   };
 }
 
-// utils/criticalityV2.js
+// utils/criticality.js
 var TYPE_POINTS = {
   laminar: { classe: "T1", pontos: 0 },
   sulco: { classe: "T2", pontos: 2 },
@@ -92,7 +93,7 @@ function resolveActivityScore(sinaisAvanco, vegetacaoInterior) {
   if (!sinaisAvanco && !vegetacaoInterior) return { ...ACTIVITY_RULES.A2, inferred: false };
   return { ...ACTIVITY_RULES.A1, inferred: false };
 }
-var CRITICALITY_V2_DEFAULTS = {
+var CRITICALITY_DEFAULTS = {
   pontos: {
     profundidade: {
       P1: { descricao: "<= 1", pontos: 0 },
@@ -287,7 +288,7 @@ function resolveRange(rangeMap, value, fallbackClass) {
   return { classe: found.classe, pontos: found.pontos, inferred: false };
 }
 function resolveCriticalityBand(score, config) {
-  const bands = Array.isArray(config?.faixas) ? config.faixas : CRITICALITY_V2_DEFAULTS.faixas;
+  const bands = Array.isArray(config?.faixas) ? config.faixas : CRITICALITY_DEFAULTS.faixas;
   const found = bands.find((item) => {
     const min = Number.isFinite(item.min) ? item.min : 0;
     const max = Number.isFinite(item.max) ? item.max : Infinity;
@@ -416,26 +417,29 @@ function mapLegacyFrequency(codigo) {
   if (codigo === "C2") return "12 meses";
   return "24 meses";
 }
-function mergeCriticalityV2Config(rawConfig) {
-  if (!rawConfig || typeof rawConfig !== "object") return CRITICALITY_V2_DEFAULTS;
-  const source = rawConfig.criticalityV2 && typeof rawConfig.criticalityV2 === "object" ? rawConfig.criticalityV2 : rawConfig;
+function mergeCriticalityConfig(rawConfig) {
+  if (!rawConfig || typeof rawConfig !== "object") return CRITICALITY_DEFAULTS;
+  const source = rawConfig.criticalidade && typeof rawConfig.criticalidade === "object" ? rawConfig.criticalidade : rawConfig.criticalityV2 && typeof rawConfig.criticalityV2 === "object" ? rawConfig.criticalityV2 : rawConfig;
   return {
-    ...CRITICALITY_V2_DEFAULTS,
+    ...CRITICALITY_DEFAULTS,
     ...source,
     pontos: {
-      ...CRITICALITY_V2_DEFAULTS.pontos,
+      ...CRITICALITY_DEFAULTS.pontos,
       ...source.pontos || {}
     },
     solucoes_por_criticidade: {
-      ...CRITICALITY_V2_DEFAULTS.solucoes_por_criticidade,
+      ...CRITICALITY_DEFAULTS.solucoes_por_criticidade,
       ...source.solucoes_por_criticidade || {}
     },
     faixas: Array.isArray(source.faixas) && source.faixas.length > 0 ? source.faixas.map((f) => ({
       ...f,
       min: Number.isFinite(f.min) ? f.min : 0,
       max: Number.isFinite(f.max) ? f.max : Infinity
-    })) : CRITICALITY_V2_DEFAULTS.faixas
+    })) : CRITICALITY_DEFAULTS.faixas
   };
+}
+function mergeCriticalityV2Config(rawConfig) {
+  return mergeCriticalityConfig(rawConfig);
 }
 function resolveViaModifier(normalized) {
   const localTipo = normalizeTextLower(normalized?.local_tipo);
@@ -551,16 +555,8 @@ function applyRecommendationPolicy({
     )
   };
 }
-function buildLegacyCompatPayload(score, classification, solutions) {
-  return {
-    impacto: mapLegacyImpact(classification.codigo),
-    score,
-    frequencia: mapLegacyFrequency(classification.codigo),
-    intervencao: solutions.lista_solucoes_sugeridas[0] || "Monitoramento visual"
-  };
-}
-function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_V2_DEFAULTS) {
-  const mergedConfig = mergeCriticalityV2Config(config);
+function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_DEFAULTS) {
+  const mergedConfig = mergeCriticalityConfig(config);
   const normalized = buildNormalizedInput(vistoriaData);
   const tipo = resolveTypeScore(normalized.tipo_erosao);
   const profundidade = resolveRange(DEPTH_POINTS, normalized.profundidade_m, "P1");
@@ -591,7 +587,9 @@ function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_V2_DEFAULT
     baseSolutions
   });
   const alertas = buildValidationAlerts(normalized, classification);
-  const compat = buildLegacyCompatPayload(criticidade_score, classification, solutions);
+  const impacto = mapLegacyImpact(classification.codigo);
+  const frequencia = mapLegacyFrequency(classification.codigo);
+  const intervencao = solutions.lista_solucoes_sugeridas[0] || "Monitoramento visual";
   return {
     profundidade_classe: profundidade.classe,
     tipo_erosao_classe: tipo.classe,
@@ -611,29 +609,23 @@ function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_V2_DEFAULT
     criticidade_score,
     criticidade_classe: classification.classe,
     codigo: classification.codigo,
+    impacto,
+    score: criticidade_score,
+    frequencia,
+    intervencao,
     tipo_medida_recomendada: solutions.tipo_medida_recomendada,
     lista_solucoes_sugeridas: solutions.lista_solucoes_sugeridas,
     lista_solucoes_possiveis_intervencao: solutions.lista_solucoes_possiveis_intervencao,
     recomendacao_contextual: solutions.recomendacao_contextual,
     alertas_validacao: alertas,
-    campos_normalizados: normalized,
-    legacy: compat
+    campos_normalizados: normalized
   };
 }
-function calcularCriticidade(vistoriaData = {}, config = CRITICALITY_V2_DEFAULTS) {
+function calcularCriticidade(vistoriaData = {}, config = CRITICALITY_DEFAULTS) {
   return calcular_criticidade(vistoriaData, config);
 }
-function calculateCriticality(vistoriaData = {}, config = CRITICALITY_V2_DEFAULTS) {
-  const result = calcular_criticidade(vistoriaData, config);
-  return {
-    ...result.legacy,
-    codigo: result.codigo,
-    criticidade_classe: result.criticidade_classe,
-    tipo_medida_recomendada: result.tipo_medida_recomendada,
-    lista_solucoes_sugeridas: result.lista_solucoes_sugeridas,
-    alertas_validacao: result.alertas_validacao,
-    breakdown: result
-  };
+function calculateCriticality(vistoriaData = {}, config = CRITICALITY_DEFAULTS) {
+  return calcular_criticidade(vistoriaData, config);
 }
 function inferCriticalityInputFromLegacyErosion(erosion = {}) {
   const tipo = normalizeTextLower(erosion.tipo || erosion.tipo_erosao);
@@ -725,12 +717,13 @@ function normalizeCriticalityHistory(value) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  CRITICALITY_V2_DEFAULTS,
+  CRITICALITY_DEFAULTS,
   buildCriticalityTrend,
   calcularCriticidade,
   calcular_criticidade,
   calculateCriticality,
   inferCriticalityInputFromLegacyErosion,
+  mergeCriticalityConfig,
   mergeCriticalityV2Config,
   normalizeCriticalityHistory
 });

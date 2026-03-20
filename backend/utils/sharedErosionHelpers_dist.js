@@ -27,13 +27,18 @@ __export(erosionHelpers_exports, {
   buildCriticalityTrend: () => buildCriticalityTrend,
   buildManualFollowupEvent: () => buildManualFollowupEvent,
   buildSituacaoFromStatus: () => buildSituacaoFromStatus,
+  getCriticalityClass: () => getCriticalityClass,
+  getCriticalityCode: () => getCriticalityCode,
+  getCriticalityScore: () => getCriticalityScore,
   getInspectionDateScore: () => getInspectionDateScore,
   normalizeCriticalityHistory: () => normalizeCriticalityHistory,
   normalizeErosionInspectionIds: () => normalizeErosionInspectionIds,
   normalizeFollowupHistory: () => normalizeFollowupHistory,
   normalizeNumeric: () => normalizeNumeric,
   normalizeText: () => normalizeText,
-  resolvePrimaryInspectionId: () => resolvePrimaryInspectionId
+  resolveErosionCriticality: () => resolveErosionCriticality,
+  resolvePrimaryInspectionId: () => resolvePrimaryInspectionId,
+  unwrapCriticalityPayload: () => unwrapCriticalityPayload
 });
 module.exports = __toCommonJS(erosionHelpers_exports);
 function normalizeText(value) {
@@ -42,6 +47,45 @@ function normalizeText(value) {
 function normalizeNumeric(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+function unwrapCriticalityPayload(value) {
+  if (!value || typeof value !== "object") return null;
+  const nestedCandidates = [
+    value.breakdown,
+    value.campos_calculados,
+    value.calculation,
+    value.resultado
+  ];
+  for (let i = 0; i < nestedCandidates.length; i += 1) {
+    const candidate = nestedCandidates[i];
+    if (candidate && typeof candidate === "object") return candidate;
+  }
+  return value;
+}
+function resolveErosionCriticality(erosion) {
+  if (!erosion || typeof erosion !== "object") return null;
+  return unwrapCriticalityPayload(
+    erosion.criticalidade ?? erosion.criticalidadeV2 ?? erosion.criticidadeV2 ?? erosion.criticalityV2 ?? erosion.criticality
+  );
+}
+function getCriticalityCode(criticalidade, fallback = "") {
+  const resolved = unwrapCriticalityPayload(criticalidade);
+  return normalizeText(
+    resolved?.codigo ?? resolved?.criticidade_codigo ?? resolved?.criticidadeCodigo ?? resolved?.criticality_code ?? resolved?.criticalityCode ?? fallback
+  ).toUpperCase();
+}
+function getCriticalityClass(criticalidade, fallback = "") {
+  const resolved = unwrapCriticalityPayload(criticalidade);
+  return normalizeText(
+    resolved?.criticidade_classe ?? resolved?.criticidadeClasse ?? resolved?.criticality_class ?? resolved?.criticalityClass ?? fallback
+  );
+}
+function getCriticalityScore(criticalidade, fallback = null) {
+  const resolved = unwrapCriticalityPayload(criticalidade);
+  const normalized = normalizeNumeric(
+    resolved?.criticidade_score ?? resolved?.criticidadeScore ?? resolved?.criticality_score ?? resolved?.criticalityScore
+  );
+  return normalized ?? fallback;
 }
 function normalizeFollowupHistory(history) {
   if (!Array.isArray(history)) return [];
@@ -137,15 +181,16 @@ function buildSituacaoFromStatus(status, normalizeStatusFn) {
   if (normalized === "monitoramento") return "em_recuperacao";
   return "ativo";
 }
-function buildCriticalityHistory(previous, nextData, criticalidadeV2, deps = {}) {
+function buildCriticalityHistory(previous, nextData, criticalidade, deps = {}) {
   const { buildCriticalityTrend: trendFn = buildCriticalityTrend, normalizeStatusFn } = deps;
   const previousHistory = normalizeCriticalityHistory(
     nextData.historicoCriticidade ?? previous?.historicoCriticidade
   );
-  const scoreAnterior = normalizeNumeric(
-    previous?.criticalidadeV2?.criticidade_score ?? previous?.score
+  const scoreAnterior = getCriticalityScore(
+    resolveErosionCriticality(previous),
+    normalizeNumeric(previous?.score)
   );
-  const scoreAtual = normalizeNumeric(criticalidadeV2?.criticidade_score);
+  const scoreAtual = getCriticalityScore(criticalidade);
   const tendencia = trendFn(scoreAnterior, scoreAtual);
   const dataVistoria = String(
     nextData.dataVistoria || nextData.data_vistoria || nextData.dataCadastro || nextData.data || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10)
@@ -177,6 +222,13 @@ var EROSION_REMOVED_FIELDS_LEGACY = [
   "impacto_old",
   "risco_old",
   "criticality",
+  "criticalityV2",
+  "criticalidadeV2",
+  "criticidadeV2",
+  "impacto",
+  "score",
+  "frequencia",
+  "intervencao",
   "fotosUrl",
   "foto1",
   "foto2",
@@ -201,11 +253,16 @@ var LEGACY_CLEANUP_EXTRA_FIELDS = [
   buildCriticalityTrend,
   buildManualFollowupEvent,
   buildSituacaoFromStatus,
+  getCriticalityClass,
+  getCriticalityCode,
+  getCriticalityScore,
   getInspectionDateScore,
   normalizeCriticalityHistory,
   normalizeErosionInspectionIds,
   normalizeFollowupHistory,
   normalizeNumeric,
   normalizeText,
-  resolvePrimaryInspectionId
+  resolveErosionCriticality,
+  resolvePrimaryInspectionId,
+  unwrapCriticalityPayload
 });

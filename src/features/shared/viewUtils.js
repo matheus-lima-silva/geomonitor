@@ -1,5 +1,12 @@
 import { normalizeLocationCoordinates } from './erosionCoordinates';
 import { normalizeErosionStatus } from './statusUtils';
+import { buildCriticalitySummaryFromErosion } from './criticalitySummary';
+import {
+    getCriticalityClass,
+    getCriticalityCode,
+    getCriticalityScore,
+    resolveErosionCriticality,
+} from '../../../shared/erosionHelpers';
 
 export const LOCAL_CONTEXTO_TIPO_OPTIONS = [
     { value: 'faixa_servidao', label: 'Na faixa de servidao' },
@@ -673,6 +680,8 @@ export function buildErosionReportRows(erosions) {
         const locationCoordinates = normalizeLocationCoordinates(item);
         const technical = normalizeErosionTechnicalFields(item);
         const localContexto = technical.localContexto || LOCAL_CONTEXTO_DEFAULT;
+        const criticalitySummary = buildCriticalitySummaryFromErosion(item);
+        const persistedCriticality = resolveErosionCriticality(item);
 
         return {
             id: item.id || '',
@@ -687,10 +696,10 @@ export function buildErosionReportRows(erosions) {
             tipo: deriveErosionTypeFromTechnicalFields(item),
             estagio: item.estagio || '',
             status: normalizeErosionStatus(item.status),
-            impacto: item?.criticalidadeV2?.legacy?.impacto || item.impacto || '',
-            score: item?.criticalidadeV2?.criticidade_score ?? item.score ?? '',
-            frequencia: item?.criticalidadeV2?.legacy?.frequencia || item.frequencia || '',
-            intervencao: item?.criticalidadeV2?.legacy?.intervencao || item.intervencao || '',
+            impacto: criticalitySummary.impacto || '',
+            score: criticalitySummary.score ?? '',
+            frequencia: criticalitySummary.frequencia || '',
+            intervencao: criticalitySummary.intervencao || '',
             latitude: locationCoordinates.latitude || '',
             longitude: locationCoordinates.longitude || '',
             utmEasting: locationCoordinates.utmEasting || '',
@@ -713,9 +722,9 @@ export function buildErosionReportRows(erosions) {
             sinaisAvanco: technical.sinaisAvanco ? 'sim' : 'nao',
             vegetacaoInterior: technical.vegetacaoInterior ? 'sim' : 'nao',
             dimensionamento: technical.dimensionamento,
-            criticidadeCodigo: item?.criticalidadeV2?.codigo || '',
-            criticidadeClasse: item?.criticalidadeV2?.criticidade_classe || '',
-            criticidadeScore: item?.criticalidadeV2?.criticidade_score ?? '',
+            criticidadeCodigo: getCriticalityCode(persistedCriticality) || '',
+            criticidadeClasse: getCriticalityClass(persistedCriticality) || '',
+            criticidadeScore: getCriticalityScore(persistedCriticality, '') ?? '',
             medidaPreventiva: item.medidaPreventiva || '',
             fotosLinks: Array.isArray(item.fotosLinks) ? item.fotosLinks.join('|') : '',
             ultimaAtualizacao: item.ultimaAtualizacao || '',

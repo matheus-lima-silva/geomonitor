@@ -47,7 +47,8 @@ function pickFirst(...values) {
 }
 
 function getPersistedCriticality(erosion) {
-  const source = erosion?.criticalidadeV2
+  const source = erosion?.criticalidade
+    || erosion?.criticalidadeV2
     || erosion?.criticidadeV2
     || erosion?.criticalityV2
     || erosion?.criticality
@@ -116,7 +117,7 @@ function resolveCriticalityCode(erosion, persistedCriticality, impact) {
       persistedCriticality?.criticidadeClasse,
       persistedCriticality?.criticality_class,
       persistedCriticality?.criticalityClass,
-      persistedCriticality?.legacy?.impacto,
+      persistedCriticality?.impacto,
       impact,
       erosion?.impacto,
       erosion?.grauFinal,
@@ -203,7 +204,7 @@ export function getErosionImpact(erosion) {
       erosion?.grauFinal,
       erosion?.grauTecnico,
       erosion?.impacto,
-      persistedCriticality?.legacy?.impacto,
+      persistedCriticality?.impacto,
       persistedCriticality?.criticidade_classe,
       persistedCriticality?.criticidadeClasse,
       persistedCriticality?.criticality_class,

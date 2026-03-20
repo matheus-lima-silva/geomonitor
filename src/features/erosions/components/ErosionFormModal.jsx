@@ -81,11 +81,11 @@ function ErosionFormModal({
     score: 0,
     frequencia: '24 meses',
     intervencao: 'Monitoramento visual',
-    breakdown: null,
+    criticalidade: null,
   };
   const criticalityBreakdown = safeCriticality.breakdown && typeof safeCriticality.breakdown === 'object'
     ? safeCriticality.breakdown
-    : null;
+    : (safeCriticality && typeof safeCriticality === 'object' ? safeCriticality : null);
   const criticalitySummary = buildCriticalitySummaryFromCalculation(safeCriticality);
   const isHistoricalRecord = isHistoricalErosionRecord(safeFormData);
 

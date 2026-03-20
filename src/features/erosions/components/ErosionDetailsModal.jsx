@@ -25,6 +25,7 @@ import {
   formatCriticalityPoints,
 } from '../../shared/criticalitySummary';
 import { recalculateAndSaveErosion } from '../../../services/erosionService';
+import { resolveErosionCriticality } from '../../../../shared/erosionHelpers';
 
 const EMPTY_EVENT_FORM = {
   tipoEvento: 'obra',
@@ -173,12 +174,12 @@ function ErosionDetailsModal({
   useEffect(() => {
     if (!open || !erosion?.id) return;
     if (isHistoricalErosionRecord(erosion)) return;
-    const breakdown = erosion?.criticalidadeV2?.breakdown || erosion?.criticalidadeV2 || null;
+    const breakdown = resolveErosionCriticality(erosion);
     const hasBreakdown = breakdown && typeof breakdown === 'object';
     const needsRecalc = !hasBreakdown || (breakdown.pontos && breakdown.pontos.A === undefined);
     if (!needsRecalc) return;
     recalculateAndSaveErosion(erosion).catch(() => {});
-  }, [open, erosion?.criticalidadeV2, erosion?.id]);
+  }, [open, erosion?.criticalidade, erosion?.criticalidadeV2, erosion?.id]);
 
   const locationCoordinates = normalizeLocationCoordinates(erosion || {});
   const sortedHistory = useMemo(
@@ -277,11 +278,7 @@ function ErosionDetailsModal({
   const tiposFeicao = technical.tiposFeicao;
   const derivedTipo = deriveErosionTypeFromTechnicalFields({ ...erosion, tiposFeicao });
   const criticalitySummary = buildCriticalitySummaryFromErosion(erosion || {});
-  const criticalidadeV2 = erosion?.criticalidadeV2 && typeof erosion.criticalidadeV2 === 'object'
-    ? (erosion.criticalidadeV2.breakdown && typeof erosion.criticalidadeV2.breakdown === 'object'
-      ? erosion.criticalidadeV2.breakdown
-      : erosion.criticalidadeV2)
-    : null;
+  const criticalidade = resolveErosionCriticality(erosion || {});
   const alertasAtivos = criticalitySummary.alertas;
   const feicaoLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.tiposFeicao), []);
   const usoSoloLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.usosSolo), []);
@@ -291,17 +288,17 @@ function ErosionDetailsModal({
   const exposicaoLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.localizacaoExposicao), []);
   const estruturaLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.estruturaProxima), []);
   const profundidadeClasse = resolveClassCode(
-    criticalidadeV2?.profundidade_classe,
+    criticalidade?.profundidade_classe,
     CLASS_RANGE_LABELS.profundidade,
     deriveDepthClass(technical.profundidadeMetros),
   );
   const declividadeClasse = resolveClassCode(
-    criticalidadeV2?.declividade_classe,
+    criticalidade?.declividade_classe,
     CLASS_RANGE_LABELS.declividade,
     deriveSlopeClass(technical.declividadeGraus),
   );
   const exposicaoClasse = resolveClassCode(
-    criticalidadeV2?.exposicao_classe,
+    criticalidade?.exposicao_classe,
     CLASS_RANGE_LABELS.exposicao,
     deriveExposureClass(technical.distanciaEstruturaMetros),
   );
@@ -423,7 +420,7 @@ function ErosionDetailsModal({
             </div>
             {criticalitySummary.hasBreakdown ? (
               <div className="col-span-full">
-                <strong className="text-slate-900">Criticidade:</strong> {criticalitySummary.criticidadeClasse} ({criticalitySummary.criticidadeCodigo}) | Pontos T/P/D/S/E/A: {formatCriticalityPoints(criticalidadeV2?.pontos)}
+                <strong className="text-slate-900">Criticidade:</strong> {criticalitySummary.criticidadeClasse} ({criticalitySummary.criticidadeCodigo}) | Pontos T/P/D/S/E/A: {formatCriticalityPoints(criticalidade?.pontos)}
               </div>
             ) : null}
             {criticalitySummary.solucoesSugeridas.length > 0 ? (
@@ -436,17 +433,17 @@ function ErosionDetailsModal({
                 <strong className="text-slate-900">Sugestoes de intervencao (opcional):</strong> {criticalitySummary.sugestoesIntervencao.join(' | ')}
               </div>
             ) : null}
-            {criticalidadeV2 ? (
+            {criticalidade ? (
               <>
-                <div><strong className="text-slate-900">Classe tipo erosao:</strong> {criticalidadeV2.tipo_erosao_classe || '-'}</div>
-                <div><strong className="text-slate-900">Classe profundidade:</strong> {criticalidadeV2.profundidade_classe || '-'}</div>
-                <div><strong className="text-slate-900">Classe declividade:</strong> {criticalidadeV2.declividade_classe || '-'}</div>
-                <div><strong className="text-slate-900">Classe solo:</strong> {criticalidadeV2.solo_classe || '-'}</div>
-                <div><strong className="text-slate-900">Classe exposicao:</strong> {criticalidadeV2.exposicao_classe || '-'}</div>
-                <div><strong className="text-slate-900">Classe atividade:</strong> {criticalidadeV2.atividade_classe || '-'}</div>
-                <div><strong className="text-slate-900">Modificador de via:</strong> {criticalidadeV2.pontos?.V ?? 0}</div>
+                <div><strong className="text-slate-900">Classe tipo erosao:</strong> {criticalidade.tipo_erosao_classe || '-'}</div>
+                <div><strong className="text-slate-900">Classe profundidade:</strong> {criticalidade.profundidade_classe || '-'}</div>
+                <div><strong className="text-slate-900">Classe declividade:</strong> {criticalidade.declividade_classe || '-'}</div>
+                <div><strong className="text-slate-900">Classe solo:</strong> {criticalidade.solo_classe || '-'}</div>
+                <div><strong className="text-slate-900">Classe exposicao:</strong> {criticalidade.exposicao_classe || '-'}</div>
+                <div><strong className="text-slate-900">Classe atividade:</strong> {criticalidade.atividade_classe || '-'}</div>
+                <div><strong className="text-slate-900">Modificador de via:</strong> {criticalidade.pontos?.V ?? 0}</div>
                 <div className="col-span-full bg-indigo-50 text-indigo-900 p-3 rounded-lg border border-indigo-100">
-                  <strong className="font-bold">Tipo de medida recomendada:</strong> {labelValue(criticalidadeV2.tipo_medida_recomendada, {})}
+                  <strong className="font-bold">Tipo de medida recomendada:</strong> {labelValue(criticalidade.tipo_medida_recomendada, {})}
                 </div>
                 {criticalitySummary.regraContextual ? (
                   <div className="col-span-full">

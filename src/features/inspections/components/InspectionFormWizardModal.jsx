@@ -889,13 +889,13 @@ function InspectionFormWizardModal({
         sinaisAvanco: technicalValidation.value.sinaisAvanco,
         vegetacaoInterior: technicalValidation.value.vegetacaoInterior,
       };
-      let criticalidadeV2 = null;
+      let criticalidade = null;
       let alertasValidacao = [];
 
       if (!isHistoricalRecord) {
         const criticalityInput = buildCriticalityInputFromErosion(normalizedTechnicalData);
         const calculoResponse = await postCalculoErosao(criticalityInput);
-        criticalidadeV2 = calculoResponse.campos_calculados || null;
+        criticalidade = calculoResponse.campos_calculados || null;
         alertasValidacao = Array.isArray(calculoResponse.alertas_validacao)
           ? calculoResponse.alertas_validacao
           : [];
@@ -941,22 +941,15 @@ function InspectionFormWizardModal({
         distanciaEstruturaMetros: technicalValidation.value.distanciaEstruturaMetros,
         sinaisAvanco: technicalValidation.value.sinaisAvanco,
         vegetacaoInterior: technicalValidation.value.vegetacaoInterior,
-        impacto: isHistoricalRecord ? '' : existing?.impacto,
-        score: isHistoricalRecord ? null : existing?.score,
-        frequencia: isHistoricalRecord ? '' : existing?.frequencia,
-        intervencao: isHistoricalRecord
-          ? (String(erosionForm.intervencaoRealizada || '').trim() || 'Intervencao ja executada')
-          : existing?.intervencao,
         medidaPreventiva: isHistoricalRecord
           ? ''
-          : (Array.isArray(criticalidadeV2?.lista_solucoes_sugeridas)
-            ? (criticalidadeV2.lista_solucoes_sugeridas[0] || '')
+          : (Array.isArray(criticalidade?.lista_solucoes_sugeridas)
+            ? (criticalidade.lista_solucoes_sugeridas[0] || '')
             : ''),
         fotosLinks: photos,
         obs: String(erosionForm.descricao || '').trim(),
-        criticalidadeV2: isHistoricalRecord ? null : criticalidadeV2,
+        criticalidade: isHistoricalRecord ? null : criticalidade,
         alertsAtivos: isHistoricalRecord ? [] : alertasValidacao,
-        criticality: isHistoricalRecord ? null : criticalidadeV2?.legacy,
       };
 
       await saveErosion(payload, {

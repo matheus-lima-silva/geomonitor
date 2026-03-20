@@ -11,8 +11,8 @@ function buildSituacaoFromStatus(status) {
     return shared.buildSituacaoFromStatus(status, normalizeErosionStatus);
 }
 
-function buildCriticalityHistory(previous, nextData, criticalidadeV2) {
-    return shared.buildCriticalityHistory(previous, nextData, criticalidadeV2, {
+function buildCriticalityHistory(previous, nextData, criticalidade) {
+    return shared.buildCriticalityHistory(previous, nextData, criticalidade, {
         normalizeStatusFn: normalizeErosionStatus,
     });
 }

@@ -30,10 +30,28 @@ const { getCollection, getDocRef } = require('../utils/firebaseSetup');
 
 function normalizeCriticalityPayload(payload) {
     if (!payload || typeof payload !== 'object') return null;
-    if (payload.breakdown && typeof payload.breakdown === 'object') {
-        return payload.breakdown;
+    const source = payload.criticalidade
+        || payload.criticalidadeV2
+        || payload.criticidadeV2
+        || payload.criticalityV2
+        || payload.criticality
+        || payload;
+
+    if (!source || typeof source !== 'object') return null;
+
+    const nestedCandidates = [
+        source.breakdown,
+        source.campos_calculados,
+        source.calculation,
+        source.resultado,
+    ];
+
+    for (let i = 0; i < nestedCandidates.length; i += 1) {
+        const candidate = nestedCandidates[i];
+        if (candidate && typeof candidate === 'object') return candidate;
     }
-    return payload;
+
+    return source;
 }
 
 function runCriticalityCalculation(input, rulesConfig) {
@@ -46,29 +64,11 @@ function runCriticalityCalculation(input, rulesConfig) {
         if (!isLegacyWrapperReferenceError) throw error;
 
         if (typeof calcularCriticidade === 'function') {
-            const breakdown = calcularCriticidade(input, rulesConfig);
-            return {
-                ...breakdown.legacy,
-                codigo: breakdown.codigo,
-                criticidade_classe: breakdown.criticidade_classe,
-                tipo_medida_recomendada: breakdown.tipo_medida_recomendada,
-                lista_solucoes_sugeridas: breakdown.lista_solucoes_sugeridas,
-                alertas_validacao: breakdown.alertas_validacao,
-                breakdown,
-            };
+            return calcularCriticidade(input, rulesConfig);
         }
 
         if (typeof calcular_criticidade === 'function') {
-            const breakdown = calcular_criticidade(input, rulesConfig);
-            return {
-                ...breakdown.legacy,
-                codigo: breakdown.codigo,
-                criticidade_classe: breakdown.criticidade_classe,
-                tipo_medida_recomendada: breakdown.tipo_medida_recomendada,
-                lista_solucoes_sugeridas: breakdown.lista_solucoes_sugeridas,
-                alertas_validacao: breakdown.alertas_validacao,
-                breakdown,
-            };
+            return calcular_criticidade(input, rulesConfig);
         }
 
         throw error;
@@ -96,7 +96,6 @@ async function saveErosionHandler(req, res) {
             }
         }
 
-        const criticality = sanitizedPayload.criticality || null;
         const isHistoricalRecord = isHistoricalErosionRecord(sanitizedPayload);
 
         const locationResult = resolveLocationCoordinatesForSave(sanitizedPayload);
@@ -120,16 +119,16 @@ async function saveErosionHandler(req, res) {
         });
 
         let calculationResult;
-        let criticalidadeV2 = null;
+        let criticalidade = null;
         let alertsAtivos = [];
 
         if (isHistoricalRecord) {
-            criticalidadeV2 = normalizeCriticalityPayload(sanitizedPayload.criticalidadeV2) ?? null;
+            criticalidade = normalizeCriticalityPayload(sanitizedPayload) ?? null;
             alertsAtivos = Array.isArray(sanitizedPayload.alertsAtivos) ? sanitizedPayload.alertsAtivos : [];
         } else {
             try {
                 calculationResult = runCriticalityCalculation(criticalityInput, meta.rulesConfig);
-                criticalidadeV2 = calculationResult;
+                criticalidade = calculationResult;
                 alertsAtivos = calculationResult.alertas_validacao || [];
             } catch (calcError) {
                 console.error('[Geomonitor API] Erro ao calcular criticidade:', calcError);
@@ -162,18 +161,6 @@ async function saveErosionHandler(req, res) {
                 || previous?.intervencaoRealizada
                 || ''
             ).trim(),
-            impacto: isHistoricalRecord
-                ? String(sanitizedPayload.impacto ?? '').trim()
-                : (sanitizedPayload.impacto || criticality?.impacto || criticalidadeV2?.legacy?.impacto || 'Baixo'),
-            score: isHistoricalRecord
-                ? (sanitizedPayload.score ?? null)
-                : (sanitizedPayload.score ?? criticality?.score ?? criticalidadeV2?.criticidade_score ?? 0),
-            frequencia: isHistoricalRecord
-                ? String(sanitizedPayload.frequencia ?? '').trim()
-                : (sanitizedPayload.frequencia || criticality?.frequencia || criticalidadeV2?.legacy?.frequencia || '24 meses'),
-            intervencao: isHistoricalRecord
-                ? String(sanitizedPayload.intervencao || sanitizedPayload.intervencaoRealizada || 'Intervencao ja executada').trim()
-                : (sanitizedPayload.intervencao || criticality?.intervencao || criticalidadeV2?.legacy?.intervencao || 'Monitoramento visual'),
             localContexto: technical.localContexto,
             locationCoordinates: locationResult.locationCoordinates,
             latitude: locationResult.latitude || '',
@@ -198,10 +185,10 @@ async function saveErosionHandler(req, res) {
             medidaPreventiva: isHistoricalRecord
                 ? String(sanitizedPayload.medidaPreventiva || '').trim()
                 : (sanitizedPayload.medidaPreventiva
-                    || criticalidadeV2?.lista_solucoes_sugeridas?.[0]
+                    || criticalidade?.lista_solucoes_sugeridas?.[0]
                     || ''),
             fotosLinks,
-            criticalidadeV2,
+            criticalidade,
             alertsAtivos: Array.isArray(sanitizedPayload.alertsAtivos)
                 ? sanitizedPayload.alertsAtivos
                 : alertsAtivos,
@@ -225,7 +212,7 @@ async function saveErosionHandler(req, res) {
             acompanhamentosResumo: appendFollowupEvent(nextData.acompanhamentosResumo ?? history, event),
             historicoCriticidade: isHistoricalRecord
                 ? (Array.isArray(previous?.historicoCriticidade) ? previous.historicoCriticidade : [])
-                : buildCriticalityHistory(previous, nextData, criticalidadeV2),
+                : buildCriticalityHistory(previous, nextData, criticalidade),
         };
 
         await db.collection('shared')

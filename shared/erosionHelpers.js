@@ -17,6 +17,69 @@ export function normalizeNumeric(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+export function unwrapCriticalityPayload(value) {
+  if (!value || typeof value !== 'object') return null;
+
+  const nestedCandidates = [
+    value.breakdown,
+    value.campos_calculados,
+    value.calculation,
+    value.resultado,
+  ];
+
+  for (let i = 0; i < nestedCandidates.length; i += 1) {
+    const candidate = nestedCandidates[i];
+    if (candidate && typeof candidate === 'object') return candidate;
+  }
+
+  return value;
+}
+
+export function resolveErosionCriticality(erosion) {
+  if (!erosion || typeof erosion !== 'object') return null;
+  return unwrapCriticalityPayload(
+    erosion.criticalidade
+    ?? erosion.criticalidadeV2
+    ?? erosion.criticidadeV2
+    ?? erosion.criticalityV2
+    ?? erosion.criticality,
+  );
+}
+
+export function getCriticalityCode(criticalidade, fallback = '') {
+  const resolved = unwrapCriticalityPayload(criticalidade);
+  return normalizeText(
+    resolved?.codigo
+    ?? resolved?.criticidade_codigo
+    ?? resolved?.criticidadeCodigo
+    ?? resolved?.criticality_code
+    ?? resolved?.criticalityCode
+    ?? fallback,
+  ).toUpperCase();
+}
+
+export function getCriticalityClass(criticalidade, fallback = '') {
+  const resolved = unwrapCriticalityPayload(criticalidade);
+  return normalizeText(
+    resolved?.criticidade_classe
+    ?? resolved?.criticidadeClasse
+    ?? resolved?.criticality_class
+    ?? resolved?.criticalityClass
+    ?? fallback,
+  );
+}
+
+export function getCriticalityScore(criticalidade, fallback = null) {
+  const resolved = unwrapCriticalityPayload(criticalidade);
+  const normalized = normalizeNumeric(
+    resolved?.criticidade_score
+    ?? resolved?.criticidadeScore
+    ?? resolved?.criticality_score
+    ?? resolved?.criticalityScore,
+  );
+  return normalized ?? fallback;
+}
+
 // ─── Followup History ────────────────────────────────────────────
 
 export function normalizeFollowupHistory(history) {
@@ -138,17 +201,18 @@ export function buildSituacaoFromStatus(status, normalizeStatusFn) {
 
 // ─── Criticality History Builder ─────────────────────────────────
 
-export function buildCriticalityHistory(previous, nextData, criticalidadeV2, deps = {}) {
+export function buildCriticalityHistory(previous, nextData, criticalidade, deps = {}) {
   const { buildCriticalityTrend: trendFn = buildCriticalityTrend, normalizeStatusFn } = deps;
 
   const previousHistory = normalizeCriticalityHistory(
     nextData.historicoCriticidade ?? previous?.historicoCriticidade,
   );
 
-  const scoreAnterior = normalizeNumeric(
-    previous?.criticalidadeV2?.criticidade_score ?? previous?.score,
+  const scoreAnterior = getCriticalityScore(
+    resolveErosionCriticality(previous),
+    normalizeNumeric(previous?.score),
   );
-  const scoreAtual = normalizeNumeric(criticalidadeV2?.criticidade_score);
+  const scoreAtual = getCriticalityScore(criticalidade);
   const tendencia = trendFn(scoreAnterior, scoreAtual);
   const dataVistoria = String(
     nextData.dataVistoria
@@ -187,7 +251,9 @@ export const EROSION_REMOVED_FIELDS_COMMON = [
 
 export const EROSION_REMOVED_FIELDS_LEGACY = [
   'score_old', 'pontuacao_old', 'criticidade_old', 'impacto_old', 'risco_old',
-  'criticality', 'fotosUrl', 'foto1', 'foto2', 'foto3', 'foto4', 'foto5', 'foto6',
+  'criticality', 'criticalityV2', 'criticalidadeV2', 'criticidadeV2',
+  'impacto', 'score', 'frequencia', 'intervencao',
+  'fotosUrl', 'foto1', 'foto2', 'foto3', 'foto4', 'foto5', 'foto6',
 ];
 
 export const LEGACY_CLEANUP_EXTRA_FIELDS = [

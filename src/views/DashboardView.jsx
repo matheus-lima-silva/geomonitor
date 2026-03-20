@@ -32,7 +32,7 @@ import { subscribeUsers } from '../services/userService';
 import { subscribeRulesConfig } from '../services/rulesService';
 import { subscribeOperatingLicenses } from '../services/licenseService';
 import { subscribeReportDeliveryTracking } from '../services/reportDeliveryTrackingService';
-import { normalizeRulesConfig, RULES_DATABASE } from '../features/shared/rulesConfig';
+import { normalizeRulesConfig } from '../features/shared/rulesConfig';
 import { normalizeUserStatus } from '../features/shared/statusUtils';
 import {
   IMPACT_LEVELS,
@@ -558,7 +558,7 @@ function DashboardView() {
   const [erosions, setErosions] = useState([]);
   const [deliveryTracking, setDeliveryTracking] = useState([]);
   const [users, setUsers] = useState([]);
-  const [rulesConfig, setRulesConfig] = useState(() => normalizeRulesConfig(RULES_DATABASE));
+  const [rulesConfig, setRulesConfig] = useState(() => normalizeRulesConfig({}));
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
   const [inspectionProjectFilterId, setInspectionProjectFilterId] = useState(null);
@@ -661,7 +661,7 @@ function DashboardView() {
     );
 
     const unsubRules = subscribeRulesConfig(
-      (data) => setRulesConfig(normalizeRulesConfig(data || RULES_DATABASE)),
+      (data) => setRulesConfig(normalizeRulesConfig(data || {})),
       () => show('Erro ao carregar regras.', 'error'),
     );
 

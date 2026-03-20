@@ -13,6 +13,7 @@ import {
   formatCriticalityPoints,
 } from '../../shared/criticalitySummary';
 import { formatTowerLabel } from '../../projects/utils/kmlUtils';
+import { resolveErosionCriticality } from '../../../../shared/erosionHelpers';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -183,11 +184,7 @@ function renderFicha({
   const saturacaoPorAgua = technical.saturacaoPorAgua || String(erosion?.soloSaturadoAgua || '').trim();
   const derivedTipo = deriveErosionTypeFromTechnicalFields({ ...erosion, tiposFeicao: technical.tiposFeicao });
   const criticalitySummary = buildCriticalitySummaryFromErosion(erosion || {});
-  const criticalidadeV2 = erosion?.criticalidadeV2 && typeof erosion.criticalidadeV2 === 'object'
-    ? (erosion.criticalidadeV2.breakdown && typeof erosion.criticalidadeV2.breakdown === 'object'
-      ? erosion.criticalidadeV2.breakdown
-      : erosion.criticalidadeV2)
-    : null;
+  const criticalidade = resolveErosionCriticality(erosion || {});
 
   return `
     <h1>Ficha de Cadastro de Erosao ${escapeHtml(erosion?.id || '-')}</h1>
@@ -230,8 +227,8 @@ function renderFicha({
         <div><strong>Local:</strong> ${escapeHtml(localTipoLabel)}</div>
         ${String(localContexto.localTipo || '') === 'outros' ? `<div><strong>Detalhe local:</strong> ${escapeHtml(localContexto.localDescricao || '-')}</div>` : '<div><strong>Detalhe local:</strong> -</div>'}
         <div><strong>Profundidade (m):</strong> ${escapeHtml(Number.isFinite(technical.profundidadeMetros) ? String(technical.profundidadeMetros) : (erosion?.profundidade || '-'))}</div>
-        <div><strong>Declividade (graus):</strong> ${escapeHtml(Number.isFinite(technical.declividadeGraus) ? `${technical.declividadeGraus}${criticalidadeV2?.declividade_classe ? ` (${criticalidadeV2.declividade_classe})` : ''}` : (erosion?.declividadeClassePdf || '-'))}</div>
-        <div><strong>Distancia estrutura (m):</strong> ${escapeHtml(Number.isFinite(technical.distanciaEstruturaMetros) ? `${technical.distanciaEstruturaMetros}${criticalidadeV2?.exposicao_classe ? ` (${criticalidadeV2.exposicao_classe})` : ''}` : '-')}</div>
+        <div><strong>Declividade (graus):</strong> ${escapeHtml(Number.isFinite(technical.declividadeGraus) ? `${technical.declividadeGraus}${criticalidade?.declividade_classe ? ` (${criticalidade.declividade_classe})` : ''}` : (erosion?.declividadeClassePdf || '-'))}</div>
+        <div><strong>Distancia estrutura (m):</strong> ${escapeHtml(Number.isFinite(technical.distanciaEstruturaMetros) ? `${technical.distanciaEstruturaMetros}${criticalidade?.exposicao_classe ? ` (${criticalidade.exposicao_classe})` : ''}` : '-')}</div>
         <div><strong>Presenca de agua no fundo:</strong> ${escapeHtml(technical.presencaAguaFundo || '-')}</div>
         <div><strong>Saturacao por agua:</strong> ${escapeHtml(saturacaoPorAgua || '-')}</div>
         <div class="ficha-full"><strong>Tipos de feicao:</strong> ${escapeHtml(listLabelText(technical.tiposFeicao, feicaoLabelMap))}</div>
@@ -243,11 +240,11 @@ function renderFicha({
         <div><strong>Vegetacao no interior:</strong> ${escapeHtml(boolLabel(technical.vegetacaoInterior))}</div>
         ${(() => { const iv = erosion?.impactoVia || technical.impactoVia; const isVia = String(localContexto.localTipo || '').includes('acesso'); return (iv && isVia) ? `<div class="ficha-full"><strong>Impacto na via:</strong> Posicao: ${escapeHtml(labelText(iv.posicaoRelativaVia, posicaoViaLabelMap))} | Tipo: ${escapeHtml(labelText(iv.tipoImpactoVia, tipoImpactoViaLabelMap))} | Obstrucao: ${escapeHtml(labelText(iv.grauObstrucao, grauObstrucaoLabelMap))} | Estado: ${escapeHtml(labelText(iv.estadoVia, estadoViaLabelMap))} | Rota alternativa: ${escapeHtml(boolLabel(iv.rotaAlternativaDisponivel))}</div>` : ''; })()}
         <div class="ficha-full"><strong>Resumo de criticidade calculada:</strong> ${escapeHtml(`Impacto: ${criticalitySummary.impacto} | Score: ${criticalitySummary.score} | Frequencia: ${criticalitySummary.frequencia}`)}</div>
-        ${criticalitySummary.hasBreakdown ? `<div class="ficha-full"><strong>Criticidade:</strong> ${escapeHtml(criticalitySummary.criticidadeClasse)} (${escapeHtml(criticalitySummary.criticidadeCodigo)}) | Pontos T/P/D/S/E/A: ${escapeHtml(formatCriticalityPoints(criticalidadeV2?.pontos))}${Number(criticalidadeV2?.pontos?.V) > 0 ? ` + V: ${criticalidadeV2.pontos.V}` : ''}</div>` : ''}
-        ${criticalitySummary.hasBreakdown ? `<div class="ficha-full"><strong>Classes:</strong> T=${escapeHtml(criticalidadeV2?.tipo_classe || criticalidadeV2?.tipo_erosao_classe || '-')} | P=${escapeHtml(criticalidadeV2?.profundidade_classe || '-')} | D=${escapeHtml(criticalidadeV2?.declividade_classe || '-')} | S=${escapeHtml(criticalidadeV2?.solo_classe || '-')} | E=${escapeHtml(criticalidadeV2?.exposicao_classe || '-')} | A=${escapeHtml(criticalidadeV2?.atividade_classe || '-')}</div>` : ''}
+        ${criticalitySummary.hasBreakdown ? `<div class="ficha-full"><strong>Criticidade:</strong> ${escapeHtml(criticalitySummary.criticidadeClasse)} (${escapeHtml(criticalitySummary.criticidadeCodigo)}) | Pontos T/P/D/S/E/A: ${escapeHtml(formatCriticalityPoints(criticalidade?.pontos))}${Number(criticalidade?.pontos?.V) > 0 ? ` + V: ${criticalidade.pontos.V}` : ''}</div>` : ''}
+        ${criticalitySummary.hasBreakdown ? `<div class="ficha-full"><strong>Classes:</strong> T=${escapeHtml(criticalidade?.tipo_classe || criticalidade?.tipo_erosao_classe || '-')} | P=${escapeHtml(criticalidade?.profundidade_classe || '-')} | D=${escapeHtml(criticalidade?.declividade_classe || '-')} | S=${escapeHtml(criticalidade?.solo_classe || '-')} | E=${escapeHtml(criticalidade?.exposicao_classe || '-')} | A=${escapeHtml(criticalidade?.atividade_classe || '-')}</div>` : ''}
         ${criticalitySummary.solucoesSugeridas.length > 0 ? `<div class="ficha-full"><strong>Solucoes sugeridas:</strong> ${escapeHtml(criticalitySummary.solucoesSugeridas.join(' | '))}</div>` : ''}
         ${criticalitySummary.sugestoesIntervencao.length > 0 ? `<div class="ficha-full"><strong>Sugestoes de intervencao (opcional):</strong> ${escapeHtml(criticalitySummary.sugestoesIntervencao.join(' | '))}</div>` : ''}
-        ${criticalidadeV2?.tipo_medida_recomendada ? `<div class="ficha-full"><strong>Tipo de medida recomendada:</strong> ${escapeHtml(labelText(criticalidadeV2.tipo_medida_recomendada))}</div>` : ''}
+        ${criticalidade?.tipo_medida_recomendada ? `<div class="ficha-full"><strong>Tipo de medida recomendada:</strong> ${escapeHtml(labelText(criticalidade.tipo_medida_recomendada))}</div>` : ''}
         ${criticalitySummary.regraContextual ? `<div class="ficha-full"><strong>Regra contextual:</strong> ${escapeHtml(criticalitySummary.regraContextual)}</div>` : ''}
         ${criticalitySummary.alertas.length > 0 ? `<div class="ficha-full"><strong>Alertas ativos:</strong> ${escapeHtml(criticalitySummary.alertas.join(' | '))}</div>` : ''}
         <div class="ficha-full"><strong>Medida preventiva:</strong> ${escapeHtml(erosion?.medidaPreventiva || '-')}</div>

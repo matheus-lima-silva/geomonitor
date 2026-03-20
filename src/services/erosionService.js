@@ -51,8 +51,8 @@ function buildSituacaoFromStatus(status) {
   return _buildSituacaoFromStatus(status, normalizeErosionStatus);
 }
 
-function buildCriticalityHistory(previous, nextData, criticalidadeV2) {
-  return _buildCriticalityHistory(previous, nextData, criticalidadeV2, {
+function buildCriticalityHistory(previous, nextData, criticalidade) {
+  return _buildCriticalityHistory(previous, nextData, criticalidade, {
     normalizeStatusFn: normalizeErosionStatus,
   });
 }
@@ -144,7 +144,14 @@ export async function recalculateAndSaveErosion(erosion) {
   const input = buildCriticalityInputFromErosion(erosion);
   const { campos_calculados } = await postCalculoErosao(input);
   if (!campos_calculados) return null;
-  const previousCriticality = erosion.criticalidadeV2 || null;
+  const previousCriticality = normalizeCriticalityCalculationPayload(
+    erosion?.criticalidade
+      || erosion?.criticalidadeV2
+      || erosion?.criticidadeV2
+      || erosion?.criticalityV2
+      || erosion?.criticality
+      || null,
+  );
   const historicoCriticidade = normalizeCriticalityHistory(erosion.historicoCriticidade);
   if (previousCriticality) {
     historicoCriticidade.push({
@@ -155,11 +162,8 @@ export async function recalculateAndSaveErosion(erosion) {
   }
   await saveErosion({
     id: erosion.id,
-    criticalidadeV2: campos_calculados,
+    criticalidade: campos_calculados,
     historicoCriticidade,
-    impacto: campos_calculados.legacy?.impacto || erosion.impacto,
-    score: campos_calculados.criticidade_score ?? erosion.score,
-    frequencia: campos_calculados.legacy?.frequencia || erosion.frequencia,
   }, { merge: true });
   return campos_calculados;
 }

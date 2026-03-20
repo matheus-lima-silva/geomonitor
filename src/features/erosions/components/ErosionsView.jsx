@@ -10,8 +10,10 @@ import {
   saveErosionManualFollowupEvent,
 } from '../../../services/erosionService';
 import {
+  getCriticalityCode,
   getInspectionDateScore,
   normalizeErosionInspectionIds,
+  resolveErosionCriticality,
   resolvePrimaryInspectionId,
 } from '../../../../shared/erosionHelpers';
 import {
@@ -40,7 +42,7 @@ import {
   openPrintableWindow,
 } from '../utils/erosionPdfTemplates';
 import { formatTowerLabel } from '../../projects/utils/kmlUtils';
-import { calculateCriticality } from '../../../../backend/utils/criticalityV2';
+import { calculateCriticality } from '../../../../backend/utils/criticality';
 import ErosionReportPanel from './ErosionReportPanel';
 import ErosionCardGrid from './ErosionCardGrid';
 import ErosionFormModal from './ErosionFormModal';
@@ -282,15 +284,9 @@ function openBatchErosionFichasPdfWindow({
 }
 
 function resolveCriticalityCodeForFilter(erosion) {
-  const source = erosion?.criticalidadeV2
-    || erosion?.criticidadeV2
-    || erosion?.criticalityV2
-    || null;
-  if (!source || typeof source !== 'object') return '';
-  const nested = source.breakdown || source.campos_calculados || source.calculation || source.resultado || source;
-  const code = String(nested?.codigo || nested?.criticidade_codigo || nested?.criticidadeCodigo || nested?.criticality_code || nested?.criticalityCode || '').trim().toUpperCase();
+  const code = getCriticalityCode(resolveErosionCriticality(erosion));
   if (['C1', 'C2', 'C3', 'C4'].includes(code)) return code;
-  const classe = String(nested?.criticidade_classe || nested?.criticidadeClasse || nested?.criticality_class || nested?.criticalityClass || erosion?.impacto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const classe = String(erosion?.impacto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (classe.includes('muito alto')) return 'C4';
   if (classe.includes('alto')) return 'C3';
   if (classe.includes('medio')) return 'C2';
@@ -621,15 +617,15 @@ function ErosionsView({
         impactoVia: technicalValidation.value.impactoVia,
         dimensionamento: technicalValidation.value.dimensionamento,
       };
-      let criticalidadeV2 = null;
+      let criticalidade = null;
       let alertasValidacao = [];
 
       if (!isHistoricalRecord) {
         const criticalityInput = buildCriticalityInputFromErosion(normalizedTechnicalData);
         const calculoResponse = await postCalculoErosao(criticalityInput, {
-          rulesConfig: rulesConfig?.criticalityV2 || rulesConfig,
+          rulesConfig,
         });
-        criticalidadeV2 = calculoResponse.campos_calculados;
+        criticalidade = calculoResponse.campos_calculados;
         alertasValidacao = Array.isArray(calculoResponse.alertas_validacao)
           ? calculoResponse.alertas_validacao
           : [];
@@ -665,33 +661,24 @@ function ErosionsView({
         vegetacaoInterior: technicalValidation.value.vegetacaoInterior,
         impactoVia: technicalValidation.value.impactoVia,
         dimensionamento: technicalValidation.value.dimensionamento,
-        impacto: isHistoricalRecord ? '' : formData.impacto,
-        score: isHistoricalRecord ? null : formData.score,
-        frequencia: isHistoricalRecord ? '' : formData.frequencia,
-        intervencao: isHistoricalRecord
-          ? (String(formData.intervencaoRealizada || '').trim() || 'Intervencao ja executada')
-          : formData.intervencao,
         medidaPreventiva: isHistoricalRecord
           ? ''
-          : (Array.isArray(criticalidadeV2?.lista_solucoes_sugeridas)
-            ? (criticalidadeV2.lista_solucoes_sugeridas[0] || '')
+          : (Array.isArray(criticalidade?.lista_solucoes_sugeridas)
+            ? (criticalidade.lista_solucoes_sugeridas[0] || '')
             : ''),
         fotosLinks: photos,
         vistoriaId: primaryInspectionId || '',
         vistoriaIds: primaryInspectionId ? mergedInspectionIds : [],
-        criticalidadeV2: isHistoricalRecord ? null : criticalidadeV2,
+        criticalidade: isHistoricalRecord ? null : criticalidade,
         alertsAtivos: isHistoricalRecord ? [] : alertasValidacao,
       };
 
       await saveErosion(
-        {
-          ...nextPayload,
-          criticality: isHistoricalRecord ? null : criticalidadeV2?.legacy,
-        },
+        nextPayload,
         {
           updatedBy: actorName,
           merge: true,
-          rulesConfig: rulesConfig?.criticalityV2 || rulesConfig,
+          rulesConfig,
         },
       );
 
@@ -875,7 +862,7 @@ function ErosionsView({
         score: '',
         frequencia: '',
         intervencao: String(formData?.intervencaoRealizada || '').trim(),
-        breakdown: null,
+        criticalidade: null,
       };
     }
     try {
@@ -886,7 +873,7 @@ function ErosionsView({
         score: 0,
         frequencia: '24 meses',
         intervencao: 'Monitoramento visual',
-        breakdown: null,
+        criticalidade: null,
       };
     }
   }, [formData, rulesConfig]);
