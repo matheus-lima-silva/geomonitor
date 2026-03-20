@@ -74,7 +74,6 @@ const BASE_FORM = {
   },
   presencaAguaFundo: '',
   tiposFeicao: [],
-  caracteristicasFeicao: [],
   usosSolo: [],
   usoSoloOutro: '',
   saturacaoPorAgua: '',
@@ -84,6 +83,8 @@ const BASE_FORM = {
   distanciaEstruturaMetros: '',
   sinaisAvanco: false,
   vegetacaoInterior: false,
+  impactoVia: null,
+  dimensionamento: '',
   fotosLinks: [],
   status: 'Ativo',
   registroHistorico: false,
@@ -169,7 +170,6 @@ function buildSafeErosionFormState(source, mode = 'new', inspections = []) {
     obs: String(raw.obs || '').trim(),
     presencaAguaFundo: technical.presencaAguaFundo,
     tiposFeicao: Array.isArray(technical.tiposFeicao) ? technical.tiposFeicao : [],
-    caracteristicasFeicao: Array.isArray(technical.caracteristicasFeicao) ? technical.caracteristicasFeicao : [],
     usosSolo: Array.isArray(technical.usosSolo) ? technical.usosSolo : [],
     usoSoloOutro: String(technical.usoSoloOutro || '').trim(),
     saturacaoPorAgua: String(technical.saturacaoPorAgua || '').trim(),
@@ -179,6 +179,8 @@ function buildSafeErosionFormState(source, mode = 'new', inspections = []) {
     distanciaEstruturaMetros: Number.isFinite(technical.distanciaEstruturaMetros) ? String(technical.distanciaEstruturaMetros) : '',
     sinaisAvanco: Boolean(technical.sinaisAvanco),
     vegetacaoInterior: Boolean(technical.vegetacaoInterior),
+    impactoVia: technical.impactoVia,
+    dimensionamento: String(technical.dimensionamento || '').trim(),
     fotosLinks: sanitizePhotoLinksInput(raw.fotosLinks),
     registroHistorico: isHistoricalErosionRecord(raw),
     intervencaoRealizada: String(raw.intervencaoRealizada || '').trim(),
@@ -571,10 +573,10 @@ function ErosionsView({
         ...normalizeErosionInspectionIds(persisted),
       ])];
       const primaryInspectionId = resolvePrimaryInspectionId(mergedInspectionIds, inspections);
+      const { caracteristicasFeicao: _removedCaracteristicasFeicao, ...cleanFormData } = formData;
       const normalizedTechnicalData = {
-        ...formData,
+        ...cleanFormData,
         tiposFeicao: technicalValidation.value.tiposFeicao,
-        caracteristicasFeicao: technicalValidation.value.caracteristicasFeicao,
         usosSolo: technicalValidation.value.usosSolo,
         usoSoloOutro: technicalValidation.value.usoSoloOutro,
         saturacaoPorAgua: technicalValidation.value.saturacaoPorAgua,
@@ -585,6 +587,8 @@ function ErosionsView({
         distanciaEstruturaMetros: technicalValidation.value.distanciaEstruturaMetros,
         sinaisAvanco: technicalValidation.value.sinaisAvanco,
         vegetacaoInterior: technicalValidation.value.vegetacaoInterior,
+        impactoVia: technicalValidation.value.impactoVia,
+        dimensionamento: technicalValidation.value.dimensionamento,
       };
       let criticalidadeV2 = null;
       let alertasValidacao = [];
@@ -608,7 +612,7 @@ function ErosionsView({
       }
 
       const nextPayload = {
-        ...formData,
+        ...cleanFormData,
         tipo: deriveErosionTypeFromTechnicalFields(normalizedTechnicalData),
         status: normalizeErosionStatus(formData.status),
         registroHistorico: isHistoricalRecord,
@@ -618,7 +622,6 @@ function ErosionsView({
         longitude: locationResult.longitude || '',
         presencaAguaFundo: technicalValidation.value.presencaAguaFundo,
         tiposFeicao: technicalValidation.value.tiposFeicao,
-        caracteristicasFeicao: technicalValidation.value.caracteristicasFeicao,
         usosSolo: technicalValidation.value.usosSolo,
         usoSoloOutro: technicalValidation.value.usoSoloOutro,
         saturacaoPorAgua: technicalValidation.value.saturacaoPorAgua,
@@ -629,6 +632,8 @@ function ErosionsView({
         distanciaEstruturaMetros: technicalValidation.value.distanciaEstruturaMetros,
         sinaisAvanco: technicalValidation.value.sinaisAvanco,
         vegetacaoInterior: technicalValidation.value.vegetacaoInterior,
+        impactoVia: technicalValidation.value.impactoVia,
+        dimensionamento: technicalValidation.value.dimensionamento,
         impacto: isHistoricalRecord ? '' : formData.impacto,
         score: isHistoricalRecord ? null : formData.score,
         frequencia: isHistoricalRecord ? '' : formData.frequencia,

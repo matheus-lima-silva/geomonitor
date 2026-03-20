@@ -88,6 +88,14 @@ export const CRITICALITY_V2_DEFAULTS = {
       A3: { descricao: 'avanco com vegetacao (atividade parcial)', pontos: 4 },
       A4: { descricao: 'avanco sem vegetacao (avanco ativo)', pontos: 6 },
     },
+    modificador_via: {
+      obstrucao_total: { descricao: 'obstrucao total da via', pontos: 3 },
+      obstrucao_parcial_sem_rota: { descricao: 'obstrucao parcial sem rota alternativa', pontos: 2 },
+      obstrucao_parcial_com_rota: { descricao: 'obstrucao parcial com rota alternativa', pontos: 1 },
+      ruptura_plataforma: { descricao: 'ruptura de plataforma', pontos: 2 },
+      via_terra: { descricao: 'via de terra', pontos: 1 },
+      cap_maximo: { descricao: 'cap maximo do modificador de via', pontos: 4 },
+    },
   },
   faixas: [
     { codigo: 'C1', classe: 'Baixo', min: 0, max: 9 },
@@ -304,7 +312,12 @@ function normalizeLocation(input) {
     || input?.localizacao
     || input?.localizacao_exposicao,
   );
-  if (!locationRaw) return '';
+  if (!locationRaw) {
+    const localTipo = normalizeLocalTipo(input);
+    if (localTipo.includes('fora_faixa')) return 'area_terceiros';
+    if (localTipo) return 'faixa_servidao';
+    return '';
+  }
   if (locationRaw.includes('faixa')) return 'faixa_servidao';
   if (locationRaw.includes('terceiro')) return 'area_terceiros';
   return locationRaw;
@@ -496,8 +509,7 @@ function applySolutionContextFilters(baseSolutions, normalized) {
   const localTipo = normalizeTextLower(normalized?.local_tipo);
   const distancia = Number.isFinite(normalized?.distancia_estrutura_m) ? normalized.distancia_estrutura_m : null;
 
-  const isForaFaixa = localTipo.includes('fora_faixa')
-    || normalized?.localizacao_exposicao === 'area_terceiros';
+  const isForaFaixa = localTipo.includes('fora_faixa');
   if (isForaFaixa) {
     return {
       ...baseSolutions,
@@ -622,9 +634,9 @@ export function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_V2_
     classification = { codigo: 'C3', classe: 'Alto' };
   }
 
-  const isForaFaixa = normalizeTextLower(normalized.local_tipo).includes('fora_faixa')
-    || normalized.localizacao_exposicao === 'area_terceiros';
-  if (isForaFaixa && ['C3', 'C4'].includes(classification.codigo)) {
+  const isForaFaixa = normalizeTextLower(normalized.local_tipo).includes('fora_faixa');
+  const isAreaTerceiros = normalized.localizacao_exposicao === 'area_terceiros';
+  if (isForaFaixa && isAreaTerceiros && ['C3', 'C4'].includes(classification.codigo)) {
     classification = { codigo: 'C2', classe: 'Médio' };
   }
 
@@ -780,4 +792,3 @@ export function normalizeCriticalityHistory(value) {
   if (!Array.isArray(value)) return [];
   return value.filter((item) => item && typeof item === 'object').slice(-200);
 }
-

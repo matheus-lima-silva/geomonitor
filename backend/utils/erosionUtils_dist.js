@@ -111,7 +111,6 @@ var LOCAL_CONTEXTO_DEFAULT = {
 var EROSION_TECHNICAL_ENUMS = {
   presencaAguaFundo: ["sim", "nao", "nao_verificado"],
   tiposFeicao: ["laminar", "sulco", "movimento_massa", "ravina", "vocoroca"],
-  caracteristicasFeicao: ["contato_materiais", "alteracao_morfologia"],
   usosSolo: ["pastagem", "cultivo", "campo", "veg_arborea", "curso_agua", "cerca", "acesso", "tubulacao", "outro"],
   saturacaoPorAgua: ["sim", "nao"],
   tipoSolo: ["lateritico", "argiloso", "solos_rasos", "arenoso"],
@@ -134,10 +133,6 @@ var EROSION_TECHNICAL_OPTIONS = {
     { value: "movimento_massa", label: "Movimento de massa (escorregamento, deslizamento, fluxo)" },
     { value: "ravina", label: "Ravina" },
     { value: "vocoroca", label: "Vocoroca" }
-  ],
-  caracteristicasFeicao: [
-    { value: "contato_materiais", label: "Contato entre materiais" },
-    { value: "alteracao_morfologia", label: "Alteracao de morfologia" }
   ],
   usosSolo: [
     { value: "pastagem", label: "Pastagem" },
@@ -343,7 +338,7 @@ function isHistoricalErosionRecord(data = {}) {
 function stripRemovedErosionFields(data = {}) {
   const source = data && typeof data === "object" ? data : {};
   const next = { ...source };
-  EROSION_REMOVED_FIELDS.forEach((field) => {
+  [...EROSION_REMOVED_FIELDS, "caracteristicasFeicao"].forEach((field) => {
     delete next[field];
   });
   return next;
@@ -354,7 +349,6 @@ function normalizeErosionTechnicalFields(data = {}) {
   return {
     presencaAguaFundo: normalizeEnumValue(source.presencaAguaFundo, EROSION_TECHNICAL_ENUMS.presencaAguaFundo),
     tiposFeicao: normalizeEnumArray(source.tiposFeicao, EROSION_TECHNICAL_ENUMS.tiposFeicao),
-    caracteristicasFeicao: normalizeEnumArray(source.caracteristicasFeicao, EROSION_TECHNICAL_ENUMS.caracteristicasFeicao),
     usosSolo: normalizeEnumArray(source.usosSolo, EROSION_TECHNICAL_ENUMS.usosSolo),
     usoSoloOutro: normalizeText(source.usoSoloOutro),
     saturacaoPorAgua: normalizeEnumValue(source.saturacaoPorAgua, EROSION_TECHNICAL_ENUMS.saturacaoPorAgua),
@@ -367,7 +361,8 @@ function normalizeErosionTechnicalFields(data = {}) {
     distanciaEstruturaMetros: parseDecimal(source.distanciaEstruturaMetros),
     sinaisAvanco: normalizeBoolean(source.sinaisAvanco),
     vegetacaoInterior: normalizeBoolean(source.vegetacaoInterior),
-    impactoVia: source.impactoVia && typeof source.impactoVia === "object" ? source.impactoVia : null
+    impactoVia: source.impactoVia && typeof source.impactoVia === "object" ? source.impactoVia : null,
+    dimensionamento: typeof source.dimensionamento === "string" ? normalizeText(source.dimensionamento) : ""
   };
 }
 function deriveErosionTypeFromTechnicalFields(data = {}) {
@@ -428,7 +423,8 @@ function buildCriticalityInputFromErosion(data = {}) {
     localContexto,
     sinais_avanco: technical.sinaisAvanco,
     vegetacao_interior: technical.vegetacaoInterior,
-    impactoVia: technical.impactoVia
+    impactoVia: technical.impactoVia,
+    dimensionamento: technical.dimensionamento
   };
 }
 function normalizeFollowupHistory(value) {
@@ -511,7 +507,6 @@ function validateErosionTechnicalFields(data = {}) {
   }
   const multiRules = [
     ["tiposFeicao", EROSION_TECHNICAL_ENUMS.tiposFeicao, "Tipos de feicao"],
-    ["caracteristicasFeicao", EROSION_TECHNICAL_ENUMS.caracteristicasFeicao, "Caracteristicas da feicao"],
     ["usosSolo", EROSION_TECHNICAL_ENUMS.usosSolo, "Usos do solo"]
   ];
   for (let i = 0; i < multiRules.length; i += 1) {
@@ -549,6 +544,13 @@ function validateErosionTechnicalFields(data = {}) {
         value: normalized
       };
     }
+  }
+  if (raw.dimensionamento !== null && raw.dimensionamento !== void 0 && typeof raw.dimensionamento !== "string") {
+    return {
+      ok: false,
+      message: "Dimensionamento invalido(a).",
+      value: normalized
+    };
   }
   return { ok: true, message: "", value: normalized };
 }
@@ -770,7 +772,6 @@ function buildErosionReportRows(erosions) {
       reference: locationCoordinates.reference || "",
       presencaAguaFundo: technical.presencaAguaFundo,
       tiposFeicao: technical.tiposFeicao.join("|"),
-      caracteristicasFeicao: technical.caracteristicasFeicao.join("|"),
       usosSolo: technical.usosSolo.join("|"),
       usoSoloOutro: technical.usoSoloOutro,
       saturacaoPorAgua: technical.saturacaoPorAgua,
@@ -782,6 +783,7 @@ function buildErosionReportRows(erosions) {
       distanciaEstruturaMetros: Number.isFinite(technical.distanciaEstruturaMetros) ? technical.distanciaEstruturaMetros : "",
       sinaisAvanco: technical.sinaisAvanco ? "sim" : "nao",
       vegetacaoInterior: technical.vegetacaoInterior ? "sim" : "nao",
+      dimensionamento: technical.dimensionamento,
       criticidadeCodigo: item?.criticalidadeV2?.codigo || "",
       criticidadeClasse: item?.criticalidadeV2?.criticidade_classe || "",
       criticidadeScore: item?.criticalidadeV2?.criticidade_score ?? "",
@@ -825,7 +827,6 @@ function buildErosionsCsv(rows) {
     "reference",
     "presencaAguaFundo",
     "tiposFeicao",
-    "caracteristicasFeicao",
     "usosSolo",
     "usoSoloOutro",
     "saturacaoPorAgua",
@@ -837,6 +838,7 @@ function buildErosionsCsv(rows) {
     "distanciaEstruturaMetros",
     "sinaisAvanco",
     "vegetacaoInterior",
+    "dimensionamento",
     "criticidadeCodigo",
     "criticidadeClasse",
     "criticidadeScore",

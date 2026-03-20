@@ -9,3 +9,4 @@ export { default as Textarea } from './Textarea';
 export { default as Modal } from './Modal';
 export { default as IconButton } from './IconButton';
 export { default as ConfirmDeleteModal } from './ConfirmDeleteModal';
+export { default as HintText } from './HintText';

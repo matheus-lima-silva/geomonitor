@@ -311,6 +311,7 @@ describe('ErosionsView', () => {
     changeInput(document.body.querySelector('#erosion-projeto'), 'P1');
     changeInput(document.body.querySelector('#erosion-torre'), '1');
     changeInput(document.body.querySelector('#erosion-estagio'), 'inicial');
+    changeInput(document.body.querySelector('#erosion-dimensionamento'), 'Talude com 8 m de reconformacao.');
 
     const localSelect = [...document.querySelectorAll('select')]
       .find((element) => [...element.options].some((option) => option.value === 'base_torre'));
@@ -321,7 +322,7 @@ describe('ErosionsView', () => {
 
     expect(saveErosionMock).toHaveBeenCalledTimes(1);
     expect(saveErosionMock).toHaveBeenCalledWith(
-      expect.any(Object),
+      expect.objectContaining({ dimensionamento: 'Talude com 8 m de reconformacao.' }),
       expect.objectContaining({ updatedBy: 'Tester Nome' }),
     );
   });

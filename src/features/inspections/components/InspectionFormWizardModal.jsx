@@ -71,7 +71,6 @@ const EMPTY_EROSION_FORM = {
   },
   presencaAguaFundo: '',
   tiposFeicao: [],
-  caracteristicasFeicao: [],
   usosSolo: [],
   usoSoloOutro: '',
   saturacaoPorAgua: '',
@@ -121,7 +120,6 @@ function buildSafeInlineErosionFormState(source = {}) {
     },
     presencaAguaFundo: technical.presencaAguaFundo,
     tiposFeicao: Array.isArray(technical.tiposFeicao) ? technical.tiposFeicao : [],
-    caracteristicasFeicao: Array.isArray(technical.caracteristicasFeicao) ? technical.caracteristicasFeicao : [],
     usosSolo: Array.isArray(technical.usosSolo) ? technical.usosSolo : [],
     usoSoloOutro: String(technical.usoSoloOutro || '').trim(),
     saturacaoPorAgua: String(technical.saturacaoPorAgua || '').trim(),
@@ -878,9 +876,8 @@ function InspectionFormWizardModal({
       }
 
       const normalizedTechnicalData = {
-        ...erosionForm,
+        ...Object.fromEntries(Object.entries(erosionForm || {}).filter(([key]) => key !== 'caracteristicasFeicao')),
         tiposFeicao: technicalValidation.value.tiposFeicao,
-        caracteristicasFeicao: technicalValidation.value.caracteristicasFeicao,
         usosSolo: technicalValidation.value.usosSolo,
         usoSoloOutro: technicalValidation.value.usoSoloOutro,
         saturacaoPorAgua: technicalValidation.value.saturacaoPorAgua,
@@ -911,8 +908,12 @@ function InspectionFormWizardModal({
         }
       }
 
+      const existingPayload = existing && typeof existing === 'object'
+        ? Object.fromEntries(Object.entries(existing).filter(([key]) => key !== 'caracteristicasFeicao'))
+        : {};
+
       const payload = {
-        ...(existing || {}),
+        ...existingPayload,
         ...(existing?.id ? { id: existing.id } : {}),
         vistoriaId: inspectionId,
         vistoriaIds: existing
@@ -931,7 +932,6 @@ function InspectionFormWizardModal({
         localContexto: technicalValidation.value.localContexto,
         presencaAguaFundo: technicalValidation.value.presencaAguaFundo,
         tiposFeicao: technicalValidation.value.tiposFeicao,
-        caracteristicasFeicao: technicalValidation.value.caracteristicasFeicao,
         usosSolo: technicalValidation.value.usosSolo,
         usoSoloOutro: technicalValidation.value.usoSoloOutro,
         saturacaoPorAgua: technicalValidation.value.saturacaoPorAgua,
@@ -1057,7 +1057,6 @@ function InspectionFormWizardModal({
         localContexto: technicalData.localContexto,
         presencaAguaFundo: technicalData.presencaAguaFundo,
         tiposFeicao: technicalData.tiposFeicao,
-        caracteristicasFeicao: technicalData.caracteristicasFeicao,
         usosSolo: technicalData.usosSolo,
         usoSoloOutro: technicalData.usoSoloOutro,
         saturacaoPorAgua: technicalData.saturacaoPorAgua,

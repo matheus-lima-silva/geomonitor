@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildCriticalityInputFromErosion,
   isHistoricalErosionRecord,
+  normalizeErosionTechnicalFields,
   validateErosionRequiredFields,
 } from '../viewUtils';
 
@@ -39,5 +41,17 @@ describe('viewUtils erosion validation', () => {
 
     expect(result.historical).toBe(true);
     expect(result.ok).toBe(true);
+  });
+
+  it('normaliza dimensionamento e o repassa para o input de criticidade', () => {
+    const technical = normalizeErosionTechnicalFields({
+      dimensionamento: '  Reconformar 8 m de talude e prever drenagem superficial.  ',
+    });
+    const criticalityInput = buildCriticalityInputFromErosion({
+      dimensionamento: '  Reconformar 8 m de talude e prever drenagem superficial.  ',
+    });
+
+    expect(technical.dimensionamento).toBe('Reconformar 8 m de talude e prever drenagem superficial.');
+    expect(criticalityInput.dimensionamento).toBe('Reconformar 8 m de talude e prever drenagem superficial.');
   });
 });

@@ -115,6 +115,8 @@ async function saveErosionHandler(req, res) {
         const criticalityInput = isHistoricalRecord ? null : buildCriticalityInputFromErosion({
             ...sanitizedPayload,
             tiposFeicao: technical.tiposFeicao,
+            impactoVia: technical.impactoVia,
+            dimensionamento: technical.dimensionamento,
         });
 
         let calculationResult;
@@ -182,7 +184,6 @@ async function saveErosionHandler(req, res) {
             }),
             presencaAguaFundo: technical.presencaAguaFundo,
             tiposFeicao: technical.tiposFeicao,
-            caracteristicasFeicao: technical.caracteristicasFeicao,
             usosSolo: technical.usosSolo,
             usoSoloOutro: technical.usoSoloOutro,
             saturacaoPorAgua: technical.saturacaoPorAgua,
@@ -193,6 +194,7 @@ async function saveErosionHandler(req, res) {
             sinaisAvanco: technical.sinaisAvanco,
             vegetacaoInterior: technical.vegetacaoInterior,
             impactoVia: technical.impactoVia || null,
+            dimensionamento: technical.dimensionamento,
             medidaPreventiva: isHistoricalRecord
                 ? String(sanitizedPayload.medidaPreventiva || '').trim()
                 : (sanitizedPayload.medidaPreventiva
@@ -313,6 +315,8 @@ router.post('/simulate', verifyToken, requireActiveUser, async (req, res) => {
         const criticalityInput = buildCriticalityInputFromErosion({
             ...data,
             tiposFeicao: technical.tiposFeicao,
+            impactoVia: technical.impactoVia,
+            dimensionamento: technical.dimensionamento,
         });
 
         const scoreFields = runCriticalityCalculation(criticalityInput, meta.rulesConfig);

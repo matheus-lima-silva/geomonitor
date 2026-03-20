@@ -61,7 +61,6 @@ function buildLabelMap(options = []) {
 }
 
 const feicaoLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.tiposFeicao);
-const caracteristicaLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.caracteristicasFeicao);
 const usoSoloLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.usosSolo);
 const exposicaoLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.localizacaoExposicao);
 const estruturaLabelMap = buildLabelMap(EROSION_TECHNICAL_OPTIONS.estruturaProxima);
@@ -225,7 +224,6 @@ function renderFicha({
         <div><strong>Presenca de agua no fundo:</strong> ${escapeHtml(technical.presencaAguaFundo || '-')}</div>
         <div><strong>Saturacao por agua:</strong> ${escapeHtml(saturacaoPorAgua || '-')}</div>
         <div class="ficha-full"><strong>Tipos de feicao:</strong> ${escapeHtml(listLabelText(technical.tiposFeicao, feicaoLabelMap))}</div>
-        <div class="ficha-full"><strong>Caracteristicas da feicao:</strong> ${escapeHtml(listLabelText(technical.caracteristicasFeicao, caracteristicaLabelMap))}</div>
         <div class="ficha-full"><strong>Usos do solo:</strong> ${escapeHtml(listLabelText(technical.usosSolo, usoSoloLabelMap))}</div>
         ${technical.usosSolo.includes('outro') ? `<div class="ficha-full"><strong>Uso do solo - outro:</strong> ${escapeHtml(technical.usoSoloOutro || '-')}</div>` : ''}
         ${technical.usosSolo.length === 0 && String(erosion?.usoSolo || '').trim() ? `<div class="ficha-full"><strong>Uso do solo (legado):</strong> ${escapeHtml(erosion?.usoSolo || '-')}</div>` : ''}

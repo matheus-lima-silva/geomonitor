@@ -234,18 +234,34 @@ describe('Criticality V3 engine', () => {
             expect(out.codigo).toBe('C3');
         });
 
-        it('teto C2: fora_faixa caps C3/C4 to C2', () => {
+        it('teto C2: fora_faixa + area_terceiros caps C3/C4 to C2', () => {
             const out = calcular_criticidade({
                 tipo_erosao: 'movimento_massa',
                 profundidade_m: 11,
                 declividade_graus: 30,
                 tipo_solo: 'arenoso',
                 distancia_estrutura_m: 3,
+                localTipo: 'fora_faixa_servidao',
                 localizacao_exposicao: 'area_terceiros',
                 sinais_avanco: true,
                 vegetacao_interior: false,
             });
             expect(out.codigo).toBe('C2');
+        });
+
+        it('nao rebaixa para C2 quando ha area_terceiros sem local fora_faixa', () => {
+            const out = calcular_criticidade({
+                tipo_erosao: 'movimento_massa',
+                profundidade_m: 11,
+                declividade_graus: 30,
+                tipo_solo: 'arenoso',
+                distancia_estrutura_m: 3,
+                localTipo: 'faixa_servidao',
+                localizacao_exposicao: 'area_terceiros',
+                sinais_avanco: true,
+                vegetacao_interior: false,
+            });
+            expect(out.codigo).toBe('C4');
         });
 
         it('fora_faixa: only monitoring solutions', () => {
@@ -256,6 +272,7 @@ describe('Criticality V3 engine', () => {
                 tipo_solo: 'arenoso',
                 distancia_estrutura_m: 2,
                 localTipo: 'fora_faixa_servidao',
+                localizacao_exposicao: 'area_terceiros',
                 sinais_avanco: true,
                 vegetacao_interior: false,
             });

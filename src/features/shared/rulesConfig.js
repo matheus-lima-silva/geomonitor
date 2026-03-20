@@ -30,6 +30,14 @@ export const CRITICALITY_V2_DEFAULTS = {
       A3: { descricao: 'atividade parcial (avanco com vegetacao)', pontos: 4 },
       A4: { descricao: 'avanco ativo (avanco sem vegetacao)', pontos: 6 },
     },
+    modificador_via: {
+      obstrucao_total: { descricao: 'obstrucao total da via', pontos: 3 },
+      obstrucao_parcial_sem_rota: { descricao: 'obstrucao parcial sem rota alternativa', pontos: 2 },
+      obstrucao_parcial_com_rota: { descricao: 'obstrucao parcial com rota alternativa', pontos: 1 },
+      ruptura_plataforma: { descricao: 'ruptura de plataforma', pontos: 2 },
+      via_terra: { descricao: 'via de terra', pontos: 1 },
+      cap_maximo: { descricao: 'cap maximo do modificador de via', pontos: 4 },
+    },
     exposicao: {
       E1: { descricao: '> 50', pontos: 0 },
       E2: { descricao: '20 - 50', pontos: 2 },
