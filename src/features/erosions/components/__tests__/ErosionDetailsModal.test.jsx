@@ -1,6 +1,23 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const recalculateAndSaveErosionMock = vi.fn(async () => null);
+
+vi.mock('../../../../services/erosionService', () => ({
+  recalculateAndSaveErosion: (...args) => recalculateAndSaveErosionMock(...args),
+}));
+
+vi.mock('react-leaflet', () => ({
+  MapContainer: ({ children }) => <div>{children}</div>,
+  TileLayer: () => null,
+  CircleMarker: ({ children }) => <div>{children}</div>,
+  Polyline: () => null,
+  Popup: ({ children }) => <div>{children}</div>,
+  Tooltip: ({ children }) => <div>{children}</div>,
+  useMapEvents: () => null,
+}));
+
 import ErosionDetailsModal from '../ErosionDetailsModal';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -18,7 +35,6 @@ function renderModal(root, overrides = {}) {
       vistoriaIds: ['VS-1', 'VS-2'],
       presencaAguaFundo: 'sim',
       tiposFeicao: ['ravina', 'sulco'],
-      caracteristicasFeicao: ['contato_materiais'],
       usosSolo: ['pastagem', 'outro'],
       usoSoloOutro: 'acesso rural',
       saturacaoPorAgua: 'nao',
@@ -30,12 +46,13 @@ function renderModal(root, overrides = {}) {
         criticidade_classe: 'Baixo',
         codigo: 'C1',
         criticidade_score: 0,
-        pontos: { T: 0, P: 0, D: 0, S: 0, E: 0 },
+        pontos: { T: 0, P: 0, D: 0, S: 0, E: 0, A: 0, V: 0 },
         tipo_erosao_classe: 'sulco',
         profundidade_classe: '<0.5',
         declividade_classe: '<15',
         solo_classe: 'argiloso',
         exposicao_classe: 'faixa_servidao',
+        atividade_classe: 'A1',
         tipo_medida_recomendada: 'Monitoramento',
         lista_solucoes_sugeridas: ['Cobertura vegetal'],
       },
@@ -96,7 +113,7 @@ describe('ErosionDetailsModal', () => {
     expect(container.textContent).not.toContain('Altura maxima');
     expect(container.textContent).toContain('Presenca de agua no fundo:');
     expect(container.textContent).toContain('Ravina, Sulco');
-    expect(container.textContent).toContain('Contato entre materiais');
+    expect(container.textContent).not.toContain('Caracteristicas da feicao:');
     expect(container.textContent).toContain('Pastagem, Outro');
     expect(container.textContent).toContain('Uso do solo - outro:');
     expect(container.textContent).toContain('acesso rural');
@@ -119,7 +136,6 @@ describe('ErosionDetailsModal', () => {
         vistoriaId: 'VS-1',
         vistoriaIds: ['VS-1'],
         tiposFeicao: ['ravina'],
-        caracteristicasFeicao: [],
         usosSolo: [],
         localContexto: {
           localTipo: 'base_torre',
@@ -135,12 +151,13 @@ describe('ErosionDetailsModal', () => {
             criticidade_classe: 'Medio',
             codigo: 'C2',
             criticidade_score: 8,
-            pontos: { T: 2, P: 1, D: 2, S: 1, E: 2 },
+            pontos: { T: 2, P: 1, D: 2, S: 1, E: 2, A: 0, V: 0 },
             tipo_erosao_classe: 'T2',
             profundidade_classe: 'P1',
             declividade_classe: 'D2',
             solo_classe: 'S2',
             exposicao_classe: 'E2',
+            atividade_classe: 'A1',
             tipo_medida_recomendada: 'Monitoramento',
             lista_solucoes_sugeridas: ['Monitoramento visual'],
           },
@@ -157,6 +174,65 @@ describe('ErosionDetailsModal', () => {
     expect(container.textContent).toContain('2/1/2/1/2');
     expect(container.textContent).toContain('Classe tipo erosao:');
     expect(container.textContent).toContain('T2');
+  });
+
+  it('recalcula automaticamente quando a erosao ativa ainda nao possui criticalidadeV2', async () => {
+    const props = renderModal(root, {
+      erosion: {
+        id: 'ERS-4',
+        projetoId: 'P1',
+        torreRef: '12',
+        status: 'Ativo',
+        tiposFeicao: ['ravina'],
+        localContexto: {
+          localTipo: 'base_torre',
+          exposicao: 'faixa_servidao',
+          estruturaProxima: 'torre',
+          localDescricao: '',
+        },
+        criticalidadeV2: null,
+        acompanhamentosResumo: [],
+        locationCoordinates: {},
+      },
+      hasCoordinates: () => false,
+      relatedInspections: [],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(recalculateAndSaveErosionMock).toHaveBeenCalledWith(props.erosion);
+  });
+
+  it('corrige o fallback legado de declividade >45 para D4 no modal', () => {
+    renderModal(root, {
+      erosion: {
+        id: 'ERS-5',
+        projetoId: 'P1',
+        torreRef: '12',
+        status: 'Ativo',
+        tiposFeicao: ['ravina'],
+        usosSolo: [],
+        declividadeGraus: 50,
+        locationCoordinates: {},
+        criticalidadeV2: {
+          criticidade_classe: 'Alto',
+          codigo: 'C3',
+          criticidade_score: 20,
+          pontos: { T: 4, P: 2, D: 6, S: 4, E: 4, A: 0, V: 0 },
+          declividade_classe: '>45',
+          tipo_medida_recomendada: 'corretiva_estrutural',
+          lista_solucoes_sugeridas: ['Reconformacao de taludes'],
+        },
+        acompanhamentosResumo: [],
+        fotosLinks: [],
+      },
+      hasCoordinates: () => false,
+      relatedInspections: [],
+    });
+
+    expect(container.textContent).toContain('D4 (> 45 graus)');
   });
 
   it('shows empty history state when no followup data exists', () => {

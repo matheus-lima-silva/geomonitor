@@ -1,6 +1,17 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('react-leaflet', () => ({
+  MapContainer: ({ children }) => <div>{children}</div>,
+  TileLayer: () => null,
+  CircleMarker: ({ children }) => <div>{children}</div>,
+  Polyline: () => null,
+  Popup: ({ children }) => <div>{children}</div>,
+  Tooltip: ({ children }) => <div>{children}</div>,
+  useMapEvents: () => null,
+}));
+
 import ErosionFormModal from '../ErosionFormModal';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;

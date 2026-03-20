@@ -11,7 +11,15 @@ import {
   normalizeFollowupEventType,
   normalizeFollowupHistory,
 } from '../../shared/viewUtils';
-import { normalizeLocationCoordinates } from '../../shared/erosionCoordinates';
+import { normalizeLocationCoordinates, parseCoordinateNumber } from '../../shared/erosionCoordinates';
+import {
+  CircleMarker,
+  MapContainer,
+  Polyline,
+  Tooltip,
+  TileLayer,
+} from 'react-leaflet';
+import { compareTowerNumbers, formatTowerLabel } from '../../projects/utils/kmlUtils';
 import {
   buildCriticalitySummaryFromErosion,
   formatCriticalityPoints,
@@ -83,7 +91,7 @@ const LEGACY_CLASS_CODE_ALIASES = {
   '<15': 'D1',
   '15-30': 'D2',
   '30-45': 'D3',
-  '>45': 'D3',
+  '>45': 'D4',
 };
 
 function deriveDepthClass(value) {
@@ -98,7 +106,8 @@ function deriveSlopeClass(value) {
   if (!Number.isFinite(value)) return '';
   if (value < 10) return 'D1';
   if (value <= 25) return 'D2';
-  return 'D3';
+  if (value <= 45) return 'D3';
+  return 'D4';
 }
 
 function deriveExposureClass(value) {
@@ -151,21 +160,25 @@ function ErosionDetailsModal({
   const [showAddEventForm, setShowAddEventForm] = useState(false);
   const [savingEvent, setSavingEvent] = useState(false);
   const [eventForm, setEventForm] = useState(EMPTY_EVENT_FORM);
+  const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setShowAddEventForm(false);
     setSavingEvent(false);
     setEventForm(EMPTY_EVENT_FORM);
-  }, [open, erosion?.id]);
+    setShowMap(hasCoordinates(erosion));
+  }, [open, erosion?.id, hasCoordinates, erosion]);
 
   useEffect(() => {
     if (!open || !erosion?.id) return;
-    const breakdown = erosion?.criticalidadeV2?.breakdown || erosion?.criticalidadeV2;
-    const needsRecalc = breakdown && typeof breakdown === 'object' && breakdown.pontos && breakdown.pontos.A === undefined;
+    if (isHistoricalErosionRecord(erosion)) return;
+    const breakdown = erosion?.criticalidadeV2?.breakdown || erosion?.criticalidadeV2 || null;
+    const hasBreakdown = breakdown && typeof breakdown === 'object';
+    const needsRecalc = !hasBreakdown || (breakdown.pontos && breakdown.pontos.A === undefined);
     if (!needsRecalc) return;
     recalculateAndSaveErosion(erosion).catch(() => {});
-  }, [open, erosion?.id]);
+  }, [open, erosion?.criticalidadeV2, erosion?.id]);
 
   const locationCoordinates = normalizeLocationCoordinates(erosion || {});
   const sortedHistory = useMemo(
@@ -181,6 +194,80 @@ function ErosionDetailsModal({
     [erosion?.historicoCriticidade],
   );
 
+  const currentPoint = useMemo(() => {
+    const lat = parseCoordinateNumber(locationCoordinates?.latitude);
+    const lng = parseCoordinateNumber(locationCoordinates?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return [lat, lng];
+  }, [locationCoordinates?.latitude, locationCoordinates?.longitude]);
+
+  const nearbyTowerMarkers = useMemo(() => {
+    const coords = Array.isArray(project?.torresCoordenadas) ? project.torresCoordenadas : [];
+    if (coords.length === 0) return [];
+    const towerRef = String(erosion?.torreRef || '').trim();
+    if (!towerRef) return [];
+    const towerCoordinates = coords
+      .map((row) => {
+        const towerNumber = String(row?.numero || '').trim();
+        if (!towerNumber) return null;
+        const lat = parseCoordinateNumber(row?.latitude);
+        const lng = parseCoordinateNumber(row?.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        return { towerNumber, position: [lat, lng] };
+      })
+      .filter(Boolean)
+      .sort((a, b) => compareTowerNumbers(a.towerNumber, b.towerNumber));
+    if (towerCoordinates.length === 0) return [];
+
+    const selectedIdx = towerCoordinates.findIndex(
+      (tower) => compareTowerNumbers(tower.towerNumber, towerRef) === 0,
+    );
+    if (selectedIdx < 0) return [];
+
+    const visibleIndices = [selectedIdx - 1, selectedIdx, selectedIdx + 1]
+      .filter((idx) => idx >= 0 && idx < towerCoordinates.length);
+
+    return visibleIndices.map((idx) => {
+      const tower = towerCoordinates[idx];
+      return {
+        key: `tower-${tower.towerNumber}-${idx}`,
+        towerNumber: tower.towerNumber,
+        position: tower.position,
+        label: formatTowerLabel(tower.towerNumber),
+        isSelected: idx === selectedIdx,
+      };
+    });
+  }, [project?.torresCoordenadas, erosion?.torreRef]);
+
+  const towerPoint = useMemo(() => {
+    const selected = nearbyTowerMarkers.find((m) => m.isSelected);
+    return selected ? selected.position : null;
+  }, [nearbyTowerMarkers]);
+
+  const linePath = useMemo(() => {
+    const coords = Array.isArray(project?.linhaCoordenadas)
+      ? project.linhaCoordenadas
+      : (Array.isArray(project?.torresCoordenadas) ? project.torresCoordenadas : []);
+    return coords
+      .map((row) => {
+        const lat = parseCoordinateNumber(row?.latitude);
+        const lng = parseCoordinateNumber(row?.longitude);
+        return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+      })
+      .filter(Boolean);
+  }, [project?.linhaCoordenadas, project?.torresCoordenadas]);
+
+  const mapCenter = useMemo(() => {
+    if (currentPoint) return currentPoint;
+    if (towerPoint) return towerPoint;
+    if (nearbyTowerMarkers.length > 0) return nearbyTowerMarkers[0].position;
+    if (linePath.length > 0) return linePath[0];
+    return [-15.793889, -47.882778];
+  }, [currentPoint, towerPoint, nearbyTowerMarkers, linePath]);
+
+  const mapZoom = currentPoint || towerPoint || nearbyTowerMarkers.length > 0 ? 15 : (linePath.length > 0 ? 12 : 5);
+  const mapRenderKey = open && mapCenter ? `${mapCenter[0].toFixed(6)}-${mapCenter[1].toFixed(6)}-${mapZoom}` : 'off';
+
   const saturacaoPorAgua = String(erosion?.saturacaoPorAgua || '').trim();
   const technical = normalizeErosionTechnicalFields(erosion || {});
   const localContexto = technical.localContexto || {};
@@ -188,7 +275,6 @@ function ErosionDetailsModal({
   const isHistoricalRecord = isHistoricalErosionRecord(erosion);
   const usosSolo = technical.usosSolo;
   const tiposFeicao = technical.tiposFeicao;
-  const caracteristicasFeicao = technical.caracteristicasFeicao;
   const derivedTipo = deriveErosionTypeFromTechnicalFields({ ...erosion, tiposFeicao });
   const criticalitySummary = buildCriticalitySummaryFromErosion(erosion || {});
   const criticalidadeV2 = erosion?.criticalidadeV2 && typeof erosion.criticalidadeV2 === 'object'
@@ -198,7 +284,6 @@ function ErosionDetailsModal({
     : null;
   const alertasAtivos = criticalitySummary.alertas;
   const feicaoLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.tiposFeicao), []);
-  const caracteristicaLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.caracteristicasFeicao), []);
   const usoSoloLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.usosSolo), []);
   const presencaAguaLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.presencaAguaFundo), []);
   const saturacaoLabelMap = useMemo(() => buildLabelMap(EROSION_TECHNICAL_OPTIONS.saturacaoPorAgua), []);
@@ -325,10 +410,12 @@ function ErosionDetailsModal({
             <div><strong className="text-slate-900">Sinais de avanco:</strong> {technical.sinaisAvanco ? 'Sim' : 'Nao'}</div>
             <div><strong className="text-slate-900">Vegetacao interior:</strong> {technical.vegetacaoInterior ? 'Sim' : 'Nao'}</div>
             <div className="col-span-full"><strong className="text-slate-900">Tipos de feicao:</strong> {listLabelValue(tiposFeicao, feicaoLabelMap)}</div>
-            <div className="col-span-full"><strong className="text-slate-900">Caracteristicas da feicao:</strong> {listLabelValue(caracteristicasFeicao, caracteristicaLabelMap)}</div>
             <div className="col-span-full"><strong className="text-slate-900">Usos do solo:</strong> {listLabelValue(usosSolo, usoSoloLabelMap)}</div>
             {usosSolo.includes('outro') ? (
               <div className="col-span-full"><strong className="text-slate-900">Uso do solo - outro:</strong> {erosion.usoSoloOutro || '-'}</div>
+            ) : null}
+            {technical.dimensionamento ? (
+              <div className="col-span-full whitespace-pre-wrap"><strong className="text-slate-900">Dimensionamento preliminar:</strong> {technical.dimensionamento}</div>
             ) : null}
             <div className="col-span-full bg-slate-50 p-3 rounded-lg border border-slate-100">
               <strong className="text-slate-900">Resumo de criticidade calculada:</strong>{' '}
@@ -357,6 +444,7 @@ function ErosionDetailsModal({
                 <div><strong className="text-slate-900">Classe solo:</strong> {criticalidadeV2.solo_classe || '-'}</div>
                 <div><strong className="text-slate-900">Classe exposicao:</strong> {criticalidadeV2.exposicao_classe || '-'}</div>
                 <div><strong className="text-slate-900">Classe atividade:</strong> {criticalidadeV2.atividade_classe || '-'}</div>
+                <div><strong className="text-slate-900">Modificador de via:</strong> {criticalidadeV2.pontos?.V ?? 0}</div>
                 <div className="col-span-full bg-indigo-50 text-indigo-900 p-3 rounded-lg border border-indigo-100">
                   <strong className="font-bold">Tipo de medida recomendada:</strong> {labelValue(criticalidadeV2.tipo_medida_recomendada, {})}
                 </div>
@@ -406,6 +494,63 @@ function ErosionDetailsModal({
                 <AppIcon name="map" />
                 Traçar rota
               </Button>
+            </div>
+          ) : null}
+
+          {showMap ? (
+            <div id="erosion-details-map" className="mt-4 rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+              <div style={{ height: 280 }}>
+                <MapContainer
+                  key={mapRenderKey}
+                  center={mapCenter}
+                  zoom={mapZoom}
+                  scrollWheelZoom={false}
+                  zoomControl={false}
+                  dragging={false}
+                  doubleClickZoom={false}
+                  touchZoom={false}
+                  preferCanvas
+                  style={{ width: '100%', height: '100%' }}
+                >
+                  <TileLayer
+                    url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+                    maxZoom={17}
+                  />
+                  {linePath.length >= 2 ? (
+                    <Polyline positions={linePath} pathOptions={{ color: '#0f766e', weight: 3, opacity: 0.75, dashArray: '6 4' }} />
+                  ) : null}
+                  {nearbyTowerMarkers.map((marker) => (
+                    <CircleMarker
+                      key={marker.key}
+                      center={marker.position}
+                      radius={marker.isSelected ? 8 : 6}
+                      pathOptions={{
+                        fillColor: marker.isSelected ? '#f59e0b' : '#22c55e',
+                        color: marker.isSelected ? '#0f172a' : '#14532d',
+                        weight: 2,
+                        fillOpacity: 0.9,
+                      }}
+                    >
+                      <Tooltip permanent direction="top" offset={[0, -8]}>
+                        {marker.label}
+                      </Tooltip>
+                    </CircleMarker>
+                  ))}
+                  {currentPoint ? (
+                    <CircleMarker
+                      center={currentPoint}
+                      radius={9}
+                      pathOptions={{ fillColor: '#3b82f6', color: '#1d4ed8', weight: 2, fillOpacity: 0.9 }}
+                    />
+                  ) : null}
+                </MapContainer>
+              </div>
+              <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center gap-4 text-xs text-slate-600">
+                <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-blue-500 border-2 border-blue-700" /> Erosão</span>
+                <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-amber-500 border-2 border-slate-900" /> Torre selecionada</span>
+                <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-green-500 border-2 border-green-900" /> Torres vizinhas</span>
+                {linePath.length >= 2 ? <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-teal-700" /> Linha de transmissão</span> : null}
+              </div>
             </div>
           ) : null}
         </section>

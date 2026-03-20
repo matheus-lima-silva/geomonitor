@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, Input, Modal, Select, Textarea } from '../../../components/ui';
-import { compareTowerNumbers } from '../../projects/utils/kmlUtils';
+import {
+  CircleMarker,
+  MapContainer,
+  Polyline,
+  Popup,
+  TileLayer,
+  Tooltip,
+  useMapEvents,
+} from 'react-leaflet';
+import { compareTowerNumbers, formatTowerLabel } from '../../projects/utils/kmlUtils';
 import {
   hasValidDecimalCoordinates,
   isCompleteUtmCoordinates,
@@ -15,6 +24,15 @@ import {
 } from '../../shared/criticalitySummary';
 import { isHistoricalErosionRecord } from '../../shared/viewUtils';
 import ErosionTechnicalFields from './ErosionTechnicalFields';
+
+function MapClickPicker({ onPick }) {
+  useMapEvents({
+    click(event) {
+      onPick?.(event?.latlng?.lat, event?.latlng?.lng);
+    },
+  });
+  return null;
+}
 
 function hasAnyLocationValue(locationCoordinates = {}) {
   return [
@@ -54,6 +72,7 @@ function ErosionFormModal({
   validationErrors = {},
 }) {
   const [coordinatesExpanded, setCoordinatesExpanded] = useState(false);
+  const [showInteractiveMap, setShowInteractiveMap] = useState(false);
   const safeFormData = formData && typeof formData === 'object' ? formData : {};
   const safeProjects = Array.isArray(projects) ? projects.filter((item) => item && typeof item === 'object') : [];
   const safeInspections = Array.isArray(inspections) ? inspections.filter((item) => item && typeof item === 'object') : [];
@@ -101,10 +120,24 @@ function ErosionFormModal({
   }, [safeFormData.id, open]);
 
   useEffect(() => {
+    if (!open) setShowInteractiveMap(false);
+  }, [open]);
+
+  useEffect(() => {
     if (!open) return;
     if (!utmErrorToken) return;
     setCoordinatesExpanded(true);
   }, [open, utmErrorToken]);
+
+  useEffect(() => {
+    if (!open || !coordinatesExpanded) return;
+    const lat = parseCoordinateNumber(locationCoordinates.latitude);
+    const lng = parseCoordinateNumber(locationCoordinates.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)
+      && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      setShowInteractiveMap(true);
+    }
+  }, [open, coordinatesExpanded, locationCoordinates.latitude, locationCoordinates.longitude]);
 
   const readOnlyClasses = criticalityBreakdown
     ? {
@@ -152,6 +185,80 @@ function ErosionFormModal({
     return options;
   }, [selectedProject?.torres, selectedProject?.torresCoordenadas, safeFormData.torreRef]);
 
+  const currentPoint = useMemo(() => {
+    const lat = parseCoordinateNumber(locationCoordinates.latitude);
+    const lng = parseCoordinateNumber(locationCoordinates.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return [lat, lng];
+  }, [locationCoordinates.latitude, locationCoordinates.longitude]);
+
+  const nearbyTowerMarkers = useMemo(() => {
+    const coords = Array.isArray(selectedProject?.torresCoordenadas) ? selectedProject.torresCoordenadas : [];
+    if (coords.length === 0) return [];
+    const towerRef = String(safeFormData.torreRef || '').trim();
+    if (!towerRef) return [];
+    const towerCoordinates = coords
+      .map((row) => {
+        const towerNumber = String(row?.numero || '').trim();
+        if (!towerNumber) return null;
+        const lat = parseCoordinateNumber(row?.latitude);
+        const lng = parseCoordinateNumber(row?.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        return { towerNumber, position: [lat, lng] };
+      })
+      .filter(Boolean)
+      .sort((a, b) => compareTowerNumbers(a.towerNumber, b.towerNumber));
+    if (towerCoordinates.length === 0) return [];
+
+    const selectedIdx = towerCoordinates.findIndex(
+      (tower) => compareTowerNumbers(tower.towerNumber, towerRef) === 0,
+    );
+    if (selectedIdx < 0) return [];
+
+    const visibleIndices = [selectedIdx - 1, selectedIdx, selectedIdx + 1]
+      .filter((idx) => idx >= 0 && idx < towerCoordinates.length);
+
+    return visibleIndices.map((idx) => {
+      const tower = towerCoordinates[idx];
+      return {
+        key: `tower-${tower.towerNumber}-${idx}`,
+        towerNumber: tower.towerNumber,
+        position: tower.position,
+        label: formatTowerLabel(tower.towerNumber),
+        isSelected: idx === selectedIdx,
+      };
+    });
+  }, [selectedProject?.torresCoordenadas, safeFormData.torreRef]);
+
+  const towerPoint = useMemo(() => {
+    const selected = nearbyTowerMarkers.find((m) => m.isSelected);
+    return selected ? selected.position : null;
+  }, [nearbyTowerMarkers]);
+
+  const linePath = useMemo(() => {
+    const coords = Array.isArray(selectedProject?.linhaCoordenadas)
+      ? selectedProject.linhaCoordenadas
+      : (Array.isArray(selectedProject?.torresCoordenadas) ? selectedProject.torresCoordenadas : []);
+    return coords
+      .map((row) => {
+        const lat = parseCoordinateNumber(row?.latitude);
+        const lng = parseCoordinateNumber(row?.longitude);
+        return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+      })
+      .filter(Boolean);
+  }, [selectedProject?.linhaCoordenadas, selectedProject?.torresCoordenadas]);
+
+  const mapCenter = useMemo(() => {
+    if (currentPoint) return currentPoint;
+    if (towerPoint) return towerPoint;
+    if (nearbyTowerMarkers.length > 0) return nearbyTowerMarkers[0].position;
+    if (linePath.length > 0) return linePath[0];
+    return [-15.793889, -47.882778];
+  }, [currentPoint, towerPoint, nearbyTowerMarkers, linePath]);
+
+  const mapZoom = currentPoint || towerPoint || nearbyTowerMarkers.length > 0 ? 15 : (linePath.length > 0 ? 12 : 5);
+  const mapRenderKey = `${mapCenter[0].toFixed(6)}-${mapCenter[1].toFixed(6)}-${mapZoom}`;
+
   if (!open) return null;
 
   function updateField(field, value) {
@@ -169,6 +276,33 @@ function ErosionFormModal({
         [field]: value,
       },
     }));
+  }
+
+  function applyDecimalCoordinates(latitude, longitude) {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+    const nextLatitude = Number(latitude).toFixed(6);
+    const nextLongitude = Number(longitude).toFixed(6);
+    setCoordinatesExpanded(true);
+    setFormData((prev) => {
+      const source = (prev && typeof prev === 'object') ? prev : {};
+      return {
+        ...source,
+        locationCoordinates: {
+          ...(source.locationCoordinates || {}),
+          latitude: nextLatitude,
+          longitude: nextLongitude,
+        },
+      };
+    });
+  }
+
+  function handleUseTowerCoordinates() {
+    if (!towerPoint) return;
+    applyDecimalCoordinates(towerPoint[0], towerPoint[1]);
+  }
+
+  function handleMapPick(latitude, longitude) {
+    applyDecimalCoordinates(latitude, longitude);
   }
 
   function handleStatusChange(value) {
@@ -394,6 +528,90 @@ function ErosionFormModal({
               />
             </div>
 
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowInteractiveMap((prev) => !prev)}
+              >
+                <AppIcon name="map" />
+                {showInteractiveMap ? 'Fechar mapa interativo' : 'Abrir mapa interativo (relevo)'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleUseTowerCoordinates}
+                disabled={!towerPoint}
+              >
+                <AppIcon name="route" />
+                Usar coordenada da torre
+              </Button>
+              {!towerPoint ? (
+                <span className="text-xs text-slate-500">
+                  Sem coordenada de torre.
+                </span>
+              ) : null}
+            </div>
+
+            {showInteractiveMap ? (
+              <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
+                <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs text-slate-600">
+                  Clique no mapa para definir latitude/longitude.
+                </div>
+                <div style={{ width: '100%', height: 320 }}>
+                  <MapContainer
+                    key={mapRenderKey}
+                    center={mapCenter}
+                    zoom={mapZoom}
+                    maxZoom={17}
+                    scrollWheelZoom
+                    style={{ width: '100%', height: '100%' }}
+                  >
+                    <TileLayer
+                      attribution="Map data: OpenStreetMap contributors | Style: OpenTopoMap"
+                      url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+                      maxZoom={17}
+                      maxNativeZoom={17}
+                    />
+                    {linePath.length >= 2 ? (
+                      <Polyline positions={linePath} pathOptions={{ color: '#0f766e', weight: 3, opacity: 0.75, dashArray: '6 4' }} />
+                    ) : null}
+                    {nearbyTowerMarkers.map((tower) => (
+                      <CircleMarker
+                        key={tower.key}
+                        center={tower.position}
+                        radius={tower.isSelected ? 8 : 6}
+                        pathOptions={tower.isSelected
+                          ? { color: '#0f172a', fillColor: '#f59e0b', fillOpacity: 0.9, weight: 2 }
+                          : { color: '#14532d', fillColor: '#22c55e', fillOpacity: 0.82, weight: 2 }}
+                      >
+                        <Tooltip permanent direction="top" offset={[0, -8]}>{`T${tower.towerNumber}`}</Tooltip>
+                        <Popup>{`${formatTowerLabel(tower.towerNumber)} ${tower.isSelected ? '(selecionada)' : '(vizinha)'}`}</Popup>
+                      </CircleMarker>
+                    ))}
+                    {currentPoint ? (
+                      <CircleMarker
+                        center={currentPoint}
+                        radius={9}
+                        pathOptions={{ color: '#1d4ed8', fillColor: '#3b82f6', fillOpacity: 0.95, weight: 2 }}
+                      >
+                        <Popup>Ponto selecionado</Popup>
+                      </CircleMarker>
+                    ) : null}
+                    <MapClickPicker onPick={handleMapPick} />
+                  </MapContainer>
+                </div>
+                <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center gap-4 text-xs text-slate-600">
+                  <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-blue-500 border-2 border-blue-700" /> Erosão</span>
+                  <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-amber-500 border-2 border-slate-900" /> Torre selecionada</span>
+                  <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-green-500 border-2 border-green-900" /> Torres vizinhas</span>
+                  {linePath.length >= 2 ? <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-teal-700" /> Linha de transmissão</span> : null}
+                </div>
+              </div>
+            ) : null}
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Input
                 id="erosion-utm-e"
@@ -447,6 +665,14 @@ function ErosionFormModal({
         <h4 className="text-lg font-semibold text-slate-800 m-0">Medidas e anexos</h4>
         <div className="grid grid-cols-1 gap-4">
           <Textarea
+            id="erosion-dimensionamento"
+            label="Dimensionamento preliminar"
+            rows={3}
+            value={safeFormData.dimensionamento || ''}
+            onChange={(e) => updateField('dimensionamento', e.target.value)}
+            placeholder="Registrar premissas, medidas preliminares ou observacoes tecnicas para futura intervencao."
+          />
+          <Textarea
             id="erosion-photos"
             label="Fotos (links, um por linha)"
             rows={2}
@@ -487,8 +713,8 @@ function ErosionFormModal({
               <strong>Impacto:</strong> {criticalitySummary.impacto} | <strong>Score:</strong> {criticalitySummary.score} | <strong>Frequência:</strong> {criticalitySummary.frequencia}
             </div>
             {criticalitySummary.hasBreakdown ? (
-              <div>
-                <strong>Criticidade:</strong> {criticalitySummary.criticidadeClasse} ({criticalitySummary.criticidadeCodigo}) | Pontos T/P/D/S/E: {formatCriticalityPoints(criticalityBreakdown?.pontos)}
+            <div>
+                <strong>Criticidade:</strong> {criticalitySummary.criticidadeClasse} ({criticalitySummary.criticidadeCodigo}) | Pontos T/P/D/S/E/A: {formatCriticalityPoints(criticalityBreakdown?.pontos)}
               </div>
             ) : null}
             {criticalitySummary.solucoesSugeridas.length > 0 ? (
