@@ -15,14 +15,6 @@
     - `api-strict`
   - cadastrar secrets do repositorio:
     - `FLY_API_TOKEN`
-    - `VITE_FIREBASE_API_KEY`
-    - `VITE_FIREBASE_AUTH_DOMAIN`
-    - `VITE_FIREBASE_PROJECT_ID`
-    - `VITE_FIREBASE_STORAGE_BUCKET`
-    - `VITE_FIREBASE_MESSAGING_SENDER_ID`
-    - `VITE_FIREBASE_APP_ID`
-    - `VITE_FIREBASE_MEASUREMENT_ID`
-    - `VITE_API_BASE_URL`
   - cadastrar repo variable:
     - `ENABLE_FLY_DEPLOY=false` (inicial)
 
@@ -41,6 +33,7 @@
 - API e Web devem operar com `COUNT 1` em `gru`.
 - O workflow usa `flyctl deploy --ha=false` para evitar maquina extra em first deploy/scale-zero.
 - O workflow reaplica `flyctl scale count 1` apos cada deploy para corrigir drift operacional.
+- O deploy Web consome os `build.args` versionados em `fly.toml`; nao depende de secrets GitHub para as variaveis `VITE_*`.
 - Remediacao manual, se necessario:
   - `flyctl scale count 1 --app geomonitor-api --region gru --yes`
   - `flyctl scale count 1 --app geomonitor-web --region gru --yes`
