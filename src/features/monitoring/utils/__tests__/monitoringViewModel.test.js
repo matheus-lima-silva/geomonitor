@@ -409,4 +409,104 @@ describe('monitoringViewModel', () => {
     expect(model.heatPoints).toHaveLength(2);
     expect(model.heatPointsWithoutCoordinates).toBe(1);
   });
+
+  it('captures C4 erosions from persisted criticality even when legacy impact is absent', () => {
+    const model = buildMonitoringViewModel({
+      projects: [],
+      inspections: [],
+      erosions: [
+        {
+          id: 'ER-C4-LEGACYLESS',
+          projetoId: 'P1',
+          status: 'Ativo',
+          criticalidadeV2: {
+            breakdown: {
+              codigo: 'C4',
+              criticidade_classe: 'Muito Alto',
+              criticidade_score: 28,
+              legacy: {
+                impacto: 'Muito Alto',
+              },
+            },
+          },
+          locationCoordinates: { latitude: '-10.2', longitude: '-50.3' },
+        },
+      ],
+      operatingLicenses: [],
+      searchTerm: '',
+      nowMs,
+    });
+
+    expect(model.impactCounts['Muito Alto']).toBe(1);
+    expect(model.criticalCount).toBe(1);
+    expect(model.criticalityDistributionRows).toContainEqual({ level: 'C4', total: 1 });
+    expect(model.heatPoints).toEqual([
+      expect.objectContaining({
+        id: 'ER-C4-LEGACYLESS',
+        criticidade: 'Muito Alto',
+        towerRef: '',
+      }),
+    ]);
+  });
+
+  it('includes towerRef in heat points when erosion has a tower', () => {
+    const model = buildMonitoringViewModel({
+      projects: [],
+      inspections: [],
+      erosions: [
+        {
+          id: 'ER-TOWER',
+          projetoId: 'P1',
+          torreRef: '17',
+          impact: 'Muito Alto',
+          criticalidadeV2: {
+            codigo: 'C4',
+            criticidade_classe: 'Muito Alto',
+            criticidade_score: 28,
+          },
+          locationCoordinates: { latitude: '-10.2', longitude: '-50.3' },
+        },
+      ],
+      operatingLicenses: [],
+      searchTerm: '',
+      nowMs,
+    });
+
+    expect(model.heatPoints).toEqual([
+      expect.objectContaining({
+        id: 'ER-TOWER',
+        towerRef: '17',
+      }),
+    ]);
+  });
+
+  it('infers C4 in the chart when persisted criticality has class and score but no code', () => {
+    const model = buildMonitoringViewModel({
+      projects: [],
+      inspections: [],
+      erosions: [
+        {
+          id: 'ER-C4-NOCODE',
+          projetoId: 'P1',
+          criticalidadeV2: {
+            breakdown: {
+              criticidade_classe: 'Muito Alto',
+              criticidade_score: 28,
+              legacy: {
+                impacto: 'Muito Alto',
+              },
+            },
+          },
+          locationCoordinates: { latitude: '-10.2', longitude: '-50.3' },
+        },
+      ],
+      operatingLicenses: [],
+      searchTerm: '',
+      nowMs,
+    });
+
+    expect(model.impactCounts['Muito Alto']).toBe(1);
+    expect(model.criticalCount).toBe(1);
+    expect(model.criticalityDistributionRows).toContainEqual({ level: 'C4', total: 1 });
+  });
 });

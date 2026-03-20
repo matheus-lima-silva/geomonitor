@@ -34,6 +34,64 @@ function normalizeImpactLabel(rawValue) {
   return text;
 }
 
+function getPersistedCriticality(erosion) {
+  const source = erosion?.criticalidadeV2;
+  if (!source || typeof source !== 'object') return null;
+  if (source.breakdown && typeof source.breakdown === 'object') {
+    return source.breakdown;
+  }
+  return source;
+}
+
+function mapCriticalityCodeToImpact(code) {
+  const normalizedCode = String(code || '').trim().toUpperCase();
+  if (normalizedCode === 'C4') return 'Muito Alto';
+  if (normalizedCode === 'C3') return 'Alto';
+  if (normalizedCode === 'C2') return 'Medio';
+  if (normalizedCode === 'C1') return 'Baixo';
+  return '';
+}
+
+function mapImpactToCriticalityCode(impact) {
+  const normalizedImpact = normalizeImpactLabel(impact);
+  if (normalizedImpact === 'Muito Alto') return 'C4';
+  if (normalizedImpact === 'Alto') return 'C3';
+  if (normalizedImpact === 'Medio') return 'C2';
+  if (normalizedImpact === 'Baixo') return 'C1';
+  return '';
+}
+
+function mapScoreToCriticalityCode(score) {
+  const safeScore = Number(score);
+  if (!Number.isFinite(safeScore)) return '';
+  if (safeScore >= 28) return 'C4';
+  if (safeScore >= 19) return 'C3';
+  if (safeScore >= 10) return 'C2';
+  if (safeScore >= 0) return 'C1';
+  return '';
+}
+
+function resolveCriticalityCode(erosion, persistedCriticality, impact) {
+  const directCode = String(persistedCriticality?.codigo || '').trim().toUpperCase();
+  if (CRITICALITY_LEVELS.includes(directCode)) return directCode;
+
+  const impactDerivedCode = mapImpactToCriticalityCode(
+    persistedCriticality?.criticidade_classe
+    || persistedCriticality?.legacy?.impacto
+    || impact
+    || erosion?.impacto
+    || erosion?.grauFinal
+    || erosion?.grauTecnico,
+  );
+  if (impactDerivedCode) return impactDerivedCode;
+
+  return mapScoreToCriticalityCode(
+    persistedCriticality?.criticidade_score
+    ?? erosion?.score
+    ?? null,
+  );
+}
+
 function parseNumeric(value) {
   const normalized = String(value ?? '').trim().replace(',', '.');
   if (!normalized) return null;
@@ -93,7 +151,16 @@ function normalizeTrackingRows(deliveryTracking) {
 }
 
 export function getErosionImpact(erosion) {
-  return normalizeImpactLabel(erosion?.grauFinal || erosion?.grauTecnico || erosion?.impacto || '');
+  const persistedCriticality = getPersistedCriticality(erosion);
+  return normalizeImpactLabel(
+    erosion?.grauFinal
+    || erosion?.grauTecnico
+    || erosion?.impacto
+    || persistedCriticality?.legacy?.impacto
+    || persistedCriticality?.criticidade_classe
+    || mapCriticalityCodeToImpact(persistedCriticality?.codigo)
+    || '',
+  );
 }
 
 export function getErosionSortTimestamp(erosion) {
@@ -481,6 +548,7 @@ export function buildMonitoringViewModel({
   let heatPointsWithoutCoordinates = 0;
 
   filteredErosions.forEach((item) => {
+    const persistedCriticality = getPersistedCriticality(item);
     const impact = getErosionImpact(item);
     if (Object.prototype.hasOwnProperty.call(impactCounts, impact)) {
       impactCounts[impact] += 1;
@@ -488,7 +556,7 @@ export function buildMonitoringViewModel({
       impactCounts.Baixo += 1;
     }
 
-    const code = String(item?.criticalidadeV2?.codigo || '').trim().toUpperCase();
+    const code = resolveCriticalityCode(item, persistedCriticality, impact);
     if (Object.prototype.hasOwnProperty.call(criticalityDistribution, code)) {
       criticalityDistribution[code] += 1;
       totalWithCriticality += 1;
@@ -506,16 +574,17 @@ export function buildMonitoringViewModel({
       return;
     }
 
-    const score = Number(item?.criticalidadeV2?.criticidade_score ?? item?.score ?? 0);
+    const score = Number(persistedCriticality?.criticidade_score ?? item?.score ?? 0);
     const safeScore = Number.isFinite(score) ? Math.max(0, Math.min(26, score)) : 0;
     heatPoints.push({
       id: String(item?.id || ''),
       projetoId: String(item?.projetoId || ''),
+      towerRef: String(item?.torreRef || '').trim(),
       latitude,
       longitude,
       score: safeScore,
       peso: safeScore / 26,
-      criticidade: String(item?.criticalidadeV2?.criticidade_classe || item?.impacto || 'Baixo'),
+      criticidade: String(persistedCriticality?.criticidade_classe || impact || 'Baixo'),
     });
   });
 
@@ -555,4 +624,3 @@ export function buildMonitoringViewModel({
     erosionCount: filteredErosions.length,
   };
 }
-

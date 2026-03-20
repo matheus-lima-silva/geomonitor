@@ -7,6 +7,9 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const logoutMock = vi.fn();
 const showMock = vi.fn();
+const fitBoundsMock = vi.fn();
+const setViewMock = vi.fn();
+const invalidateSizeMock = vi.fn();
 
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }) => <div>{children}</div>,
@@ -31,8 +34,9 @@ vi.mock('react-leaflet', () => ({
   CircleMarker: ({ children }) => <div>{children}</div>,
   Popup: ({ children }) => <div>{children}</div>,
   useMap: () => ({
-    fitBounds: vi.fn(),
-    setView: vi.fn(),
+    fitBounds: fitBoundsMock,
+    setView: setViewMock,
+    invalidateSize: invalidateSizeMock,
   }),
 }));
 
@@ -97,6 +101,26 @@ vi.mock('../../services/erosionService', () => ({
             timestamp: '2026-01-22T10:00:00.000Z',
           },
         ],
+      },
+      {
+        id: 'ER-C4',
+        projetoId: 'P1',
+        torreRef: '17',
+        criticalidadeV2: {
+          breakdown: {
+            codigo: 'C4',
+            criticidade_classe: 'Muito Alto',
+            criticidade_score: 28,
+            legacy: {
+              impacto: 'Muito Alto',
+            },
+          },
+        },
+        locationCoordinates: {
+          latitude: '-10.20',
+          longitude: '-50.30',
+        },
+        ultimaAtualizacao: '2026-01-25T00:00:00.000Z',
       },
     ]);
     return () => { };
@@ -164,6 +188,9 @@ describe('DashboardView monitoring top notice', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-10T00:00:00.000Z'));
+    fitBoundsMock.mockClear();
+    setViewMock.mockClear();
+    invalidateSizeMock.mockClear();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -229,6 +256,20 @@ describe('DashboardView monitoring top notice', () => {
     expect(container.textContent).toContain('Em andamento');
   });
 
+  it('captures persisted C4 criticality in dashboard cards and popup details', async () => {
+    await act(async () => {
+      root.render(<DashboardView />);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('Críticas');
+    expect(container.textContent).toContain('Muito Alto');
+    expect(container.textContent).toContain('ER-C4');
+    expect(container.textContent).toContain('Torre 17');
+    expect(container.textContent).toContain('Criticidade: Muito Alto');
+    expect(container.textContent).toContain('Score: 26');
+  });
+
   it('expands LO/project aggregated row in upcoming reports card', async () => {
     await act(async () => {
       root.render(<DashboardView />);
@@ -291,5 +332,42 @@ describe('DashboardView monitoring top notice', () => {
 
     expect(container.querySelector('[data-layer-name="Mapa padrão"]')).toBeTruthy();
     expect(container.querySelector('[data-layer-name="Relevo"]')).toBeTruthy();
+  });
+
+  it('expands and collapses the heatmap card and invalidates map size', async () => {
+    await act(async () => {
+      root.render(<DashboardView />);
+      await Promise.resolve();
+    });
+
+    const toggleButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent.includes('Expandir mapa'));
+    const heatmapContainer = container.querySelector('[data-testid="dashboard-heatmap-container"]');
+
+    expect(toggleButton).toBeTruthy();
+    expect(toggleButton.getAttribute('aria-expanded')).toBe('false');
+    expect(heatmapContainer.style.height).toBe('220px');
+    expect(invalidateSizeMock).toHaveBeenCalled();
+
+    invalidateSizeMock.mockClear();
+
+    await act(async () => {
+      toggleButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(toggleButton.textContent).toContain('Recolher mapa');
+    expect(toggleButton.getAttribute('aria-expanded')).toBe('true');
+    expect(heatmapContainer.style.height).toBe('420px');
+    expect(invalidateSizeMock).toHaveBeenCalled();
+
+    await act(async () => {
+      toggleButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(toggleButton.textContent).toContain('Expandir mapa');
+    expect(toggleButton.getAttribute('aria-expanded')).toBe('false');
+    expect(heatmapContainer.style.height).toBe('220px');
   });
 });

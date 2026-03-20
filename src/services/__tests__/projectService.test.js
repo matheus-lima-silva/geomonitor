@@ -21,6 +21,7 @@ describe('projectService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', fetchMock);
+    sessionStorage.clear();
     auth.currentUser = {
       getIdToken: vi.fn().mockResolvedValue('token-123')
     };
@@ -106,6 +107,45 @@ describe('projectService', () => {
       data: { nome: 'Projeto 1' },
       meta: expect.objectContaining({ updatedBy: 'dev@empresa.com' })
     });
+  });
+
+  it('updateProject refresca subscriptions ativas apos salvar', async () => {
+    const onData = vi.fn();
+    const onError = vi.fn();
+
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [{ id: 'P-1', nome: 'Projeto Antigo' }]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ data: { id: 'P-1', nome: 'Projeto Atualizado' } })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [{ id: 'P-1', nome: 'Projeto Atualizado' }]
+        })
+      });
+
+    const unsub = subscribeProjects(onData, onError);
+    await flushPromises();
+
+    await updateProject('P-1', { nome: 'Projeto Atualizado' }, { updatedBy: 'dev@empresa.com' });
+    await flushPromises();
+    await flushPromises();
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][0]).toContain('/projects');
+    expect(onData).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'P-1', nome: 'Projeto Atualizado' })
+    ]);
+    expect(onError).not.toHaveBeenCalled();
+
+    unsub();
   });
 
   it('updateProject usa _links.update quando payload inclui HATEOAS', async () => {

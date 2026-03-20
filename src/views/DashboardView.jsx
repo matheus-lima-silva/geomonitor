@@ -78,8 +78,18 @@ function getImpactTone(impact) {
   return 'ok';
 }
 
-function DashboardHeatMapViewport({ heatPoints }) {
+const DEFAULT_HEATMAP_HEIGHT = 220;
+const EXPANDED_HEATMAP_HEIGHT = 420;
+
+function DashboardHeatMapViewport({ heatPoints, mapHeight }) {
   const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+    if (typeof map.invalidateSize === 'function') {
+      map.invalidateSize(false);
+    }
+  }, [map, mapHeight]);
 
   useEffect(() => {
     if (!map) return;
@@ -100,7 +110,7 @@ function DashboardHeatMapViewport({ heatPoints }) {
         animate: false,
       },
     );
-  }, [heatPoints, map]);
+  }, [heatPoints, map, mapHeight]);
 
   return null;
 }
@@ -154,9 +164,12 @@ function DashboardMonitoring({ viewModel }) {
   } = viewModel || EMPTY_MONITORING_VIEW_MODEL;
   const [expandedMonthKey, setExpandedMonthKey] = useState(null);
   const [expandedReportRowKey, setExpandedReportRowKey] = useState('');
+  const [isHeatMapExpanded, setIsHeatMapExpanded] = useState(false);
   const upcomingScopeCount = reportOccurrences.length;
   const upcomingProjectCount = reportProjectMonthRows.length;
   const hasSearchFilter = Boolean(searchTermApplied);
+  const heatMapHeight = isHeatMapExpanded ? EXPANDED_HEATMAP_HEIGHT : DEFAULT_HEATMAP_HEIGHT;
+  const heatMapInstanceKey = isHeatMapExpanded ? 'expanded' : 'collapsed';
 
   return (
     <section className="flex flex-col gap-5 p-2">
@@ -335,15 +348,32 @@ function DashboardMonitoring({ viewModel }) {
         {/* Coluna direita */}
         <div className="flex flex-col gap-4">
           <Card variant="nested">
-            <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Mapa de calor (coordenadas)</h3>
-            <div style={{ width: '100%', height: 220, borderRadius: 10, overflow: 'hidden' }}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-bold text-slate-800 m-0">Mapa de calor (coordenadas)</h3>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                aria-expanded={isHeatMapExpanded ? 'true' : 'false'}
+                aria-controls="dashboard-heatmap-container"
+                onClick={() => setIsHeatMapExpanded((value) => !value)}
+                title="Alternar tamanho do mapa de calor"
+              >
+                {isHeatMapExpanded ? 'Recolher mapa' : 'Expandir mapa'}
+              </button>
+            </div>
+            <div
+              id="dashboard-heatmap-container"
+              data-testid="dashboard-heatmap-container"
+              style={{ width: '100%', height: heatMapHeight, borderRadius: 10, overflow: 'hidden' }}
+            >
               <MapContainer
+                key={heatMapInstanceKey}
                 center={heatPoints.length > 0 ? [heatPoints[0].latitude, heatPoints[0].longitude] : [-15.793889, -47.882778]}
                 zoom={heatPoints.length > 0 ? 10 : 4}
                 scrollWheelZoom={false}
                 style={{ width: '100%', height: '100%' }}
               >
-                <DashboardHeatMapViewport heatPoints={heatPoints} />
+                <DashboardHeatMapViewport heatPoints={heatPoints} mapHeight={heatMapHeight} />
                 <LayersControl position="topright">
                   <LayersControl.BaseLayer checked name="Mapa padrão">
                     <TileLayer
@@ -373,6 +403,8 @@ function DashboardMonitoring({ viewModel }) {
                       <strong>{point.id || '-'}</strong>
                       <br />
                       Projeto: {point.projetoId || '-'}
+                      <br />
+                      Torre: {formatTowerLabel(point.towerRef)}
                       <br />
                       Criticidade: {point.criticidade || '-'}
                       <br />

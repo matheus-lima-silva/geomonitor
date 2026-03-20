@@ -4,16 +4,84 @@ import { fetchWithHateoas, isNetworkFailureError, normalizeRequestError } from '
 const FALLBACK_PROD_API_BASE_URL = 'https://geomonitor-api.fly.dev/api';
 
 const CACHE_PREFIX = '__geocache_v1_';
+const CACHE_TTL_MS = 60 * 1000;
+const ACTIVE_REFRESHERS = new Map();
+
+function getCacheStorageKey(key) {
+  return CACHE_PREFIX + key;
+}
+
+function clearCache(key) {
+  try {
+    sessionStorage.removeItem(getCacheStorageKey(key));
+  } catch { /* ignore */ }
+}
+
+function registerActiveRefresher(resourcePath, refresher) {
+  const key = String(resourcePath || '').trim();
+  if (!key || typeof refresher !== 'function') return () => { };
+
+  if (!ACTIVE_REFRESHERS.has(key)) {
+    ACTIVE_REFRESHERS.set(key, new Set());
+  }
+
+  const refreshers = ACTIVE_REFRESHERS.get(key);
+  refreshers.add(refresher);
+
+  return () => {
+    refreshers.delete(refresher);
+    if (refreshers.size === 0) {
+      ACTIVE_REFRESHERS.delete(key);
+    }
+  };
+}
+
+function triggerActiveRefresh(resourcePath) {
+  const refreshers = ACTIVE_REFRESHERS.get(String(resourcePath || '').trim());
+  if (!refreshers || refreshers.size === 0) return;
+  refreshers.forEach((refresh) => {
+    try {
+      refresh();
+    } catch {
+      // Ignore refresh failures and let the next poll recover.
+    }
+  });
+}
 
 function readCache(key) {
   try {
-    const raw = sessionStorage.getItem(CACHE_PREFIX + key);
-    return raw ? JSON.parse(raw) : null;
+    const raw = sessionStorage.getItem(getCacheStorageKey(key));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    const isWrappedEntry = parsed
+      && typeof parsed === 'object'
+      && !Array.isArray(parsed)
+      && Object.prototype.hasOwnProperty.call(parsed, 'data')
+      && Object.prototype.hasOwnProperty.call(parsed, 'timestamp');
+
+    if (!isWrappedEntry) {
+      clearCache(key);
+      return null;
+    }
+
+    const timestamp = Number(parsed.timestamp);
+    if (!Number.isFinite(timestamp) || (Date.now() - timestamp) > CACHE_TTL_MS) {
+      clearCache(key);
+      return null;
+    }
+
+    return parsed.data ?? null;
   } catch { return null; }
 }
 
 function writeCache(key, data) {
-  try { sessionStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data)); } catch { /* ignore */ }
+  try {
+    sessionStorage.setItem(getCacheStorageKey(key), JSON.stringify({
+      data,
+      timestamp: Date.now(),
+    }));
+  } catch { /* ignore */ }
 }
 
 export function clearAllServiceCaches() {
@@ -77,7 +145,11 @@ export function createCrudService({
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
+      const response = await fetch(url, {
+        ...options,
+        cache: 'no-store',
+        signal: controller.signal,
+      });
       if (!response.ok) {
         let message = `Erro na operação (${itemName}).`;
         try {
@@ -94,7 +166,10 @@ export function createCrudService({
       if (isNetworkFailureError(error) && fallbackBaseUrl && typeof url === 'string' && url.startsWith(baseUrl)) {
         const retryUrl = `${fallbackBaseUrl}${url.slice(baseUrl.length)}`;
         try {
-          const retryResponse = await fetch(retryUrl, options);
+          const retryResponse = await fetch(retryUrl, {
+            ...options,
+            cache: 'no-store',
+          });
           if (!retryResponse.ok) {
             let retryMessage = `Erro na operação (${itemName}).`;
             try {
@@ -147,6 +222,7 @@ export function createCrudService({
     let disposed = false;
     let intervalId = null;
     let inFlight = false;
+    let rerunRequested = false;
     let retryTimeoutId = null;
     let visibilityChangeHandler = null;
 
@@ -154,9 +230,14 @@ export function createCrudService({
     const cached = readCache(resourcePath);
     if (Array.isArray(cached)) onData?.(cached);
 
-    const run = async () => {
-      if (disposed || inFlight) return;
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    const run = async (options = {}) => {
+      const { force = false } = options;
+      if (disposed) return;
+      if (inFlight) {
+        if (force) rerunRequested = true;
+        return;
+      }
+      if (!force && typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       inFlight = true;
 
       try {
@@ -173,8 +254,18 @@ export function createCrudService({
         }
       } finally {
         inFlight = false;
+        if (!disposed && rerunRequested) {
+          rerunRequested = false;
+          queueMicrotask(() => {
+            run({ force: true });
+          });
+        }
       }
     };
+
+    const unregisterRefresher = registerActiveRefresher(resourcePath, () => {
+      run({ force: true });
+    });
 
     run();
 
@@ -199,6 +290,7 @@ export function createCrudService({
       if (visibilityChangeHandler && typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', visibilityChangeHandler);
       }
+      unregisterRefresher();
     };
   }
 
@@ -212,53 +304,74 @@ export function createCrudService({
       if (!id) throw new Error(`${itemName} precisa de ID`);
 
       const token = await getToken();
-      return fetchWithToken(baseUrl, {
+      const result = await fetchWithToken(baseUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ data: { ...data, id }, meta })
       });
+      clearCache(resourcePath);
+      triggerActiveRefresh(resourcePath);
+      return result;
     },
 
     async update(id, data, meta = {}) {
       if (data?._links?.update) {
-        return fetchWithHateoas(data._links.update, { data: { ...data, id }, meta }, API_BASE_URL);
+        const result = await fetchWithHateoas(data._links.update, { data: { ...data, id }, meta }, API_BASE_URL);
+        clearCache(resourcePath);
+        triggerActiveRefresh(resourcePath);
+        return result;
       }
 
       const token = await getToken();
-      return fetchWithToken(`${baseUrl}/${id}`, {
+      const result = await fetchWithToken(`${baseUrl}/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ data: { ...data, id }, meta })
       });
+      clearCache(resourcePath);
+      triggerActiveRefresh(resourcePath);
+      return result;
     },
 
     async save(id, data, meta = {}) {
       if (data?._links?.update) {
-        return fetchWithHateoas(data._links.update, { data: { ...data, id }, meta }, API_BASE_URL);
+        const result = await fetchWithHateoas(data._links.update, { data: { ...data, id }, meta }, API_BASE_URL);
+        clearCache(resourcePath);
+        triggerActiveRefresh(resourcePath);
+        return result;
       }
 
       const token = await getToken();
       const fetchMethod = meta.merge ? 'PUT' : 'POST';
       const url = meta.merge ? `${baseUrl}/${id}` : baseUrl;
       
-      return fetchWithToken(url, {
+      const result = await fetchWithToken(url, {
         method: fetchMethod,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ data: { ...data, id }, meta })
       });
+      clearCache(resourcePath);
+      triggerActiveRefresh(resourcePath);
+      return result;
     },
 
     async remove(itemOrId) {
       const _links = itemOrId?._links || itemOrId;
       if (_links?.delete) {
-        return fetchWithHateoas(_links.delete, null, API_BASE_URL);
+        const result = await fetchWithHateoas(_links.delete, null, API_BASE_URL);
+        clearCache(resourcePath);
+        triggerActiveRefresh(resourcePath);
+        return result;
       }
       const id = typeof itemOrId === 'object' ? itemOrId.id : itemOrId;
       const token = await getToken();
-      return fetchWithToken(`${baseUrl}/${id}`, {
+      const result = await fetchWithToken(`${baseUrl}/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      clearCache(resourcePath);
+      triggerActiveRefresh(resourcePath);
+      return result;
     }
   };
 }
@@ -273,7 +386,11 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
+      const response = await fetch(url, {
+        ...options,
+        cache: 'no-store',
+        signal: controller.signal,
+      });
       if (!response.ok) {
         let message = `Erro na operação (${itemName}).`;
         try {
@@ -290,7 +407,10 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
       if (isNetworkFailureError(error) && fallbackBaseUrl && typeof url === 'string' && url.startsWith(baseUrl)) {
         const retryUrl = `${fallbackBaseUrl}${url.slice(baseUrl.length)}`;
         try {
-          const retryResponse = await fetch(retryUrl, options);
+          const retryResponse = await fetch(retryUrl, {
+            ...options,
+            cache: 'no-store',
+          });
           if (!retryResponse.ok) {
             let retryMessage = `Erro na operação (${itemName}).`;
             try {
@@ -331,11 +451,14 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
 
   async function save(data, meta = {}) {
     if (data?._links?.update) {
-      return fetchWithHateoas(data._links.update, { data, meta }, API_BASE_URL);
+      const result = await fetchWithHateoas(data._links.update, { data, meta }, API_BASE_URL);
+      clearCache(resourcePath);
+      triggerActiveRefresh(resourcePath);
+      return result;
     }
 
     const token = await getAuthToken();
-    return fetchWithToken(baseUrl, {
+    const result = await fetchWithToken(baseUrl, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -343,12 +466,16 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
       },
       body: JSON.stringify({ data, meta })
     });
+    clearCache(resourcePath);
+    triggerActiveRefresh(resourcePath);
+    return result;
   }
 
   function subscribe(onData, onError) {
     let disposed = false;
     let intervalId = null;
     let inFlight = false;
+    let rerunRequested = false;
     let retryTimeoutId = null;
     let visibilityChangeHandler = null;
 
@@ -356,9 +483,14 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
     const cached = readCache(resourcePath);
     if (cached !== null) onData?.(cached);
 
-    const run = async () => {
-      if (disposed || inFlight) return;
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    const run = async (options = {}) => {
+      const { force = false } = options;
+      if (disposed) return;
+      if (inFlight) {
+        if (force) rerunRequested = true;
+        return;
+      }
+      if (!force && typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       inFlight = true;
 
       try {
@@ -375,8 +507,18 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
         }
       } finally {
         inFlight = false;
+        if (!disposed && rerunRequested) {
+          rerunRequested = false;
+          queueMicrotask(() => {
+            run({ force: true });
+          });
+        }
       }
     };
+
+    const unregisterRefresher = registerActiveRefresher(resourcePath, () => {
+      run({ force: true });
+    });
 
     run();
 
@@ -401,6 +543,7 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
       if (visibilityChangeHandler && typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', visibilityChangeHandler);
       }
+      unregisterRefresher();
     };
   }
 
