@@ -26,6 +26,7 @@ __export(erosionCoordinates_exports, {
   isPartialUtmCoordinates: () => isPartialUtmCoordinates,
   normalizeLocationCoordinates: () => normalizeLocationCoordinates,
   parseCoordinateNumber: () => parseCoordinateNumber,
+  parseUtmNumber: () => parseUtmNumber,
   resolveLocationCoordinatesForSave: () => resolveLocationCoordinatesForSave
 });
 module.exports = __toCommonJS(erosionCoordinates_exports);
@@ -39,6 +40,16 @@ function parseCoordinateNumber(value) {
   const normalized = toTrimmedString(value).replace(",", ".");
   if (!normalized) return null;
   const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function parseUtmNumber(value) {
+  let text = toTrimmedString(value);
+  if (!text) return null;
+  if (/^\d{1,3}(\.\d{3})+$/.test(text)) {
+    text = text.replace(/\./g, "");
+  }
+  text = text.replace(",", ".");
+  const parsed = Number(text);
   return Number.isFinite(parsed) ? parsed : null;
 }
 function formatDecimalCoordinate(value, digits = 6) {
@@ -55,6 +66,8 @@ function normalizeLocationCoordinates(erosion = {}) {
     utmNorthing: toTrimmedString(source.utmNorthing),
     utmZone: toTrimmedString(source.utmZone),
     utmHemisphere: toTrimmedString(source.utmHemisphere).toUpperCase(),
+    dmsLatitude: toTrimmedString(source.dmsLatitude),
+    dmsLongitude: toTrimmedString(source.dmsLongitude),
     altitude: toTrimmedString(source.altitude),
     reference: toTrimmedString(source.reference)
   };
@@ -84,8 +97,8 @@ function convertUtmToDecimalWgs84({
 }) {
   const zoneValue = Number.parseInt(String(zone || "").trim(), 10);
   const hemisphereValue = String(hemisphere || "").trim().toUpperCase();
-  const eastingValue = parseCoordinateNumber(easting);
-  const northingValue = parseCoordinateNumber(northing);
+  const eastingValue = parseUtmNumber(easting);
+  const northingValue = parseUtmNumber(northing);
   if (!Number.isInteger(zoneValue) || zoneValue < 1 || zoneValue > 60) return null;
   if (!["N", "S"].includes(hemisphereValue)) return null;
   if (!Number.isFinite(eastingValue) || !Number.isFinite(northingValue)) return null;
@@ -161,5 +174,6 @@ function resolveLocationCoordinatesForSave(input = {}) {
   isPartialUtmCoordinates,
   normalizeLocationCoordinates,
   parseCoordinateNumber,
+  parseUtmNumber,
   resolveLocationCoordinatesForSave
 });

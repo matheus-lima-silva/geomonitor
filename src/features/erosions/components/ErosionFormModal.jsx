@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, Input, Modal, Select, Textarea } from '../../../components/ui';
 import {
@@ -15,8 +15,10 @@ import {
   hasValidDecimalCoordinates,
   isCompleteUtmCoordinates,
   isPartialUtmCoordinates,
+  normalizeLocationCoordinates,
   parseCoordinateNumber,
   resolveLocationCoordinatesForSave,
+  syncCoordinateFields,
 } from '../../shared/erosionCoordinates';
 import {
   buildCriticalitySummaryFromCalculation,
@@ -42,6 +44,8 @@ function hasAnyLocationValue(locationCoordinates = {}) {
     locationCoordinates.utmNorthing,
     locationCoordinates.utmZone,
     locationCoordinates.utmHemisphere,
+    locationCoordinates.dmsLatitude,
+    locationCoordinates.dmsLongitude,
     locationCoordinates.altitude,
     locationCoordinates.reference,
   ].some((value) => String(value || '').trim() !== '');
@@ -54,6 +58,10 @@ function getCoordinatesStatus(locationCoordinates = {}) {
   const latitude = parseCoordinateNumber(locationCoordinates.latitude);
   const longitude = parseCoordinateNumber(locationCoordinates.longitude);
   if (Number.isFinite(latitude) && Number.isFinite(longitude)) return 'Decimal';
+
+  const dmsLat = String(locationCoordinates.dmsLatitude || '').trim();
+  const dmsLon = String(locationCoordinates.dmsLongitude || '').trim();
+  if (dmsLat && dmsLon) return 'Sexagesimal';
 
   return 'Nao preenchido';
 }
@@ -73,6 +81,7 @@ function ErosionFormModal({
 }) {
   const [coordinatesExpanded, setCoordinatesExpanded] = useState(false);
   const [showInteractiveMap, setShowInteractiveMap] = useState(false);
+  const syncTimerRef = useRef(null);
   const safeFormData = formData && typeof formData === 'object' ? formData : {};
   const safeProjects = Array.isArray(projects) ? projects.filter((item) => item && typeof item === 'object') : [];
   const safeInspections = Array.isArray(inspections) ? inspections.filter((item) => item && typeof item === 'object') : [];
@@ -96,6 +105,8 @@ function ErosionFormModal({
     utmNorthing: '',
     utmZone: '',
     utmHemisphere: '',
+    dmsLatitude: '',
+    dmsLongitude: '',
     altitude: '',
     reference: '',
     ...(safeFormData.locationCoordinates || {}),
@@ -110,6 +121,8 @@ function ErosionFormModal({
       locationCoordinates.utmNorthing,
       locationCoordinates.utmZone,
       locationCoordinates.utmHemisphere,
+      locationCoordinates.dmsLatitude,
+      locationCoordinates.dmsLongitude,
     ],
   );
 
@@ -278,6 +291,32 @@ function ErosionFormModal({
     }));
   }
 
+  function handleCoordinateChange(field, value) {
+    // Update the changed field immediately
+    setFormData((prev) => {
+      const source = (prev && typeof prev === 'object') ? prev : {};
+      const updated = {
+        ...(source.locationCoordinates || {}),
+        [field]: value,
+      };
+      return { ...source, locationCoordinates: updated };
+    });
+
+    // Debounce the sync
+    clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      setFormData((prev) => {
+        const source = (prev && typeof prev === 'object') ? prev : {};
+        const coords = { ...(source.locationCoordinates || {}), [field]: value };
+        const group = ['utmEasting', 'utmNorthing', 'utmZone', 'utmHemisphere'].includes(field) ? 'utm'
+          : ['dmsLatitude', 'dmsLongitude'].includes(field) ? 'dms'
+          : 'decimal';
+        const synced = syncCoordinateFields(group, coords);
+        return { ...source, locationCoordinates: synced };
+      });
+    }, 400);
+  }
+
   function applyDecimalCoordinates(latitude, longitude) {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
     const nextLatitude = Number(latitude).toFixed(6);
@@ -285,14 +324,13 @@ function ErosionFormModal({
     setCoordinatesExpanded(true);
     setFormData((prev) => {
       const source = (prev && typeof prev === 'object') ? prev : {};
-      return {
-        ...source,
-        locationCoordinates: {
-          ...(source.locationCoordinates || {}),
-          latitude: nextLatitude,
-          longitude: nextLongitude,
-        },
+      const coords = {
+        ...(source.locationCoordinates || {}),
+        latitude: nextLatitude,
+        longitude: nextLongitude,
       };
+      const synced = syncCoordinateFields('decimal', coords);
+      return { ...source, locationCoordinates: synced };
     });
   }
 
@@ -497,7 +535,16 @@ function ErosionFormModal({
 
       <section className="flex flex-col gap-4 mb-8">
         <div className="flex items-center justify-between gap-4 mb-2">
-          <h4 className="text-lg font-semibold text-slate-800 m-0">Localização geográfica</h4>
+          <h4 className="text-lg font-semibold text-slate-800 m-0">
+            Localização geográfica
+            {' '}
+            <span className="relative group cursor-help">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-200 text-slate-500 text-xs font-bold">?</span>
+              <span className="absolute left-6 top-0 z-50 hidden group-hover:block w-72 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-lg whitespace-pre-line">
+                {`Preencha em qualquer formato.\nOs demais serão calculados automaticamente.\n\n• Decimal: -23.310194\n• UTM: E 500000, N 7420000, Zona 22, S\n• Sexagesimal: 23°18'36.7"S`}
+              </span>
+            </span>
+          </h4>
           <Button
             variant="ghost"
             size="sm"
@@ -516,14 +563,14 @@ function ErosionFormModal({
                 id="erosion-lat"
                 label="Latitude (centesimal)"
                 value={locationCoordinates.latitude}
-                onChange={(e) => updateLocationField('latitude', e.target.value)}
+                onChange={(e) => handleCoordinateChange('latitude', e.target.value)}
                 placeholder="-22.951958"
               />
               <Input
                 id="erosion-lng"
                 label="Longitude (centesimal)"
                 value={locationCoordinates.longitude}
-                onChange={(e) => updateLocationField('longitude', e.target.value)}
+                onChange={(e) => handleCoordinateChange('longitude', e.target.value)}
                 placeholder="-43.210602"
               />
             </div>
@@ -617,30 +664,47 @@ function ErosionFormModal({
                 id="erosion-utm-e"
                 label="UTM Easting"
                 value={locationCoordinates.utmEasting}
-                onChange={(e) => updateLocationField('utmEasting', e.target.value)}
+                onChange={(e) => handleCoordinateChange('utmEasting', e.target.value)}
               />
               <Input
                 id="erosion-utm-n"
                 label="UTM Northing"
                 value={locationCoordinates.utmNorthing}
-                onChange={(e) => updateLocationField('utmNorthing', e.target.value)}
+                onChange={(e) => handleCoordinateChange('utmNorthing', e.target.value)}
               />
               <Input
                 id="erosion-utm-zone"
                 label="UTM Zona"
                 value={locationCoordinates.utmZone}
-                onChange={(e) => updateLocationField('utmZone', e.target.value)}
+                onChange={(e) => handleCoordinateChange('utmZone', e.target.value)}
               />
               <Select
                 id="erosion-utm-hemi"
                 label="Hemisfério UTM"
                 value={locationCoordinates.utmHemisphere || ''}
-                onChange={(e) => updateLocationField('utmHemisphere', e.target.value)}
+                onChange={(e) => handleCoordinateChange('utmHemisphere', e.target.value)}
               >
                 <option value="">Selecione...</option>
                 <option value="N">N</option>
                 <option value="S">S</option>
               </Select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                id="erosion-dms-lat"
+                label="Latitude Sexagesimal (DMS)"
+                placeholder={`23°18'36.70"S`}
+                value={locationCoordinates.dmsLatitude}
+                onChange={(e) => handleCoordinateChange('dmsLatitude', e.target.value)}
+              />
+              <Input
+                id="erosion-dms-lon"
+                label="Longitude Sexagesimal (DMS)"
+                placeholder={`51°09'45.20"W`}
+                value={locationCoordinates.dmsLongitude}
+                onChange={(e) => handleCoordinateChange('dmsLongitude', e.target.value)}
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

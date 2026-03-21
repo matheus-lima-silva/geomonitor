@@ -6,6 +6,10 @@ import {
   isHistoricalErosionRecord,
   normalizeErosionTechnicalFields,
 } from '../../shared/viewUtils';
+import {
+  getCriticalityClass,
+  resolveErosionCriticality,
+} from '../../../../shared/erosionHelpers';
 
 function getImpactTone(impact) {
   if (impact === 'Muito Alto') return 'critical';
@@ -52,8 +56,8 @@ function ErosionCardGrid({
                 {isHistoricalRecord ? (
                   <Badge tone="warning" size="sm">Histórico</Badge>
                 ) : null}
-                <Badge tone={getImpactTone(erosion.impacto)} size="sm">
-                  {erosion.impacto || 'Não informado'}
+                <Badge tone={getImpactTone(getCriticalityClass(resolveErosionCriticality(erosion), erosion.impacto))} size="sm">
+                  {getCriticalityClass(resolveErosionCriticality(erosion), erosion.impacto) || 'Não calculado'}
                 </Badge>
               </div>
             </div>

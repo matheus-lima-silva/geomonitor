@@ -498,6 +498,41 @@ function _getLongestLineStringKm(folders) {
   return bestKm;
 }
 
+function _getLineStringEndpoints(folder) {
+  let bestLength = 0;
+  let bestEndpoints = null;
+  const placemarks = Array.from(folder.getElementsByTagName('Placemark'));
+  for (const pm of placemarks) {
+    const lineNode = pm.getElementsByTagName('LineString')?.[0];
+    if (!lineNode) continue;
+    const coordsText = lineNode.getElementsByTagName('coordinates')?.[0]?.textContent || '';
+    const path = parseCoordinatePath(coordsText);
+    if (path.length < 2) continue;
+    const length = getPathLengthKm(path);
+    if (length > bestLength) {
+      bestLength = length;
+      bestEndpoints = { start: path[0], end: path[path.length - 1] };
+    }
+  }
+  return bestEndpoints;
+}
+
+function _areLineStringsSimilar(folderA, folderB, toleranceKm = 0.1) {
+  const epA = _getLineStringEndpoints(folderA);
+  const epB = _getLineStringEndpoints(folderB);
+  if (!epA || !epB) return false;
+
+  // Check both orientations (A→B might be reversed)
+  const directStartDist = haversineDistanceKm(epA.start, epB.start);
+  const directEndDist = haversineDistanceKm(epA.end, epB.end);
+  const reversedStartDist = haversineDistanceKm(epA.start, epB.end);
+  const reversedEndDist = haversineDistanceKm(epA.end, epB.start);
+
+  const directMatch = directStartDist <= toleranceKm && directEndDist <= toleranceKm;
+  const reversedMatch = reversedStartDist <= toleranceKm && reversedEndDist <= toleranceKm;
+  return directMatch || reversedMatch;
+}
+
 export function detectKmlLines(kmlText) {
   const empty = { isMultiLine: false, lines: [] };
   const parser = new DOMParser();
@@ -507,26 +542,78 @@ export function detectKmlLines(kmlText) {
   const siglaFolders = _findSiglaFolders(xml);
   if (siglaFolders.length < 2) return empty;
 
-  const groups = new Map();
+  // Phase 1: Collect entries per base sigla
+  const rawGroups = new Map();
   for (const entry of siglaFolders) {
-    const baseSigla = _stripCircuitNumber(sanitizeProjectId(entry.folderName));
+    const fullSigla = sanitizeProjectId(entry.folderName);
+    const baseSigla = _stripCircuitNumber(fullSigla);
     if (!baseSigla) continue;
 
-    if (!groups.has(baseSigla)) {
-      const descriptiveRaw = _getDescriptiveName(entry.folder);
+    if (!rawGroups.has(baseSigla)) {
+      rawGroups.set(baseSigla, []);
+    }
+    rawGroups.get(baseSigla).push({ ...entry, fullSigla });
+  }
+
+  // Phase 2: Cluster by route similarity within each base sigla
+  const groups = new Map();
+  for (const [baseSigla, entries] of rawGroups) {
+    if (entries.length === 1) {
+      // Single entry — use base sigla
+      const entry = entries[0];
       groups.set(baseSigla, {
         sigla: baseSigla,
-        descriptiveName: _stripDescriptiveCircuitSuffix(descriptiveRaw),
+        descriptiveName: _stripDescriptiveCircuitSuffix(_getDescriptiveName(entry.folder)),
         tensaoKv: entry.parentName,
         folders: [entry.folder],
         folderIndices: [entry.index],
         circuitCount: 1,
       });
-    } else {
-      const group = groups.get(baseSigla);
-      group.folders.push(entry.folder);
-      group.folderIndices.push(entry.index);
-      group.circuitCount += 1;
+      continue;
+    }
+
+    // Multiple entries — cluster by route similarity
+    const clusters = [];
+    for (const entry of entries) {
+      let matched = false;
+      for (const cluster of clusters) {
+        if (_areLineStringsSimilar(entry.folder, cluster[0].folder)) {
+          cluster.push(entry);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        clusters.push([entry]);
+      }
+    }
+
+    // Find the largest cluster (gets the base sigla)
+    clusters.sort((a, b) => b.length - a.length);
+
+    for (let ci = 0; ci < clusters.length; ci++) {
+      const cluster = clusters[ci];
+      const isMainCluster = ci === 0;
+
+      // Main cluster uses base sigla; secondary clusters use sigla + circuit number
+      let clusterSigla;
+      if (isMainCluster) {
+        clusterSigla = baseSigla;
+      } else {
+        // Use the circuit number from the first entry in this cluster
+        const suffix = cluster[0].fullSigla.slice(baseSigla.length);
+        clusterSigla = suffix ? `${baseSigla}${suffix}` : `${baseSigla}C${ci + 1}`;
+      }
+
+      const firstEntry = cluster[0];
+      groups.set(clusterSigla, {
+        sigla: clusterSigla,
+        descriptiveName: _stripDescriptiveCircuitSuffix(_getDescriptiveName(firstEntry.folder)),
+        tensaoKv: firstEntry.parentName,
+        folders: cluster.map((e) => e.folder),
+        folderIndices: cluster.map((e) => e.index),
+        circuitCount: cluster.length,
+      });
     }
   }
 

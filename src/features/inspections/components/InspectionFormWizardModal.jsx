@@ -22,6 +22,7 @@ import {
   normalizeLocationCoordinates,
   parseCoordinateNumber,
   resolveLocationCoordinatesForSave,
+  syncCoordinateFields,
 } from '../../shared/erosionCoordinates';
 import ErosionTechnicalFields from '../../erosions/components/ErosionTechnicalFields';
 import { buildHotelHistory, extractHotelFields, findPreviousDayHotel } from '../utils/hotelHistory';
@@ -30,6 +31,7 @@ import {
   compareTowerNumbers,
   ensurePendingTowersVisibleInDays,
   findDuplicateTowersAcrossDays,
+  findExistingInspections,
   getInspectionPendency,
   getPendingErosionsForInspection,
   isErosionLinkedToInspection,
@@ -66,6 +68,8 @@ const EMPTY_EROSION_FORM = {
     utmNorthing: '',
     utmZone: '',
     utmHemisphere: '',
+    dmsLatitude: '',
+    dmsLongitude: '',
     altitude: '',
     reference: '',
   },
@@ -296,6 +300,7 @@ function InspectionFormWizardModal({
   const hotelPickerSearchRef = useRef(null);
   const inlineErosionOverlayRef = useRef(null);
   const inlineErosionBodyRef = useRef(null);
+  const coordSyncTimerRef = useRef(null);
 
   const selectedProject = useMemo(
     () => (projects || []).find((item) => item.id === formData.projetoId) || null,
@@ -495,13 +500,39 @@ function InspectionFormWizardModal({
   }
 
   function updateInlineLocationField(field, value) {
-    setErosionForm((prev) => ({
-      ...prev,
-      locationCoordinates: {
+    const utmFields = ['utmEasting', 'utmNorthing', 'utmZone', 'utmHemisphere'];
+    const decimalFields = ['latitude', 'longitude'];
+    const dmsFields = ['dmsLatitude', 'dmsLongitude'];
+
+    let group = null;
+    if (utmFields.includes(field)) group = 'utm';
+    else if (decimalFields.includes(field)) group = 'decimal';
+    else if (dmsFields.includes(field)) group = 'dms';
+
+    setErosionForm((prev) => {
+      const updated = {
         ...(prev.locationCoordinates || {}),
         [field]: value,
-      },
-    }));
+      };
+      return {
+        ...prev,
+        locationCoordinates: updated,
+      };
+    });
+
+    if (group) {
+      if (coordSyncTimerRef.current) clearTimeout(coordSyncTimerRef.current);
+      coordSyncTimerRef.current = setTimeout(() => {
+        setErosionForm((prev) => {
+          const current = { ...(prev.locationCoordinates || {}), [field]: value };
+          const synced = syncCoordinateFields(group, current);
+          return {
+            ...prev,
+            locationCoordinates: synced,
+          };
+        });
+      }, 600);
+    }
   }
 
   function updateInlineStatus(value) {
@@ -1113,6 +1144,20 @@ function InspectionFormWizardModal({
   async function handleSaveInspection() {
     try {
       if (!validateStep1()) return;
+
+      if (!isEditing) {
+        const existingForDate = findExistingInspections(formData.projetoId, formData.dataInicio, inspections);
+        if (existingForDate.length > 0) {
+          const ids = existingForDate.map((e) => e.id).join(', ');
+          const confirmed = window.confirm(
+            `Ja existe vistoria para este empreendimento nesta data: ${ids}.\nDeseja criar uma nova mesmo assim?`,
+          );
+          if (!confirmed) {
+            show('Criacao cancelada.', 'info');
+            return;
+          }
+        }
+      }
 
       const duplicates = findDuplicateTowersAcrossDays(formData.detalhesDias);
       if (duplicates.length > 0) {
@@ -1804,6 +1849,20 @@ function InspectionFormWizardModal({
                         <option value="N">N</option>
                         <option value="S">S</option>
                       </Select>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Input
+                        id="inspection-erosion-dms-lat"
+                        placeholder={`Lat DMS (ex: 23°18'36.70"S)`}
+                        value={erosionForm.locationCoordinates?.dmsLatitude || ''}
+                        onChange={(e) => updateInlineLocationField('dmsLatitude', e.target.value)}
+                      />
+                      <Input
+                        id="inspection-erosion-dms-lon"
+                        placeholder={`Lon DMS (ex: 51°09'45.20"W)`}
+                        value={erosionForm.locationCoordinates?.dmsLongitude || ''}
+                        onChange={(e) => updateInlineLocationField('dmsLongitude', e.target.value)}
+                      />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <Input

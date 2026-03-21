@@ -141,6 +141,16 @@ export function buildInspectionId(projetoId, dataInicio, inspections = []) {
   return `${prefix}${nextSeq}`;
 }
 
+export function findExistingInspections(projetoId, dataInicio, inspections) {
+  const pid = String(projetoId || '').trim();
+  const date = String(dataInicio || '').trim();
+  if (!pid || !date) return [];
+  return (inspections || []).filter((ins) =>
+    String(ins?.projetoId || '').trim() === pid
+    && String(ins?.dataInicio || '').trim() === date
+  );
+}
+
 export function getPendingErosionsForInspection({ erosions, projectId, inspectionId }) {
   const pid = String(projectId || '').trim();
   const iid = String(inspectionId || '').trim();
