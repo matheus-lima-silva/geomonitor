@@ -8,10 +8,13 @@
  *   fullWidth  — ocupa 100% da largura (padrão: true)
  *   children   — opções <option>
  */
+import HintText from './HintText';
+
 export default function Select({
     label,
     id,
     error,
+    hint,
     fullWidth = true,
     className = '',
     children,
@@ -33,9 +36,10 @@ export default function Select({
             {label && (
                 <label
                     htmlFor={id}
-                    className="block mb-1 text-2xs font-bold uppercase tracking-wide text-slate-500"
+                    className="flex items-center gap-1.5 mb-1 text-2xs font-bold uppercase tracking-wide text-slate-500"
                 >
-                    {label}
+                    <span>{label}</span>
+                    {hint ? <HintText label={label}>{hint}</HintText> : null}
                 </label>
             )}
             <select id={id} className={selectClass} {...props}>

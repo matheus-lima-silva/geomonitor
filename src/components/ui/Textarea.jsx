@@ -7,10 +7,13 @@
  *   error     - mensagem de erro (string)
  *   fullWidth - ocupa 100% da largura (padrao: true)
  */
+import HintText from './HintText';
+
 export default function Textarea({
     label,
     id,
     error,
+    hint,
     fullWidth = true,
     className = '',
     rows = 3,
@@ -32,9 +35,10 @@ export default function Textarea({
             {label && (
                 <label
                     htmlFor={id}
-                    className="block mb-1 text-2xs font-bold uppercase tracking-wide text-slate-500"
+                    className="flex items-center gap-1.5 mb-1 text-2xs font-bold uppercase tracking-wide text-slate-500"
                 >
-                    {label}
+                    <span>{label}</span>
+                    {hint ? <HintText label={label}>{hint}</HintText> : null}
                 </label>
             )}
             <textarea id={id} rows={rows} className={textareaClass} {...props} />

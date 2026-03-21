@@ -713,7 +713,8 @@ function InspectionFormWizardModal({
   }
 
   function ensureLocalInspectionId() {
-    const currentId = String(formData.id || '').trim();
+    const currentId = String(formData.id || '').trim()
+      || (isEditing && String(initialData?.id || '').trim());
     if (currentId) return currentId;
 
     const nextInspectionId = buildInspectionId(formData.projetoId, formData.dataInicio, inspections) || `VS-${Date.now()}`;
@@ -729,7 +730,10 @@ function InspectionFormWizardModal({
     if (!formData.projetoId || !formData.dataInicio) {
       throw new Error('Selecione empreendimento e data de inicio antes desta acao.');
     }
-    const id = String(formData.id || '').trim() || buildInspectionId(formData.projetoId, formData.dataInicio, inspections) || `VS-${Date.now()}`;
+    const id = String(formData.id || '').trim()
+      || (isEditing && String(initialData?.id || '').trim())
+      || buildInspectionId(formData.projetoId, formData.dataInicio, inspections)
+      || `VS-${Date.now()}`;
     const payload = buildInspectionPayload({ ...formData, id }, id);
     await saveInspection(payload, { merge: true, updatedBy: actorName });
     setFormData((prev) => ({ ...prev, id }));
@@ -1146,7 +1150,9 @@ function InspectionFormWizardModal({
       if (!validateStep1()) return;
 
       if (!isEditing) {
-        const existingForDate = findExistingInspections(formData.projetoId, formData.dataInicio, inspections);
+        const currentId = String(formData.id || '').trim();
+        const existingForDate = findExistingInspections(formData.projetoId, formData.dataInicio, inspections)
+          .filter((e) => !currentId || e.id !== currentId);
         if (existingForDate.length > 0) {
           const ids = existingForDate.map((e) => e.id).join(', ');
           const confirmed = window.confirm(
@@ -1179,6 +1185,7 @@ function InspectionFormWizardModal({
       setSaving(true);
 
       const inspectionId = String(formData.id || '').trim()
+        || (isEditing && String(initialData?.id || '').trim())
         || buildInspectionId(formData.projetoId, formData.dataInicio, inspections)
         || `VS-${Date.now()}`;
       const payload = buildInspectionPayload({ ...formData, id: inspectionId }, inspectionId);
@@ -1246,6 +1253,7 @@ function InspectionFormWizardModal({
                 <Input
                   id="inspection-id"
                   label="ID"
+                  hint="Gerado automaticamente a partir do empreendimento e data de inicio."
                   value={formData.id || ''}
                   disabled
                   className="bg-slate-100 text-slate-500 cursor-not-allowed"
@@ -1254,6 +1262,7 @@ function InspectionFormWizardModal({
                 <Select
                   id="inspection-project"
                   label="Empreendimento *"
+                  hint="Selecione a linha de transmissao ou empreendimento desta vistoria."
                   value={formData.projetoId}
                   onChange={(e) => updateGeneralField('projetoId', e.target.value)}
                 >
@@ -1265,6 +1274,7 @@ function InspectionFormWizardModal({
                 <Input
                   id="inspection-responsavel"
                   label="Responsavel"
+                  hint="Nome do tecnico responsavel pela vistoria em campo."
                   value={formData.responsavel || ''}
                   onChange={(e) => updateGeneralField('responsavel', e.target.value)}
                   placeholder="Nome do responsavel"
@@ -1272,6 +1282,7 @@ function InspectionFormWizardModal({
                 <Input
                   id="inspection-date-start"
                   label="Data inicio *"
+                  hint="Primeiro dia da campanha de campo. Os dias do diario serao gerados automaticamente."
                   type="date"
                   value={formData.dataInicio || ''}
                   onChange={(e) => updateGeneralField('dataInicio', e.target.value)}
@@ -1279,6 +1290,7 @@ function InspectionFormWizardModal({
                 <Input
                   id="inspection-date-end"
                   label="Data fim"
+                  hint="Ultimo dia da campanha. Deixe em branco se a vistoria for de apenas um dia."
                   type="date"
                   value={formData.dataFim || ''}
                   onChange={(e) => updateGeneralField('dataFim', e.target.value)}
@@ -1287,6 +1299,7 @@ function InspectionFormWizardModal({
               <Textarea
                 id="inspection-obs"
                 label="Observacoes"
+                hint="Anotacoes gerais: equipe, veiculo, condicoes de acesso, etc."
                 rows={3}
                 value={formData.obs || ''}
                 onChange={(e) => updateGeneralField('obs', e.target.value)}
@@ -1347,7 +1360,7 @@ function InspectionFormWizardModal({
                       {isDayExpanded ? (
                         <div className="p-5 border-t border-slate-100 flex flex-col gap-5 bg-slate-50/50">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Select id={`inspection-day-weather-${dayIndex}`} label="Clima" value={day.clima || ''} onChange={(e) => updateDayField(dayIndex, { clima: e.target.value })}>
+                            <Select id={`inspection-day-weather-${dayIndex}`} label="Clima" hint="Condicao predominante do dia. Se variou muito, registre nas observacoes da torre." value={day.clima || ''} onChange={(e) => updateDayField(dayIndex, { clima: e.target.value })}>
                               <option value="">Selecione...</option>
                               <option value="Sol">Sol</option>
                               <option value="Parcialmente Nublado">Parcialmente nublado</option>
@@ -1509,9 +1522,9 @@ function InspectionFormWizardModal({
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                            <Input id={`inspection-hotel-name-${dayIndex}`} value={day.hotelNome || ''} onChange={(e) => updateDayField(dayIndex, { hotelNome: e.target.value })} placeholder="Hotel (opcional)" />
-                            <Input id={`inspection-hotel-city-${dayIndex}`} value={day.hotelMunicipio || ''} onChange={(e) => updateDayField(dayIndex, { hotelMunicipio: e.target.value })} placeholder="Municipio do hotel" />
-                            <Select id={`inspection-hotel-logistics-${dayIndex}`} value={day.hotelLogisticaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelLogisticaNota: e.target.value })}>
+                            <Input id={`inspection-hotel-name-${dayIndex}`} label="Hotel" hint="Nome do hotel ou pousada utilizado para pernoite." value={day.hotelNome || ''} onChange={(e) => updateDayField(dayIndex, { hotelNome: e.target.value })} placeholder="Hotel (opcional)" />
+                            <Input id={`inspection-hotel-city-${dayIndex}`} label="Municipio" hint="Municipio onde o hotel esta localizado." value={day.hotelMunicipio || ''} onChange={(e) => updateDayField(dayIndex, { hotelMunicipio: e.target.value })} placeholder="Municipio do hotel" />
+                            <Select id={`inspection-hotel-logistics-${dayIndex}`} label="Logistica" hint="Avalie a facilidade de deslocamento ate as torres a partir do hotel. 1=pessimo, 5=otimo." value={day.hotelLogisticaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelLogisticaNota: e.target.value })}>
                               <option value="">Logistica (1-5)</option>
                               <option value="1">1</option>
                               <option value="2">2</option>
@@ -1519,7 +1532,7 @@ function InspectionFormWizardModal({
                               <option value="4">4</option>
                               <option value="5">5</option>
                             </Select>
-                            <Select id={`inspection-hotel-booking-${dayIndex}`} value={day.hotelReservaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelReservaNota: e.target.value })}>
+                            <Select id={`inspection-hotel-booking-${dayIndex}`} label="Reserva" hint="Avalie o processo de reserva: disponibilidade, comunicacao, confirmacao. 1=pessimo, 5=otimo." value={day.hotelReservaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelReservaNota: e.target.value })}>
                               <option value="">Reserva (1-5)</option>
                               <option value="1">1</option>
                               <option value="2">2</option>
@@ -1527,7 +1540,7 @@ function InspectionFormWizardModal({
                               <option value="4">4</option>
                               <option value="5">5</option>
                             </Select>
-                            <Select id={`inspection-hotel-stay-${dayIndex}`} value={day.hotelEstadiaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelEstadiaNota: e.target.value })}>
+                            <Select id={`inspection-hotel-stay-${dayIndex}`} label="Estadia" hint="Avalie conforto, limpeza e infraestrutura do hotel. 1=pessimo, 5=otimo." value={day.hotelEstadiaNota ?? ''} onChange={(e) => updateDayField(dayIndex, { hotelEstadiaNota: e.target.value })}>
                               <option value="">Estadia (1-5)</option>
                               <option value="1">1</option>
                               <option value="2">2</option>
@@ -1537,6 +1550,8 @@ function InspectionFormWizardModal({
                             </Select>
                             <Select
                               id={`inspection-hotel-base-tower-${dayIndex}`}
+                              label="Torre base"
+                              hint="Torre mais proxima do hotel, usada como referencia logistica."
                               className="disabled:opacity-60 disabled:bg-slate-100"
                               value={day.hotelTorreBase || ''}
                               onChange={(e) => updateDayField(dayIndex, { hotelTorreBase: e.target.value })}
