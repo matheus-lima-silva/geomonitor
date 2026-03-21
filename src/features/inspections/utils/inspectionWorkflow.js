@@ -1,15 +1,7 @@
 import { parseTowerInput } from '../../../utils/parseTowerInput';
+import { compareTowerNumbers } from '../../projects/utils/kmlUtils';
 
-export function compareTowerNumbers(a, b) {
-  const na = Number(a);
-  const nb = Number(b);
-  const aFinite = Number.isFinite(na);
-  const bFinite = Number.isFinite(nb);
-  if (aFinite && bFinite) return na - nb;
-  if (aFinite) return -1;
-  if (bFinite) return 1;
-  return String(a || '').localeCompare(String(b || ''));
-}
+export { compareTowerNumbers };
 
 export function normalizeInspectionPendencies(value) {
   const raw = Array.isArray(value) ? value : [];

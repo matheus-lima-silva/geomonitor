@@ -7,6 +7,7 @@ import {
   normalizeReportPeriodicity,
   validateReportSchedule,
 } from '../../projects/utils/reportSchedule';
+import { getProjectTowerList } from '../../../utils/getProjectTowerList';
 
 function normalizeSphere(value) {
   const raw = String(value || '').trim().toLowerCase();
@@ -123,16 +124,14 @@ export function validateOperatingLicensePayload(payload, { projectsById } = {}) 
     }
     if (projectsById && projectsById.has(item.projetoId)) {
       const project = projectsById.get(item.projetoId);
-      const maxTower = Number(project?.torres || 0);
-      if (Number.isInteger(maxTower) && maxTower > 0) {
-        const invalid = item.torres.find((tower) => {
-          const num = Number(tower);
-          return !Number.isFinite(num) || num < 1 || num > maxTower;
-        });
+      const validTowers = getProjectTowerList(project);
+      if (validTowers.length > 0) {
+        const validSet = new Set(validTowers);
+        const invalid = item.torres.find((tower) => !validSet.has(String(tower)));
         if (invalid) {
           return {
             ok: false,
-            message: `Cobertura ${i + 1}: torre ${invalid} fora do intervalo do empreendimento ${item.projetoId}.`,
+            message: `Cobertura ${i + 1}: torre ${invalid} nao pertence ao empreendimento ${item.projetoId}.`,
           };
         }
       }

@@ -1,4 +1,5 @@
 ﻿import { parseTowerInput } from '../../../utils/parseTowerInput';
+import { getProjectTowerList } from '../../../utils/getProjectTowerList';
 
 function toDate(value) {
   if (!value) return null;
@@ -345,12 +346,7 @@ function collectTowerComments(inspections, towerRef, limit = 5) {
 }
 
 function collectProjectTowers(project, inspections, erosions) {
-  const set = new Set();
-  const total = Number(project?.torres || 0);
-
-  if (Number.isInteger(total) && total > 0 && total <= 5000) {
-    for (let i = 1; i <= total; i += 1) set.add(String(i));
-  }
+  const set = new Set(getProjectTowerList(project));
 
   (inspections || []).forEach((inspection) => {
     collectVisitedTowers(inspection).forEach((tower) => set.add(tower));

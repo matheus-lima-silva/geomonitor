@@ -117,12 +117,18 @@ export function useProjectsFeatureState({ projects, onSaved, showToast, currentU
       if (!scheduleValidation.ok) throw new Error(scheduleValidation.message);
     }
 
+    const torresCoordenadas = Array.isArray(formData.torresCoordenadas) ? formData.torresCoordenadas : [];
+    const torres = torresCoordenadas.length > 0
+      ? String(torresCoordenadas.length)
+      : String(formData.torres || '');
+
     const payload = normalizeProjectPayload({
       ...formData,
       periodicidadeRelatorio,
       mesesEntregaRelatorio,
       anoBaseBienal,
-      torresCoordenadas: Array.isArray(formData.torresCoordenadas) ? formData.torresCoordenadas : [],
+      torres,
+      torresCoordenadas,
       linhaCoordenadas: Array.isArray(formData.linhaCoordenadas) ? formData.linhaCoordenadas : [],
       linhaFonteKml: String(formData.linhaFonteKml || ''),
     });

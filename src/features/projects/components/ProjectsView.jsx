@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, IconButton } from '../../../components/ui';
+import { Button, IconButton, Input, Select } from '../../../components/ui';
 import { useProjectsFeatureState } from '../hooks/useProjectsFeatureState';
 import { formatReportMonths, getProjectReportConfig } from '../utils/reportSchedule';
 import { validateTowerCoordinatesAsString } from '../utils/kmlUtils';
@@ -16,6 +16,8 @@ function ProjectsView({ projects, inspections, operatingLicenses, userEmail, sho
   const mergeInputRef = useRef(null);
   const createInputRef = useRef(null);
   const mergeTargetProjectRef = useRef(null);
+  const [localSearch, setLocalSearch] = useState('');
+  const [filterTipo, setFilterTipo] = useState('');
 
   const projectsWithLO = useMemo(() => {
     const coveredIds = new Set();
@@ -35,12 +37,24 @@ function ProjectsView({ projects, inspections, operatingLicenses, userEmail, sho
   });
 
   const filtered = useMemo(() => {
-    const t = String(searchTerm || '').toLowerCase();
-    if (!t) return projects;
-    return projects.filter(
-      (p) => String(p.id || '').toLowerCase().includes(t) || String(p.nome || '').toLowerCase().includes(t),
-    );
-  }, [projects, searchTerm]);
+    let result = projects || [];
+    const global = String(searchTerm || '').toLowerCase();
+    if (global) {
+      result = result.filter(
+        (p) => String(p.id || '').toLowerCase().includes(global) || String(p.nome || '').toLowerCase().includes(global),
+      );
+    }
+    const local = String(localSearch || '').toLowerCase();
+    if (local) {
+      result = result.filter(
+        (p) => String(p.id || '').toLowerCase().includes(local) || String(p.nome || '').toLowerCase().includes(local),
+      );
+    }
+    if (filterTipo) {
+      result = result.filter((p) => String(p.tipo || '').toLowerCase() === filterTipo.toLowerCase());
+    }
+    return result;
+  }, [projects, searchTerm, localSearch, filterTipo]);
 
   useEffect(() => {
     if (!editProjectId) return;
@@ -89,15 +103,45 @@ function ProjectsView({ projects, inspections, operatingLicenses, userEmail, sho
         onChange={handleCreateInputChange}
       />
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-2xl font-bold text-slate-800 m-0">Empreendimentos</h2>
-          <p className="text-slate-500 m-0">Cadastre e mantenha os dados base das linhas de transmissao.</p>
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-2xl font-bold text-slate-800 m-0">Empreendimentos</h2>
+            <p className="text-slate-500 m-0">Cadastre e mantenha os dados base das linhas de transmissao.</p>
+          </div>
+          <Button variant="primary" size="sm" onClick={state.openNew}>
+            <AppIcon name="plus" />
+            Novo
+          </Button>
         </div>
-        <Button variant="primary" size="sm" onClick={state.openNew}>
-          <AppIcon name="plus" />
-          Novo
-        </Button>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+          <div className="flex-1">
+            <Input
+              id="projects-search"
+              label="Buscar"
+              placeholder="Buscar por codigo ou nome..."
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <Select
+              id="projects-filter-tipo"
+              label="Tipo"
+              value={filterTipo}
+              onChange={(e) => setFilterTipo(e.target.value)}
+            >
+              <option value="">Todos</option>
+              <option value="Linha de Transmissão">Linha de Transmissao</option>
+              <option value="Reservatório">Reservatorio</option>
+            </Select>
+          </div>
+          <span className="text-xs text-slate-500 whitespace-nowrap pb-2 tabular-nums">
+            {filtered.length === (projects || []).length
+              ? `${filtered.length} empreendimentos`
+              : `${filtered.length} de ${(projects || []).length}`}
+          </span>
+        </div>
       </div>
 
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">

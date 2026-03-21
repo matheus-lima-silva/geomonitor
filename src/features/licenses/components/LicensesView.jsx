@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Input, Modal, Select } from '../../../components/ui';
+import { Button, Input, Modal, RangeSlider, SearchableSelect, Select } from '../../../components/ui';
 import {
   BRAZIL_UF_OPTIONS,
   LICENSE_SPHERE_OPTIONS,
@@ -19,6 +19,7 @@ import {
 } from '../../projects/utils/reportSchedule';
 import { parseTowerInput } from '../../../utils/parseTowerInput';
 import { deleteOperatingLicense, saveOperatingLicense } from '../../../services/licenseService';
+import { getProjectTowerList, getNumericTowerRange, hasNumericRange, towersInRange } from '../../../utils/getProjectTowerList';
 
 function buildLicenseId(formData) {
   const explicit = String(formData?.id || '').trim().toUpperCase();
@@ -28,12 +29,34 @@ function buildLicenseId(formData) {
   return `LO-${Date.now()}`;
 }
 
-function normalizeCoverageRows(rows = []) {
+function normalizeCoverageRows(rows = [], projectsById = null) {
   return (rows || []).map((row) => {
     const parsed = parseTowerInput(String(row?.torresInput || ''));
+    let torres = parsed.map((item) => String(item));
+
+    const projetoId = String(row?.projetoId || '').trim();
+    if (projetoId && projectsById?.has(projetoId) && torres.length > 0) {
+      const project = projectsById.get(projetoId);
+      const allTowers = getProjectTowerList(project);
+      if (allTowers.length > 0) {
+        // Use the range from parsed input to select all real project towers
+        // in that range (including alphanumeric ones like "163A").
+        const nums = torres.map(Number).filter(Number.isFinite);
+        if (nums.length > 0) {
+          const lo = Math.min(...nums);
+          const hi = Math.max(...nums);
+          torres = towersInRange(allTowers, lo, hi);
+        } else {
+          // Non-numeric input — keep only towers that exist in the project
+          const validSet = new Set(allTowers);
+          torres = torres.filter((t) => validSet.has(t));
+        }
+      }
+    }
+
     return {
-      projetoId: String(row?.projetoId || '').trim(),
-      torres: parsed.map((item) => String(item)),
+      projetoId,
+      torres,
       descricaoEscopo: String(row?.descricaoEscopo || '').trim(),
       torresInput: String(row?.torresInput || '').trim(),
     };
@@ -213,49 +236,207 @@ function LicenseFormModal({
 
       <div className="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-4">
         <h4 className="text-sm font-bold text-slate-800 m-0 mb-3">Cobertura por empreendimento/torres</h4>
-        {(formData.cobertura || []).map((item, idx) => (
-          <div key={`coverage-${idx}`} className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 pb-3 border-b border-slate-200 last:border-b-0 last:pb-0 last:mb-0">
-            <Select
-              id={`coverage-project-${idx}`}
-              label="Empreendimento"
-              value={item.projetoId || ''}
-              onChange={(e) => setFormData((prev) => ({
-                ...prev,
-                cobertura: prev.cobertura.map((row, rowIndex) => (rowIndex === idx ? { ...row, projetoId: e.target.value } : row)),
-              }))}
-            >
-              <option value="">Empreendimento...</option>
-              {projects.map((project) => <option key={project.id} value={project.id}>{project.id} - {project.nome}</option>)}
-            </Select>
-            <Input
-              id={`coverage-torres-${idx}`}
-              label="Torres"
-              placeholder="Ex.: 1-3, 8, 10"
-              value={item.torresInput || ''}
-              onChange={(e) => setFormData((prev) => ({
-                ...prev,
-                cobertura: prev.cobertura.map((row, rowIndex) => (rowIndex === idx ? { ...row, torresInput: e.target.value } : row)),
-              }))}
-            />
-            <Input
-              id={`coverage-desc-${idx}`}
-              label="Descrição escopo (opcional)"
-              value={item.descricaoEscopo || ''}
-              onChange={(e) => setFormData((prev) => ({
-                ...prev,
-                cobertura: prev.cobertura.map((row, rowIndex) => (rowIndex === idx ? { ...row, descricaoEscopo: e.target.value } : row)),
-              }))}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFormData((prev) => ({ ...prev, cobertura: prev.cobertura.filter((_, rowIndex) => rowIndex !== idx) }))}
-            >
-              <AppIcon name="trash" />
-              Remover escopo
-            </Button>
-          </div>
-        ))}
+        {(formData.cobertura || []).map((item, idx) => {
+          const selectedProject = item.projetoId ? projects.find((p) => p.id === item.projetoId) : null;
+          const towerList = selectedProject ? getProjectTowerList(selectedProject) : [];
+          const canSlide = hasNumericRange(towerList);
+          const towerRange = canSlide ? getNumericTowerRange(towerList) : { min: 0, max: 0 };
+          const showSlider = canSlide && towerRange.max > 0;
+
+          const currentParsed = parseTowerInput(String(item.torresInput || ''));
+          const parsedNums = currentParsed.map(Number).filter(Number.isFinite);
+          const rawMin = parsedNums.length > 0 ? Math.min(...parsedNums) : towerRange.min;
+          const rawMax = parsedNums.length > 0 ? Math.max(...parsedNums) : towerRange.max;
+          const currentMin = showSlider ? Math.max(towerRange.min, Math.min(rawMin, towerRange.max)) : rawMin;
+          const currentMax = showSlider ? Math.min(towerRange.max, Math.max(rawMax, towerRange.min)) : rawMax;
+          const towersSelected = showSlider ? towersInRange(towerList, currentMin, currentMax) : currentParsed;
+          const selectedCount = towersSelected.length;
+
+          return (
+            <div key={`coverage-${idx}`} className="flex flex-col gap-3 mb-4 pb-4 border-b border-slate-200 last:border-b-0 last:pb-0 last:mb-0">
+              <SearchableSelect
+                id={`coverage-project-${idx}`}
+                label="Empreendimento"
+                placeholder="Buscar empreendimento..."
+                value={item.projetoId || ''}
+                options={projects.map((project) => ({
+                  value: project.id,
+                  label: `${project.id} - ${project.nome}`,
+                }))}
+                onChange={(nextProjectId) => {
+                  const nextProject = projects.find((p) => p.id === nextProjectId);
+                  const nextTowers = nextProject ? getProjectTowerList(nextProject) : [];
+                  const nextCanSlide = hasNumericRange(nextTowers);
+                  const nextRange = nextCanSlide ? getNumericTowerRange(nextTowers) : { min: 0, max: 0 };
+                  const autoInput = nextCanSlide && nextRange.max > 0
+                    ? `${nextRange.min}-${nextRange.max}`
+                    : nextTowers.join(', ');
+                  setFormData((prev) => ({
+                    ...prev,
+                    cobertura: prev.cobertura.map((row, rowIndex) => (
+                      rowIndex === idx ? { ...row, projetoId: nextProjectId, torresInput: autoInput } : row
+                    )),
+                  }));
+                }}
+              />
+
+              {showSlider ? (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-2xs font-bold uppercase tracking-wide text-slate-500">De</label>
+                      <input
+                        type="number"
+                        min={towerRange.min}
+                        max={currentMax}
+                        value={currentMin}
+                        onChange={(e) => {
+                          const v = Math.max(towerRange.min, Math.min(Number(e.target.value) || towerRange.min, currentMax));
+                          setFormData((prev) => ({
+                            ...prev,
+                            cobertura: prev.cobertura.map((row, rowIndex) => (
+                              rowIndex === idx ? { ...row, torresInput: v === currentMax ? String(v) : `${v}-${currentMax}` } : row
+                            )),
+                          }));
+                        }}
+                        className="w-16 border border-slate-300 rounded-md px-2 py-1 text-sm text-slate-800 text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                      />
+                    </div>
+
+                    <div className="flex-1">
+                      <RangeSlider
+                        min={towerRange.min}
+                        max={towerRange.max}
+                        value={[currentMin, currentMax]}
+                        onChange={([lo, hi]) => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            cobertura: prev.cobertura.map((row, rowIndex) => (
+                              rowIndex === idx ? { ...row, torresInput: lo === hi ? String(lo) : `${lo}-${hi}` } : row
+                            )),
+                          }));
+                        }}
+                        formatLabel={(n) => `T${n}`}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-2xs font-bold uppercase tracking-wide text-slate-500">Ate</label>
+                      <input
+                        type="number"
+                        min={currentMin}
+                        max={towerRange.max}
+                        value={currentMax}
+                        onChange={(e) => {
+                          const v = Math.min(towerRange.max, Math.max(Number(e.target.value) || towerRange.max, currentMin));
+                          setFormData((prev) => ({
+                            ...prev,
+                            cobertura: prev.cobertura.map((row, rowIndex) => (
+                              rowIndex === idx ? { ...row, torresInput: currentMin === v ? String(v) : `${currentMin}-${v}` } : row
+                            )),
+                          }));
+                        }}
+                        className="w-16 border border-slate-300 rounded-md px-2 py-1 text-sm text-slate-800 text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 justify-between">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFormData((prev) => ({
+                          ...prev,
+                          cobertura: prev.cobertura.map((row, rowIndex) => (
+                            rowIndex === idx ? { ...row, torresInput: `${towerRange.min}-${towerRange.max}` } : row
+                          )),
+                        }))}
+                      >
+                        <AppIcon name="check" />
+                        Todas
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFormData((prev) => ({
+                          ...prev,
+                          cobertura: prev.cobertura.map((row, rowIndex) => (
+                            rowIndex === idx ? { ...row, torresInput: '' } : row
+                          )),
+                        }))}
+                      >
+                        <AppIcon name="close" />
+                        Limpar
+                      </Button>
+                    </div>
+                    <span className="text-xs text-slate-500 font-medium tabular-nums">
+                      {selectedCount} de {towerList.length} torres
+                    </span>
+                  </div>
+                </div>
+              ) : item.projetoId ? (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <Input
+                        id={`coverage-torres-${idx}`}
+                        label="Torres"
+                        placeholder={towerList.length > 0 ? `Ex.: ${towerList.slice(0, 3).join(', ')}...` : 'Ex.: 1-3, 8, 10'}
+                        value={item.torresInput || ''}
+                        onChange={(e) => setFormData((prev) => ({
+                          ...prev,
+                          cobertura: prev.cobertura.map((row, rowIndex) => (rowIndex === idx ? { ...row, torresInput: e.target.value } : row)),
+                        }))}
+                      />
+                    </div>
+                    {towerList.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-4"
+                        onClick={() => setFormData((prev) => ({
+                          ...prev,
+                          cobertura: prev.cobertura.map((row, rowIndex) => (
+                            rowIndex === idx ? { ...row, torresInput: towerList.join(', ') } : row
+                          )),
+                        }))}
+                      >
+                        <AppIcon name="check" />
+                        Todas
+                      </Button>
+                    )}
+                  </div>
+                  {towerList.length === 0 && (
+                    <p className="text-xs text-amber-600 m-0">Este empreendimento nao possui torres cadastradas.</p>
+                  )}
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Input
+                  id={`coverage-desc-${idx}`}
+                  label="Descricao escopo (opcional)"
+                  value={item.descricaoEscopo || ''}
+                  onChange={(e) => setFormData((prev) => ({
+                    ...prev,
+                    cobertura: prev.cobertura.map((row, rowIndex) => (rowIndex === idx ? { ...row, descricaoEscopo: e.target.value } : row)),
+                  }))}
+                />
+                <div className="flex items-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormData((prev) => ({ ...prev, cobertura: prev.cobertura.filter((_, rowIndex) => rowIndex !== idx) }))}
+                  >
+                    <AppIcon name="trash" />
+                    Remover escopo
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
         <Button
           variant="outline"
           size="sm"
@@ -306,14 +487,19 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
       (lo) =>
         String(lo.numero || '').toLowerCase().includes(t) ||
         String(lo.id || '').toLowerCase().includes(t) ||
-        (lo.cobertura || []).some((c) => String(c.projetoId || '').toLowerCase().includes(t)),
+        String(lo.orgaoAmbiental || '').toLowerCase().includes(t) ||
+        (lo.cobertura || []).some((c) => {
+          if (String(c.projetoId || '').toLowerCase().includes(t)) return true;
+          const proj = projectsById.get(c.projetoId);
+          return proj && String(proj.nome || '').toLowerCase().includes(t);
+        }),
     );
-  }, [licenses, searchTerm]);
+  }, [licenses, searchTerm, projectsById]);
 
   async function handleSave() {
     const normalized = normalizeOperatingLicensePayload({
       ...formData,
-      cobertura: normalizeCoverageRows(formData.cobertura),
+      cobertura: normalizeCoverageRows(formData.cobertura, projectsById),
     });
     const validation = validateOperatingLicensePayload(normalized, { projectsById });
     if (!validation.ok) {
@@ -388,7 +574,19 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
               {item.esfera === 'Estadual' && <div><strong className="text-slate-700">UF:</strong> {item.uf || '-'}</div>}
               <div><strong className="text-slate-700">Órgão:</strong> {item.orgaoAmbiental || '-'}</div>
               <div><strong className="text-slate-700">Vigência:</strong> {item.inicioVigencia || '-'} até {item.fimVigencia || 'indeterminada'}</div>
-              <div><strong className="text-slate-700">Cobertura:</strong> {(item.cobertura || []).length} escopo(s)</div>
+              <div>
+                <strong className="text-slate-700">Cobertura:</strong> {(item.cobertura || []).length} escopo(s)
+                {(item.cobertura || []).length > 0 && (
+                  <ul className="mt-1 ml-4 list-disc text-xs text-slate-500">
+                    {(item.cobertura || []).map((cob, ci) => {
+                      const proj = projectsById.get(cob.projetoId);
+                      const nome = proj ? `${proj.id} - ${proj.nome}` : cob.projetoId;
+                      const torreCount = (cob.torres || []).length;
+                      return <li key={ci}>{nome} ({torreCount} torres)</li>;
+                    })}
+                  </ul>
+                )}
+              </div>
               <div><strong className="text-slate-700">Acompanhamento erosivo:</strong> Sim</div>
             </div>
           </article>
