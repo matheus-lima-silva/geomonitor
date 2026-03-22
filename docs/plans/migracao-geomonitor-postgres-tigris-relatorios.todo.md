@@ -1,0 +1,105 @@
+# TODO - Migracao GeoMonitor + GeoRelat + Tigris
+
+## infra/schema
+
+- [x] adicionar abstractions para backend nao-Firestore
+- [x] preparar migracoes SQL versionadas
+- [x] modelar entidades alvo no backend
+- [x] abrir `postgresStore` e migracoes iniciais por flag
+- [ ] remover o `document_store` generico remanescente das areas novas e dos dominios base
+
+## repositorios-api
+
+- [x] criar rotas HATEOAS para `project-report-defaults`
+- [x] criar rotas HATEOAS para `project photos`
+- [x] criar rotas HATEOAS para `project dossiers`
+- [x] criar rotas HATEOAS para `report compounds`
+- [x] expandir `report-workspaces` para fotos, organizacao e KMZ
+- [x] criar repositorios por dominio para as rotas novas
+- [x] plugar as rotas novas nos repositorios
+- [x] migrar `workspaceImports` e `workspaceKmzRequests` para repositorios/tabelas proprias
+- [x] migrar preflight do dossie para repositorios dos dominios base
+- [x] mapear `projects`, `licenses`, `inspections`, `users`, `erosions`, `report_delivery_tracking` para repositórios/tabelas alvo
+- [ ] expandir cobertura e ajustes finais dos repositórios base em modo Postgres real
+
+## fly-bootstrap-deploy
+
+- [x] versionar configuracoes do Fly para `geomonitor-web`, `geomonitor-api` e `geomonitor-worker`
+- [x] definir estrategia de apps por ambiente (`homologacao` e `producao`)
+- [ ] provisionar `Managed Postgres` do ambiente alvo
+- [ ] provisionar bucket `Tigris` e vincular ao app
+- [x] mapear e documentar secrets por app
+- [x] configurar healthchecks, regiao primaria e escala inicial
+- [ ] validar deploy inicial em homologacao via `flyctl`
+- [x] documentar promote para producao
+
+## media-tigris
+
+- [x] manter `media` local como fallback
+- [x] preparar contratos para signed URLs
+- [x] preparar shape de `media_assets`
+- [x] plugar o frontend de relatorios no fluxo real de upload assinado
+- [ ] usar `mediaAssetRepository` na trilha completa de curadoria/exportacao/geracao
+
+## workspace-curadoria
+
+- [x] stepper do workspace
+- [x] selecao obrigatoria de empreendimento
+- [ ] importacao em tres modos
+- [x] importacao inicial de `fotos soltas` com upload real de media
+- [ ] curadoria com legenda, torre e inclusao
+- [x] tooltips operacionais
+- [ ] autosave persistido de rascunho do workspace
+
+## photo-library
+
+- [x] scaffold da biblioteca agregada por empreendimento
+- [ ] biblioteca agregada por empreendimento
+- [ ] filtros por workspace, torre, data e legenda
+- [x] metadata de export efemero em fila/scaffold
+- [ ] export total e parcial em ZIP efemero com processamento real
+
+## project-dossier
+
+- [x] scaffold de CRUD + preflight + fila do dossie
+- [ ] builder de escopo do dossie
+- [x] preflight inicial do dossie
+- [ ] preflight do dossie com dados vindos de repositorios Postgres
+- [ ] geracao de DOCX
+
+## templates-admin
+
+- [ ] secao de relatorios na administracao
+- [ ] lista de versoes
+- [ ] ativacao de template
+
+## worker-python
+
+- [x] criar scaffold bootstrap do app `geomonitor-worker`
+- [ ] provisionar app `geomonitor-worker` no Fly
+- [ ] portar template base
+- [ ] staging temporario
+- [ ] KMZ com fotos
+
+## etl-migracao
+
+- [ ] extract Firestore
+- [ ] sanitize
+- [ ] load Postgres
+- [ ] backfill de fotos para Tigris
+
+## relatorio-composto
+
+- [x] CRUD do relatorio composto
+- [x] adicionar workspaces
+- [x] ordenar blocos
+- [x] preflight
+- [x] enfileirar geracao inicial
+- [ ] gerar documento final no worker
+
+## cutover-cleanup
+
+- [ ] virar `DATA_BACKEND=postgres`
+- [ ] virar `MEDIA_BACKEND=tigris`
+- [ ] ligar worker python
+- [ ] remover dependencias operacionais de Firestore

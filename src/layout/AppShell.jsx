@@ -41,6 +41,7 @@ function AppShell({
     { id: 'inspections', label: 'Vistorias', icon: 'inspections-nav' },
     { id: 'erosions', label: 'Erosões', icon: 'erosions-nav' },
     { id: 'visit-planning', label: 'Planejamento de Visita', icon: 'visit-nav' },
+    { id: 'georelat', label: 'Relatórios', icon: 'file-text' },
   ];
 
   const adminTabs = user?.role === 'admin' || user?.role === 'manager'

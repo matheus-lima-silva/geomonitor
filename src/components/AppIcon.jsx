@@ -59,6 +59,15 @@ const ICON_PATHS = {
       <path d="M8 9h5" />
     </>
   ),
+  'file-text': (
+    <>
+      <path d="M6 3h9l3 3v15H6z" />
+      <path d="M15 3v4h4" />
+      <path d="M9 9h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h6" />
+    </>
+  ),
   map: (
     <>
       <path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3z" />

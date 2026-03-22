@@ -1,4 +1,5 @@
-const { getAuth, getDb } = require('./firebaseSetup');
+const { getAuth } = require('./firebaseSetup');
+const { loadUserProfile } = require('./userProfiles');
 
 // In-memory profile cache: evita 1 leitura Firestore por request
 // TTL de 5 minutos por uid — mudancas de status levam ate 5 min para propagar
@@ -54,7 +55,7 @@ async function verifyToken(req, res, next) {
 }
 
 /**
- * Middleware para garantir que o usuário existe no Firestore e está ativo.
+ * Middleware para garantir que o usuário existe na fonte de perfis ativa e está ativo.
  * Necessita que verifyToken seja executado antes.
  */
 async function requireActiveUser(req, res, next) {
@@ -68,13 +69,11 @@ async function requireActiveUser(req, res, next) {
             if (cached) {
                 req.userProfile = cached;
             } else {
-                const db = getDb();
-                const userDoc = await db.collection('shared').doc('geomonitor').collection('users').doc(req.user.uid).get();
-
-                if (!userDoc.exists) {
+                const userProfile = await loadUserProfile(req.user.uid);
+                if (!userProfile) {
                     return res.status(403).json({ status: 'error', message: 'Perfil não encontrado.' });
                 }
-                req.userProfile = userDoc.data();
+                req.userProfile = userProfile;
                 setCachedProfile(req.user.uid, req.userProfile);
             }
         }

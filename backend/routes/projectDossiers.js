@@ -1,0 +1,210 @@
+const crypto = require('crypto');
+const express = require('express');
+const router = express.Router();
+const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
+const { createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/hateoas');
+const { normalizeText } = require('../utils/projectScope');
+const {
+    projectDossierRepository,
+    reportJobRepository,
+    reportWorkspaceRepository,
+    reportPhotoRepository,
+    inspectionRepository,
+    operatingLicenseRepository,
+    erosionRepository,
+    reportDeliveryTrackingRepository,
+} = require('../repositories');
+
+function createDossierResponse(req, projectId, dossier) {
+    const dossierId = normalizeText(dossier.id);
+    return createResourceHateoasResponse(
+        req,
+        dossier,
+        `projects/${projectId}/dossiers/${dossierId}`,
+        {
+            collectionPath: `projects/${projectId}/dossiers`,
+            extraLinks: {
+                project: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}`, method: 'GET' },
+                preflight: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/dossiers/${dossierId}/preflight`, method: 'POST' },
+                generate: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/dossiers/${dossierId}/generate`, method: 'POST' },
+            },
+        },
+    );
+}
+
+function normalizeDossierPayload(projectId, data = {}, meta = {}, fallback = {}) {
+    return {
+        ...fallback,
+        id: normalizeText(data.id) || normalizeText(fallback.id) || `DOS-${crypto.randomUUID()}`,
+        projectId,
+        nome: normalizeText(data.nome) || normalizeText(fallback.nome) || `Dossie ${projectId}`,
+        status: normalizeText(data.status) || normalizeText(fallback.status) || 'draft',
+        scopeJson: data.scopeJson && typeof data.scopeJson === 'object' ? data.scopeJson : (fallback.scopeJson || {}),
+        draftState: data.draftState && typeof data.draftState === 'object' ? data.draftState : (fallback.draftState || {}),
+        observacoes: normalizeText(data.observacoes) || normalizeText(fallback.observacoes),
+        updatedAt: new Date().toISOString(),
+        updatedBy: meta.updatedBy || 'API',
+    };
+}
+
+router.get('/:id/dossiers', verifyToken, requireActiveUser, async (req, res) => {
+    try {
+        const projectId = normalizeText(req.params.id).toUpperCase();
+        const items = await projectDossierRepository.listByProjectId(projectId);
+        return res.status(200).json({
+            status: 'success',
+            data: items.map((item) => createDossierResponse(req, projectId, item)),
+        });
+    } catch (error) {
+        console.error('[project-dossiers API] Error GET /:id/dossiers:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao listar dossies do empreendimento' });
+    }
+});
+
+router.post('/:id/dossiers', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const projectId = normalizeText(req.params.id).toUpperCase();
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const data = body.data && typeof body.data === 'object' ? body.data : {};
+        const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
+        const payload = normalizeDossierPayload(projectId, data, { ...meta, updatedBy: meta.updatedBy || req.user?.email || 'API' });
+        const saved = await projectDossierRepository.save(payload, { merge: true });
+        return res.status(201).json({ status: 'success', data: createDossierResponse(req, projectId, saved || payload) });
+    } catch (error) {
+        console.error('[project-dossiers API] Error POST /:id/dossiers:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao criar dossie do empreendimento' });
+    }
+});
+
+router.get('/:id/dossiers/:dossierId', verifyToken, requireActiveUser, async (req, res) => {
+    try {
+        const projectId = normalizeText(req.params.id).toUpperCase();
+        const dossierId = normalizeText(req.params.dossierId);
+        const dossier = await projectDossierRepository.getByProjectAndId(projectId, dossierId);
+        if (!dossier) {
+            return res.status(404).json({ status: 'error', message: 'Dossie nao encontrado' });
+        }
+        return res.status(200).json({ status: 'success', data: createDossierResponse(req, projectId, dossier) });
+    } catch (error) {
+        console.error('[project-dossiers API] Error GET /:id/dossiers/:dossierId:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao buscar dossie do empreendimento' });
+    }
+});
+
+router.put('/:id/dossiers/:dossierId', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const projectId = normalizeText(req.params.id).toUpperCase();
+        const dossierId = normalizeText(req.params.dossierId);
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const data = body.data && typeof body.data === 'object' ? body.data : {};
+        const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
+        const fallback = await projectDossierRepository.getById(dossierId) || {};
+        const payload = normalizeDossierPayload(
+            projectId,
+            { ...data, id: dossierId },
+            { ...meta, updatedBy: meta.updatedBy || req.user?.email || 'API' },
+            fallback,
+        );
+
+        const saved = await projectDossierRepository.save(payload, { merge: true });
+        return res.status(200).json({ status: 'success', data: createDossierResponse(req, projectId, saved || payload) });
+    } catch (error) {
+        console.error('[project-dossiers API] Error PUT /:id/dossiers/:dossierId:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao atualizar dossie do empreendimento' });
+    }
+});
+
+router.post('/:id/dossiers/:dossierId/preflight', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const projectId = normalizeText(req.params.id).toUpperCase();
+        const dossierId = normalizeText(req.params.dossierId);
+        const dossier = await projectDossierRepository.getByProjectAndId(projectId, dossierId);
+
+        if (!dossier) {
+            return res.status(404).json({ status: 'error', message: 'Dossie nao encontrado' });
+        }
+
+        const [inspectionCount, erosionCount, licenseCount, workspaceCount, photoCount, deliveryTrackingCount] = await Promise.all([
+            inspectionRepository.countByProject(projectId),
+            erosionRepository.countByProject(projectId),
+            operatingLicenseRepository.countByProject(projectId),
+            reportWorkspaceRepository.countByProject(projectId),
+            reportPhotoRepository.countByProject(projectId),
+            reportDeliveryTrackingRepository.countByProject(projectId),
+        ]);
+
+        const warnings = [];
+        if (workspaceCount === 0) warnings.push('Nenhum workspace vinculado ao empreendimento foi encontrado.');
+        if (photoCount === 0) warnings.push('Nenhuma foto agregada ao empreendimento foi encontrada.');
+
+        return res.status(200).json({
+            status: 'success',
+            data: {
+                dossierId,
+                projectId,
+                summary: {
+                    inspectionCount,
+                    erosionCount,
+                    licenseCount,
+                    workspaceCount,
+                    photoCount,
+                    deliveryTrackingCount,
+                },
+                warnings,
+                errors: [],
+                canGenerate: true,
+                _links: {
+                    self: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/dossiers/${dossierId}`, method: 'GET' },
+                    generate: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/dossiers/${dossierId}/generate`, method: 'POST' },
+                },
+            },
+        });
+    } catch (error) {
+        console.error('[project-dossiers API] Error POST /:id/dossiers/:dossierId/preflight:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao executar preflight do dossie' });
+    }
+});
+
+router.post('/:id/dossiers/:dossierId/generate', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const projectId = normalizeText(req.params.id).toUpperCase();
+        const dossierId = normalizeText(req.params.dossierId);
+        const dossier = await projectDossierRepository.getByProjectAndId(projectId, dossierId);
+
+        if (!dossier) {
+            return res.status(404).json({ status: 'error', message: 'Dossie nao encontrado' });
+        }
+
+        const now = new Date().toISOString();
+        const jobId = `JOB-${crypto.randomUUID()}`;
+        await reportJobRepository.save({
+            id: jobId,
+            kind: 'project_dossier',
+            projectId,
+            dossierId,
+            statusExecucao: 'queued',
+            createdAt: now,
+            updatedAt: now,
+            updatedBy: req.user?.email || 'API',
+        }, { merge: true });
+
+        const nextDossier = {
+            ...dossier,
+            status: 'queued',
+            lastJobId: jobId,
+            updatedAt: now,
+            updatedBy: req.user?.email || 'API',
+        };
+        const saved = await projectDossierRepository.save(nextDossier, { merge: true });
+
+        return res.status(202).json({
+            status: 'success',
+            data: createDossierResponse(req, projectId, saved || nextDossier),
+        });
+    } catch (error) {
+        console.error('[project-dossiers API] Error POST /:id/dossiers/:dossierId/generate:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao enfileirar geracao do dossie' });
+    }
+});
+
+module.exports = router;

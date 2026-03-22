@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { getDb } = require('../utils/firebaseSetup');
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
 const { createHateoasResponse, generateHateoasLinks } = require('../utils/hateoas');
+const { erosionRepository } = require('../repositories');
 
 const {
     calculateCriticality,
@@ -26,8 +26,6 @@ const {
     buildCriticalityHistory,
     buildLegacyFieldCleanupPatch
 } = require('../utils/internalErosionHelpers');
-const { getCollection, getDocRef } = require('../utils/firebaseSetup');
-
 function normalizeCriticalityPayload(payload) {
     if (!payload || typeof payload !== 'object') return null;
     const source = payload.criticalidade
@@ -86,14 +84,10 @@ async function saveErosionHandler(req, res) {
         const sanitizedPayload = stripRemovedErosionFields(data);
         const id = String(sanitizedPayload.id || '').trim() || `ERS-${Date.now()}`;
 
-        const db = getDb();
         let previous = null;
 
         if (meta.merge) {
-            const docSnap = await db.collection('shared').doc('geomonitor').collection('erosions').doc(id).get();
-            if (docSnap.exists) {
-                previous = docSnap.data();
-            }
+            previous = await erosionRepository.getById(id);
         }
 
         const isHistoricalRecord = isHistoricalErosionRecord(sanitizedPayload);
@@ -215,11 +209,7 @@ async function saveErosionHandler(req, res) {
                 : buildCriticalityHistory(previous, nextData, criticalidade),
         };
 
-        await db.collection('shared')
-            .doc('geomonitor')
-            .collection('erosions')
-            .doc(id)
-            .set(finalDocument, { merge: true });
+        await erosionRepository.save(finalDocument, { merge: true });
 
         return res.status(req.method === 'PUT' ? 200 : 201).json({
             status: 'success',
@@ -235,8 +225,7 @@ async function saveErosionHandler(req, res) {
 
 router.get('/', verifyToken, requireActiveUser, async (req, res) => {
     try {
-        const snapshot = await getCollection('erosions').get();
-        const items = snapshot.docs.map((doc) => createHateoasResponse(req, doc.data(), 'erosions', doc.id));
+        const items = (await erosionRepository.list()).map((item) => createHateoasResponse(req, item, 'erosions', item.id));
         return res.status(200).json({ status: 'success', data: items });
     } catch (error) {
         console.error('[Geomonitor API] Erro ao listar erosões:', error);
@@ -246,14 +235,14 @@ router.get('/', verifyToken, requireActiveUser, async (req, res) => {
 
 router.get('/:id', verifyToken, requireActiveUser, async (req, res) => {
     try {
-        const doc = await getDocRef('erosions', req.params.id).get();
-        if (!doc.exists) {
+        const erosion = await erosionRepository.getById(req.params.id);
+        if (!erosion) {
             return res.status(404).json({ status: 'error', message: 'Registro nao encontrado' });
         }
 
         return res.status(200).json({
             status: 'success',
-            data: createHateoasResponse(req, doc.data(), 'erosions', doc.id),
+            data: createHateoasResponse(req, erosion, 'erosions', erosion.id),
         });
     } catch (error) {
         console.error('[Geomonitor API] Erro ao buscar erosão:', error);
@@ -278,7 +267,7 @@ router.put('/:id', verifyToken, requireEditor, async (req, res) => {
 
 router.delete('/:id', verifyToken, requireEditor, async (req, res) => {
     try {
-        await getDocRef('erosions', req.params.id).delete();
+        await erosionRepository.remove(req.params.id);
         return res.status(200).json({ status: 'success', message: 'Registro deletado' });
     } catch (error) {
         console.error('[Geomonitor API] Erro ao deletar erosão:', error);

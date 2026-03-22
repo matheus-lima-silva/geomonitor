@@ -1,8 +1,10 @@
 const createCrudRouter = require('../utils/crudFactory');
+const { reportDeliveryTrackingRepository } = require('../repositories');
 
 const MONTH_KEY_PATTERN = /^\d{4}-\d{2}$/;
 
 const router = createCrudRouter('reportDeliveryTracking', {
+    repository: reportDeliveryTrackingRepository,
     routerName: 'report-delivery-tracking',
     generateId: (data) => {
         const projectId = String(data.projectId || '').trim();

@@ -1,0 +1,78 @@
+const request = require('supertest');
+const app = require('../server');
+
+const AUTH_HEADER = { Authorization: 'Bearer fake-token-for-test' };
+
+describe('Project Photos API Integration Tests (Mocked DB)', () => {
+    beforeEach(async () => {
+        await request(app)
+            .post('/api/report-workspaces')
+            .set(AUTH_HEADER)
+            .send({
+                data: {
+                    id: 'RW-10',
+                    nome: 'Workspace teste',
+                    projectId: 'PRJ-01',
+                },
+            });
+
+        await request(app)
+            .put('/api/report-workspaces/RW-10/photos/RPH-1')
+            .set(AUTH_HEADER)
+            .send({
+                data: {
+                    projectId: 'PRJ-01',
+                    mediaAssetId: 'MED-1',
+                    towerId: 'T-01',
+                    includeInReport: true,
+                    caption: 'Foto principal',
+                    importSource: 'structured_folders',
+                },
+            });
+    });
+
+    it('GET /api/projects/:id/photos lista fotos agregadas do empreendimento com HATEOAS', async () => {
+        const response = await request(app)
+            .get('/api/projects/PRJ-01/photos')
+            .set(AUTH_HEADER);
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.data[0]).toEqual(expect.objectContaining({
+            projectId: 'PRJ-01',
+            towerId: 'T-01',
+            _links: expect.objectContaining({
+                self: expect.objectContaining({ href: expect.stringContaining('/api/projects/PRJ-01/photos/RPH-1') }),
+                workspace: expect.objectContaining({ href: expect.stringContaining('/api/report-workspaces/RW-10') }),
+            }),
+        }));
+    });
+
+    it('POST /api/projects/:id/photos/export cria exportacao efemera e GET consulta status', async () => {
+        const createResponse = await request(app)
+            .post('/api/projects/PRJ-01/photos/export')
+            .set(AUTH_HEADER)
+            .send({
+                data: {
+                    folderMode: 'tower',
+                    filters: { includedOnly: true },
+                },
+            });
+
+        expect(createResponse.status).toBe(202);
+        const token = createResponse.body.data.token;
+
+        const getResponse = await request(app)
+            .get(`/api/projects/PRJ-01/photos/exports/${token}`)
+            .set(AUTH_HEADER);
+
+        expect(getResponse.status).toBe(200);
+        expect(getResponse.body.data).toEqual(expect.objectContaining({
+            projectId: 'PRJ-01',
+            statusExecucao: 'queued',
+            _links: expect.objectContaining({
+                self: expect.objectContaining({ href: expect.stringContaining(`/api/projects/PRJ-01/photos/exports/${token}`) }),
+            }),
+        }));
+    });
+});
