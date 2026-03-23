@@ -69,6 +69,24 @@ async function removeLocalMedia(mediaId) {
     await fs.rm(path.join(getMediaStorageRoot(), normalizeText(mediaId)), { recursive: true, force: true });
 }
 
+async function streamToBuffer(stream) {
+    if (!stream) return Buffer.alloc(0);
+    if (Buffer.isBuffer(stream)) return stream;
+    if (stream instanceof Uint8Array) return Buffer.from(stream);
+    if (typeof stream.transformToByteArray === 'function') {
+        return Buffer.from(await stream.transformToByteArray());
+    }
+    if (typeof stream.arrayBuffer === 'function') {
+        return Buffer.from(await stream.arrayBuffer());
+    }
+
+    const chunks = [];
+    for await (const chunk of stream) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
+}
+
 function getPresignTtlSeconds() {
     const parsed = Number(process.env.MEDIA_PRESIGN_TTL_SECONDS);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 900;
@@ -152,6 +170,36 @@ async function deleteTigrisObject(storageKey) {
     }));
 }
 
+async function readStoredMediaContent(asset) {
+    if (!asset || typeof asset !== 'object') {
+        throw new Error('Media invalida para leitura.');
+    }
+
+    if (isTigrisAsset(asset)) {
+        const response = await getS3Client().send(new GetObjectCommand({
+            Bucket: getBucketName(),
+            Key: normalizeText(asset.storageKey),
+        }));
+
+        return {
+            buffer: await streamToBuffer(response.Body),
+            contentType: normalizeText(asset.contentType) || 'application/octet-stream',
+            fileName: sanitizeFileName(asset.fileName || asset.id || 'arquivo.bin'),
+        };
+    }
+
+    const filePath = normalizeText(asset.filePath);
+    if (!filePath) {
+        throw new Error('Conteudo local da media ainda nao disponivel.');
+    }
+
+    return {
+        buffer: await fs.readFile(filePath),
+        contentType: normalizeText(asset.contentType) || 'application/octet-stream',
+        fileName: sanitizeFileName(asset.fileName || asset.id || path.basename(filePath) || 'arquivo.bin'),
+    };
+}
+
 async function removeStoredMedia(asset) {
     if (!asset || typeof asset !== 'object') return;
 
@@ -178,6 +226,7 @@ module.exports = {
     getPresignTtlSeconds,
     isTigrisAsset,
     isTigrisBackend,
+    readStoredMediaContent,
     removeStoredMedia,
     resetS3Client,
     sanitizeFileName,

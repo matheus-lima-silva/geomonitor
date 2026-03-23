@@ -4,7 +4,113 @@ const router = express.Router();
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
 const { createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/hateoas');
 const { normalizeText } = require('../utils/projectScope');
-const { reportPhotoRepository, projectPhotoExportRepository } = require('../repositories');
+const { reportPhotoRepository, projectPhotoExportRepository, mediaAssetRepository } = require('../repositories');
+const { readStoredMediaContent, sanitizeFileName } = require('../utils/mediaStorage');
+const { buildStoredZip } = require('../utils/zipBuilder');
+
+function normalizeSelectionIds(values) {
+    return Array.isArray(values)
+        ? values.map((value) => normalizeText(value)).filter(Boolean)
+        : [];
+}
+
+function buildExportFilters(filters = {}, selectionIds = []) {
+    const nextFilters = filters && typeof filters === 'object' ? { ...filters } : {};
+    const normalizedSelectionIds = normalizeSelectionIds(selectionIds);
+    if (normalizedSelectionIds.length > 0) {
+        nextFilters.ids = normalizedSelectionIds.join(',');
+    }
+    return nextFilters;
+}
+
+function wantsBinaryDownload(query = {}) {
+    const rawValue = normalizeText(query.download || query.binary || '');
+    return ['1', 'true', 'yes', 'sim'].includes(rawValue.toLowerCase());
+}
+
+function sanitizeZipSegment(value, fallback) {
+    const normalized = normalizeText(value).replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '_');
+    return normalized || fallback;
+}
+
+function buildProjectPhotoExportFileName(projectId, token) {
+    return sanitizeFileName(`photos-${projectId}-${token}.zip`);
+}
+
+function buildProjectPhotoEntryName(photo, asset, folderMode = 'tower') {
+    const baseFileName = sanitizeFileName(asset?.fileName || `${photo.id}.bin`);
+    const uniqueFileName = `${sanitizeZipSegment(photo.id, 'photo')}-${baseFileName}`;
+    const normalizedFolderMode = normalizeText(folderMode).toLowerCase() || 'tower';
+
+    if (normalizedFolderMode === 'workspace') {
+        return `${sanitizeZipSegment(photo.workspaceId, 'sem-workspace')}/${uniqueFileName}`;
+    }
+
+    if (normalizedFolderMode === 'flat') {
+        return uniqueFileName;
+    }
+
+    return `${sanitizeZipSegment(photo.towerId, 'sem-torre')}/${uniqueFileName}`;
+}
+
+async function buildProjectPhotoExportArchive(projectId, exported) {
+    const filters = buildExportFilters(exported?.filters, exported?.selectionIds);
+    const photos = await reportPhotoRepository.listByProject(projectId, filters);
+    const photoEntries = [];
+    const skippedEntries = [];
+
+    for (const photo of photos) {
+        const mediaAssetId = normalizeText(photo.mediaAssetId);
+        if (!mediaAssetId) {
+            skippedEntries.push(`- ${photo.id}: foto sem mediaAssetId associado.`);
+            continue;
+        }
+
+        const asset = await mediaAssetRepository.getById(mediaAssetId);
+        if (!asset) {
+            skippedEntries.push(`- ${photo.id}: media ${mediaAssetId} nao encontrada.`);
+            continue;
+        }
+
+        try {
+            const content = await readStoredMediaContent(asset);
+            photoEntries.push({
+                name: buildProjectPhotoEntryName(photo, asset, exported?.folderMode),
+                data: content.buffer,
+                modifiedAt: new Date(photo.captureAt || photo.updatedAt || photo.createdAt || Date.now()),
+            });
+        } catch (error) {
+            skippedEntries.push(`- ${photo.id}: ${error?.message || 'falha ao ler a media.'}`);
+        }
+    }
+
+    if (photoEntries.length === 0) {
+        throw new Error('Nenhuma media disponivel para gerar o ZIP desta exportacao.');
+    }
+
+    if (skippedEntries.length > 0) {
+        photoEntries.push({
+            name: 'README.txt',
+            data: Buffer.from(
+                [
+                    `Exportacao de fotos do empreendimento ${projectId}`,
+                    '',
+                    'Algumas entradas nao puderam ser incluidas no ZIP:',
+                    ...skippedEntries,
+                ].join('\n'),
+                'utf8',
+            ),
+            modifiedAt: new Date(),
+        });
+    }
+
+    return {
+        buffer: buildStoredZip(photoEntries),
+        itemCount: photoEntries.length - (skippedEntries.length > 0 ? 1 : 0),
+        skippedCount: skippedEntries.length,
+        fileName: buildProjectPhotoExportFileName(projectId, exported?.token || exported?.id || crypto.randomUUID()),
+    };
+}
 
 function createPhotoResponse(req, projectId, photo) {
     const workspaceId = normalizeText(photo.workspaceId);
@@ -86,15 +192,17 @@ router.post('/:id/photos/export', verifyToken, requireEditor, async (req, res) =
         const data = body.data && typeof body.data === 'object' ? body.data : {};
         const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
         const token = `pex-${crypto.randomUUID()}`;
-        const matchedPhotos = await reportPhotoRepository.listByProject(projectId, data.filters || {});
+        const selectionIds = normalizeSelectionIds(data.selectionIds);
+        const exportFilters = buildExportFilters(data.filters, selectionIds);
+        const matchedPhotos = await reportPhotoRepository.listByProject(projectId, exportFilters);
         const now = new Date();
         const payload = {
             id: `PPE-${crypto.randomUUID()}`,
             token,
             projectId,
             folderMode: normalizeText(data.folderMode) || 'tower',
-            selectionIds: Array.isArray(data.selectionIds) ? data.selectionIds.map((value) => normalizeText(value)).filter(Boolean) : [],
-            filters: data.filters && typeof data.filters === 'object' ? data.filters : {},
+            selectionIds,
+            filters: exportFilters,
             itemCount: matchedPhotos.length,
             statusExecucao: 'queued',
             expiresAt: new Date(now.getTime() + (15 * 60 * 1000)).toISOString(),
@@ -118,7 +226,7 @@ router.post('/:id/photos/export', verifyToken, requireEditor, async (req, res) =
                     extraLinks: {
                         project: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}`, method: 'GET' },
                         photos: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/photos`, method: 'GET' },
-                        download: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/photos/exports/${token}`, method: 'GET' },
+                        download: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/photos/exports/${token}?download=1`, method: 'GET' },
                     },
                 },
             ),
@@ -139,6 +247,28 @@ router.get('/:id/photos/exports/:token', verifyToken, requireActiveUser, async (
             return res.status(404).json({ status: 'error', message: 'Exportacao de fotos nao encontrada' });
         }
 
+        if (wantsBinaryDownload(req.query || {})) {
+            const archive = await buildProjectPhotoExportArchive(projectId, exported);
+            const now = new Date().toISOString();
+            await projectPhotoExportRepository.save(token, {
+                ...exported,
+                statusExecucao: 'ready',
+                generatedAt: now,
+                generatedItemCount: archive.itemCount,
+                skippedItemCount: archive.skippedCount,
+                downloadFileName: archive.fileName,
+                updatedAt: now,
+                updatedBy: req.user?.email || 'API',
+            }, { merge: true });
+
+            return res
+                .status(200)
+                .set('Content-Type', 'application/zip')
+                .set('Content-Disposition', `attachment; filename="${archive.fileName}"`)
+                .set('Cache-Control', 'no-store')
+                .send(archive.buffer);
+        }
+
         return res.status(200).json({
             status: 'success',
             data: createResourceHateoasResponse(
@@ -152,6 +282,7 @@ router.get('/:id/photos/exports/:token', verifyToken, requireActiveUser, async (
                     extraLinks: {
                         project: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}`, method: 'GET' },
                         photos: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/photos`, method: 'GET' },
+                        download: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/photos/exports/${token}?download=1`, method: 'GET' },
                     },
                 },
             ),

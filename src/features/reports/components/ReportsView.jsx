@@ -3,7 +3,7 @@ import AppIcon from '../../../components/AppIcon';
 import { Button, Card, HintText, Input, Select, Textarea } from '../../../components/ui';
 import { subscribeProjects } from '../../../services/projectService';
 import { listProjectDossiers, createProjectDossier } from '../../../services/projectDossierService';
-import { listProjectPhotos, requestProjectPhotoExport } from '../../../services/projectPhotoLibraryService';
+import { downloadProjectPhotoExport, listProjectPhotos, requestProjectPhotoExport } from '../../../services/projectPhotoLibraryService';
 import { subscribeReportCompounds, createReportCompound } from '../../../services/reportCompoundService';
 import { completeMediaUpload, createMediaUpload, uploadMediaBinary } from '../../../services/mediaService';
 import { getProjectTowerList } from '../../../utils/getProjectTowerList';
@@ -169,6 +169,22 @@ function buildProjectPhotoFilters(filters = {}) {
 
 function getProjectPhotoDate(photo = {}) {
   return photo.captureAt || photo.createdAt || photo.updatedAt || '';
+}
+
+function triggerBlobDownload(filename, blob) {
+  if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    return false;
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = String(filename || 'exportacao.zip');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+  return true;
 }
 
 export default function ReportsView({ userEmail = '', showToast = () => {} }) {
@@ -573,7 +589,21 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         folderMode: 'tower',
         filters: libraryQueryFilters,
       }, { updatedBy: userEmail || 'web' });
-      showToast(`Exportacao solicitada para ${result?.data?.itemCount || 0} foto(s).`, 'success');
+      const token = String(result?.data?.token || '');
+      const itemCount = Number(result?.data?.itemCount || 0);
+
+      if (itemCount <= 0) {
+        showToast('Nenhuma foto corresponde ao recorte atual da biblioteca.', 'error');
+        return;
+      }
+
+      if (!token) {
+        throw new Error('Token da exportacao nao foi retornado pela API.');
+      }
+
+      const download = await downloadProjectPhotoExport(selectedProjectId, token);
+      triggerBlobDownload(download.fileName, download.blob);
+      showToast(`ZIP exportado com ${itemCount} foto(s).`, 'success');
     } catch (error) {
       showToast(error?.message || 'Erro ao solicitar exportacao.', 'error');
     } finally {

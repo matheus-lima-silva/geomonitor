@@ -57,7 +57,7 @@
 - [x] biblioteca agregada por empreendimento
 - [x] filtros por workspace, torre, data e legenda
 - [x] metadata de export efemero em fila/scaffold
-- [ ] export total e parcial em ZIP efemero com processamento real
+- [x] export total e parcial em ZIP efemero com processamento real
 
 ## project-dossier
 

@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ReportsView from '../ReportsView';
 import { listReportWorkspacePhotos, saveReportWorkspacePhoto, updateReportWorkspace } from '../../../../services/reportWorkspaceService';
-import { listProjectPhotos, requestProjectPhotoExport } from '../../../../services/projectPhotoLibraryService';
+import { downloadProjectPhotoExport, listProjectPhotos, requestProjectPhotoExport } from '../../../../services/projectPhotoLibraryService';
 
 const mockData = vi.hoisted(() => ({
   workspaces: [
@@ -47,7 +47,8 @@ vi.mock('../../../../services/projectPhotoLibraryService', () => ({
     if (filters.dateTo && String(photo.captureAt || '') > `${filters.dateTo}T23:59:59.999Z`) return false;
     return true;
   })),
-  requestProjectPhotoExport: vi.fn().mockResolvedValue({ data: { itemCount: 1 } }),
+  requestProjectPhotoExport: vi.fn().mockResolvedValue({ data: { itemCount: 1, token: 'pex-1' } }),
+  downloadProjectPhotoExport: vi.fn().mockResolvedValue({ blob: new Blob(['zip']), fileName: 'photos-PRJ-01-pex.zip' }),
 }));
 
 vi.mock('../../../../services/projectDossierService', () => ({
@@ -174,6 +175,7 @@ describe('ReportsView', () => {
       }),
       expect.objectContaining({ updatedBy: 'teste@exemplo.com' }),
     );
+    expect(downloadProjectPhotoExport).toHaveBeenCalled();
   });
 
   it('exibe a curadoria do workspace e salva alteracoes da foto', async () => {

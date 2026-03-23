@@ -3,6 +3,38 @@ const app = require('../server');
 
 const AUTH_HEADER = { Authorization: 'Bearer fake-token-for-test' };
 
+function binaryParser(res, callback) {
+    const chunks = [];
+    res.on('data', (chunk) => chunks.push(chunk));
+    res.on('end', () => callback(null, Buffer.concat(chunks)));
+}
+
+async function uploadTestMedia({ fileName, content, linkedResourceId }) {
+    const uploadResponse = await request(app)
+        .post('/api/media/upload-url')
+        .set(AUTH_HEADER)
+        .send({
+            data: {
+                fileName,
+                contentType: 'image/jpeg',
+                sizeBytes: Buffer.byteLength(content),
+                purpose: 'workspace-photo',
+                linkedResourceType: 'reportWorkspaces',
+                linkedResourceId,
+            },
+        });
+
+    const mediaId = uploadResponse.body.data.id;
+
+    await request(app)
+        .put(`/api/media/${mediaId}/upload`)
+        .set(AUTH_HEADER)
+        .set('Content-Type', 'image/jpeg')
+        .send(Buffer.from(content));
+
+    return mediaId;
+}
+
 describe('Project Photos API Integration Tests (Mocked DB)', () => {
     beforeEach(async () => {
         await request(app)
@@ -16,13 +48,24 @@ describe('Project Photos API Integration Tests (Mocked DB)', () => {
                 },
             });
 
+        const mediaId1 = await uploadTestMedia({
+            fileName: 'foto-principal.jpg',
+            content: 'conteudo-foto-principal',
+            linkedResourceId: 'RW-10',
+        });
+        const mediaId2 = await uploadTestMedia({
+            fileName: 'vista-geral.jpg',
+            content: 'conteudo-vista-geral',
+            linkedResourceId: 'RW-10',
+        });
+
         await request(app)
             .put('/api/report-workspaces/RW-10/photos/RPH-1')
             .set(AUTH_HEADER)
             .send({
                 data: {
                     projectId: 'PRJ-01',
-                    mediaAssetId: 'MED-1',
+                    mediaAssetId: mediaId1,
                     towerId: 'T-01',
                     includeInReport: true,
                     caption: 'Foto principal',
@@ -37,7 +80,7 @@ describe('Project Photos API Integration Tests (Mocked DB)', () => {
             .send({
                 data: {
                     projectId: 'PRJ-01',
-                    mediaAssetId: 'MED-2',
+                    mediaAssetId: mediaId2,
                     towerId: 'T-02',
                     includeInReport: false,
                     caption: 'Vista geral',
@@ -118,5 +161,36 @@ describe('Project Photos API Integration Tests (Mocked DB)', () => {
                 self: expect.objectContaining({ href: expect.stringContaining(`/api/projects/PRJ-01/photos/exports/${token}`) }),
             }),
         }));
+    });
+
+    it('GET /api/projects/:id/photos/exports/:token?download=1 devolve ZIP efemero real', async () => {
+        const createResponse = await request(app)
+            .post('/api/projects/PRJ-01/photos/export')
+            .set(AUTH_HEADER)
+            .send({
+                data: {
+                    folderMode: 'tower',
+                    filters: {
+                        workspaceId: 'RW-10',
+                    },
+                },
+            });
+
+        const token = createResponse.body.data.token;
+
+        const downloadResponse = await request(app)
+            .get(`/api/projects/PRJ-01/photos/exports/${token}`)
+            .query({ download: '1' })
+            .buffer(true)
+            .parse(binaryParser)
+            .set(AUTH_HEADER);
+
+        expect(downloadResponse.status).toBe(200);
+        expect(downloadResponse.headers['content-type']).toContain('application/zip');
+        expect(downloadResponse.headers['content-disposition']).toContain('.zip');
+        expect(Buffer.isBuffer(downloadResponse.body)).toBe(true);
+        expect(downloadResponse.body.subarray(0, 4).toString('hex')).toBe('504b0304');
+        expect(downloadResponse.body.toString('utf8')).toContain('T-01/RPH-1-foto-principal.jpg');
+        expect(downloadResponse.body.toString('utf8')).toContain('T-02/RPH-2-vista-geral.jpg');
     });
 });
