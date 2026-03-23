@@ -5,6 +5,9 @@ const { loadUserProfile } = require('./userProfiles');
 // TTL de 5 minutos por uid — mudancas de status levam ate 5 min para propagar
 const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
 const profileCache = new Map(); // uid -> { profile, expiresAt }
+const WORKER_HEADER_NAME = 'x-worker-token';
+const EDITOR_ROLES = ['Admin', 'Administrador', 'Editor', 'Gerente'];
+const ADMIN_ROLES = ['Admin', 'Administrador'];
 
 function getCachedProfile(uid) {
     const entry = profileCache.get(uid);
@@ -22,6 +25,43 @@ function setCachedProfile(uid, profile) {
 
 function invalidateCachedProfile(uid) {
     profileCache.delete(uid);
+}
+
+function normalizeText(value) {
+    return String(value || '').trim();
+}
+
+function getConfiguredWorkerToken() {
+    return normalizeText(process.env.WORKER_API_TOKEN);
+}
+
+function getRequestWorkerToken(req) {
+    return normalizeText(req?.headers?.[WORKER_HEADER_NAME]);
+}
+
+function attachWorkerIdentity(req) {
+    req.user = {
+        uid: 'internal-worker',
+        email: 'geomonitor-worker@internal',
+        service: 'worker',
+    };
+    req.userProfile = {
+        status: 'Ativo',
+        perfil: 'Administrador',
+    };
+}
+
+function runMiddlewareStack(stack, req, res, next, index = 0) {
+    if (index >= stack.length) {
+        return next();
+    }
+
+    return stack[index](req, res, (error) => {
+        if (error) {
+            return next(error);
+        }
+        return runMiddlewareStack(stack, req, res, next, index + 1);
+    });
 }
 
 /**
@@ -105,14 +145,43 @@ function requireRoles(allowedRoles) {
     ];
 }
 
-const requireEditor = requireRoles(['Admin', 'Administrador', 'Editor', 'Gerente']);
-const requireAdmin = requireRoles(['Admin', 'Administrador']);
+function createWorkerOrRoleMiddleware(allowedRoles) {
+    const roleStack = [verifyToken, ...requireRoles(allowedRoles)];
+    return (req, res, next) => {
+        const workerToken = getRequestWorkerToken(req);
+        if (workerToken) {
+            const configuredToken = getConfiguredWorkerToken();
+            if (!configuredToken) {
+                return res.status(503).json({
+                    status: 'error',
+                    message: 'Token interno do worker nao configurado.',
+                });
+            }
+            if (workerToken !== configuredToken) {
+                return res.status(403).json({
+                    status: 'error',
+                    message: 'Token interno do worker invalido.',
+                });
+            }
+
+            attachWorkerIdentity(req);
+            return next();
+        }
+
+        return runMiddlewareStack(roleStack, req, res, next);
+    };
+}
+
+const requireEditor = requireRoles(EDITOR_ROLES);
+const requireAdmin = requireRoles(ADMIN_ROLES);
+const requireEditorOrWorker = createWorkerOrRoleMiddleware(EDITOR_ROLES);
 
 module.exports = {
     verifyToken,
     requireActiveUser,
     requireEditor,
     requireAdmin,
+    requireEditorOrWorker,
     getCachedProfile,
     setCachedProfile,
     invalidateCachedProfile,

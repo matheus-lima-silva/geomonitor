@@ -28,6 +28,7 @@ Configuracoes canonicas do Fly.io para esta frente:
   - `DATA_BACKEND`
   - `MEDIA_BACKEND`
   - `REPORT_EXECUTION_BACKEND`
+  - `WORKER_API_TOKEN`
   - `AWS_ACCESS_KEY_ID`
   - `AWS_SECRET_ACCESS_KEY`
   - `AWS_REGION`
@@ -36,11 +37,16 @@ Configuracoes canonicas do Fly.io para esta frente:
 - `geomonitor-worker*`
   - `DATABASE_URL`
   - `REPORT_EXECUTION_BACKEND`
+  - `WORKER_API_TOKEN`
   - `AWS_ACCESS_KEY_ID`
   - `AWS_SECRET_ACCESS_KEY`
   - `AWS_REGION`
   - `AWS_ENDPOINT_URL_S3`
   - `BUCKET_NAME`
+- `geomonitor-worker*` tambem usa envs versionadas nos TOMLs:
+  - `GEOMONITOR_API_URL`
+  - `WORKER_AUTO_POLL`
+  - `WORKER_POLL_INTERVAL_SECONDS`
 - `geomonitor-web*`
   - sem runtime secrets obrigatorios nesta fase; o build usa `VITE_*` versionados no TOML
 

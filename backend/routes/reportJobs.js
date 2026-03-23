@@ -1,11 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
+const { verifyToken, requireActiveUser, requireEditorOrWorker } = require('../utils/authMiddleware');
 const { createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/hateoas');
 const { reportJobRepository } = require('../repositories');
 
 function normalizeText(value) {
     return String(value || '').trim();
+}
+
+function resolveActor(req) {
+    return normalizeText(req.user?.email) || 'API';
 }
 
 function createJobResponse(req, job) {
@@ -54,9 +58,9 @@ router.get('/:id', verifyToken, requireActiveUser, async (req, res) => {
     }
 });
 
-router.post('/claim', verifyToken, requireEditor, async (req, res) => {
+router.post('/claim', requireEditorOrWorker, async (req, res) => {
     try {
-        const job = await reportJobRepository.claimNext();
+        const job = await reportJobRepository.claimNext({ updatedBy: resolveActor(req) });
         if (!job) {
             return res.status(204).send();
         }
@@ -70,13 +74,15 @@ router.post('/claim', verifyToken, requireEditor, async (req, res) => {
     }
 });
 
-router.put('/:id/complete', verifyToken, requireEditor, async (req, res) => {
+router.put('/:id/complete', requireEditorOrWorker, async (req, res) => {
     try {
         const body = req.body && typeof req.body === 'object' ? req.body : {};
         const data = body.data && typeof body.data === 'object' ? body.data : {};
         const job = await reportJobRepository.markComplete(req.params.id, {
             outputDocxMediaId: data.outputDocxMediaId,
             outputKmzMediaId: data.outputKmzMediaId,
+        }, {
+            updatedBy: resolveActor(req),
         });
         if (!job) {
             return res.status(404).json({ status: 'error', message: 'Job nao encontrado' });
@@ -91,11 +97,13 @@ router.put('/:id/complete', verifyToken, requireEditor, async (req, res) => {
     }
 });
 
-router.put('/:id/fail', verifyToken, requireEditor, async (req, res) => {
+router.put('/:id/fail', requireEditorOrWorker, async (req, res) => {
     try {
         const body = req.body && typeof req.body === 'object' ? req.body : {};
         const data = body.data && typeof body.data === 'object' ? body.data : {};
-        const job = await reportJobRepository.markFailed(req.params.id, data.errorLog);
+        const job = await reportJobRepository.markFailed(req.params.id, data.errorLog, {
+            updatedBy: resolveActor(req),
+        });
         if (!job) {
             return res.status(404).json({ status: 'error', message: 'Job nao encontrado' });
         }

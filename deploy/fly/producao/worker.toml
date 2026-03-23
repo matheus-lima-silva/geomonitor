@@ -8,6 +8,9 @@ primary_region = "gru"
   PORT = "8080"
   WORKER_ENV = "producao"
   WORKER_NAME = "geomonitor-worker"
+  GEOMONITOR_API_URL = "https://geomonitor-api.fly.dev"
+  WORKER_AUTO_POLL = "false"
+  WORKER_POLL_INTERVAL_SECONDS = "15"
 
 [http_service]
   internal_port = 8080

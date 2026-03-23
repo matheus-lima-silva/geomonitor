@@ -2,8 +2,17 @@ const request = require('supertest');
 const app = require('../server');
 
 const AUTH_HEADER = { Authorization: 'Bearer fake-token-for-test' };
+const WORKER_HEADER = { 'x-worker-token': 'worker-secret' };
 
 describe('Report Jobs API Integration Tests (Mocked DB)', () => {
+    beforeEach(() => {
+        process.env.WORKER_API_TOKEN = 'worker-secret';
+    });
+
+    afterEach(() => {
+        delete process.env.WORKER_API_TOKEN;
+    });
+
     it('claim retorna 204 quando nao ha jobs na fila', async () => {
         const response = await request(app)
             .post('/api/report-jobs/claim')
@@ -59,9 +68,37 @@ describe('Report Jobs API Integration Tests (Mocked DB)', () => {
         expect(completeResponse.body.data._links.fail).toBeDefined();
     });
 
+    it('permite claim e complete via token interno do worker', async () => {
+        const { reportJobRepository } = require('../repositories');
+        await reportJobRepository.save({
+            id: 'JOB-WORKER-1',
+            kind: 'report_compound',
+            statusExecucao: 'queued',
+        });
+
+        const claimResponse = await request(app)
+            .post('/api/report-jobs/claim')
+            .set(WORKER_HEADER);
+
+        expect(claimResponse.status).toBe(200);
+        expect(claimResponse.body.data.id).toBe('JOB-WORKER-1');
+        expect(claimResponse.body.data.statusExecucao).toBe('processing');
+        expect(claimResponse.body.data.updatedBy).toBe('geomonitor-worker@internal');
+
+        const completeResponse = await request(app)
+            .put('/api/report-jobs/JOB-WORKER-1/complete')
+            .set(WORKER_HEADER)
+            .send({ data: { outputKmzMediaId: 'MEDIA-KMZ-1' } });
+
+        expect(completeResponse.status).toBe(200);
+        expect(completeResponse.body.data.statusExecucao).toBe('completed');
+        expect(completeResponse.body.data.outputKmzMediaId).toBe('MEDIA-KMZ-1');
+        expect(completeResponse.body.data.updatedBy).toBe('geomonitor-worker@internal');
+    });
+
     it('marca job como falha', async () => {
         const { reportJobRepository } = require('../repositories');
-        const saved = await reportJobRepository.save({
+        await reportJobRepository.save({
             id: 'JOB-FAIL-TEST',
             kind: 'test',
             statusExecucao: 'processing',
@@ -75,6 +112,14 @@ describe('Report Jobs API Integration Tests (Mocked DB)', () => {
         expect(failResponse.status).toBe(200);
         expect(failResponse.body.data.statusExecucao).toBe('failed');
         expect(failResponse.body.data.errorLog).toBe('Template nao encontrado');
+    });
+
+    it('rejeita token interno invalido do worker', async () => {
+        const response = await request(app)
+            .post('/api/report-jobs/claim')
+            .set({ 'x-worker-token': 'wrong-secret' });
+
+        expect(response.status).toBe(403);
     });
 
     it('retorna 404 ao buscar job inexistente', async () => {

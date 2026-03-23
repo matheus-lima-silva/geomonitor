@@ -10,6 +10,7 @@ describe('Auth Middleware', () => {
     let requireActiveUser;
     let requireEditor;
     let requireAdmin;
+    let requireEditorOrWorker;
     let invalidateCachedProfile;
 
     beforeEach(() => {
@@ -30,6 +31,7 @@ describe('Auth Middleware', () => {
             requireActiveUser,
             requireEditor,
             requireAdmin,
+            requireEditorOrWorker,
             invalidateCachedProfile,
         } = require('../authMiddleware'));
 
@@ -40,6 +42,7 @@ describe('Auth Middleware', () => {
         };
         next = jest.fn();
         invalidateCachedProfile('user_123');
+        delete process.env.WORKER_API_TOKEN;
         jest.clearAllMocks();
     });
 
@@ -165,6 +168,33 @@ describe('Auth Middleware', () => {
             await requireAdmin[0](req, res, async () => {
                 await requireAdmin[1](req, res, next);
             });
+
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(next).not.toHaveBeenCalled();
+        });
+
+        it('requireEditorOrWorker should accept internal worker token', async () => {
+            process.env.WORKER_API_TOKEN = 'worker-secret';
+            req.headers['x-worker-token'] = 'worker-secret';
+
+            await requireEditorOrWorker(req, res, next);
+
+            expect(next).toHaveBeenCalled();
+            expect(req.user).toEqual(expect.objectContaining({
+                uid: 'internal-worker',
+                email: 'geomonitor-worker@internal',
+            }));
+            expect(req.userProfile).toEqual(expect.objectContaining({
+                status: 'Ativo',
+                perfil: 'Administrador',
+            }));
+        });
+
+        it('requireEditorOrWorker should reject invalid internal worker token', async () => {
+            process.env.WORKER_API_TOKEN = 'worker-secret';
+            req.headers['x-worker-token'] = 'wrong-secret';
+
+            await requireEditorOrWorker(req, res, next);
 
             expect(res.status).toHaveBeenCalledWith(403);
             expect(next).not.toHaveBeenCalled();

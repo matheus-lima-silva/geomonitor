@@ -69,7 +69,8 @@ async function listQueued() {
     return result.rows.map((row) => hydrateRow(row));
 }
 
-async function claimNext() {
+async function claimNext(meta = {}) {
+    const updatedBy = normalizeText(meta.updatedBy) || 'API';
     if (!isPostgresBackend()) {
         const queued = await listQueued();
         if (queued.length === 0) return null;
@@ -78,13 +79,14 @@ async function claimNext() {
             ...job,
             statusExecucao: 'processing',
             updatedAt: new Date().toISOString(),
+            updatedBy,
         }, { merge: true });
     }
 
     const result = await postgresStore.query(
         `
             UPDATE report_jobs
-            SET status_execucao = 'processing', updated_at = NOW()
+            SET status_execucao = 'processing', updated_at = NOW(), updated_by = $1
             WHERE id = (
                 SELECT id FROM report_jobs
                 WHERE status_execucao = 'queued'
@@ -96,12 +98,13 @@ async function claimNext() {
                       status_execucao, error_log, output_docx_media_id, output_kmz_media_id,
                       payload, created_at, updated_at, updated_by
         `,
+        [updatedBy],
     );
 
     return result.rows.length > 0 ? hydrateRow(result.rows[0]) : null;
 }
 
-async function markComplete(id, outputIds = {}) {
+async function markComplete(id, outputIds = {}, meta = {}) {
     const normalizedId = normalizeText(id);
     const job = await getById(normalizedId);
     if (!job) return null;
@@ -113,12 +116,13 @@ async function markComplete(id, outputIds = {}) {
         outputDocxMediaId: normalizeText(outputIds.outputDocxMediaId) || job.outputDocxMediaId,
         outputKmzMediaId: normalizeText(outputIds.outputKmzMediaId) || job.outputKmzMediaId,
         updatedAt: new Date().toISOString(),
+        updatedBy: normalizeText(meta.updatedBy) || job.updatedBy || 'API',
     };
 
     return save(nextPayload, { merge: true });
 }
 
-async function markFailed(id, errorLog) {
+async function markFailed(id, errorLog, meta = {}) {
     const normalizedId = normalizeText(id);
     const job = await getById(normalizedId);
     if (!job) return null;
@@ -129,6 +133,7 @@ async function markFailed(id, errorLog) {
         statusExecucao: 'failed',
         errorLog: String(errorLog || ''),
         updatedAt: new Date().toISOString(),
+        updatedBy: normalizeText(meta.updatedBy) || job.updatedBy || 'API',
     };
 
     return save(nextPayload, { merge: true });

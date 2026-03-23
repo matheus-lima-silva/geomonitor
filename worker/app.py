@@ -1,15 +1,17 @@
 import json
 import os
-from datetime import datetime, timezone
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from worker.runtime import WorkerRuntime, utc_now
 
-def utc_now():
-    return datetime.now(timezone.utc).isoformat()
+
+RUNTIME = WorkerRuntime()
 
 
 class WorkerHandler(BaseHTTPRequestHandler):
-    server_version = "GeomonitorWorker/0.1"
+    server_version = "GeomonitorWorker/0.2"
 
     def _write_json(self, status_code, payload):
         body = json.dumps(payload).encode("utf-8")
@@ -28,6 +30,18 @@ class WorkerHandler(BaseHTTPRequestHandler):
                     "service": os.getenv("WORKER_NAME", "geomonitor-worker"),
                     "environment": os.getenv("WORKER_ENV", "unknown"),
                     "timestamp": utc_now(),
+                    "worker": RUNTIME.describe(),
+                },
+            )
+            return
+
+        if self.path == "/stats":
+            self._write_json(
+                200,
+                {
+                    "status": "success",
+                    "data": RUNTIME.describe(),
+                    "timestamp": utc_now(),
                 },
             )
             return
@@ -36,11 +50,21 @@ class WorkerHandler(BaseHTTPRequestHandler):
             self._write_json(
                 200,
                 {
-                    "message": "geomonitor worker bootstrap active",
-                    "status": "idle",
+                    "message": "geomonitor worker ready",
+                    "mode": "poll" if RUNTIME.auto_poll_enabled else "manual",
                     "timestamp": utc_now(),
+                    "worker": RUNTIME.describe(),
                 },
             )
+            return
+
+        self._write_json(404, {"error": "not_found", "timestamp": utc_now()})
+
+    def do_POST(self):  # noqa: N802
+        if self.path == "/run-once":
+            result = RUNTIME.run_once()
+            status_code = 500 if result.get("status") == "error" else 200
+            self._write_json(status_code, result)
             return
 
         self._write_json(404, {"error": "not_found", "timestamp": utc_now()})
@@ -54,11 +78,37 @@ class WorkerHandler(BaseHTTPRequestHandler):
         print(message, flush=True)
 
 
+def start_background_poll(runtime):
+    if not runtime.auto_poll_enabled:
+        print("[geomonitor-worker] auto poll disabled", flush=True)
+        return None
+
+    print(
+        f"[geomonitor-worker] auto poll enabled every {runtime.poll_interval_seconds}s",
+        flush=True,
+    )
+
+    def loop():
+        while True:
+            result = runtime.run_once()
+            if result.get("status") == "error":
+                print(
+                    f"[geomonitor-worker] poll error: {result.get('errorLog')}",
+                    flush=True,
+                )
+            time.sleep(runtime.poll_interval_seconds)
+
+    thread = threading.Thread(target=loop, name="worker-poller", daemon=True)
+    thread.start()
+    return thread
+
+
 def main():
     port = int(os.getenv("PORT", "8080"))
+    start_background_poll(RUNTIME)
     server = ThreadingHTTPServer(("0.0.0.0", port), WorkerHandler)
     print(
-        f"[geomonitor-worker] bootstrap worker listening on 0.0.0.0:{port}",
+        f"[geomonitor-worker] worker listening on 0.0.0.0:{port}",
         flush=True,
     )
     server.serve_forever()
