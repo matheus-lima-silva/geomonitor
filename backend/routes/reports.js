@@ -3,8 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
 const { createHateoasResponse } = require('../utils/hateoas');
-const { isPostgresBackend, postgresStore } = require('../repositories/common');
-const { reportJobRepository } = require('../repositories');
+const { reportJobRepository, legacyReportRepository } = require('../repositories');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -20,21 +19,10 @@ function normalizeSlots(slots = []) {
     }));
 }
 
-async function getLegacyReport(id) {
-    if (isPostgresBackend()) {
-        const doc = await postgresStore.getDoc('reports', id);
-        return doc.exists ? { id: doc.id, ...doc.data() } : null;
-    }
-
-    const { getDataStore } = require('../data');
-    const doc = await getDataStore().getDoc('reports', id);
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
-}
-
 router.get('/:id', verifyToken, requireActiveUser, async (req, res) => {
     try {
         const job = await reportJobRepository.getById(req.params.id);
-        const report = job || await getLegacyReport(req.params.id);
+        const report = job || await legacyReportRepository.getById(req.params.id);
         if (!report) {
             return res.status(404).json({ status: 'error', message: 'Relatorio nao encontrado' });
         }
