@@ -212,7 +212,7 @@
 - `relatorio-composto`: parcialmente entregue
   - status: CRUD, add/reorder, preflight e fila entregues; frontend agora expoe add workspace, reorder visual, preflight e geracao; falta documento final no worker
 - `worker-python`: parcialmente entregue
-  - status: apenas scaffold bootstrap aberto; sem processamento real de jobs
+  - status: scaffold bootstrap + cliente de jobs + runtime manual/poll entregues; faltam handlers reais de DOCX/KMZ
 - proxima macroetapa alvo: fechar `workspace-curadoria` antes de abrir processamento efetivo no worker
 
 ## Entregas Realizadas Neste Ciclo (continuacao - 2026-03-23)
@@ -261,21 +261,43 @@
     - `createDocumentTableRepository.js`
   - nenhum repositorio usa mais `require('../data').getDataStore().deleteDoc()` diretamente
 
+## Entregas Realizadas Neste Ciclo (continuacao - 2026-03-23 ciclo 4)
+
+- corte final do fallback generico nas rotas/reuso:
+  - `backend/utils/crudFactory.js` agora exige repositorio e nao possui mais fallback de store inline
+  - `backend/repositories/legacyReportRepository.js` isola a leitura legada da collection `reports`
+  - `backend/routes/reports.js` passou a usar `legacyReportRepository` como fallback legado de leitura
+- worker Python conectado a `report-jobs` via token interno:
+  - `backend/utils/authMiddleware.js` ganhou `requireEditorOrWorker` com header `x-worker-token`
+  - `backend/routes/reportJobs.js` agora aceita worker interno em `POST /claim`, `PUT /:id/complete` e `PUT /:id/fail`
+  - `reportJobRepository` passou a registrar `updatedBy` do ator em `claimNext`, `markComplete` e `markFailed`
+  - `backend/__tests__/reportJobs.test.js` cobre fluxo por token interno do worker
+  - `backend/utils/__tests__/authMiddleware.test.js` cobre autenticacao do token interno
+- runtime do worker ampliado com consumo real/manual:
+  - `worker/runtime.py` â€” cliente HTTP da API + estado interno + `run_once()`
+  - `worker/app.py` â€” endpoints `GET /health`, `GET /stats`, `POST /run-once`
+  - `worker/tests/test_runtime.py` â€” 5 testes do runtime/cliente
+  - `worker/Dockerfile` atualizado para rodar `python -m worker.app`
+- runtime/deploy do worker alinhado:
+  - `deploy/fly/homologacao/worker.toml` e `deploy/fly/producao/worker.toml` agora versionam `GEOMONITOR_API_URL`, `WORKER_AUTO_POLL` e `WORKER_POLL_INTERVAL_SECONDS`
+  - `deploy/fly/README.md` e `scripts/fly/bootstrap.ps1` agora documentam `WORKER_API_TOKEN` compartilhado entre API e worker
+
 ## Validacao Executada
 
-- data da rodada: `2026-03-23` (ciclo 3)
+- data da rodada: `2026-03-23` (ciclo 4)
 - backend:
   - `npm test -- --runInBand`
-- frontend:
-  - `npx vitest run`
-  - `npm run build`
+- worker:
+  - `python -m unittest discover -s worker/tests -p "test_*.py"`
 
 ## Resultado da Validacao
 
-- backend verde em `26/26` suites e `138/138` testes
-- frontend verde em `48/48` arquivos e `261/261` testes
-- build web verde
-- warning residual de chunk grande em `dist/assets/index-BFtwlLCV.js`
+- backend verde em `26/26` suites e `142/142` testes
+- worker Python verde em `5/5` testes
+- validacao web mais recente do ciclo anterior permaneceu:
+  - frontend verde em `48/48` arquivos e `261/261` testes
+  - build web verde
+  - warning residual de chunk grande em `dist/assets/index-BFtwlLCV.js`
 
 ## Risco Residual Atual
 
@@ -287,8 +309,9 @@
 - o dossie ja possui builder de escopo e preflight por secao, mas ainda nao foi validado em Postgres real
 - o relatorio composto ja possui comandos operacionais na UI, mas ainda nao ha documento final no worker
 - o ambiente atual nao expoe `psql` nem `DATABASE_URL`, entao o smoke em Postgres real depende de ambiente provisionado
-- worker Python ainda nao foi integrado ao consumo real de jobs; a API de claim/complete ja esta pronta
-- `reports.js` ainda usa `getDataStore()` como fallback para leitura da collection legada `reports`
+- o worker Python ja consegue consumir `report-jobs` por token interno, mas os handlers ainda estao em stub e retornam falha explicita para `project_dossier`, `report_compound` e `report_legacy`
+- o auto-poll do worker segue desligado por padrao (`WORKER_AUTO_POLL=false`) ate os handlers reais entrarem
+- `reports.js` segue com fallback legado de leitura, agora isolado em `legacyReportRepository`
 - o build segue com warning de chunk grande no bundle principal
 
 ## Riscos Conhecidos
@@ -301,6 +324,6 @@
 
 1. validar `project-dossier` em Postgres real e ajustar qualquer gap de repositorio
 2. provisionar Postgres e Tigris no Fly e fazer deploy inicial em homologacao
-3. integrar worker Python ao consumo real de jobs via `POST /api/report-jobs/claim`
+3. portar template base e staging temporario no worker para `project_dossier` e `report_compound`
 4. usar `mediaAssetRepository` na trilha completa de curadoria, exportacao e geracao
 5. consolidar o corte final do `document_store` generico remanescente

@@ -8,6 +8,8 @@
 - [x] abrir `postgresStore` e migracoes iniciais por flag
 - [x] migrar `rules.js` de `getDocRef` direto para `rulesConfigRepository`
 - [x] migrar `reports.js` de `getDataStore` para `reportJobRepository` + fallback legado
+- [x] remover fallback de store do `crudFactory`
+- [x] isolar leitura legada de `reports` em `legacyReportRepository`
 - [ ] remover o `document_store` generico remanescente das areas novas e dos dominios base
 
 ## repositorios-api
@@ -85,6 +87,7 @@
 ## worker-python
 
 - [x] criar scaffold bootstrap do app `geomonitor-worker`
+- [x] integrar consumo manual de `report-jobs` via API com token interno do worker
 - [ ] provisionar app `geomonitor-worker` no Fly
 - [ ] portar template base
 - [ ] staging temporario
