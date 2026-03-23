@@ -62,7 +62,7 @@
 ## project-dossier
 
 - [x] scaffold de CRUD + preflight + fila do dossie
-- [ ] builder de escopo do dossie
+- [x] builder de escopo do dossie
 - [x] preflight inicial do dossie
 - [ ] validar preflight do dossie em Postgres real
 - [ ] geracao de DOCX

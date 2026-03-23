@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, Card, HintText, Input, Select, Textarea } from '../../../components/ui';
 import { subscribeProjects } from '../../../services/projectService';
-import { listProjectDossiers, createProjectDossier } from '../../../services/projectDossierService';
+import {
+  createProjectDossier,
+  generateProjectDossier,
+  listProjectDossiers,
+  runProjectDossierPreflight,
+} from '../../../services/projectDossierService';
 import { downloadProjectPhotoExport, listProjectPhotos, requestProjectPhotoExport } from '../../../services/projectPhotoLibraryService';
 import { subscribeReportCompounds, createReportCompound } from '../../../services/reportCompoundService';
 import { completeMediaUpload, createMediaUpload, uploadMediaBinary } from '../../../services/mediaService';
@@ -187,6 +192,25 @@ function triggerBlobDownload(filename, blob) {
   return true;
 }
 
+const DOSSIER_SCOPE_FIELDS = [
+  ['includeLicencas', 'Licencas'],
+  ['includeInspecoes', 'Inspecoes'],
+  ['includeErosoes', 'Erosoes'],
+  ['includeEntregas', 'Entregas'],
+  ['includeWorkspaces', 'Workspaces'],
+  ['includeFotos', 'Fotos'],
+];
+
+function buildDefaultDossierScope() {
+  return Object.fromEntries(DOSSIER_SCOPE_FIELDS.map(([key]) => [key, true]));
+}
+
+function summarizeDossierScope(scopeJson = {}) {
+  return DOSSIER_SCOPE_FIELDS
+    .filter(([key]) => Boolean(scopeJson?.[key]))
+    .map(([, label]) => label);
+}
+
 export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [tab, setTab] = useState('workspaces');
   const [projects, setProjects] = useState([]);
@@ -195,9 +219,10 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [projectPhotos, setProjectPhotos] = useState([]);
   const [projectDossiers, setProjectDossiers] = useState([]);
+  const [projectDossierPreflights, setProjectDossierPreflights] = useState({});
   const [libraryFilters, setLibraryFilters] = useState({ workspaceId: '', towerId: '', captionQuery: '', dateFrom: '', dateTo: '' });
   const [workspaceDraft, setWorkspaceDraft] = useState({ projectId: '', nome: '', descricao: '' });
-  const [dossierDraft, setDossierDraft] = useState({ nome: '', observacoes: '' });
+  const [dossierDraft, setDossierDraft] = useState({ nome: '', observacoes: '', scopeJson: buildDefaultDossierScope() });
   const [compoundDraft, setCompoundDraft] = useState({ nome: '', texto: '' });
   const [workspaceImportTargetId, setWorkspaceImportTargetId] = useState('');
   const [workspaceImportMode, setWorkspaceImportMode] = useState('loose_photos');
@@ -254,6 +279,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   useEffect(() => {
     if (!selectedProjectId) {
       setProjectDossiers([]);
+      setProjectDossierPreflights({});
       return;
     }
     let cancelled = false;
@@ -261,6 +287,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       .then((dossiers) => {
         if (cancelled) return;
         setProjectDossiers(Array.isArray(dossiers) ? dossiers : []);
+        setProjectDossierPreflights({});
       })
       .catch((error) => !cancelled && showToast(error?.message || 'Erro ao carregar dados do empreendimento.', 'error'));
     return () => { cancelled = true; };
@@ -540,15 +567,55 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       await createProjectDossier(selectedProjectId, {
         nome: dossierDraft.nome.trim(),
         observacoes: String(dossierDraft.observacoes || '').trim(),
-        scopeJson: { includeFotos: true, includeInspecoes: true, includeErosoes: true },
+        scopeJson: dossierDraft.scopeJson,
         draftState: { autosave: 'pending' },
       }, { updatedBy: userEmail || 'web' });
-      setDossierDraft({ nome: '', observacoes: '' });
+      setDossierDraft({ nome: '', observacoes: '', scopeJson: buildDefaultDossierScope() });
       const dossiers = await listProjectDossiers(selectedProjectId);
       setProjectDossiers(Array.isArray(dossiers) ? dossiers : []);
+      setProjectDossierPreflights({});
       showToast('Dossie criado.', 'success');
     } catch (error) {
       showToast(error?.message || 'Erro ao criar dossie.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleDossierPreflight(dossier) {
+    if (!selectedProjectId || !dossier?.id) return;
+
+    try {
+      setBusy(`dossier-preflight:${dossier.id}`);
+      const result = await runProjectDossierPreflight(selectedProjectId, dossier.id);
+      setProjectDossierPreflights((prev) => ({
+        ...prev,
+        [dossier.id]: result?.data || null,
+      }));
+      showToast('Preflight do dossie executado.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao executar preflight do dossie.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleDossierGenerate(dossier) {
+    if (!selectedProjectId || !dossier?.id) return;
+
+    try {
+      setBusy(`dossier-generate:${dossier.id}`);
+      const result = await generateProjectDossier(selectedProjectId, dossier.id);
+      const savedDossier = result?.data;
+      if (savedDossier?.id) {
+        setProjectDossiers((prev) => prev.map((item) => (item.id === savedDossier.id ? savedDossier : item)));
+      } else {
+        const dossiers = await listProjectDossiers(selectedProjectId);
+        setProjectDossiers(Array.isArray(dossiers) ? dossiers : []);
+      }
+      showToast('Geracao do dossie enfileirada.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao enfileirar geracao do dossie.', 'error');
     } finally {
       setBusy('');
     }
@@ -1113,6 +1180,31 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             </Select>
             <Input id="dossier-name" label="Nome do Dossie" value={dossierDraft.nome} onChange={(event) => setDossierDraft((prev) => ({ ...prev, nome: event.target.value }))} placeholder="Ex: Dossie operacional" />
             <Textarea id="dossier-notes" label="Observacoes" hint="O dossie tera seu proprio rascunho persistido, independente do workspace." rows={2} value={dossierDraft.observacoes} onChange={(event) => setDossierDraft((prev) => ({ ...prev, observacoes: event.target.value }))} />
+            <div className="md:col-span-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-800">
+                <span>Escopo Editorial</span>
+                <HintText label="Escopo editorial do dossie">Escolha quais blocos operacionais entram no preflight e na geracao do dossie.</HintText>
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {DOSSIER_SCOPE_FIELDS.map(([key, label]) => (
+                  <label key={key} htmlFor={`dossier-scope-${key}`} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                    <input
+                      id={`dossier-scope-${key}`}
+                      type="checkbox"
+                      checked={Boolean(dossierDraft.scopeJson?.[key])}
+                      onChange={(event) => setDossierDraft((prev) => ({
+                        ...prev,
+                        scopeJson: {
+                          ...(prev.scopeJson || buildDefaultDossierScope()),
+                          [key]: event.target.checked,
+                        },
+                      }))}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
             <div className="md:col-span-3 flex justify-end"><Button onClick={handleCreateDossier} disabled={busy === 'dossier' || !selectedProjectId}><AppIcon name="plus" />{busy === 'dossier' ? 'Criando...' : 'Criar Dossie'}</Button></div>
           </Card>
           <Card variant="nested" className="flex flex-col gap-3">
@@ -1122,6 +1214,51 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                   <div><strong className="text-slate-800">{dossier.nome || dossier.id}</strong><p className="mt-1 mb-0 text-xs text-slate-500">{dossier.observacoes || 'Sem observacoes'}</p></div>
                   <span className={`rounded-full px-2 py-1 text-xs ${tone(dossier.status)}`}>{dossier.status || 'draft'}</span>
                 </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                  {summarizeDossierScope(dossier.scopeJson).map((label) => (
+                    <span key={label} className="rounded-full bg-slate-100 px-2 py-1">{label}</span>
+                  ))}
+                  {summarizeDossierScope(dossier.scopeJson).length === 0 ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">Escopo vazio</span>
+                  ) : null}
+                </div>
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <Button variant="outline" onClick={() => handleDossierPreflight(dossier)} disabled={busy === `dossier-preflight:${dossier.id}`}>
+                    <AppIcon name="search" />
+                    {busy === `dossier-preflight:${dossier.id}` ? 'Validando...' : 'Rodar Preflight'}
+                  </Button>
+                  <Button onClick={() => handleDossierGenerate(dossier)} disabled={busy === `dossier-generate:${dossier.id}`}>
+                    <AppIcon name="file-text" />
+                    {busy === `dossier-generate:${dossier.id}` ? 'Enfileirando...' : 'Enfileirar Geracao'}
+                  </Button>
+                </div>
+                {projectDossierPreflights[dossier.id] ? (
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <strong className="text-slate-800">Preflight</strong>
+                      <span className={`rounded-full px-2 py-1 ${tone(projectDossierPreflights[dossier.id]?.canGenerate ? 'ready' : 'pending')}`}>
+                        {projectDossierPreflights[dossier.id]?.canGenerate ? 'Pronto para gerar' : 'Ajustes necessarios'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-white px-2 py-1">Licencas: {projectDossierPreflights[dossier.id]?.summary?.licenseCount ?? 0}</span>
+                      <span className="rounded-full bg-white px-2 py-1">Inspecoes: {projectDossierPreflights[dossier.id]?.summary?.inspectionCount ?? 0}</span>
+                      <span className="rounded-full bg-white px-2 py-1">Erosoes: {projectDossierPreflights[dossier.id]?.summary?.erosionCount ?? 0}</span>
+                      <span className="rounded-full bg-white px-2 py-1">Entregas: {projectDossierPreflights[dossier.id]?.summary?.deliveryTrackingCount ?? 0}</span>
+                      <span className="rounded-full bg-white px-2 py-1">Workspaces: {projectDossierPreflights[dossier.id]?.summary?.workspaceCount ?? 0}</span>
+                      <span className="rounded-full bg-white px-2 py-1">Fotos: {projectDossierPreflights[dossier.id]?.summary?.photoCount ?? 0}</span>
+                    </div>
+                    {Array.isArray(projectDossierPreflights[dossier.id]?.warnings) && projectDossierPreflights[dossier.id].warnings.length > 0 ? (
+                      <div className="mt-3 flex flex-col gap-2">
+                        {projectDossierPreflights[dossier.id].warnings.map((warning) => (
+                          <div key={warning} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700">
+                            {warning}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </article>
             ))}
             {selectedProjectId && projectDossiers.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">Nenhum dossie criado ainda para este empreendimento.</div> : null}

@@ -7,7 +7,7 @@
 - Objetivo do ciclo atual:
   - fechar o restante de `workspace-curadoria` com processamento efetivo de `KMZ organizado`
   - manter a trilha de curadoria e biblioteca estavel enquanto a fila real do worker nao entra
-  - abrir a proxima fatia operacional de `project-dossier` sem depender ainda do worker
+  - abrir a proxima fatia operacional de `relatorio-composto` sem depender ainda do worker
 
 ## Ja Existia Antes Deste Ciclo
 
@@ -21,7 +21,7 @@
 
 - processamento efetivo de `KMZ organizado`
 - consolidacao da trilha de curadoria antes da integracao do worker
-- proxima fatia operacional de `project-dossier`
+- proxima fatia operacional de `relatorio-composto`
 
 ## Entregas Realizadas Neste Ciclo
 
@@ -107,6 +107,8 @@
   - filtros operacionais da biblioteca por `workspace`, `torre`, `legenda` e `data`
   - CTA de exportacao efemera no frontend com download real do ZIP filtrado
   - criacao de dossies
+  - builder de escopo editorial do dossie no frontend
+  - acoes de `Rodar Preflight` e `Enfileirar Geracao` do dossie na UI
   - criacao de relatorios compostos
 - service frontend novo para curadoria/listagem do workspace:
   - `listReportWorkspacePhotos` em `src/services/reportWorkspaceService.js`
@@ -126,9 +128,10 @@
   - `POST /api/projects/:id/photos/export`
   - `GET /api/projects/:id/photos/exports/:token`
   - `GET /api/projects/:id/photos/exports/:token?download=1`
-- `project-dossier` possui trilha real de CRUD, preflight e enfileiramento:
+- `project-dossier` possui trilha real de CRUD, builder de escopo, preflight e enfileiramento:
   - cria e persiste `draftState`
-  - roda preflight contra repositorios
+  - roda preflight contra repositorios respeitando `scopeJson`
+  - marca `canGenerate=false` quando o escopo editorial esta vazio
   - enfileira `report_job` com status `queued`
 - `relatorio-composto` possui trilha real de CRUD, add/reorder, preflight e enfileiramento:
   - persiste `workspaceIds`, `orderJson` e `draftState`
@@ -189,7 +192,7 @@
 - `photo-library`: entregue nesta fase
   - status: listagem agregada, filtros operacionais e ZIP efemero real entregues; refinamentos de selecao parcial dedicada podem evoluir sem bloquear o restante da frente
 - `project-dossier`: parcialmente entregue
-  - status: CRUD, preflight e fila entregues; faltam builder de escopo e DOCX final
+  - status: CRUD, builder de escopo, preflight e fila entregues; faltam validacao em Postgres real e DOCX final
 - `relatorio-composto`: parcialmente entregue
   - status: CRUD, add/reorder, preflight e fila entregues; falta documento final no worker
 - `worker-python`: parcialmente entregue
@@ -207,8 +210,8 @@
 
 ## Resultado da Validacao
 
-- backend verde em `21/21` suites e `89/89` testes
-- frontend verde em `47/47` arquivos e `252/252` testes
+- backend verde em `21/21` suites e `90/90` testes
+- frontend verde em `47/47` arquivos e `253/253` testes
 - build web verde
 - warning residual de chunk grande em `dist/assets/index-6Uh7CLrd.js`
 
@@ -218,7 +221,8 @@
 - o `postgresStore` e os repositorios alvo ja existem, mas ainda falta smoke real com banco provisionado
 - ainda nao houve bootstrap real em conta Fly; os artefatos e scripts estao versionados, mas os recursos cloud continuam pendentes
 - `media` ja possui backend Tigris por signed URL e o frontend cobre os tres modos de entrada, mas `KMZ organizado` ainda fica em registro/metadata e nao em processamento efetivo
-- dossie, composto, exportacao de fotos e KMZ ainda estao em fila/metadata, nao em processamento efetivo
+- dossie e composto ainda estao em fila/metadados e nao em processamento efetivo de documento
+- o dossie ja possui builder de escopo e preflight por secao, mas ainda nao foi validado em Postgres real
 - worker Python ainda nao foi integrado ao consumo real de jobs
 - o build segue com warning de chunk grande no bundle principal
 
@@ -231,7 +235,7 @@
 ## Proximos Passos Imediatos
 
 1. transformar `KMZ organizado` de registro em processamento efetivo de importacao
-2. abrir a proxima fatia de `project-dossier` com builder de escopo ou validacao em Postgres real
+2. abrir a proxima fatia de `relatorio-composto` no frontend com preflight e geracao expostos na UI
 3. abrir area de administracao de templates e fila real de jobs
 4. consolidar o corte final do store generico remanescente e validar smoke em Postgres real
 5. expandir `mediaAssetRepository` para a trilha completa de curadoria, exportacao e geracao

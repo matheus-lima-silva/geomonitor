@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ReportsView from '../ReportsView';
 import { listReportWorkspacePhotos, saveReportWorkspacePhoto, updateReportWorkspace } from '../../../../services/reportWorkspaceService';
 import { downloadProjectPhotoExport, listProjectPhotos, requestProjectPhotoExport } from '../../../../services/projectPhotoLibraryService';
+import { createProjectDossier } from '../../../../services/projectDossierService';
 
 const mockData = vi.hoisted(() => ({
   workspaces: [
@@ -214,6 +215,57 @@ describe('ReportsView', () => {
         towerId: '2',
         includeInReport: false,
         towerSource: 'manual',
+      }),
+      expect.objectContaining({ updatedBy: 'teste@exemplo.com' }),
+    );
+  });
+
+  it('cria dossie com escopo editorial configuravel', async () => {
+    await act(async () => {
+      root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+    });
+
+    const dossierButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Dossie do Empreendimento'));
+    await act(async () => {
+      dossierButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const nameInput = container.querySelector('#dossier-name');
+    const notesInput = container.querySelector('#dossier-notes');
+    const includeFotos = container.querySelector('#dossier-scope-includeFotos');
+    const includeErosoes = container.querySelector('#dossier-scope-includeErosoes');
+    const createButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Criar Dossie'));
+
+    await act(async () => {
+      const inputSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      const textareaSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+      inputSetter.call(nameInput, 'Dossie Operacional');
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+      nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+      textareaSetter.call(notesInput, 'Escopo editorial ajustado');
+      notesInput.dispatchEvent(new Event('input', { bubbles: true }));
+      notesInput.dispatchEvent(new Event('change', { bubbles: true }));
+      includeFotos.click();
+      includeErosoes.click();
+    });
+
+    await act(async () => {
+      createButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(createProjectDossier).toHaveBeenCalledWith(
+      'PRJ-01',
+      expect.objectContaining({
+        nome: 'Dossie Operacional',
+        observacoes: 'Escopo editorial ajustado',
+        scopeJson: expect.objectContaining({
+          includeLicencas: true,
+          includeInspecoes: true,
+          includeErosoes: false,
+          includeEntregas: true,
+          includeWorkspaces: true,
+          includeFotos: false,
+        }),
       }),
       expect.objectContaining({ updatedBy: 'teste@exemplo.com' }),
     );

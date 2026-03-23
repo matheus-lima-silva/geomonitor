@@ -32,6 +32,25 @@ function createDossierResponse(req, projectId, dossier) {
     );
 }
 
+function normalizeScopeFlag(value, fallbackValue = true) {
+    if (typeof value === 'boolean') return value;
+    if (typeof fallbackValue === 'boolean') return fallbackValue;
+    return true;
+}
+
+function normalizeDossierScopeJson(scopeJson = {}, fallbackScopeJson = {}) {
+    const nextScope = scopeJson && typeof scopeJson === 'object' ? scopeJson : {};
+    const fallback = fallbackScopeJson && typeof fallbackScopeJson === 'object' ? fallbackScopeJson : {};
+    return {
+        includeLicencas: normalizeScopeFlag(nextScope.includeLicencas, fallback.includeLicencas),
+        includeInspecoes: normalizeScopeFlag(nextScope.includeInspecoes, fallback.includeInspecoes),
+        includeErosoes: normalizeScopeFlag(nextScope.includeErosoes, fallback.includeErosoes),
+        includeEntregas: normalizeScopeFlag(nextScope.includeEntregas, fallback.includeEntregas),
+        includeWorkspaces: normalizeScopeFlag(nextScope.includeWorkspaces, fallback.includeWorkspaces),
+        includeFotos: normalizeScopeFlag(nextScope.includeFotos, fallback.includeFotos),
+    };
+}
+
 function normalizeDossierPayload(projectId, data = {}, meta = {}, fallback = {}) {
     return {
         ...fallback,
@@ -39,7 +58,7 @@ function normalizeDossierPayload(projectId, data = {}, meta = {}, fallback = {})
         projectId,
         nome: normalizeText(data.nome) || normalizeText(fallback.nome) || `Dossie ${projectId}`,
         status: normalizeText(data.status) || normalizeText(fallback.status) || 'draft',
-        scopeJson: data.scopeJson && typeof data.scopeJson === 'object' ? data.scopeJson : (fallback.scopeJson || {}),
+        scopeJson: normalizeDossierScopeJson(data.scopeJson, fallback.scopeJson),
         draftState: data.draftState && typeof data.draftState === 'object' ? data.draftState : (fallback.draftState || {}),
         observacoes: normalizeText(data.observacoes) || normalizeText(fallback.observacoes),
         updatedAt: new Date().toISOString(),
@@ -124,6 +143,8 @@ router.post('/:id/dossiers/:dossierId/preflight', verifyToken, requireEditor, as
             return res.status(404).json({ status: 'error', message: 'Dossie nao encontrado' });
         }
 
+        const normalizedScope = normalizeDossierScopeJson(dossier.scopeJson);
+
         const [inspectionCount, erosionCount, licenseCount, workspaceCount, photoCount, deliveryTrackingCount] = await Promise.all([
             inspectionRepository.countByProject(projectId),
             erosionRepository.countByProject(projectId),
@@ -134,14 +155,23 @@ router.post('/:id/dossiers/:dossierId/preflight', verifyToken, requireEditor, as
         ]);
 
         const warnings = [];
-        if (workspaceCount === 0) warnings.push('Nenhum workspace vinculado ao empreendimento foi encontrado.');
-        if (photoCount === 0) warnings.push('Nenhuma foto agregada ao empreendimento foi encontrada.');
+        const selectedSectionCount = Object.values(normalizedScope).filter(Boolean).length;
+        if (selectedSectionCount === 0) {
+            warnings.push('O escopo do dossie esta vazio. Selecione ao menos uma secao editorial.');
+        }
+        if (normalizedScope.includeWorkspaces && workspaceCount === 0) warnings.push('Nenhum workspace vinculado ao empreendimento foi encontrado.');
+        if (normalizedScope.includeFotos && photoCount === 0) warnings.push('Nenhuma foto agregada ao empreendimento foi encontrada.');
+        if (normalizedScope.includeLicencas && licenseCount === 0) warnings.push('Nenhuma licenca vinculada ao empreendimento foi encontrada.');
+        if (normalizedScope.includeInspecoes && inspectionCount === 0) warnings.push('Nenhuma inspecao vinculada ao empreendimento foi encontrada.');
+        if (normalizedScope.includeErosoes && erosionCount === 0) warnings.push('Nenhuma erosao vinculada ao empreendimento foi encontrada.');
+        if (normalizedScope.includeEntregas && deliveryTrackingCount === 0) warnings.push('Nenhum registro de entrega vinculado ao empreendimento foi encontrado.');
 
         return res.status(200).json({
             status: 'success',
             data: {
                 dossierId,
                 projectId,
+                scope: normalizedScope,
                 summary: {
                     inspectionCount,
                     erosionCount,
@@ -152,7 +182,7 @@ router.post('/:id/dossiers/:dossierId/preflight', verifyToken, requireEditor, as
                 },
                 warnings,
                 errors: [],
-                canGenerate: true,
+                canGenerate: selectedSectionCount > 0,
                 _links: {
                     self: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/dossiers/${dossierId}`, method: 'GET' },
                     generate: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/dossiers/${dossierId}/generate`, method: 'POST' },

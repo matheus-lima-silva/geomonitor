@@ -51,6 +51,14 @@ describe('Project Dossiers API Integration Tests (Mocked DB)', () => {
                 data: {
                     nome: 'Dossie mensal',
                     observacoes: 'Escopo inicial',
+                    scopeJson: {
+                        includeLicencas: true,
+                        includeInspecoes: true,
+                        includeErosoes: false,
+                        includeEntregas: true,
+                        includeWorkspaces: true,
+                        includeFotos: false,
+                    },
                 },
             });
 
@@ -62,6 +70,14 @@ describe('Project Dossiers API Integration Tests (Mocked DB)', () => {
             .set(AUTH_HEADER);
 
         expect(preflightResponse.status).toBe(200);
+        expect(preflightResponse.body.data.scope).toEqual(expect.objectContaining({
+            includeLicencas: true,
+            includeInspecoes: true,
+            includeErosoes: false,
+            includeEntregas: true,
+            includeWorkspaces: true,
+            includeFotos: false,
+        }));
         expect(preflightResponse.body.data.summary.inspectionCount).toBe(1);
         expect(preflightResponse.body.data.summary.licenseCount).toBe(1);
         expect(preflightResponse.body.data.summary.erosionCount).toBe(1);
@@ -76,5 +92,34 @@ describe('Project Dossiers API Integration Tests (Mocked DB)', () => {
         expect(generateResponse.status).toBe(202);
         expect(generateResponse.body.data.status).toBe('queued');
         expect(generateResponse.body.data._links.generate.href).toContain(`/api/projects/PRJ-01/dossiers/${dossierId}/generate`);
+    });
+
+    it('marca preflight como nao-geravel quando o escopo do dossie esta vazio', async () => {
+        const createResponse = await request(app)
+            .post('/api/projects/PRJ-01/dossiers')
+            .set(AUTH_HEADER)
+            .send({
+                data: {
+                    nome: 'Dossie vazio',
+                    scopeJson: {
+                        includeLicencas: false,
+                        includeInspecoes: false,
+                        includeErosoes: false,
+                        includeEntregas: false,
+                        includeWorkspaces: false,
+                        includeFotos: false,
+                    },
+                },
+            });
+
+        const dossierId = createResponse.body.data.id;
+
+        const preflightResponse = await request(app)
+            .post(`/api/projects/PRJ-01/dossiers/${dossierId}/preflight`)
+            .set(AUTH_HEADER);
+
+        expect(preflightResponse.status).toBe(200);
+        expect(preflightResponse.body.data.canGenerate).toBe(false);
+        expect(preflightResponse.body.data.warnings).toContain('O escopo do dossie esta vazio. Selecione ao menos uma secao editorial.');
     });
 });

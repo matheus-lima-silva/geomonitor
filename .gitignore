@@ -5,6 +5,7 @@ node_modules/
 dist/
 .vite/
 coverage/
+backend/.storage/
 
 # Environment files
 .env

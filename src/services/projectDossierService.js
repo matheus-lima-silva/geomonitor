@@ -32,3 +32,15 @@ export async function createProjectDossier(projectId, payload, meta = {}) {
     body: JSON.stringify({ data: payload, meta }),
   });
 }
+
+export async function runProjectDossierPreflight(projectId, dossierId) {
+  return requestProject(`${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/dossiers/${encodeURIComponent(dossierId)}/preflight`, {
+    method: 'POST',
+  });
+}
+
+export async function generateProjectDossier(projectId, dossierId) {
+  return requestProject(`${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/dossiers/${encodeURIComponent(dossierId)}/generate`, {
+    method: 'POST',
+  });
+}
