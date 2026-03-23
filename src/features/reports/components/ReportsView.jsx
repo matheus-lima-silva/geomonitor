@@ -6,11 +6,14 @@ import { listProjectDossiers, createProjectDossier } from '../../../services/pro
 import { listProjectPhotos, requestProjectPhotoExport } from '../../../services/projectPhotoLibraryService';
 import { subscribeReportCompounds, createReportCompound } from '../../../services/reportCompoundService';
 import { completeMediaUpload, createMediaUpload, uploadMediaBinary } from '../../../services/mediaService';
+import { getProjectTowerList } from '../../../utils/getProjectTowerList';
 import {
   createReportWorkspace,
   importReportWorkspace,
+  listReportWorkspacePhotos,
   saveReportWorkspacePhoto,
   subscribeReportWorkspaces,
+  updateReportWorkspace,
 } from '../../../services/reportWorkspaceService';
 
 const TABS = [
@@ -29,16 +32,123 @@ const STEPS = [
   ['Geracao', 'DOCX e KMZ entram na trilha do worker.'],
 ];
 
+const IMPORT_MODES = {
+  loose_photos: {
+    label: 'Fotos Soltas',
+    inputLabel: 'Fotos Soltas',
+    hint: 'Envie imagens avulsas. O upload usa URL assinada quando MEDIA_BACKEND=tigris e fallback local em desenvolvimento.',
+    buttonLabel: 'Importar Fotos Soltas',
+    accept: 'image/*',
+    multiple: true,
+  },
+  tower_subfolders: {
+    label: 'Subpastas por Torre',
+    inputLabel: 'Pasta com Subpastas',
+    hint: 'Selecione a pasta raiz. O sistema tenta inferir a torre pela ultima subpasta valida antes do arquivo.',
+    buttonLabel: 'Importar Subpastas por Torre',
+    accept: 'image/*',
+    multiple: true,
+  },
+  organized_kmz: {
+    label: 'KMZ Organizado',
+    inputLabel: 'Pacote KMZ',
+    hint: 'O arquivo KMZ e registrado agora; o processamento organizado ainda depende da trilha efetiva do worker.',
+    buttonLabel: 'Registrar KMZ Organizado',
+    accept: '.kmz,.zip,application/vnd.google-earth.kmz',
+    multiple: false,
+  },
+};
+
 function fmt(value) {
   return value ? new Date(value).toLocaleString('pt-BR') : '-';
 }
 
 function tone(status) {
   const value = String(status || '').toLowerCase();
-  if (value.includes('queued') || value.includes('process')) return 'bg-amber-100 text-amber-700';
+  if (value.includes('queued') || value.includes('process') || value.includes('saving') || value.includes('pending')) return 'bg-amber-100 text-amber-700';
   if (value.includes('ready') || value.includes('done') || value.includes('ativo')) return 'bg-emerald-100 text-emerald-700';
   if (value.includes('error') || value.includes('fail')) return 'bg-rose-100 text-rose-700';
   return 'bg-slate-100 text-slate-600';
+}
+
+function buildDefaultCaption(fileName = '') {
+  return String(fileName || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+}
+
+function normalizeTowerToken(rawValue = '') {
+  const normalized = String(rawValue || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ');
+
+  if (!normalized) return '';
+
+  const directMatch = normalized.match(/^(?:TORRE|T)?\s*(\d+)([A-Z]*)$/);
+  if (!directMatch) return '';
+
+  return `${Number(directMatch[1])}${directMatch[2] || ''}`;
+}
+
+function inferTowerIdFromRelativePath(relativePath = '') {
+  const segments = String(relativePath || '')
+    .split(/[\\/]/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  for (let index = segments.length - 2; index >= 0; index -= 1) {
+    const inferred = normalizeTowerToken(segments[index]);
+    if (inferred) return inferred;
+  }
+
+  return '';
+}
+
+function buildWorkspacePhotoDraft(photo = {}) {
+  return {
+    caption: String(photo.caption || ''),
+    towerId: String(photo.towerId || ''),
+    includeInReport: Boolean(photo.includeInReport),
+  };
+}
+
+function getPersistedWorkspaceCurationDrafts(workspace = null) {
+  const persistedDrafts = workspace?.draftState?.curationDrafts;
+  return persistedDrafts && typeof persistedDrafts === 'object' ? persistedDrafts : {};
+}
+
+function buildWorkspacePhotoDrafts(photos = [], persistedDrafts = {}) {
+  return Object.fromEntries((Array.isArray(photos) ? photos : []).map((photo) => {
+    const persistedDraft = persistedDrafts[photo.id];
+    return [
+      photo.id,
+      persistedDraft && typeof persistedDraft === 'object'
+        ? {
+          caption: String(persistedDraft.caption ?? photo.caption ?? ''),
+          towerId: String(persistedDraft.towerId ?? photo.towerId ?? ''),
+          includeInReport: Boolean(
+            persistedDraft.includeInReport ?? photo.includeInReport,
+          ),
+        }
+        : buildWorkspacePhotoDraft(photo),
+    ];
+  }));
+}
+
+function isWorkspacePhotoDirty(photo = {}, draft = {}) {
+  return String(draft.caption || '').trim() !== String(photo.caption || '').trim()
+    || String(draft.towerId || '').trim() !== String(photo.towerId || '').trim()
+    || Boolean(draft.includeInReport) !== Boolean(photo.includeInReport);
+}
+
+function getWorkspacePhotoStatus(photo = {}, draft = {}) {
+  const hasCaption = Boolean(String(draft.caption || '').trim());
+  const hasTower = Boolean(String(draft.towerId || '').trim());
+  const includeInReport = Boolean(draft.includeInReport);
+
+  if (includeInReport && hasCaption && hasTower) return 'curated';
+  if (hasCaption || hasTower || includeInReport) return 'reviewed';
+  return String(photo.curationStatus || 'uploaded').trim() || 'uploaded';
 }
 
 export default function ReportsView({ userEmail = '', showToast = () => {} }) {
@@ -53,6 +163,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [dossierDraft, setDossierDraft] = useState({ nome: '', observacoes: '' });
   const [compoundDraft, setCompoundDraft] = useState({ nome: '', texto: '' });
   const [workspaceImportTargetId, setWorkspaceImportTargetId] = useState('');
+  const [workspaceImportMode, setWorkspaceImportMode] = useState('loose_photos');
+  const [workspacePhotos, setWorkspacePhotos] = useState([]);
+  const [workspacePhotoDrafts, setWorkspacePhotoDrafts] = useState({});
+  const [workspaceAutosave, setWorkspaceAutosave] = useState({ status: 'idle', savedAt: '', error: '' });
+  const [lastPersistedWorkspaceDraftSignature, setLastPersistedWorkspaceDraftSignature] = useState('');
   const [pendingFiles, setPendingFiles] = useState([]);
   const [busy, setBusy] = useState('');
 
@@ -88,6 +203,48 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     return () => { cancelled = true; };
   }, [selectedProjectId, showToast]);
 
+  const selectedWorkspace = useMemo(
+    () => workspaces.find((workspace) => workspace.id === workspaceImportTargetId) || null,
+    [workspaceImportTargetId, workspaces],
+  );
+
+  const selectedWorkspaceProject = useMemo(
+    () => projects.find((project) => project.id === selectedWorkspace?.projectId) || null,
+    [projects, selectedWorkspace],
+  );
+
+  useEffect(() => {
+    if (!workspaceImportTargetId) {
+      setWorkspacePhotos([]);
+      setWorkspacePhotoDrafts({});
+      setLastPersistedWorkspaceDraftSignature('');
+      setWorkspaceAutosave({ status: 'idle', savedAt: '', error: '' });
+      return;
+    }
+
+    let cancelled = false;
+    listReportWorkspacePhotos(workspaceImportTargetId)
+      .then((photos) => {
+        if (cancelled) return;
+        const nextPhotos = Array.isArray(photos) ? photos : [];
+        const nextDrafts = buildWorkspacePhotoDrafts(
+          nextPhotos,
+          getPersistedWorkspaceCurationDrafts(selectedWorkspace),
+        );
+        setWorkspacePhotos(nextPhotos);
+        setWorkspacePhotoDrafts(nextDrafts);
+        setLastPersistedWorkspaceDraftSignature(JSON.stringify(nextDrafts));
+        setWorkspaceAutosave({
+          status: selectedWorkspace?.draftState?.autosave?.savedAt ? 'saved' : 'idle',
+          savedAt: String(selectedWorkspace?.draftState?.autosave?.savedAt || ''),
+          error: '',
+        });
+      })
+      .catch((error) => !cancelled && showToast(error?.message || 'Erro ao carregar fotos do workspace.', 'error'));
+
+    return () => { cancelled = true; };
+  }, [workspaceImportTargetId, selectedWorkspace, showToast]);
+
   const metrics = useMemo(() => ({
     total: projectPhotos.length,
     included: projectPhotos.filter((photo) => photo.includeInReport).length,
@@ -99,6 +256,137 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     () => workspaces.filter((workspace) => !selectedProjectId || workspace.projectId === selectedProjectId),
     [selectedProjectId, workspaces],
   );
+
+  const workspaceTowerOptions = useMemo(
+    () => getProjectTowerList(selectedWorkspaceProject),
+    [selectedWorkspaceProject],
+  );
+
+  const workspaceMetrics = useMemo(() => {
+    const rows = workspacePhotos.map((photo) => ({
+      ...photo,
+      ...(workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo)),
+    }));
+
+    return {
+      total: rows.length,
+      included: rows.filter((photo) => photo.includeInReport).length,
+      missingCaption: rows.filter((photo) => !String(photo.caption || '').trim()).length,
+      missingTower: rows.filter((photo) => !String(photo.towerId || '').trim()).length,
+    };
+  }, [workspacePhotoDrafts, workspacePhotos]);
+
+  const activeImportMode = IMPORT_MODES[workspaceImportMode] || IMPORT_MODES.loose_photos;
+
+  const workspaceDraftSnapshot = useMemo(
+    () => Object.fromEntries(
+      workspacePhotos.map((photo) => [
+        photo.id,
+        workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo),
+      ]),
+    ),
+    [workspacePhotoDrafts, workspacePhotos],
+  );
+
+  const workspaceDraftSignature = useMemo(
+    () => JSON.stringify(workspaceDraftSnapshot),
+    [workspaceDraftSnapshot],
+  );
+
+  async function refreshWorkspacePhotos(workspaceId) {
+    if (!workspaceId) {
+      setWorkspacePhotos([]);
+      setWorkspacePhotoDrafts({});
+      return [];
+    }
+
+    const photos = await listReportWorkspacePhotos(workspaceId);
+    const nextPhotos = Array.isArray(photos) ? photos : [];
+    const workspace = workspaces.find((item) => item.id === workspaceId) || null;
+    const nextDrafts = buildWorkspacePhotoDrafts(
+      nextPhotos,
+      getPersistedWorkspaceCurationDrafts(workspace),
+    );
+    setWorkspacePhotos(nextPhotos);
+    setWorkspacePhotoDrafts(nextDrafts);
+    return nextPhotos;
+  }
+
+  async function refreshProjectPhotos(projectId) {
+    if (!projectId) {
+      setProjectPhotos([]);
+      return [];
+    }
+
+    const photos = await listProjectPhotos(projectId);
+    const nextPhotos = Array.isArray(photos) ? photos : [];
+    setProjectPhotos(nextPhotos);
+    return nextPhotos;
+  }
+
+  useEffect(() => {
+    if (!selectedWorkspace || workspacePhotos.length === 0) return undefined;
+    if (workspaceDraftSignature === lastPersistedWorkspaceDraftSignature) {
+      return undefined;
+    }
+
+    setWorkspaceAutosave((prev) => ({
+      status: prev.status === 'saving' ? prev.status : 'pending',
+      savedAt: prev.savedAt,
+      error: '',
+    }));
+
+    const timeoutId = window.setTimeout(async () => {
+      const savedAt = new Date().toISOString();
+      const nextDraftState = {
+        ...(selectedWorkspace.draftState || {}),
+        curationDrafts: workspaceDraftSnapshot,
+        autosave: {
+          status: 'saved',
+          savedAt,
+          photoCount: workspacePhotos.length,
+        },
+      };
+      setWorkspaceAutosave({ status: 'saving', savedAt: '', error: '' });
+
+      try {
+        const result = await updateReportWorkspace(
+          selectedWorkspace.id,
+          {
+            draftState: nextDraftState,
+          },
+          { updatedBy: userEmail || 'web' },
+        );
+
+        setWorkspaces((prev) => prev.map((workspace) => (
+          workspace.id === selectedWorkspace.id
+            ? {
+              ...workspace,
+              ...(result?.data || {}),
+              draftState: nextDraftState,
+            }
+            : workspace
+        )));
+        setLastPersistedWorkspaceDraftSignature(workspaceDraftSignature);
+        setWorkspaceAutosave({ status: 'saved', savedAt, error: '' });
+      } catch (error) {
+        setWorkspaceAutosave({
+          status: 'error',
+          savedAt: '',
+          error: error?.message || 'Erro ao autosalvar rascunho do workspace.',
+        });
+      }
+    }, 1200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    lastPersistedWorkspaceDraftSignature,
+    selectedWorkspace,
+    userEmail,
+    workspaceDraftSignature,
+    workspaceDraftSnapshot,
+    workspacePhotos.length,
+  ]);
 
   async function handleCreateWorkspace() {
     if (!workspaceDraft.projectId || !String(workspaceDraft.nome || '').trim()) {
@@ -123,6 +411,42 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     } finally {
       setBusy('');
     }
+  }
+
+  async function uploadWorkspaceFile(file, workspace, index, importSource, metadata = {}) {
+    const createResult = await createMediaUpload({
+      fileName: file.name,
+      contentType: file.type || 'application/octet-stream',
+      sizeBytes: file.size,
+      purpose: metadata.purpose || 'workspace-photo',
+      linkedResourceType: 'reportWorkspaces',
+      linkedResourceId: workspace.id,
+    }, { updatedBy: userEmail || 'web' });
+
+    const mediaAsset = createResult?.data;
+    await uploadMediaBinary(mediaAsset?.upload, file);
+    await completeMediaUpload({
+      id: mediaAsset?.id,
+      storedSizeBytes: file.size,
+    }, { updatedBy: userEmail || 'web' });
+
+    if (metadata.skipPhotoRegistration) {
+      return { mediaAssetId: mediaAsset?.id, photoId: null };
+    }
+
+    const photoId = `RPH-${Date.now()}-${index}-${Math.random().toString(16).slice(2, 8)}`;
+    const inferredTowerId = metadata.inferredTowerId || '';
+    await saveReportWorkspacePhoto(workspace.id, photoId, {
+      mediaAssetId: mediaAsset?.id,
+      caption: buildDefaultCaption(file.name),
+      includeInReport: false,
+      curationStatus: inferredTowerId ? 'reviewed' : 'uploaded',
+      importSource,
+      towerId: inferredTowerId || undefined,
+      towerSource: inferredTowerId ? 'folder_path' : 'pending',
+    }, { updatedBy: userEmail || 'web' });
+
+    return { mediaAssetId: mediaAsset?.id, photoId };
   }
 
   async function handleCreateDossier() {
@@ -192,13 +516,13 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
-  async function handleUploadLoosePhotos() {
+  async function handleImportWorkspace() {
     if (!workspaceImportTargetId) {
       showToast('Selecione um workspace para importar as fotos.', 'error');
       return;
     }
     if (pendingFiles.length === 0) {
-      showToast('Selecione ao menos uma foto para importar.', 'error');
+      showToast('Selecione ao menos um arquivo para importar.', 'error');
       return;
     }
 
@@ -209,63 +533,132 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
 
     try {
-      setBusy('workspace-upload');
+      setBusy('workspace-import');
       const uploadedMediaIds = [];
+      const warnings = [];
 
-      for (const [index, file] of pendingFiles.entries()) {
-        const createResult = await createMediaUpload({
-          fileName: file.name,
-          contentType: file.type || 'application/octet-stream',
-          sizeBytes: file.size,
-          purpose: 'workspace-photo',
-          linkedResourceType: 'reportWorkspaces',
-          linkedResourceId: workspace.id,
+      if (workspaceImportMode === 'organized_kmz') {
+        const kmzFile = pendingFiles[0];
+        const uploaded = await uploadWorkspaceFile(
+          kmzFile,
+          workspace,
+          0,
+          'organized_kmz',
+          { purpose: 'workspace-import', skipPhotoRegistration: true },
+        );
+        uploadedMediaIds.push(uploaded.mediaAssetId);
+        warnings.push('Arquivo KMZ registrado. O processamento organizado ainda depende da trilha efetiva do worker.');
+
+        await importReportWorkspace(workspace.id, {
+          sourceType: 'organized_kmz',
+          importSource: 'organized_kmz',
+          warnings,
+          summaryJson: {
+            packagesReceived: 1,
+            uploadedMediaIds,
+            fileName: kmzFile?.name || '',
+            sizeBytes: Number(kmzFile?.size || 0),
+          },
         }, { updatedBy: userEmail || 'web' });
 
-        const mediaAsset = createResult?.data;
-        await uploadMediaBinary(mediaAsset?.upload, file);
-        await completeMediaUpload({
-          id: mediaAsset?.id,
-          storedSizeBytes: file.size,
-        }, { updatedBy: userEmail || 'web' });
+        showToast('KMZ organizado registrado no workspace.', 'success');
+      } else {
+        let inferredTowerCount = 0;
+        let pendingTowerCount = 0;
 
-        const photoId = `RPH-${Date.now()}-${index}-${Math.random().toString(16).slice(2, 8)}`;
-        const defaultCaption = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+        for (const [index, file] of pendingFiles.entries()) {
+          const inferredTowerId = workspaceImportMode === 'tower_subfolders'
+            ? inferTowerIdFromRelativePath(file.webkitRelativePath || file.name)
+            : '';
 
-        await saveReportWorkspacePhoto(workspace.id, photoId, {
-          mediaAssetId: mediaAsset?.id,
-          caption: defaultCaption,
-          includeInReport: false,
-          curationStatus: 'uploaded',
-          importSource: 'loose_photos',
-          towerSource: 'pending',
-        }, { updatedBy: userEmail || 'web' });
+          const uploaded = await uploadWorkspaceFile(
+            file,
+            workspace,
+            index,
+            workspaceImportMode,
+            { inferredTowerId },
+          );
 
-        uploadedMediaIds.push(mediaAsset?.id);
-      }
-
-      await importReportWorkspace(workspace.id, {
-        sourceType: 'loose_photos',
-        importSource: 'loose_photos',
-        warnings: [],
-        summaryJson: {
-          filesReceived: pendingFiles.length,
-          uploadedMediaIds,
-        },
-      }, { updatedBy: userEmail || 'web' });
-
-      if (workspace.projectId) {
-        const photos = await listProjectPhotos(workspace.projectId);
-        setProjectPhotos(Array.isArray(photos) ? photos : []);
-        if (!selectedProjectId) {
-          setSelectedProjectId(workspace.projectId);
+          uploadedMediaIds.push(uploaded.mediaAssetId);
+          if (inferredTowerId) inferredTowerCount += 1;
+          else if (workspaceImportMode === 'tower_subfolders') pendingTowerCount += 1;
         }
+
+        if (workspaceImportMode === 'tower_subfolders' && pendingTowerCount > 0) {
+          warnings.push(`${pendingTowerCount} foto(s) ficaram sem torre inferida pelas subpastas.`);
+        }
+
+        await importReportWorkspace(workspace.id, {
+          sourceType: workspaceImportMode,
+          importSource: workspaceImportMode,
+          warnings,
+          summaryJson: {
+            filesReceived: pendingFiles.length,
+            uploadedMediaIds,
+            inferredTowerCount,
+            pendingTowerCount,
+          },
+        }, { updatedBy: userEmail || 'web' });
+
+        showToast(
+          workspaceImportMode === 'tower_subfolders'
+            ? `Importacao concluida para ${uploadedMediaIds.length} foto(s), com ${inferredTowerCount} torre(s) inferida(s).`
+            : `Upload concluido para ${uploadedMediaIds.length} foto(s).`,
+          'success',
+        );
       }
 
+      await refreshWorkspacePhotos(workspace.id);
+      if (workspace.projectId) {
+        await refreshProjectPhotos(workspace.projectId);
+        if (!selectedProjectId) setSelectedProjectId(workspace.projectId);
+      }
       setPendingFiles([]);
-      showToast(`Upload concluido para ${uploadedMediaIds.length} foto(s).`, 'success');
     } catch (error) {
-      showToast(error?.message || 'Erro ao importar fotos para o workspace.', 'error');
+      showToast(error?.message || 'Erro ao importar arquivos para o workspace.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleSaveWorkspacePhoto(photo) {
+    const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
+    const workspace = selectedWorkspace;
+
+    if (!workspace) {
+      showToast('Selecione um workspace valido para salvar a curadoria.', 'error');
+      return;
+    }
+
+    try {
+      setBusy(`photo:${photo.id}`);
+      const nextTowerId = String(draft.towerId || '').trim();
+      const nextData = {
+        caption: String(draft.caption || '').trim(),
+        towerId: nextTowerId || null,
+        towerSource: nextTowerId ? 'manual' : 'pending',
+        includeInReport: Boolean(draft.includeInReport),
+        curationStatus: getWorkspacePhotoStatus(photo, draft),
+        manualOverride: Boolean(nextTowerId),
+      };
+
+      const result = await saveReportWorkspacePhoto(
+        workspace.id,
+        photo.id,
+        nextData,
+        { updatedBy: userEmail || 'web' },
+      );
+
+      const savedPhoto = result?.data || { ...photo, ...nextData };
+      setWorkspacePhotos((prev) => prev.map((item) => (item.id === photo.id ? savedPhoto : item)));
+      setWorkspacePhotoDrafts((prev) => ({
+        ...prev,
+        [photo.id]: buildWorkspacePhotoDraft(savedPhoto),
+      }));
+      setProjectPhotos((prev) => prev.map((item) => (item.id === photo.id ? savedPhoto : item)));
+      showToast('Curadoria da foto salva.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao salvar curadoria da foto.', 'error');
     } finally {
       setBusy('');
     }
@@ -319,22 +712,178 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             </div>
           </Card>
 
-          <Card variant="nested" className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Select id="rw-import-target" label="Workspace Alvo" hint="Primeira trilha real do modulo: importar fotos soltas para um workspace existente." value={workspaceImportTargetId} onChange={(event) => setWorkspaceImportTargetId(event.target.value)}>
+          <Card variant="nested" className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <Select id="rw-import-target" label="Workspace Alvo" hint="A importacao e a curadoria sempre acontecem dentro do workspace selecionado." value={workspaceImportTargetId} onChange={(event) => setWorkspaceImportTargetId(event.target.value)}>
               <option value="">Selecione...</option>
               {workspaceCandidates.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.nome || workspace.id}</option>)}
             </Select>
-            <Input id="rw-import-files" label="Fotos Soltas" hint="O upload usa URL assinada quando MEDIA_BACKEND=tigris e fallback local em desenvolvimento." type="file" accept="image/*" multiple onChange={(event) => setPendingFiles(Array.from(event.target.files || []))} />
+            <Select id="rw-import-mode" label="Modo de Importacao" hint="Os contratos do backend ja aceitam `fotos soltas`, `subpastas por torre` e `KMZ organizado`." value={workspaceImportMode} onChange={(event) => { setWorkspaceImportMode(event.target.value); setPendingFiles([]); }}>
+              {Object.entries(IMPORT_MODES).map(([mode, config]) => (
+                <option key={mode} value={mode}>{config.label}</option>
+              ))}
+            </Select>
+            <Input
+              key={workspaceImportMode}
+              id="rw-import-files"
+              label={activeImportMode.inputLabel}
+              hint={activeImportMode.hint}
+              type="file"
+              accept={activeImportMode.accept}
+              multiple={activeImportMode.multiple}
+              webkitdirectory={workspaceImportMode === 'tower_subfolders' ? '' : undefined}
+              directory={workspaceImportMode === 'tower_subfolders' ? '' : undefined}
+              onChange={(event) => setPendingFiles(Array.from(event.target.files || []))}
+            />
             <div className="flex items-end justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <div className="text-xs text-slate-500">
                 <div className="font-bold uppercase tracking-wide text-slate-600">Selecao Atual</div>
+                <div>{activeImportMode.label}</div>
                 <div>{pendingFiles.length} arquivo(s) pronto(s) para envio.</div>
               </div>
-              <Button onClick={handleUploadLoosePhotos} disabled={busy === 'workspace-upload' || !workspaceImportTargetId || pendingFiles.length === 0}>
-                <AppIcon name="save" />
-                {busy === 'workspace-upload' ? 'Enviando...' : 'Importar Fotos Soltas'}
+              <Button onClick={handleImportWorkspace} disabled={busy === 'workspace-import' || !workspaceImportTargetId || pendingFiles.length === 0}>
+                <AppIcon name={workspaceImportMode === 'organized_kmz' ? 'file-text' : 'upload'} />
+                {busy === 'workspace-import'
+                  ? (workspaceImportMode === 'organized_kmz' ? 'Registrando...' : 'Enviando...')
+                  : activeImportMode.buttonLabel}
               </Button>
             </div>
+          </Card>
+
+          <Card variant="nested" className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                <span>Curadoria do Workspace</span>
+                <HintText label="Curadoria do workspace">Edite legenda, torre e inclusao da foto usando o workspace alvo atual. A organizacao automatica mais rica continua pendente.</HintText>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <span>
+                  {selectedWorkspace ? `${selectedWorkspace.nome || selectedWorkspace.id} • ${workspaceMetrics.total} foto(s)` : 'Selecione um workspace para comecar a curadoria.'}
+                </span>
+                {selectedWorkspace ? (
+                  <span className={`rounded-full px-2 py-1 ${tone(workspaceAutosave.status)}`}>
+                    {workspaceAutosave.status === 'saving' ? 'Autosave salvando...' : null}
+                    {workspaceAutosave.status === 'pending' ? 'Autosave pendente' : null}
+                    {workspaceAutosave.status === 'saved' ? `Autosave salvo ${fmt(workspaceAutosave.savedAt)}` : null}
+                    {workspaceAutosave.status === 'error' ? 'Autosave com erro' : null}
+                    {workspaceAutosave.status === 'idle' ? 'Autosave inativo' : null}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            {selectedWorkspace && workspaceAutosave.status === 'error' ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {workspaceAutosave.error || 'Erro ao autosalvar rascunho do workspace.'}
+              </div>
+            ) : null}
+
+            {selectedWorkspace ? (
+              <>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <Card variant="nested"><strong className="text-slate-800">{workspaceMetrics.total}</strong><p className="mt-1 mb-0 text-xs text-slate-500">Fotos no workspace</p></Card>
+                  <Card variant="nested"><strong className="text-slate-800">{workspaceMetrics.included}</strong><p className="mt-1 mb-0 text-xs text-slate-500">Incluidas no relatorio</p></Card>
+                  <Card variant="nested"><strong className="text-slate-800">{workspaceMetrics.missingCaption}</strong><p className="mt-1 mb-0 text-xs text-slate-500">Sem legenda</p></Card>
+                  <Card variant="nested"><strong className="text-slate-800">{workspaceMetrics.missingTower}</strong><p className="mt-1 mb-0 text-xs text-slate-500">Sem torre</p></Card>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  {workspacePhotos.map((photo) => {
+                    const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
+                    const dirty = isWorkspacePhotoDirty(photo, draft);
+                    const currentStatus = getWorkspacePhotoStatus(photo, draft);
+                    const towerOptions = draft.towerId && !workspaceTowerOptions.includes(draft.towerId)
+                      ? [draft.towerId, ...workspaceTowerOptions]
+                      : workspaceTowerOptions;
+
+                    return (
+                      <article key={photo.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <strong className="text-slate-800">{photo.id}</strong>
+                            <p className="mt-1 mb-0 text-xs text-slate-500">
+                              Origem: {photo.importSource || '-'} • Torre sugerida: {photo.towerId || '-'} ({photo.towerSource || 'pendente'})
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {dirty ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Alteracoes pendentes</span> : null}
+                            <span className={`rounded-full px-2 py-1 text-xs ${tone(currentStatus)}`}>{currentStatus}</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_220px_auto]">
+                          <Input
+                            id={`rw-photo-caption-${photo.id}`}
+                            label="Legenda"
+                            value={draft.caption}
+                            onChange={(event) => setWorkspacePhotoDrafts((prev) => ({
+                              ...prev,
+                              [photo.id]: {
+                                ...(prev[photo.id] || buildWorkspacePhotoDraft(photo)),
+                                caption: event.target.value,
+                              },
+                            }))}
+                            placeholder="Descreva a foto que vai para o relatorio"
+                          />
+                          <Select
+                            id={`rw-photo-tower-${photo.id}`}
+                            label="Torre"
+                            value={draft.towerId}
+                            onChange={(event) => setWorkspacePhotoDrafts((prev) => ({
+                              ...prev,
+                              [photo.id]: {
+                                ...(prev[photo.id] || buildWorkspacePhotoDraft(photo)),
+                                towerId: event.target.value,
+                              },
+                            }))}
+                          >
+                            <option value="">Pendente</option>
+                            {towerOptions.map((towerId) => (
+                              <option key={towerId} value={towerId}>{towerId}</option>
+                            ))}
+                          </Select>
+                          <div className="flex h-full flex-col justify-end rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                            <label htmlFor={`rw-photo-include-${photo.id}`} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                              <input
+                                id={`rw-photo-include-${photo.id}`}
+                                type="checkbox"
+                                checked={Boolean(draft.includeInReport)}
+                                onChange={(event) => setWorkspacePhotoDrafts((prev) => ({
+                                  ...prev,
+                                  [photo.id]: {
+                                    ...(prev[photo.id] || buildWorkspacePhotoDraft(photo)),
+                                    includeInReport: event.target.checked,
+                                  },
+                                }))}
+                              />
+                              <span>Incluir no relatorio</span>
+                            </label>
+                            <p className="mt-2 mb-0 text-xs text-slate-500">Use a curadoria manual para confirmar o que vira insumo do DOCX.</p>
+                          </div>
+                          <div className="flex items-end justify-end">
+                            <Button
+                              variant={dirty ? 'primary' : 'outline'}
+                              onClick={() => handleSaveWorkspacePhoto(photo)}
+                              disabled={busy === `photo:${photo.id}` || !dirty}
+                            >
+                              <AppIcon name="save" />
+                              {busy === `photo:${photo.id}` ? 'Salvando...' : 'Salvar Curadoria'}
+                            </Button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                  {workspacePhotos.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                      Nenhuma foto registrada ainda neste workspace.
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                Nenhum workspace alvo selecionado para curadoria.
+              </div>
+            )}
           </Card>
 
           <Card variant="nested" className="flex flex-col gap-3">

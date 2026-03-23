@@ -19,8 +19,8 @@
 - [x] plugar as rotas novas nos repositorios
 - [x] migrar `workspaceImports` e `workspaceKmzRequests` para repositorios/tabelas proprias
 - [x] migrar preflight do dossie para repositorios dos dominios base
-- [x] mapear `projects`, `licenses`, `inspections`, `users`, `erosions`, `report_delivery_tracking` para repositórios/tabelas alvo
-- [ ] expandir cobertura e ajustes finais dos repositórios base em modo Postgres real
+- [x] mapear `projects`, `licenses`, `inspections`, `users`, `erosions`, `report_delivery_tracking` para repositorios/tabelas alvo
+- [ ] expandir cobertura e ajustes finais dos repositorios base em modo Postgres real
 
 ## fly-bootstrap-deploy
 
@@ -45,16 +45,16 @@
 
 - [x] stepper do workspace
 - [x] selecao obrigatoria de empreendimento
-- [ ] importacao em tres modos
+- [x] entrada de importacao em tres modos no frontend (`fotos soltas`, `subpastas por torre` e registro de `KMZ organizado`)
 - [x] importacao inicial de `fotos soltas` com upload real de media
-- [ ] curadoria com legenda, torre e inclusao
+- [x] curadoria minima com legenda, torre e inclusao
 - [x] tooltips operacionais
-- [ ] autosave persistido de rascunho do workspace
+- [x] autosave persistido de rascunho do workspace
 
 ## photo-library
 
 - [x] scaffold da biblioteca agregada por empreendimento
-- [ ] biblioteca agregada por empreendimento
+- [x] biblioteca agregada por empreendimento
 - [ ] filtros por workspace, torre, data e legenda
 - [x] metadata de export efemero em fila/scaffold
 - [ ] export total e parcial em ZIP efemero com processamento real
@@ -64,7 +64,7 @@
 - [x] scaffold de CRUD + preflight + fila do dossie
 - [ ] builder de escopo do dossie
 - [x] preflight inicial do dossie
-- [ ] preflight do dossie com dados vindos de repositorios Postgres
+- [ ] validar preflight do dossie em Postgres real
 - [ ] geracao de DOCX
 
 ## templates-admin

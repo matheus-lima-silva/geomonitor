@@ -15,6 +15,10 @@ export function createReportWorkspace(payload, meta = {}) {
   return service.create(payload, meta, (item) => String(item?.id || `RW-${Date.now()}`).trim());
 }
 
+export function updateReportWorkspace(id, payload, meta = {}, options = {}) {
+  return service.update(id, payload, meta, options);
+}
+
 async function requestWorkspace(url, options = {}) {
   const token = await getAuthToken();
   const response = await fetch(url, {
@@ -39,6 +43,13 @@ export async function importReportWorkspace(workspaceId, payload, meta = {}) {
     method: 'POST',
     body: JSON.stringify({ data: payload, meta }),
   });
+}
+
+export async function listReportWorkspacePhotos(workspaceId) {
+  const result = await requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos`, {
+    method: 'GET',
+  });
+  return Array.isArray(result?.data) ? result.data : [];
 }
 
 export async function saveReportWorkspacePhoto(workspaceId, photoId, payload, meta = {}) {
