@@ -24,7 +24,10 @@ function toProfile(authUser, profile) {
 }
 
 export async function loadProfile(authUser) {
-  const profile = await getCurrentUserProfile();
+  const profile = await bootstrapCurrentUserProfile({
+    nome: authUser.displayName || '',
+    email: authUser.email || '',
+  }, { updatedBy: authUser.email || 'app' });
   return toProfile(authUser, profile);
 }
 
@@ -43,8 +46,6 @@ export async function register(email, password, nome = '') {
       cargo: '',
       departamento: '',
       telefone: '',
-      perfil: 'Utilizador',
-      status: 'Pendente',
       perfilAtualizadoPrimeiroLogin: false,
     }, {
       updatedBy: email,

@@ -25,22 +25,22 @@ describe('Users API Integration Tests (Mocked DB)', () => {
         });
     }
 
-    it('permite bootstrap do perfil autenticado', async () => {
+    it('promove primeiro utilizador a Administrador Ativo no bootstrap', async () => {
         const response = await request(app)
             .post('/api/users/bootstrap')
             .set(AUTH_HEADER)
             .send({
                 data: {
-                    nome: 'Novo Utilizador',
+                    nome: 'Primeiro Utilizador',
                     cargo: 'Campo',
                 },
             });
 
         expect(response.status).toBe(201);
         expect(response.body.status).toBe('success');
-        expect(response.body.data.nome).toBe('Novo Utilizador');
-        expect(response.body.data.perfil).toBe('Utilizador');
-        expect(response.body.data.status).toBe('Pendente');
+        expect(response.body.data.nome).toBe('Primeiro Utilizador');
+        expect(response.body.data.perfil).toBe('Administrador');
+        expect(response.body.data.status).toBe('Ativo');
     });
 
     it('GET /api/users/me retorna o proprio perfil', async () => {

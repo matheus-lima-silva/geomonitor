@@ -44,7 +44,7 @@ describe('authService', () => {
     ['Gerente', 'manager'],
     ['Utilizador', 'viewer'],
   ])('loadProfile mapeia perfil %s para role %s', async (perfil, role) => {
-    vi.mocked(getCurrentUserProfile).mockResolvedValue({
+    vi.mocked(bootstrapCurrentUserProfile).mockResolvedValue({
       nome: 'Maria',
       perfil,
       status: 'Ativo',
@@ -60,7 +60,10 @@ describe('authService', () => {
       displayName: 'Display Maria',
     });
 
-    expect(getCurrentUserProfile).toHaveBeenCalled();
+    expect(bootstrapCurrentUserProfile).toHaveBeenCalledWith(
+      { nome: 'Display Maria', email: 'maria@empresa.com' },
+      { updatedBy: 'maria@empresa.com' },
+    );
     expect(profile.role).toBe(role);
     expect(profile.nome).toBe('Maria');
   });
@@ -73,7 +76,7 @@ describe('authService', () => {
         displayName: 'Ana Display',
       },
     });
-    vi.mocked(getCurrentUserProfile).mockResolvedValue({
+    vi.mocked(bootstrapCurrentUserProfile).mockResolvedValue({
       nome: 'Ana',
       perfil: 'Gerente',
       status: 'Ativo',
@@ -120,8 +123,6 @@ describe('authService', () => {
         cargo: '',
         departamento: '',
         telefone: '',
-        perfil: 'Utilizador',
-        status: 'Pendente',
         perfilAtualizadoPrimeiroLogin: false,
       },
       { updatedBy: 'novo@empresa.com' },

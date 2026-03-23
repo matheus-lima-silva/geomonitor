@@ -126,17 +126,36 @@ router.post('/bootstrap', verifyToken, async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Utilizador autenticado invalido' });
         }
 
+        const allUsers = await userRepository.list();
+        const hasActiveAdmin = allUsers.some(
+            (u) => u.perfil === 'Administrador' && u.status === 'Ativo',
+        );
+
         const existingProfile = await loadUserProfile(userId);
         if (existingProfile) {
+            if (!hasActiveAdmin && existingProfile.perfil !== 'Administrador') {
+                existingProfile.perfil = 'Administrador';
+                existingProfile.status = 'Ativo';
+                existingProfile.updatedAt = new Date().toISOString();
+                await userRepository.save(existingProfile, { merge: true });
+                invalidateCachedProfile(userId);
+            }
             return res.status(200).json({
                 status: 'success',
                 data: createHateoasResponse(req, existingProfile, 'users', userId),
             });
         }
 
+        const isFirstUser = allUsers.length === 0;
+
         const profile = buildBootstrapProfile(req.user, sanitizeUserProfileInput(data), {
             updatedBy: meta.updatedBy || req.user?.email || 'API',
         });
+
+        if (isFirstUser) {
+            profile.perfil = 'Administrador';
+            profile.status = 'Ativo';
+        }
 
         await userRepository.save(profile, { merge: true });
         invalidateCachedProfile(userId);
