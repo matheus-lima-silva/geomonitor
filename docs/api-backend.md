@@ -266,7 +266,7 @@ O endpoint executa automaticamente:
 6. Registro de historico de criticidade
 7. Evento de acompanhamento automatico
 
-Resposta inclui `criticalidadeV2` com o resultado completo do calculo.
+Resposta inclui `criticalidade` com o resultado completo do calculo.
 
 Status:
 - `201`: erosao calculada e salva (POST)
@@ -409,7 +409,7 @@ Remove usuario. (Requer: `requireAdmin`)
 
 Colecao Firestore: `config/rules` (documento singleton)
 
-Armazena a configuracao de regras de criticidade. Inclui `criticalityV2` com pontos, faixas e solucoes.
+Armazena a configuracao de regras de criticidade. Inclui `criticalidade` com pontos, faixas e solucoes.
 
 ### GET /api/rules
 
@@ -426,7 +426,7 @@ Body:
 ```json
 {
   "data": {
-    "criticalityV2": {
+    "criticalidade": {
       "pontos": { "..." },
       "faixas": [
         { "codigo": "C1", "classe": "Baixo", "min": 0, "max": 9 },

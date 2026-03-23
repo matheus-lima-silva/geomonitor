@@ -5,7 +5,7 @@
 Este documento resume a regra operacional de criticidade V3 usada pelo projeto e como o sistema escolhe solucoes tecnicas conforme faixa e contexto.
 
 Fontes canonicas:
-- `backend/utils/criticalityV2.js`
+- `backend/utils/criticality.js`
 - `backend/__tests__/criticality.test.js`
 
 ## 2. Formula Geral
@@ -260,4 +260,4 @@ Saida esperada:
 - O backend e a fonte canonica da criticidade.
 - O frontend deve apenas exibir classes, score e recomendacoes retornadas pela engine.
 - O campo `tiposFeicao` e single-select na UI, mas continua armazenado como array para retrocompatibilidade.
-- Registros legados sem criticidade V3 completa sao recalculados ao abrir o modal de detalhes.
+- Registros legados sem `criticalidade` V3 completa sao recalculados ao abrir o modal de detalhes.

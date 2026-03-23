@@ -44,6 +44,8 @@ function normalizeLocationCoordinates(erosion = {}) {
     utmNorthing: toTrimmedString(source.utmNorthing),
     utmZone: toTrimmedString(source.utmZone),
     utmHemisphere: toTrimmedString(source.utmHemisphere).toUpperCase(),
+    dmsLatitude: toTrimmedString(source.dmsLatitude),
+    dmsLongitude: toTrimmedString(source.dmsLongitude),
     altitude: toTrimmedString(source.altitude),
     reference: toTrimmedString(source.reference)
   };
