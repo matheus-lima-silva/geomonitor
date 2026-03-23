@@ -42,6 +42,10 @@ async function saveFirestoreDoc(collectionName, docId, payload, options = {}) {
     return payload;
 }
 
+async function deleteFirestoreDoc(collectionName, docId) {
+    return getDataStore().deleteDoc(collectionName, docId);
+}
+
 function buildMetadata(payload, row = {}) {
     return {
         ...(payload && typeof payload === 'object' ? clone(payload) : {}),
@@ -61,5 +65,6 @@ module.exports = {
     getFirestoreDoc,
     listFirestoreDocs,
     saveFirestoreDoc,
+    deleteFirestoreDoc,
     buildMetadata,
 };

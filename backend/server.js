@@ -69,6 +69,8 @@ const projectReportDefaultsRouter = require('./routes/projectReportDefaults');
 const projectPhotosRouter = require('./routes/projectPhotos');
 const projectDossiersRouter = require('./routes/projectDossiers');
 const reportCompoundsRouter = require('./routes/reportCompounds');
+const reportTemplatesRouter = require('./routes/reportTemplates');
+const reportJobsRouter = require('./routes/reportJobs');
 
 app.use('/api/erosions', erosionsRouter);
 app.use('/api/projects', projectsRouter);
@@ -84,6 +86,8 @@ app.use('/api/report-compounds', reportCompoundsRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/report-delivery-tracking', reportDeliveryTrackingRouter);
 app.use('/api/rules', rulesRouter);
+app.use('/api/report-templates', reportTemplatesRouter);
+app.use('/api/report-jobs', reportJobsRouter);
 
 // Global Error Handler para não expor erros ao cliente em prod
 app.use((err, req, res, next) => {

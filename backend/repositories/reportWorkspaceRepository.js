@@ -6,6 +6,7 @@ const {
     getFirestoreDoc,
     listFirestoreDocs,
     saveFirestoreDoc,
+    deleteFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -119,7 +120,7 @@ async function save(payload, options = {}) {
 async function remove(id) {
     const normalizedId = normalizeText(id);
     if (!isPostgresBackend()) {
-        return require('../data').getDataStore().deleteDoc('reportWorkspaces', normalizedId);
+        return deleteFirestoreDoc('reportWorkspaces', normalizedId);
     }
 
     await postgresStore.query('DELETE FROM report_workspaces WHERE id = $1', [normalizedId]);

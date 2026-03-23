@@ -1,19 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
-const { getDocRef } = require('../utils/firebaseSetup');
 const { createSingletonHateoasResponse } = require('../utils/hateoas');
+const { rulesConfigRepository } = require('../repositories');
 
 router.get('/', verifyToken, requireActiveUser, async (req, res) => {
     try {
-        const doc = await getDocRef('config', 'rules').get();
-        if (!doc.exists) {
+        const config = await rulesConfigRepository.get();
+        if (!config) {
             return res.status(200).json({ status: 'success', data: null });
         }
 
         return res.status(200).json({
             status: 'success',
-            data: createSingletonHateoasResponse(req, doc.data(), 'rules'),
+            data: createSingletonHateoasResponse(req, config, 'rules'),
         });
     } catch (error) {
         console.error('[rules API] Error GET /:', error);
@@ -36,11 +36,11 @@ router.put('/', verifyToken, requireEditor, async (req, res) => {
             updatedBy: meta.updatedBy || req.user?.email || 'API',
         };
 
-        await getDocRef('config', 'rules').set(payload, { merge: true });
+        const saved = await rulesConfigRepository.save(payload, { merge: true });
 
         return res.status(200).json({
             status: 'success',
-            data: createSingletonHateoasResponse(req, payload, 'rules'),
+            data: createSingletonHateoasResponse(req, saved || payload, 'rules'),
         });
     } catch (error) {
         console.error('[rules API] Error PUT /:', error);

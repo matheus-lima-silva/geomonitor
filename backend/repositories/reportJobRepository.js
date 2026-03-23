@@ -3,8 +3,36 @@ const {
     isPostgresBackend,
     normalizeText,
     getFirestoreDoc,
+    listFirestoreDocs,
     saveFirestoreDoc,
+    buildMetadata,
 } = require('./common');
+
+function hydrateRow(row) {
+    return buildMetadata(
+        {
+            ...(row.payload || {}),
+            kind: row.kind,
+            workspaceId: row.workspace_id,
+            projectId: row.project_id,
+            dossierId: row.dossier_id,
+            compoundId: row.compound_id,
+            templateId: row.template_id,
+            statusExecucao: row.status_execucao,
+            errorLog: row.error_log,
+            outputDocxMediaId: row.output_docx_media_id,
+            outputKmzMediaId: row.output_kmz_media_id,
+        },
+        row,
+    );
+}
+
+const JOB_SELECT = `
+    SELECT id, kind, workspace_id, project_id, dossier_id, compound_id, template_id,
+           status_execucao, error_log, output_docx_media_id, output_kmz_media_id,
+           payload, created_at, updated_at, updated_by
+    FROM report_jobs
+`;
 
 async function getById(id) {
     const normalizedId = normalizeText(id);
@@ -13,16 +41,97 @@ async function getById(id) {
     }
 
     const result = await postgresStore.query(
-        `
-            SELECT id, payload
-            FROM report_jobs
-            WHERE id = $1
-            LIMIT 1
-        `,
+        `${JOB_SELECT} WHERE id = $1 LIMIT 1`,
         [normalizedId],
     );
 
-    return result.rows.length > 0 ? { id: result.rows[0].id, ...(result.rows[0].payload || {}) } : null;
+    return result.rows.length > 0 ? hydrateRow(result.rows[0]) : null;
+}
+
+async function list() {
+    if (!isPostgresBackend()) {
+        return listFirestoreDocs('reportJobs');
+    }
+
+    const result = await postgresStore.query(`${JOB_SELECT} ORDER BY created_at DESC, id ASC`);
+    return result.rows.map((row) => hydrateRow(row));
+}
+
+async function listQueued() {
+    if (!isPostgresBackend()) {
+        const all = await listFirestoreDocs('reportJobs');
+        return all.filter((item) => normalizeText(item.statusExecucao) === 'queued');
+    }
+
+    const result = await postgresStore.query(
+        `${JOB_SELECT} WHERE status_execucao = 'queued' ORDER BY created_at ASC`,
+    );
+    return result.rows.map((row) => hydrateRow(row));
+}
+
+async function claimNext() {
+    if (!isPostgresBackend()) {
+        const queued = await listQueued();
+        if (queued.length === 0) return null;
+        const job = queued[0];
+        return saveFirestoreDoc('reportJobs', job.id, {
+            ...job,
+            statusExecucao: 'processing',
+            updatedAt: new Date().toISOString(),
+        }, { merge: true });
+    }
+
+    const result = await postgresStore.query(
+        `
+            UPDATE report_jobs
+            SET status_execucao = 'processing', updated_at = NOW()
+            WHERE id = (
+                SELECT id FROM report_jobs
+                WHERE status_execucao = 'queued'
+                ORDER BY created_at ASC
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+            )
+            RETURNING id, kind, workspace_id, project_id, dossier_id, compound_id, template_id,
+                      status_execucao, error_log, output_docx_media_id, output_kmz_media_id,
+                      payload, created_at, updated_at, updated_by
+        `,
+    );
+
+    return result.rows.length > 0 ? hydrateRow(result.rows[0]) : null;
+}
+
+async function markComplete(id, outputIds = {}) {
+    const normalizedId = normalizeText(id);
+    const job = await getById(normalizedId);
+    if (!job) return null;
+
+    const nextPayload = {
+        ...job,
+        id: normalizedId,
+        statusExecucao: 'completed',
+        outputDocxMediaId: normalizeText(outputIds.outputDocxMediaId) || job.outputDocxMediaId,
+        outputKmzMediaId: normalizeText(outputIds.outputKmzMediaId) || job.outputKmzMediaId,
+        updatedAt: new Date().toISOString(),
+    };
+
+    return save(nextPayload, { merge: true });
+}
+
+async function markFailed(id, errorLog) {
+    const normalizedId = normalizeText(id);
+    const job = await getById(normalizedId);
+    if (!job) return null;
+
+    const nextPayload = {
+        ...job,
+        id: normalizedId,
+        statusExecucao: 'failed',
+        errorLog: String(errorLog || ''),
+        updatedAt: new Date().toISOString(),
+    };
+
+    return save(nextPayload, { merge: true });
 }
 
 async function save(payload, options = {}) {
@@ -84,5 +193,10 @@ async function save(payload, options = {}) {
 
 module.exports = {
     getById,
+    list,
+    listQueued,
     save,
+    claimNext,
+    markComplete,
+    markFailed,
 };

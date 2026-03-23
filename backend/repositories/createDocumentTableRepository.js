@@ -6,6 +6,7 @@ const {
     getFirestoreDoc,
     listFirestoreDocs,
     saveFirestoreDoc,
+    deleteFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -101,7 +102,7 @@ function createDocumentTableRepository(config = {}) {
     async function remove(id) {
         const normalizedId = normalizeText(id);
         if (!isPostgresBackend()) {
-            return require('../data').getDataStore().deleteDoc(firestoreCollection, normalizedId);
+            return deleteFirestoreDoc(firestoreCollection, normalizedId);
         }
 
         await postgresStore.query(`DELETE FROM ${tableName} WHERE id = $1`, [normalizedId]);

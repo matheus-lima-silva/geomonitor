@@ -2,8 +2,9 @@ const crypto = require('crypto');
 const express = require('express');
 const router = express.Router();
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
-const { getDataStore } = require('../data');
 const { createHateoasResponse } = require('../utils/hateoas');
+const { isPostgresBackend, postgresStore } = require('../repositories/common');
+const { reportJobRepository } = require('../repositories');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -19,16 +20,28 @@ function normalizeSlots(slots = []) {
     }));
 }
 
+async function getLegacyReport(id) {
+    if (isPostgresBackend()) {
+        const doc = await postgresStore.getDoc('reports', id);
+        return doc.exists ? { id: doc.id, ...doc.data() } : null;
+    }
+
+    const { getDataStore } = require('../data');
+    const doc = await getDataStore().getDoc('reports', id);
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+}
+
 router.get('/:id', verifyToken, requireActiveUser, async (req, res) => {
     try {
-        const doc = await getDataStore().getDoc('reports', req.params.id);
-        if (!doc.exists) {
+        const job = await reportJobRepository.getById(req.params.id);
+        const report = job || await getLegacyReport(req.params.id);
+        if (!report) {
             return res.status(404).json({ status: 'error', message: 'Relatorio nao encontrado' });
         }
 
         return res.status(200).json({
             status: 'success',
-            data: createHateoasResponse(req, doc.data(), 'reports', doc.id),
+            data: createHateoasResponse(req, report, 'reports', report.id),
         });
     } catch (error) {
         console.error('[reports API] Error GET /:id:', error);
@@ -81,22 +94,22 @@ router.post('/generate', verifyToken, requireEditor, async (req, res) => {
 
         const payload = {
             id: reportId,
+            kind: 'report_legacy',
             workspaceId: normalizeText(data.workspaceId),
             nome: normalizeText(data.nome) || 'Relatorio GeoRelat',
-            outputFormat: normalizeText(data.outputFormat) || 'docx',
             statusExecucao: 'queued',
             slotCount: slots.length,
             readySlotCount: slots.filter((slot) => slot.assetCount > 0).length,
-            requestedAt: now,
+            createdAt: now,
             updatedAt: now,
             updatedBy: req.user?.email || 'API',
         };
 
-        await getDataStore().setDoc('reports', reportId, payload, { merge: true });
+        const saved = await reportJobRepository.save(payload, { merge: true });
 
         return res.status(202).json({
             status: 'success',
-            data: createHateoasResponse(req, payload, 'reports', reportId),
+            data: createHateoasResponse(req, saved || payload, 'reports', reportId),
         });
     } catch (error) {
         console.error('[reports API] Error POST /generate:', error);

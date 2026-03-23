@@ -1,12 +1,15 @@
 const express = require('express');
 const { verifyToken, requireActiveUser, requireEditor, requireAdmin } = require('./authMiddleware');
 const { createHateoasResponse, generateHateoasLinks } = require('./hateoas');
-const { getCollection, getDocRef } = require('./firebaseSetup');
 
 function createCrudRouter(collectionName, options = {}) {
     const router = express.Router();
     const routerName = options.routerName || collectionName;
     const repository = options.repository || null;
+
+    if (!repository) {
+        throw new Error(`createCrudRouter("${collectionName}"): repository option is required`);
+    }
     const listGuards = options.listGuards || [verifyToken, requireActiveUser];
     const getGuards = options.getGuards || [verifyToken, requireActiveUser];
     const createGuards = options.createGuards || [verifyToken, requireEditor];
