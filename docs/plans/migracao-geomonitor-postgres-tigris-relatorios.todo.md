@@ -50,6 +50,7 @@
 - [x] curadoria minima com legenda, torre e inclusao
 - [x] tooltips operacionais
 - [x] autosave persistido de rascunho do workspace
+- [x] processamento efetivo de `KMZ organizado` com extracao de fotos, inferencia de torre e criacao de `report_photo`
 
 ## photo-library
 

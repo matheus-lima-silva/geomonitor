@@ -8,7 +8,9 @@ const {
     reportPhotoRepository,
     workspaceImportRepository,
     workspaceKmzRequestRepository,
+    mediaAssetRepository,
 } = require('../repositories');
+const { processKmzImport } = require('../utils/kmzProcessor');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -306,6 +308,83 @@ router.post('/:id/photos/organize', verifyToken, requireEditor, async (req, res)
     } catch (error) {
         console.error('[report-workspaces API] Error POST /:id/photos/organize:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao organizar fotos do workspace' });
+    }
+});
+
+router.post('/:id/kmz/process', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const data = body.data && typeof body.data === 'object' ? body.data : {};
+        const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
+        const mediaAssetId = normalizeText(data.mediaAssetId);
+
+        if (!mediaAssetId) {
+            return res.status(400).json({ status: 'error', message: 'mediaAssetId obrigatorio.' });
+        }
+
+        const workspace = await reportWorkspaceRepository.getById(workspaceId);
+        if (!workspace) {
+            return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
+        }
+
+        const mediaAsset = await mediaAssetRepository.getById(mediaAssetId);
+        if (!mediaAsset) {
+            return res.status(404).json({ status: 'error', message: 'Media asset nao encontrado' });
+        }
+
+        const updatedBy = meta.updatedBy || req.user?.email || 'API';
+
+        const result = await processKmzImport({
+            workspaceId,
+            projectId: normalizeText(workspace.projectId).toUpperCase(),
+            mediaAsset,
+            updatedBy,
+            mediaAssetRepository,
+            reportPhotoRepository,
+        });
+
+        const workspaceImportId = `WIM-${crypto.randomUUID()}`;
+        await workspaceImportRepository.save({
+            id: workspaceImportId,
+            workspaceId,
+            sourceType: 'organized_kmz',
+            status: 'completed',
+            warnings: result.warnings,
+            summaryJson: {
+                photosCreated: result.photosCreated,
+                photosSkipped: result.photosSkipped,
+                towersInferred: result.towersInferred,
+                pendingLinkage: result.pendingLinkage,
+                placemarkCount: result.placemarkCount,
+                photoIds: result.photoIds,
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            updatedBy,
+        }, { merge: true });
+
+        return res.status(200).json({
+            status: 'success',
+            data: {
+                workspaceId,
+                summary: {
+                    photosCreated: result.photosCreated,
+                    photosSkipped: result.photosSkipped,
+                    towersInferred: result.towersInferred,
+                    pendingLinkage: result.pendingLinkage,
+                    placemarkCount: result.placemarkCount,
+                    warnings: result.warnings,
+                },
+                _links: {
+                    self: { href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}`, method: 'GET' },
+                    photos: { href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}/photos`, method: 'GET' },
+                },
+            },
+        });
+    } catch (error) {
+        console.error('[report-workspaces API] Error POST /:id/kmz/process:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao processar KMZ do workspace' });
     }
 });
 

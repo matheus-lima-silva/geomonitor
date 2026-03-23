@@ -115,6 +115,16 @@
   - reorder visual dedicado dos workspaces no relatorio composto
   - acoes de `Rodar Preflight` e `Enfileirar Geracao` do relatorio composto na UI
   - smoke funcional da trilha web de `project-dossier` e `relatorio-composto`
+- processamento efetivo de `KMZ organizado` aberto com:
+  - `backend/utils/kmzReader.js` — leitor ZIP/KMZ com suporte a STORE e DEFLATE
+  - `backend/utils/kmlParser.js` — port CJS das funcoes de `kmlUtils.js` com `@xmldom/xmldom`
+  - `backend/utils/kmzProcessor.js` — orquestrador de extracao de fotos, inferencia de torre e criacao de `report_photo`
+  - `POST /api/report-workspaces/:id/kmz/process` — endpoint que recebe `mediaAssetId` e processa o KMZ completo
+  - `processWorkspaceKmz` em `src/services/reportWorkspaceService.js`
+  - frontend de `Relatorios` atualizado para chamar processamento apos upload e exibir sumario
+  - inferencia de torre por pasta interna do KMZ (`kmz_folder`) e por placemark (`kmz_placemark`)
+  - deteccao de duplicatas por sha256 no workspace
+  - testes em `kmlParser`, `kmzReader`, `kmzProcessor` e endpoint `kmz/process`
 - service frontend novo para curadoria/listagem do workspace:
   - `listReportWorkspacePhotos` em `src/services/reportWorkspaceService.js`
   - `updateReportWorkspace` em `src/services/reportWorkspaceService.js`
@@ -193,8 +203,8 @@
   - status: configuracoes e scripts prontos; provisionamento cloud e deploy real ainda pendentes
 - `media-tigris`: parcialmente entregue
   - status: upload assinado real aberto para `fotos soltas`, com fallback local preservado; falta expandir a trilha completa de curadoria, exportacao e geracao
-- `workspace-curadoria`: em progresso
-  - status: stepper, selecao obrigatoria, tres modos de entrada no frontend, curadoria minima e autosave entregues; falta processamento efetivo de `KMZ organizado`
+- `workspace-curadoria`: entregue nesta fase
+  - status: stepper, selecao obrigatoria, tres modos de entrada, curadoria minima, autosave e processamento efetivo de `KMZ organizado` entregues
 - `photo-library`: entregue nesta fase
   - status: listagem agregada, filtros operacionais e ZIP efemero real entregues; refinamentos de selecao parcial dedicada podem evoluir sem bloquear o restante da frente
 - `project-dossier`: parcialmente entregue
@@ -216,7 +226,7 @@
 
 ## Resultado da Validacao
 
-- backend verde em `21/21` suites e `90/90` testes
+- backend verde em `24/24` suites e `128/128` testes
 - frontend verde em `47/47` arquivos e `254/254` testes
 - build web verde
 - warning residual de chunk grande em `dist/assets/index-DriIH0Q6.js`
@@ -226,7 +236,7 @@
 - o backend principal ainda opera em store Firestore e nao em Postgres
 - o `postgresStore` e os repositorios alvo ja existem, mas ainda falta smoke real com banco provisionado
 - ainda nao houve bootstrap real em conta Fly; os artefatos e scripts estao versionados, mas os recursos cloud continuam pendentes
-- `media` ja possui backend Tigris por signed URL e o frontend cobre os tres modos de entrada, mas `KMZ organizado` ainda fica em registro/metadata e nao em processamento efetivo
+- `media` ja possui backend Tigris por signed URL e o frontend cobre os tres modos de entrada; `KMZ organizado` agora tem processamento efetivo no backend Node
 - dossie e composto ainda estao em fila/metadados e nao em processamento efetivo de documento
 - o dossie ja possui builder de escopo e preflight por secao, mas ainda nao foi validado em Postgres real
 - o relatorio composto ja possui comandos operacionais na UI, reorder visual dedicado e smoke funcional na web, mas ainda nao ha documento final no worker
@@ -242,8 +252,7 @@
 
 ## Proximos Passos Imediatos
 
-1. transformar `KMZ organizado` de registro em processamento efetivo de importacao
-2. validar `project-dossier` em Postgres real e ajustar qualquer gap de repositorio
-3. abrir area de administracao de templates e fila real de jobs
-4. consolidar o corte final do store generico remanescente e validar smoke em Postgres real
-5. expandir `mediaAssetRepository` para a trilha completa de curadoria, exportacao e geracao
+1. validar `project-dossier` em Postgres real e ajustar qualquer gap de repositorio
+2. abrir area de administracao de templates e fila real de jobs
+3. consolidar o corte final do store generico remanescente e validar smoke em Postgres real
+4. expandir `mediaAssetRepository` para a trilha completa de curadoria, exportacao e geracao

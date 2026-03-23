@@ -58,3 +58,10 @@ export async function saveReportWorkspacePhoto(workspaceId, photoId, payload, me
     body: JSON.stringify({ data: { ...payload, id: photoId }, meta }),
   });
 }
+
+export async function processWorkspaceKmz(workspaceId, data, meta = {}) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/kmz/process`, {
+    method: 'POST',
+    body: JSON.stringify({ data, meta }),
+  });
+}

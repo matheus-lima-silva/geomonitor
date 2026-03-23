@@ -23,6 +23,7 @@ import {
   createReportWorkspace,
   importReportWorkspace,
   listReportWorkspacePhotos,
+  processWorkspaceKmz,
   saveReportWorkspacePhoto,
   subscribeReportWorkspaces,
   updateReportWorkspace,
@@ -64,8 +65,8 @@ const IMPORT_MODES = {
   organized_kmz: {
     label: 'KMZ Organizado',
     inputLabel: 'Pacote KMZ',
-    hint: 'O arquivo KMZ e registrado agora; o processamento organizado ainda depende da trilha efetiva do worker.',
-    buttonLabel: 'Registrar KMZ Organizado',
+    hint: 'O KMZ sera processado no backend: fotos extraidas, torres inferidas por pasta e placemarks vinculados.',
+    buttonLabel: 'Importar KMZ Organizado',
     accept: '.kmz,.zip,application/vnd.google-earth.kmz',
     multiple: false,
   },
@@ -839,21 +840,21 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
           { purpose: 'workspace-import', skipPhotoRegistration: true },
         );
         uploadedMediaIds.push(uploaded.mediaAssetId);
-        warnings.push('Arquivo KMZ registrado. O processamento organizado ainda depende da trilha efetiva do worker.');
 
-        await importReportWorkspace(workspace.id, {
-          sourceType: 'organized_kmz',
-          importSource: 'organized_kmz',
-          warnings,
-          summaryJson: {
-            packagesReceived: 1,
-            uploadedMediaIds,
-            fileName: kmzFile?.name || '',
-            sizeBytes: Number(kmzFile?.size || 0),
-          },
+        const processResult = await processWorkspaceKmz(workspace.id, {
+          mediaAssetId: uploaded.mediaAssetId,
         }, { updatedBy: userEmail || 'web' });
 
-        showToast('KMZ organizado registrado no workspace.', 'success');
+        const summary = processResult?.data?.summary || {};
+        if (Array.isArray(summary.warnings)) warnings.push(...summary.warnings);
+
+        const parts = [];
+        if (summary.photosCreated > 0) parts.push(`${summary.photosCreated} foto(s) importada(s)`);
+        if (summary.towersInferred > 0) parts.push(`${summary.towersInferred} torre(s) inferida(s)`);
+        if (summary.pendingLinkage > 0) parts.push(`${summary.pendingLinkage} pendente(s)`);
+        if (summary.photosSkipped > 0) parts.push(`${summary.photosSkipped} duplicada(s) ignorada(s)`);
+        const toastMsg = parts.length > 0 ? `KMZ processado: ${parts.join(', ')}.` : 'KMZ processado (nenhuma foto encontrada).';
+        showToast(toastMsg, 'success');
       } else {
         let inferredTowerCount = 0;
         let pendingTowerCount = 0;

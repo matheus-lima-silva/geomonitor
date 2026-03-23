@@ -484,3 +484,69 @@ O ID e gerado automaticamente: `{projectId}__{monthKey}` (ex: `PRJ-001__2026-03`
 Regras:
 - `projectId` obrigatorio
 - `monthKey` obrigatorio, formato `YYYY-MM`
+
+---
+
+## Report Workspaces
+
+Rotas HATEOAS para gestao de workspaces de relatorio.
+
+| Metodo | Rota | Permissao | Descricao |
+|---|---|---|---|
+| GET | `/api/report-workspaces` | `requireActiveUser` | Lista workspaces |
+| GET | `/api/report-workspaces/:id` | `requireActiveUser` | Busca por ID |
+| POST | `/api/report-workspaces` | `requireEditor` | Cria workspace |
+| PUT | `/api/report-workspaces/:id` | `requireEditor` | Atualiza workspace |
+| DELETE | `/api/report-workspaces/:id` | `requireEditor` | Remove workspace |
+| POST | `/api/report-workspaces/:id/import` | `requireEditor` | Registra importacao |
+| GET | `/api/report-workspaces/:id/photos` | `requireActiveUser` | Lista fotos do workspace |
+| PUT | `/api/report-workspaces/:id/photos/:photoId` | `requireEditor` | Atualiza foto (curadoria) |
+| POST | `/api/report-workspaces/:id/photos/organize` | `requireEditor` | Registra organizacao |
+| POST | `/api/report-workspaces/:id/kmz/process` | `requireEditor` | Processa KMZ organizado |
+| POST | `/api/report-workspaces/:id/kmz` | `requireEditor` | Solicita KMZ efemero |
+| GET | `/api/report-workspaces/:id/kmz/:token` | `requireActiveUser` | Consulta status KMZ |
+
+### POST /api/report-workspaces/:id/kmz/process
+
+Processa um KMZ previamente enviado como media asset: extrai fotos, parseia KML, infere torres e cria `report_photo` entries.
+
+Body:
+
+```json
+{
+  "data": {
+    "mediaAssetId": "MA-xxx"
+  },
+  "meta": {
+    "updatedBy": "user@empresa.com"
+  }
+}
+```
+
+Resposta:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "workspaceId": "RW-xxx",
+    "summary": {
+      "photosCreated": 5,
+      "photosSkipped": 1,
+      "towersInferred": 4,
+      "pendingLinkage": 1,
+      "placemarkCount": 10,
+      "warnings": []
+    },
+    "_links": {
+      "self": { "href": "/api/report-workspaces/RW-xxx", "method": "GET" },
+      "photos": { "href": "/api/report-workspaces/RW-xxx/photos", "method": "GET" }
+    }
+  }
+}
+```
+
+Status:
+- `200`: KMZ processado
+- `400`: `mediaAssetId` ausente
+- `404`: workspace ou media asset nao encontrado
