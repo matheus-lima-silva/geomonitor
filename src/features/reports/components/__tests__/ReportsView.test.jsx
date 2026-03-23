@@ -5,7 +5,7 @@ import ReportsView from '../ReportsView';
 import { listReportWorkspacePhotos, saveReportWorkspacePhoto, updateReportWorkspace } from '../../../../services/reportWorkspaceService';
 import { downloadProjectPhotoExport, listProjectPhotos, requestProjectPhotoExport } from '../../../../services/projectPhotoLibraryService';
 import { createProjectDossier } from '../../../../services/projectDossierService';
-import { addWorkspaceToReportCompound, generateReportCompound, runReportCompoundPreflight } from '../../../../services/reportCompoundService';
+import { addWorkspaceToReportCompound, generateReportCompound, reorderReportCompound, runReportCompoundPreflight } from '../../../../services/reportCompoundService';
 
 const mockData = vi.hoisted(() => ({
   workspaces: [
@@ -13,7 +13,7 @@ const mockData = vi.hoisted(() => ({
     { id: 'RW-2', nome: 'Workspace 2', projectId: 'PRJ-01', status: 'draft', updatedAt: '2026-03-22T11:00:00.000Z' },
   ],
   projects: [{ id: 'PRJ-01', nome: 'Linha Norte', torresCoordenadas: [{ numero: '1' }, { numero: '2' }] }],
-  compounds: [{ id: 'RC-1', nome: 'Composto 1', workspaceIds: ['RW-1'], status: 'draft', updatedAt: '2026-03-22T10:00:00.000Z' }],
+  compounds: [{ id: 'RC-1', nome: 'Composto 1', workspaceIds: ['RW-1'], orderJson: ['RW-1'], status: 'draft', updatedAt: '2026-03-22T10:00:00.000Z' }],
   workspacePhotos: [{ id: 'RPH-1', caption: 'Foto 1', towerId: 'T-01', workspaceId: 'RW-1', importSource: 'structured_folders', includeInReport: true }],
   projectPhotos: [
     { id: 'RPH-1', caption: 'Foto 1 fundacao', towerId: 'T-01', workspaceId: 'RW-1', importSource: 'structured_folders', includeInReport: true, captureAt: '2026-03-21T10:00:00.000Z' },
@@ -43,8 +43,19 @@ vi.mock('../../../../services/reportCompoundService', () => ({
       id: 'RC-1',
       nome: 'Composto 1',
       workspaceIds: ['RW-1', 'RW-2'],
+      orderJson: ['RW-1', 'RW-2'],
       status: 'draft',
       updatedAt: '2026-03-22T12:00:00.000Z',
+    },
+  }),
+  reorderReportCompound: vi.fn().mockResolvedValue({
+    data: {
+      id: 'RC-1',
+      nome: 'Composto 1',
+      workspaceIds: ['RW-1', 'RW-2'],
+      orderJson: ['RW-2', 'RW-1'],
+      status: 'draft',
+      updatedAt: '2026-03-22T12:00:30.000Z',
     },
   }),
   runReportCompoundPreflight: vi.fn().mockResolvedValue({
@@ -60,6 +71,7 @@ vi.mock('../../../../services/reportCompoundService', () => ({
       id: 'RC-1',
       nome: 'Composto 1',
       workspaceIds: ['RW-1', 'RW-2'],
+      orderJson: ['RW-2', 'RW-1'],
       status: 'queued',
       updatedAt: '2026-03-22T12:01:00.000Z',
     },
@@ -331,6 +343,21 @@ describe('ReportsView', () => {
       expect.objectContaining({ updatedBy: 'teste@exemplo.com' }),
     );
     expect(container.textContent).toContain('Workspace 2 - Linha Norte');
+
+    const moveUpButton = container.querySelector('[aria-label="Mover Workspace 2 - Linha Norte para cima"]');
+
+    await act(async () => {
+      moveUpButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(reorderReportCompound).toHaveBeenCalledWith(
+      'RC-1',
+      ['RW-2', 'RW-1'],
+      expect.objectContaining({ updatedBy: 'teste@exemplo.com' }),
+    );
+    const orderedRows = [...container.querySelectorAll('[id^="compound-order-RC-1-"]')];
+    expect(orderedRows[0]?.id).toBe('compound-order-RC-1-RW-2');
+    expect(orderedRows[1]?.id).toBe('compound-order-RC-1-RW-1');
 
     await act(async () => {
       preflightButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));

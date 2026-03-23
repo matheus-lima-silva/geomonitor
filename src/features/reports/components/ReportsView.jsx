@@ -13,6 +13,7 @@ import {
   addWorkspaceToReportCompound,
   createReportCompound,
   generateReportCompound,
+  reorderReportCompound,
   runReportCompoundPreflight,
   subscribeReportCompounds,
 } from '../../../services/reportCompoundService';
@@ -215,6 +216,21 @@ function summarizeDossierScope(scopeJson = {}) {
   return DOSSIER_SCOPE_FIELDS
     .filter(([key]) => Boolean(scopeJson?.[key]))
     .map(([, label]) => label);
+}
+
+function buildCompoundWorkspaceOrder(compound = {}) {
+  const workspaceIds = Array.from(new Set(
+    (Array.isArray(compound.workspaceIds) ? compound.workspaceIds : [])
+      .map((workspaceId) => String(workspaceId || '').trim())
+      .filter(Boolean),
+  ));
+  const orderedWorkspaceIds = Array.from(new Set(
+    (Array.isArray(compound.orderJson) ? compound.orderJson : [])
+      .map((workspaceId) => String(workspaceId || '').trim())
+      .filter((workspaceId) => workspaceIds.includes(workspaceId)),
+  ));
+  const missingWorkspaceIds = workspaceIds.filter((workspaceId) => !orderedWorkspaceIds.includes(workspaceId));
+  return [...orderedWorkspaceIds, ...missingWorkspaceIds];
 }
 
 export default function ReportsView({ userEmail = '', showToast = () => {} }) {
@@ -726,6 +742,34 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       showToast('Geracao do relatorio composto enfileirada.', 'success');
     } catch (error) {
       showToast(error?.message || 'Erro ao enfileirar geracao do relatorio composto.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleCompoundReorder(compound, workspaceId, direction) {
+    if (!compound?.id || !workspaceId || !['up', 'down'].includes(direction)) return;
+
+    const currentOrder = buildCompoundWorkspaceOrder(compound);
+    const currentIndex = currentOrder.indexOf(workspaceId);
+    if (currentIndex < 0) return;
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= currentOrder.length) return;
+
+    const nextOrder = [...currentOrder];
+    [nextOrder[currentIndex], nextOrder[targetIndex]] = [nextOrder[targetIndex], nextOrder[currentIndex]];
+
+    try {
+      setBusy(`compound-reorder:${compound.id}:${workspaceId}`);
+      const result = await reorderReportCompound(compound.id, nextOrder, { updatedBy: userEmail || 'web' });
+      const savedCompound = result?.data;
+      if (savedCompound?.id) {
+        setCompounds((prev) => prev.map((item) => (item.id === savedCompound.id ? savedCompound : item)));
+      }
+      showToast('Ordem do relatorio composto atualizada.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao reordenar relatorio composto.', 'error');
     } finally {
       setBusy('');
     }
@@ -1377,6 +1421,46 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                     <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">Sem workspaces vinculados</span>
                   ) : null}
                 </div>
+                {buildCompoundWorkspaceOrder(compound).length > 0 ? (
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      <span>Ordem dos Blocos</span>
+                      <HintText label="Ordenacao do composto">A ordem abaixo define a sequencia dos workspaces no relatorio composto.</HintText>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {buildCompoundWorkspaceOrder(compound).map((workspaceId, index, orderedWorkspaceIds) => (
+                        <div id={`compound-order-${compound.id}-${workspaceId}`} key={`${compound.id}-${workspaceId}`} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                          <div className="flex items-center gap-3">
+                            <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-100 px-2 text-xs font-bold text-slate-600">
+                              {index + 1}
+                            </span>
+                            <span>{workspaceLabelsById.get(workspaceId) || workspaceId}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              aria-label={`Mover ${workspaceLabelsById.get(workspaceId) || workspaceId} para cima`}
+                              onClick={() => handleCompoundReorder(compound, workspaceId, 'up')}
+                              disabled={index === 0 || busy === `compound-reorder:${compound.id}:${workspaceId}`}
+                            >
+                              <AppIcon name="chevron-left" className="rotate-90" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              aria-label={`Mover ${workspaceLabelsById.get(workspaceId) || workspaceId} para baixo`}
+                              onClick={() => handleCompoundReorder(compound, workspaceId, 'down')}
+                              disabled={index === orderedWorkspaceIds.length - 1 || busy === `compound-reorder:${compound.id}:${workspaceId}`}
+                            >
+                              <AppIcon name="chevron-right" className="rotate-90" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
                   <Select
                     id={`compound-workspace-${compound.id}`}

@@ -11,6 +11,15 @@ function normalizeWorkspaceIds(value) {
     return [...new Set(value.map((item) => normalizeText(item)).filter(Boolean))];
 }
 
+function normalizeCompoundOrderJson(orderJson, workspaceIds) {
+    const normalizedWorkspaceIds = normalizeWorkspaceIds(workspaceIds);
+    const normalizedOrder = normalizeWorkspaceIds(orderJson);
+    const workspaceIdSet = new Set(normalizedWorkspaceIds);
+    const filteredOrder = normalizedOrder.filter((workspaceId) => workspaceIdSet.has(workspaceId));
+    const missingWorkspaceIds = normalizedWorkspaceIds.filter((workspaceId) => !filteredOrder.includes(workspaceId));
+    return [...filteredOrder, ...missingWorkspaceIds];
+}
+
 function createCompoundResponse(req, compound) {
     const compoundId = normalizeText(compound.id);
     return createResourceHateoasResponse(
@@ -31,7 +40,10 @@ function createCompoundResponse(req, compound) {
 
 function normalizeCompoundPayload(data = {}, meta = {}, fallback = {}) {
     const workspaceIds = normalizeWorkspaceIds(data.workspaceIds || fallback.workspaceIds);
-    const orderJson = Array.isArray(data.orderJson) ? data.orderJson : (Array.isArray(fallback.orderJson) ? fallback.orderJson : workspaceIds);
+    const orderJson = normalizeCompoundOrderJson(
+        Array.isArray(data.orderJson) ? data.orderJson : fallback.orderJson,
+        workspaceIds,
+    );
 
     return {
         ...fallback,

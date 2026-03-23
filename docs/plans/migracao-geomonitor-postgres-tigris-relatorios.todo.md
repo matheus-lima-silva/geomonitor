@@ -63,7 +63,7 @@
 
 - [x] scaffold de CRUD + preflight + fila do dossie
 - [x] builder de escopo do dossie
-- [x] preflight inicial do dossie
+- [x] preflight inicial do dossie por secao e com UI web exposta
 - [ ] validar preflight do dossie em Postgres real
 - [ ] geracao de DOCX
 
@@ -91,10 +91,10 @@
 ## relatorio-composto
 
 - [x] CRUD do relatorio composto
-- [x] adicionar workspaces
-- [x] ordenar blocos
-- [x] preflight
-- [x] enfileirar geracao inicial
+- [x] adicionar workspaces com UI web exposta
+- [x] ordenar blocos com UI web exposta
+- [x] preflight com UI web exposta
+- [x] enfileirar geracao inicial com UI web exposta
 - [ ] gerar documento final no worker
 
 ## cutover-cleanup

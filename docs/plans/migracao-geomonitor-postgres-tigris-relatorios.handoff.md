@@ -7,7 +7,7 @@
 - Objetivo do ciclo atual:
   - fechar o restante de `workspace-curadoria` com processamento efetivo de `KMZ organizado`
   - manter a trilha de curadoria e biblioteca estavel enquanto a fila real do worker nao entra
-  - validar o que ja esta pronto em `project-dossier` e `relatorio-composto` sem depender ainda do worker
+  - validar `project-dossier` em Postgres real e manter `relatorio-composto` estavel enquanto o worker nao entra
 
 ## Ja Existia Antes Deste Ciclo
 
@@ -21,7 +21,8 @@
 
 - processamento efetivo de `KMZ organizado`
 - consolidacao da trilha de curadoria antes da integracao do worker
-- smoke funcional do que ja foi aberto em `project-dossier` e `relatorio-composto`
+- validacao do preflight de `project-dossier` em Postgres real
+- estabilizacao final da trilha web de `relatorio-composto`
 
 ## Entregas Realizadas Neste Ciclo
 
@@ -111,7 +112,9 @@
   - acoes de `Rodar Preflight` e `Enfileirar Geracao` do dossie na UI
   - criacao de relatorios compostos
   - vinculacao de workspace ao relatorio composto na UI
+  - reorder visual dedicado dos workspaces no relatorio composto
   - acoes de `Rodar Preflight` e `Enfileirar Geracao` do relatorio composto na UI
+  - smoke funcional da trilha web de `project-dossier` e `relatorio-composto`
 - service frontend novo para curadoria/listagem do workspace:
   - `listReportWorkspacePhotos` em `src/services/reportWorkspaceService.js`
   - `updateReportWorkspace` em `src/services/reportWorkspaceService.js`
@@ -139,7 +142,7 @@
   - persiste `workspaceIds`, `orderJson` e `draftState`
   - valida workspaces no preflight
   - enfileira `report_job` com status `queued`
-  - frontend agora expone adicao de workspace, preflight e geracao enfileirada
+  - frontend agora expone adicao de workspace, reorder visual dedicado, preflight e geracao enfileirada
 - `media-tigris` aberto com:
   - `backend/routes/media.js` ajustada para signed URLs e fallback local
   - `backend/utils/mediaStorage.js`
@@ -197,7 +200,7 @@
 - `project-dossier`: parcialmente entregue
   - status: CRUD, builder de escopo, preflight e fila entregues; faltam validacao em Postgres real e DOCX final
 - `relatorio-composto`: parcialmente entregue
-  - status: CRUD, add/reorder, preflight e fila entregues; frontend agora expone add workspace, preflight e geracao; falta documento final no worker
+  - status: CRUD, add/reorder, preflight e fila entregues; frontend agora expoe add workspace, reorder visual, preflight e geracao; falta documento final no worker
 - `worker-python`: parcialmente entregue
   - status: apenas scaffold bootstrap aberto; sem processamento real de jobs
 - proxima macroetapa alvo: fechar `workspace-curadoria` antes de abrir processamento efetivo no worker
@@ -216,7 +219,7 @@
 - backend verde em `21/21` suites e `90/90` testes
 - frontend verde em `47/47` arquivos e `254/254` testes
 - build web verde
-- warning residual de chunk grande em `dist/assets/index-CF5ZK0HA.js`
+- warning residual de chunk grande em `dist/assets/index-DriIH0Q6.js`
 
 ## Risco Residual Atual
 
@@ -226,7 +229,8 @@
 - `media` ja possui backend Tigris por signed URL e o frontend cobre os tres modos de entrada, mas `KMZ organizado` ainda fica em registro/metadata e nao em processamento efetivo
 - dossie e composto ainda estao em fila/metadados e nao em processamento efetivo de documento
 - o dossie ja possui builder de escopo e preflight por secao, mas ainda nao foi validado em Postgres real
-- o relatorio composto ja possui comandos operacionais na UI, mas ainda nao ha reorder visual dedicado nem documento final no worker
+- o relatorio composto ja possui comandos operacionais na UI, reorder visual dedicado e smoke funcional na web, mas ainda nao ha documento final no worker
+- o ambiente atual nao expoe `psql` nem `DATABASE_URL`, entao o smoke em Postgres real depende de ambiente provisionado
 - worker Python ainda nao foi integrado ao consumo real de jobs
 - o build segue com warning de chunk grande no bundle principal
 
