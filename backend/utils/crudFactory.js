@@ -5,11 +5,12 @@ const { createHateoasResponse, generateHateoasLinks } = require('./hateoas');
 function createCrudRouter(collectionName, options = {}) {
     const router = express.Router();
     const routerName = options.routerName || collectionName;
-    const repository = options.repository || null;
+    const repository = options.repository;
 
     if (!repository) {
         throw new Error(`createCrudRouter("${collectionName}"): repository option is required`);
     }
+
     const listGuards = options.listGuards || [verifyToken, requireActiveUser];
     const getGuards = options.getGuards || [verifyToken, requireActiveUser];
     const createGuards = options.createGuards || [verifyToken, requireEditor];
@@ -29,13 +30,11 @@ function createCrudRouter(collectionName, options = {}) {
             }
 
             const id = isUpdate ? req.params.id : generateId(data);
-            
             if (!id) {
-                return res.status(400).json({ status: 'error', message: 'ID é obrigatorio' });
+                return res.status(400).json({ status: 'error', message: 'ID e obrigatorio' });
             }
 
             const preparedData = prepareData(data);
-            
             const mergedData = {
                 ...preparedData,
                 id,
@@ -44,15 +43,11 @@ function createCrudRouter(collectionName, options = {}) {
                 updatedBy: meta.updatedBy || req.user?.email || 'API',
             };
 
-            if (repository) {
-                await repository.save(mergedData, { merge: true });
-            } else {
-                await getDocRef(collectionName, id).set(mergedData, { merge: true });
-            }
+            const saved = await repository.save(mergedData, { merge: true });
 
             return res.status(201).json({
                 status: 'success',
-                data: createHateoasResponse(req, mergedData, routerName, id),
+                data: createHateoasResponse(req, saved || mergedData, routerName, id),
             });
         } catch (error) {
             console.error(`[${collectionName} API] Error POST/PUT:`, error);
@@ -62,9 +57,8 @@ function createCrudRouter(collectionName, options = {}) {
 
     router.get('/', ...listGuards, async (req, res) => {
         try {
-            const items = repository
-                ? (await repository.list()).map((item) => createHateoasResponse(req, item, routerName, item.id))
-                : (await getCollection(collectionName).get()).docs.map((doc) => createHateoasResponse(req, doc.data(), routerName, doc.id));
+            const items = (await repository.list())
+                .map((item) => createHateoasResponse(req, item, routerName, item.id));
             return res.status(200).json({ status: 'success', data: items });
         } catch (error) {
             console.error(`[${collectionName} API] Error GET:`, error);
@@ -75,18 +69,15 @@ function createCrudRouter(collectionName, options = {}) {
     router.get('/:id', ...getGuards, async (req, res) => {
         try {
             const { id } = req.params;
-            const record = repository ? await repository.getById(id) : null;
-            const doc = repository ? null : await getDocRef(collectionName, id).get();
+            const record = await repository.getById(id);
 
-            if (repository ? !record : !doc.exists) {
+            if (!record) {
                 return res.status(404).json({ status: 'error', message: 'Registro nao encontrado' });
             }
 
             return res.status(200).json({
                 status: 'success',
-                data: repository
-                    ? createHateoasResponse(req, record, routerName, record.id)
-                    : createHateoasResponse(req, doc.data(), routerName, doc.id),
+                data: createHateoasResponse(req, record, routerName, record.id),
             });
         } catch (error) {
             console.error(`[${collectionName} API] Error GET /:id:`, error);
@@ -112,11 +103,7 @@ function createCrudRouter(collectionName, options = {}) {
     router.delete('/:id', ...deleteGuards, async (req, res) => {
         try {
             const { id } = req.params;
-            if (repository) {
-                await repository.remove(id);
-            } else {
-                await getDocRef(collectionName, id).delete();
-            }
+            await repository.remove(id);
             return res.status(200).json({ status: 'success', message: 'Registro deletado' });
         } catch (error) {
             console.error(`[${collectionName} API] Error DELETE /:id:`, error);
