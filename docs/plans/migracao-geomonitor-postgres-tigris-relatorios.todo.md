@@ -6,6 +6,8 @@
 - [x] preparar migracoes SQL versionadas
 - [x] modelar entidades alvo no backend
 - [x] abrir `postgresStore` e migracoes iniciais por flag
+- [x] migrar `rules.js` de `getDocRef` direto para `rulesConfigRepository`
+- [x] migrar `reports.js` de `getDataStore` para `reportJobRepository` + fallback legado
 - [ ] remover o `document_store` generico remanescente das areas novas e dos dominios base
 
 ## repositorios-api
@@ -20,6 +22,11 @@
 - [x] migrar `workspaceImports` e `workspaceKmzRequests` para repositorios/tabelas proprias
 - [x] migrar preflight do dossie para repositorios dos dominios base
 - [x] mapear `projects`, `licenses`, `inspections`, `users`, `erosions`, `report_delivery_tracking` para repositorios/tabelas alvo
+- [x] criar `reportTemplateRepository` com CRUD + activate
+- [x] criar rotas HATEOAS para `report-templates`
+- [x] estender `reportJobRepository` com `list`, `listQueued`, `claimNext`, `markComplete`, `markFailed`
+- [x] criar rotas HATEOAS para `report-jobs` (list, get, claim, complete, fail)
+- [x] expandir `mediaAssetRepository` com `listByLinkedResource`, `listByPurpose`, `markReady`, `markFailed`
 - [ ] expandir cobertura e ajustes finais dos repositorios base em modo Postgres real
 
 ## fly-bootstrap-deploy
@@ -39,6 +46,7 @@
 - [x] preparar contratos para signed URLs
 - [x] preparar shape de `media_assets`
 - [x] plugar o frontend de relatorios no fluxo real de upload assinado
+- [x] adicionar queries especializadas ao `mediaAssetRepository` para pipeline de geracao
 - [ ] usar `mediaAssetRepository` na trilha completa de curadoria/exportacao/geracao
 
 ## workspace-curadoria
@@ -70,9 +78,9 @@
 
 ## templates-admin
 
-- [ ] secao de relatorios na administracao
-- [ ] lista de versoes
-- [ ] ativacao de template
+- [x] secao de relatorios na administracao
+- [x] lista de versoes
+- [x] ativacao de template
 
 ## worker-python
 

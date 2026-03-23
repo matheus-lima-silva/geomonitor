@@ -215,33 +215,80 @@
   - status: apenas scaffold bootstrap aberto; sem processamento real de jobs
 - proxima macroetapa alvo: fechar `workspace-curadoria` antes de abrir processamento efetivo no worker
 
+## Entregas Realizadas Neste Ciclo (continuacao - 2026-03-23)
+
+- `templates-admin` aberto com:
+  - `backend/repositories/reportTemplateRepository.js` — CRUD + activate com desativacao atomica por `sourceKind`
+  - `backend/routes/reportTemplates.js` — endpoints HATEOAS: GET /, GET /:id, POST /, PUT /:id, DELETE /:id, POST /:id/activate
+  - `backend/__tests__/reportTemplates.test.js` — CRUD completo, activate com desativacao, 404s
+  - `src/services/reportTemplateService.js` — service frontend com list, create, update, delete, activate
+  - `src/services/__tests__/reportTemplateService.test.js` — 7 testes
+  - aba `Templates` adicionada ao `AdminView.jsx` com tabela, modal de criacao/edicao, ativacao e exclusao
+  - `DashboardView.jsx` atualizado para buscar e passar templates ao AdminView
+- `reportJobRepository` estendido com:
+  - `list()`, `listQueued()`, `claimNext()` (atomico com `FOR UPDATE SKIP LOCKED` em Postgres), `markComplete()`, `markFailed()`
+  - hydration completa com `buildMetadata` e colunas tipadas
+- `backend/routes/reportJobs.js` aberto com:
+  - GET / — listar jobs
+  - GET /:id — detalhe
+  - POST /claim — worker pega proximo job (204 se vazio)
+  - PUT /:id/complete — marcar concluido com output media IDs
+  - PUT /:id/fail — marcar falha com errorLog
+  - `backend/__tests__/reportJobs.test.js` — 5 testes
+- `rules.js` migrado de `getDocRef('config', 'rules')` para `rulesConfigRepository`
+  - `backend/repositories/rulesConfigRepository.js` — singleton com id='default', dual-backend
+- `reports.js` migrado de `getDataStore()` para `reportJobRepository` (generate) + fallback legado (GET /:id)
+  - nenhuma rota em `backend/routes/` usa mais `getDocRef` diretamente
+- `mediaAssetRepository` expandido com:
+  - `listByLinkedResource(resourceType, resourceId)` — filtra por linked_resource_type/id
+  - `listByPurpose(purpose)` — filtra por purpose
+  - `markReady(id, sha256, sizeBytes)` — atualiza status para 'ready'
+  - `markFailed(id, errorLog)` — atualiza status para 'failed'
+  - hydration refatorada com `MEDIA_SELECT` + `hydrateRow` compartilhados
+
+## Entregas Realizadas Neste Ciclo (continuacao - 2026-03-23 ciclo 3)
+
+- `ReportsView` conectado ao `DashboardView`:
+  - lazy import adicionado para `ReportsView`
+  - case handler `georelat` adicionado a `renderTab()` — aba Relatorios agora renderiza corretamente
+- padronizacao de `remove()` nos repositorios:
+  - `deleteFirestoreDoc` helper adicionado a `backend/repositories/common.js`
+  - 5 repositorios atualizados para usar `deleteFirestoreDoc` em vez de `require('../data').getDataStore().deleteDoc()` inline:
+    - `mediaAssetRepository.js`
+    - `reportTemplateRepository.js`
+    - `erosionRepository.js`
+    - `reportWorkspaceRepository.js`
+    - `createDocumentTableRepository.js`
+  - nenhum repositorio usa mais `require('../data').getDataStore().deleteDoc()` diretamente
+
 ## Validacao Executada
 
-- data da rodada: `2026-03-22`
+- data da rodada: `2026-03-23` (ciclo 3)
 - backend:
   - `npm test -- --runInBand`
 - frontend:
-  - `npm test`
+  - `npx vitest run`
   - `npm run build`
 
 ## Resultado da Validacao
 
-- backend verde em `24/24` suites e `128/128` testes
-- frontend verde em `47/47` arquivos e `254/254` testes
+- backend verde em `26/26` suites e `138/138` testes
+- frontend verde em `48/48` arquivos e `261/261` testes
 - build web verde
-- warning residual de chunk grande em `dist/assets/index-DriIH0Q6.js`
+- warning residual de chunk grande em `dist/assets/index-BFtwlLCV.js`
 
 ## Risco Residual Atual
 
 - o backend principal ainda opera em store Firestore e nao em Postgres
 - o `postgresStore` e os repositorios alvo ja existem, mas ainda falta smoke real com banco provisionado
 - ainda nao houve bootstrap real em conta Fly; os artefatos e scripts estao versionados, mas os recursos cloud continuam pendentes
-- `media` ja possui backend Tigris por signed URL e o frontend cobre os tres modos de entrada; `KMZ organizado` agora tem processamento efetivo no backend Node
+- `media` ja possui backend Tigris por signed URL e queries especializadas no repositorio; falta integrar na trilha completa
 - dossie e composto ainda estao em fila/metadados e nao em processamento efetivo de documento
 - o dossie ja possui builder de escopo e preflight por secao, mas ainda nao foi validado em Postgres real
-- o relatorio composto ja possui comandos operacionais na UI, reorder visual dedicado e smoke funcional na web, mas ainda nao ha documento final no worker
+- o relatorio composto ja possui comandos operacionais na UI, mas ainda nao ha documento final no worker
 - o ambiente atual nao expoe `psql` nem `DATABASE_URL`, entao o smoke em Postgres real depende de ambiente provisionado
-- worker Python ainda nao foi integrado ao consumo real de jobs
+- worker Python ainda nao foi integrado ao consumo real de jobs; a API de claim/complete ja esta pronta
+- `reports.js` ainda usa `getDataStore()` como fallback para leitura da collection legada `reports`
 - o build segue com warning de chunk grande no bundle principal
 
 ## Riscos Conhecidos
@@ -253,6 +300,7 @@
 ## Proximos Passos Imediatos
 
 1. validar `project-dossier` em Postgres real e ajustar qualquer gap de repositorio
-2. abrir area de administracao de templates e fila real de jobs
-3. consolidar o corte final do store generico remanescente e validar smoke em Postgres real
-4. expandir `mediaAssetRepository` para a trilha completa de curadoria, exportacao e geracao
+2. provisionar Postgres e Tigris no Fly e fazer deploy inicial em homologacao
+3. integrar worker Python ao consumo real de jobs via `POST /api/report-jobs/claim`
+4. usar `mediaAssetRepository` na trilha completa de curadoria, exportacao e geracao
+5. consolidar o corte final do `document_store` generico remanescente
