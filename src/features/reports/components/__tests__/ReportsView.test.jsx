@@ -5,6 +5,7 @@ import ReportsView from '../ReportsView';
 import { listReportWorkspacePhotos, saveReportWorkspacePhoto, updateReportWorkspace } from '../../../../services/reportWorkspaceService';
 import { downloadProjectPhotoExport, listProjectPhotos, requestProjectPhotoExport } from '../../../../services/projectPhotoLibraryService';
 import { createProjectDossier } from '../../../../services/projectDossierService';
+import { addWorkspaceToReportCompound, generateReportCompound, runReportCompoundPreflight } from '../../../../services/reportCompoundService';
 
 const mockData = vi.hoisted(() => ({
   workspaces: [
@@ -37,6 +38,32 @@ vi.mock('../../../../services/projectService', () => ({
 vi.mock('../../../../services/reportCompoundService', () => ({
   subscribeReportCompounds: vi.fn((onData) => { onData(mockData.compounds); return () => {}; }),
   createReportCompound: vi.fn().mockResolvedValue({ data: { id: 'RC-2' } }),
+  addWorkspaceToReportCompound: vi.fn().mockResolvedValue({
+    data: {
+      id: 'RC-1',
+      nome: 'Composto 1',
+      workspaceIds: ['RW-1', 'RW-2'],
+      status: 'draft',
+      updatedAt: '2026-03-22T12:00:00.000Z',
+    },
+  }),
+  runReportCompoundPreflight: vi.fn().mockResolvedValue({
+    data: {
+      workspaceCount: 2,
+      foundWorkspaceCount: 2,
+      warnings: [],
+      canGenerate: true,
+    },
+  }),
+  generateReportCompound: vi.fn().mockResolvedValue({
+    data: {
+      id: 'RC-1',
+      nome: 'Composto 1',
+      workspaceIds: ['RW-1', 'RW-2'],
+      status: 'queued',
+      updatedAt: '2026-03-22T12:01:00.000Z',
+    },
+  }),
 }));
 
 vi.mock('../../../../services/projectPhotoLibraryService', () => ({
@@ -55,6 +82,8 @@ vi.mock('../../../../services/projectPhotoLibraryService', () => ({
 vi.mock('../../../../services/projectDossierService', () => ({
   listProjectDossiers: vi.fn().mockResolvedValue(mockData.dossiers),
   createProjectDossier: vi.fn().mockResolvedValue({ data: { id: 'DOS-2' } }),
+  runProjectDossierPreflight: vi.fn().mockResolvedValue({ data: { canGenerate: true, summary: {} } }),
+  generateProjectDossier: vi.fn().mockResolvedValue({ data: { id: 'DOS-1', status: 'queued' } }),
 }));
 
 vi.mock('../../../../services/mediaService', () => ({
@@ -269,6 +298,55 @@ describe('ReportsView', () => {
       }),
       expect.objectContaining({ updatedBy: 'teste@exemplo.com' }),
     );
+  });
+
+  it('adiciona workspace ao composto e expõe preflight e geracao na UI', async () => {
+    await act(async () => {
+      root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+    });
+
+    const compoundsButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Relatorios Compostos'));
+    await act(async () => {
+      compoundsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const workspaceSelect = container.querySelector('#compound-workspace-RC-1');
+    const addButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Adicionar Workspace'));
+    const preflightButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Rodar Preflight'));
+    const generateButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Enfileirar Geracao'));
+
+    await act(async () => {
+      const selectSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+      selectSetter.call(workspaceSelect, 'RW-2');
+      workspaceSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    await act(async () => {
+      addButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(addWorkspaceToReportCompound).toHaveBeenCalledWith(
+      'RC-1',
+      'RW-2',
+      expect.objectContaining({ updatedBy: 'teste@exemplo.com' }),
+    );
+    expect(container.textContent).toContain('Workspace 2 - Linha Norte');
+
+    await act(async () => {
+      preflightButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(runReportCompoundPreflight).toHaveBeenCalledWith('RC-1');
+    expect(container.textContent).toContain('Pronto para gerar');
+    expect(container.textContent).toContain('Declarados: 2');
+    expect(container.textContent).toContain('Encontrados: 2');
+
+    await act(async () => {
+      generateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(generateReportCompound).toHaveBeenCalledWith('RC-1');
+    expect(container.textContent).toContain('queued');
   });
 
   it('autosalva o rascunho da curadoria no draftState do workspace', async () => {

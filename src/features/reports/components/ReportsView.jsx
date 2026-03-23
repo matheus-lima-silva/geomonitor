@@ -9,7 +9,13 @@ import {
   runProjectDossierPreflight,
 } from '../../../services/projectDossierService';
 import { downloadProjectPhotoExport, listProjectPhotos, requestProjectPhotoExport } from '../../../services/projectPhotoLibraryService';
-import { subscribeReportCompounds, createReportCompound } from '../../../services/reportCompoundService';
+import {
+  addWorkspaceToReportCompound,
+  createReportCompound,
+  generateReportCompound,
+  runReportCompoundPreflight,
+  subscribeReportCompounds,
+} from '../../../services/reportCompoundService';
 import { completeMediaUpload, createMediaUpload, uploadMediaBinary } from '../../../services/mediaService';
 import { getProjectTowerList } from '../../../utils/getProjectTowerList';
 import {
@@ -220,6 +226,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [projectPhotos, setProjectPhotos] = useState([]);
   const [projectDossiers, setProjectDossiers] = useState([]);
   const [projectDossierPreflights, setProjectDossierPreflights] = useState({});
+  const [compoundPreflights, setCompoundPreflights] = useState({});
+  const [compoundWorkspaceSelections, setCompoundWorkspaceSelections] = useState({});
   const [libraryFilters, setLibraryFilters] = useState({ workspaceId: '', towerId: '', captionQuery: '', dateFrom: '', dateTo: '' });
   const [workspaceDraft, setWorkspaceDraft] = useState({ projectId: '', nome: '', descricao: '' });
   const [dossierDraft, setDossierDraft] = useState({ nome: '', observacoes: '', scopeJson: buildDefaultDossierScope() });
@@ -350,6 +358,20 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const workspaceCandidates = useMemo(
     () => workspaces.filter((workspace) => !selectedProjectId || workspace.projectId === selectedProjectId),
     [selectedProjectId, workspaces],
+  );
+
+  const projectNamesById = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.nome || project.id])),
+    [projects],
+  );
+
+  const workspaceLabelsById = useMemo(
+    () => new Map(workspaces.map((workspace) => {
+      const projectName = projectNamesById.get(workspace.projectId);
+      const workspaceLabel = workspace.nome || workspace.id;
+      return [workspace.id, projectName ? `${workspaceLabel} - ${projectName}` : workspaceLabel];
+    })),
+    [projectNamesById, workspaces],
   );
 
   const projectTowerOptions = useMemo(
@@ -640,6 +662,70 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       showToast('Relatorio composto criado.', 'success');
     } catch (error) {
       showToast(error?.message || 'Erro ao criar relatorio composto.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleCompoundAddWorkspace(compound) {
+    const workspaceId = String(compoundWorkspaceSelections[compound?.id] || '').trim();
+    if (!compound?.id || !workspaceId) {
+      showToast('Selecione um workspace para adicionar ao relatorio composto.', 'error');
+      return;
+    }
+
+    try {
+      setBusy(`compound-add:${compound.id}`);
+      const result = await addWorkspaceToReportCompound(compound.id, workspaceId, { updatedBy: userEmail || 'web' });
+      const savedCompound = result?.data;
+      if (savedCompound?.id) {
+        setCompounds((prev) => prev.map((item) => (item.id === savedCompound.id ? savedCompound : item)));
+      }
+      setCompoundWorkspaceSelections((prev) => ({ ...prev, [compound.id]: '' }));
+      setCompoundPreflights((prev) => {
+        const next = { ...prev };
+        delete next[compound.id];
+        return next;
+      });
+      showToast('Workspace adicionado ao relatorio composto.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao adicionar workspace ao relatorio composto.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleCompoundPreflight(compound) {
+    if (!compound?.id) return;
+
+    try {
+      setBusy(`compound-preflight:${compound.id}`);
+      const result = await runReportCompoundPreflight(compound.id);
+      setCompoundPreflights((prev) => ({
+        ...prev,
+        [compound.id]: result?.data || null,
+      }));
+      showToast('Preflight do relatorio composto executado.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao executar preflight do relatorio composto.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleCompoundGenerate(compound) {
+    if (!compound?.id) return;
+
+    try {
+      setBusy(`compound-generate:${compound.id}`);
+      const result = await generateReportCompound(compound.id);
+      const savedCompound = result?.data;
+      if (savedCompound?.id) {
+        setCompounds((prev) => prev.map((item) => (item.id === savedCompound.id ? savedCompound : item)));
+      }
+      showToast('Geracao do relatorio composto enfileirada.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao enfileirar geracao do relatorio composto.', 'error');
     } finally {
       setBusy('');
     }
@@ -1281,6 +1367,70 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                   <span className={`rounded-full px-2 py-1 text-xs ${tone(compound.status)}`}>{compound.status || 'draft'}</span>
                 </div>
                 <div className="mt-3 text-xs text-slate-500">Atualizado: {fmt(compound.updatedAt)}</div>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                  {(Array.isArray(compound.workspaceIds) ? compound.workspaceIds : []).map((workspaceId) => (
+                    <span key={workspaceId} className="rounded-full bg-slate-100 px-2 py-1">
+                      {workspaceLabelsById.get(workspaceId) || workspaceId}
+                    </span>
+                  ))}
+                  {(Array.isArray(compound.workspaceIds) ? compound.workspaceIds.length : 0) === 0 ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">Sem workspaces vinculados</span>
+                  ) : null}
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                  <Select
+                    id={`compound-workspace-${compound.id}`}
+                    label="Adicionar Workspace"
+                    value={compoundWorkspaceSelections[compound.id] || ''}
+                    onChange={(event) => setCompoundWorkspaceSelections((prev) => ({ ...prev, [compound.id]: event.target.value }))}
+                  >
+                    <option value="">Selecione um workspace</option>
+                    {workspaces
+                      .filter((workspace) => !(compound.workspaceIds || []).includes(workspace.id))
+                      .map((workspace) => (
+                        <option key={workspace.id} value={workspace.id}>
+                          {workspaceLabelsById.get(workspace.id) || workspace.nome || workspace.id}
+                        </option>
+                      ))}
+                  </Select>
+                  <div className="flex flex-wrap justify-end gap-2 md:self-end">
+                    <Button variant="outline" onClick={() => handleCompoundAddWorkspace(compound)} disabled={busy === `compound-add:${compound.id}`}>
+                      <AppIcon name="plus" />
+                      {busy === `compound-add:${compound.id}` ? 'Adicionando...' : 'Adicionar Workspace'}
+                    </Button>
+                    <Button variant="outline" onClick={() => handleCompoundPreflight(compound)} disabled={busy === `compound-preflight:${compound.id}`}>
+                      <AppIcon name="search" />
+                      {busy === `compound-preflight:${compound.id}` ? 'Validando...' : 'Rodar Preflight'}
+                    </Button>
+                    <Button onClick={() => handleCompoundGenerate(compound)} disabled={busy === `compound-generate:${compound.id}`}>
+                      <AppIcon name="file-text" />
+                      {busy === `compound-generate:${compound.id}` ? 'Enfileirando...' : 'Enfileirar Geracao'}
+                    </Button>
+                  </div>
+                </div>
+                {compoundPreflights[compound.id] ? (
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <strong className="text-slate-800">Preflight</strong>
+                      <span className={`rounded-full px-2 py-1 ${tone(compoundPreflights[compound.id]?.canGenerate ? 'ready' : 'pending')}`}>
+                        {compoundPreflights[compound.id]?.canGenerate ? 'Pronto para gerar' : 'Ajustes necessarios'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-white px-2 py-1">Declarados: {compoundPreflights[compound.id]?.workspaceCount ?? 0}</span>
+                      <span className="rounded-full bg-white px-2 py-1">Encontrados: {compoundPreflights[compound.id]?.foundWorkspaceCount ?? 0}</span>
+                    </div>
+                    {Array.isArray(compoundPreflights[compound.id]?.warnings) && compoundPreflights[compound.id].warnings.length > 0 ? (
+                      <div className="mt-3 flex flex-col gap-2">
+                        {compoundPreflights[compound.id].warnings.map((warning) => (
+                          <div key={warning} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700">
+                            {warning}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </article>
             ))}
             {compounds.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">Nenhum relatorio composto criado ainda.</div> : null}
