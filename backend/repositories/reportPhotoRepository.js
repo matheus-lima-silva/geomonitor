@@ -23,6 +23,21 @@ function normalizeBooleanQuery(value) {
     return null;
 }
 
+function parseDateBoundary(value, boundary = 'start') {
+    const normalized = normalizeText(value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null;
+    const suffix = boundary === 'end' ? 'T23:59:59.999Z' : 'T00:00:00.000Z';
+    const parsed = new Date(`${normalized}${suffix}`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getPhotoFilterDate(photo = {}) {
+    const rawValue = photo.captureAt || photo.createdAt || photo.updatedAt;
+    if (!rawValue) return null;
+    const parsed = new Date(rawValue);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 async function listByWorkspace(workspaceId) {
     const normalizedWorkspaceId = normalizeText(workspaceId);
     if (!isPostgresBackend()) {
@@ -120,13 +135,21 @@ async function getById(id) {
 
 async function listByProject(projectId, filters = {}) {
     const normalizedProjectId = normalizeKey(projectId);
+    const workspaceId = normalizeText(filters.workspaceId);
+    const towerId = normalizeText(filters.towerId);
+    const importSource = normalizeText(filters.importSource);
+    const captionQuery = normalizeText(filters.captionQuery).toLowerCase();
+    const dateFrom = parseDateBoundary(filters.dateFrom, 'start');
+    const dateTo = parseDateBoundary(filters.dateTo, 'end');
+    const ids = String(filters.ids || '').split(',').map((value) => normalizeText(value)).filter(Boolean);
+
     if (!isPostgresBackend()) {
         const rows = await listFirestoreDocs('reportPhotos');
         return rows
             .filter((row) => normalizeKey(row.projectId) === normalizedProjectId)
-            .filter((row) => !filters.workspaceId || normalizeText(row.workspaceId) === normalizeText(filters.workspaceId))
-            .filter((row) => !filters.towerId || normalizeText(row.towerId) === normalizeText(filters.towerId))
-            .filter((row) => !filters.importSource || normalizeText(row.importSource).toLowerCase() === normalizeText(filters.importSource).toLowerCase())
+            .filter((row) => !workspaceId || normalizeText(row.workspaceId) === workspaceId)
+            .filter((row) => !towerId || normalizeText(row.towerId) === towerId)
+            .filter((row) => !importSource || normalizeText(row.importSource).toLowerCase() === importSource.toLowerCase())
             .filter((row) => {
                 const includedOnly = normalizeBooleanQuery(filters.includedOnly);
                 return includedOnly === null ? true : Boolean(row.includeInReport) === includedOnly;
@@ -135,8 +158,16 @@ async function listByProject(projectId, filters = {}) {
                 const captionMissing = normalizeBooleanQuery(filters.captionMissing);
                 return captionMissing === null ? true : (captionMissing ? !normalizeText(row.caption) : Boolean(normalizeText(row.caption)));
             })
+            .filter((row) => !captionQuery || normalizeText(row.caption).toLowerCase().includes(captionQuery))
             .filter((row) => {
-                const ids = String(filters.ids || '').split(',').map((value) => normalizeText(value)).filter(Boolean);
+                if (!dateFrom && !dateTo) return true;
+                const photoDate = getPhotoFilterDate(row);
+                if (!photoDate) return false;
+                if (dateFrom && photoDate < dateFrom) return false;
+                if (dateTo && photoDate > dateTo) return false;
+                return true;
+            })
+            .filter((row) => {
                 return ids.length === 0 ? true : ids.includes(normalizeText(row.id));
             });
     }
@@ -145,17 +176,17 @@ async function listByProject(projectId, filters = {}) {
     const params = [normalizedProjectId];
     let index = 2;
 
-    if (filters.workspaceId) {
+    if (workspaceId) {
         clauses.push(`workspace_id = $${index++}`);
-        params.push(normalizeText(filters.workspaceId));
+        params.push(workspaceId);
     }
-    if (filters.towerId) {
+    if (towerId) {
         clauses.push(`tower_id = $${index++}`);
-        params.push(normalizeText(filters.towerId));
+        params.push(towerId);
     }
-    if (filters.importSource) {
+    if (importSource) {
         clauses.push(`LOWER(import_source) = LOWER($${index++})`);
-        params.push(normalizeText(filters.importSource));
+        params.push(importSource);
     }
     const includedOnly = normalizeBooleanQuery(filters.includedOnly);
     if (includedOnly !== null) {
@@ -168,7 +199,18 @@ async function listByProject(projectId, filters = {}) {
     } else if (captionMissing === false) {
         clauses.push(`COALESCE(TRIM(caption), '') <> ''`);
     }
-    const ids = String(filters.ids || '').split(',').map((value) => normalizeText(value)).filter(Boolean);
+    if (captionQuery) {
+        clauses.push(`LOWER(COALESCE(caption, '')) LIKE $${index++}`);
+        params.push(`%${captionQuery}%`);
+    }
+    if (dateFrom) {
+        clauses.push(`COALESCE(capture_at, created_at, updated_at) >= $${index++}`);
+        params.push(dateFrom.toISOString());
+    }
+    if (dateTo) {
+        clauses.push(`COALESCE(capture_at, created_at, updated_at) <= $${index++}`);
+        params.push(dateTo.toISOString());
+    }
     if (ids.length > 0) {
         clauses.push(`id = ANY($${index++})`);
         params.push(ids);

@@ -3,12 +3,20 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ReportsView from '../ReportsView';
 import { listReportWorkspacePhotos, saveReportWorkspacePhoto, updateReportWorkspace } from '../../../../services/reportWorkspaceService';
+import { listProjectPhotos, requestProjectPhotoExport } from '../../../../services/projectPhotoLibraryService';
 
 const mockData = vi.hoisted(() => ({
-  workspaces: [{ id: 'RW-1', nome: 'Workspace 1', projectId: 'PRJ-01', status: 'draft', updatedAt: '2026-03-22T10:00:00.000Z' }],
+  workspaces: [
+    { id: 'RW-1', nome: 'Workspace 1', projectId: 'PRJ-01', status: 'draft', updatedAt: '2026-03-22T10:00:00.000Z' },
+    { id: 'RW-2', nome: 'Workspace 2', projectId: 'PRJ-01', status: 'draft', updatedAt: '2026-03-22T11:00:00.000Z' },
+  ],
   projects: [{ id: 'PRJ-01', nome: 'Linha Norte', torresCoordenadas: [{ numero: '1' }, { numero: '2' }] }],
   compounds: [{ id: 'RC-1', nome: 'Composto 1', workspaceIds: ['RW-1'], status: 'draft', updatedAt: '2026-03-22T10:00:00.000Z' }],
-  photos: [{ id: 'RPH-1', caption: 'Foto 1', towerId: 'T-01', workspaceId: 'RW-1', importSource: 'structured_folders', includeInReport: true }],
+  workspacePhotos: [{ id: 'RPH-1', caption: 'Foto 1', towerId: 'T-01', workspaceId: 'RW-1', importSource: 'structured_folders', includeInReport: true }],
+  projectPhotos: [
+    { id: 'RPH-1', caption: 'Foto 1 fundacao', towerId: 'T-01', workspaceId: 'RW-1', importSource: 'structured_folders', includeInReport: true, captureAt: '2026-03-21T10:00:00.000Z' },
+    { id: 'RPH-2', caption: 'Vista geral', towerId: 'T-02', workspaceId: 'RW-2', importSource: 'loose_photos', includeInReport: false, captureAt: '2026-03-18T10:00:00.000Z' },
+  ],
   dossiers: [{ id: 'DOS-1', nome: 'Dossie 1', status: 'draft' }],
 }));
 
@@ -16,7 +24,7 @@ vi.mock('../../../../services/reportWorkspaceService', () => ({
   subscribeReportWorkspaces: vi.fn((onData) => { onData(mockData.workspaces); return () => {}; }),
   createReportWorkspace: vi.fn().mockResolvedValue({ data: { id: 'RW-2' } }),
   importReportWorkspace: vi.fn().mockResolvedValue({ data: { id: 'RW-1' } }),
-  listReportWorkspacePhotos: vi.fn().mockResolvedValue(mockData.photos),
+  listReportWorkspacePhotos: vi.fn().mockResolvedValue(mockData.workspacePhotos),
   saveReportWorkspacePhoto: vi.fn().mockResolvedValue({ data: { id: 'RPH-2' } }),
   updateReportWorkspace: vi.fn().mockResolvedValue({ data: { id: 'RW-1' } }),
 }));
@@ -31,7 +39,14 @@ vi.mock('../../../../services/reportCompoundService', () => ({
 }));
 
 vi.mock('../../../../services/projectPhotoLibraryService', () => ({
-  listProjectPhotos: vi.fn().mockResolvedValue(mockData.photos),
+  listProjectPhotos: vi.fn().mockImplementation(async (_projectId, filters = {}) => mockData.projectPhotos.filter((photo) => {
+    if (filters.workspaceId && photo.workspaceId !== filters.workspaceId) return false;
+    if (filters.towerId && photo.towerId !== filters.towerId) return false;
+    if (filters.captionQuery && !String(photo.caption || '').toLowerCase().includes(String(filters.captionQuery || '').toLowerCase())) return false;
+    if (filters.dateFrom && String(photo.captureAt || '') < `${filters.dateFrom}T00:00:00.000Z`) return false;
+    if (filters.dateTo && String(photo.captureAt || '') > `${filters.dateTo}T23:59:59.999Z`) return false;
+    return true;
+  })),
   requestProjectPhotoExport: vi.fn().mockResolvedValue({ data: { itemCount: 1 } }),
 }));
 
@@ -88,7 +103,77 @@ describe('ReportsView', () => {
     });
 
     expect(container.textContent).toContain('Baixar Tudo Filtrado');
-    expect(container.textContent).toContain('Foto 1');
+    expect(container.textContent).toContain('Foto 1 fundacao');
+    expect(container.textContent).toContain('Vista geral');
+  });
+
+  it('aplica filtros da biblioteca e reaproveita o mesmo recorte na exportacao', async () => {
+    await act(async () => {
+      root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+    });
+
+    const libraryButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Biblioteca do Empreendimento'));
+    await act(async () => {
+      libraryButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const workspaceSelect = container.querySelector('#library-workspace');
+    const towerSelect = container.querySelector('#library-tower');
+    const captionInput = container.querySelector('#library-caption');
+    const dateFromInput = container.querySelector('#library-date-from');
+    const dateToInput = container.querySelector('#library-date-to');
+    const exportButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Baixar Tudo Filtrado'));
+
+    await act(async () => {
+      const selectSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+      const inputSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      selectSetter.call(workspaceSelect, 'RW-1');
+      workspaceSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      selectSetter.call(towerSelect, 'T-01');
+      towerSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      inputSetter.call(captionInput, 'fundacao');
+      captionInput.dispatchEvent(new Event('input', { bubbles: true }));
+      captionInput.dispatchEvent(new Event('change', { bubbles: true }));
+      inputSetter.call(dateFromInput, '2026-03-20');
+      dateFromInput.dispatchEvent(new Event('input', { bubbles: true }));
+      dateFromInput.dispatchEvent(new Event('change', { bubbles: true }));
+      inputSetter.call(dateToInput, '2026-03-21');
+      dateToInput.dispatchEvent(new Event('input', { bubbles: true }));
+      dateToInput.dispatchEvent(new Event('change', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(listProjectPhotos).toHaveBeenLastCalledWith(
+      'PRJ-01',
+      expect.objectContaining({
+        workspaceId: 'RW-1',
+        towerId: 'T-01',
+        captionQuery: 'fundacao',
+        dateFrom: '2026-03-20',
+        dateTo: '2026-03-21',
+      }),
+    );
+    expect(container.textContent).toContain('Foto 1 fundacao');
+    expect(container.textContent).not.toContain('Vista geral');
+
+    await act(async () => {
+      exportButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(requestProjectPhotoExport).toHaveBeenCalledWith(
+      'PRJ-01',
+      expect.objectContaining({
+        folderMode: 'tower',
+        filters: expect.objectContaining({
+          workspaceId: 'RW-1',
+          towerId: 'T-01',
+          captionQuery: 'fundacao',
+          dateFrom: '2026-03-20',
+          dateTo: '2026-03-21',
+        }),
+      }),
+      expect.objectContaining({ updatedBy: 'teste@exemplo.com' }),
+    );
   });
 
   it('exibe a curadoria do workspace e salva alteracoes da foto', async () => {

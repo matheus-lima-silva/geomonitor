@@ -6,8 +6,8 @@
 - Fase atual: `workspace-curadoria` em progresso, com `photo-library`, `project-dossier` e `relatorio-composto` parcialmente entregues
 - Objetivo do ciclo atual:
   - fechar o restante de `workspace-curadoria` com processamento efetivo de `KMZ organizado`
-  - abrir filtros operacionais da biblioteca agregada
-  - manter a trilha de curadoria estavel enquanto a fila real do worker nao entra
+  - transformar a exportacao da biblioteca de metadata/fila em ZIP efemero real
+  - manter a trilha de curadoria e biblioteca estavel enquanto a fila real do worker nao entra
 
 ## Ja Existia Antes Deste Ciclo
 
@@ -20,7 +20,7 @@
 ## Entregas Esperadas Neste Ciclo
 
 - processamento efetivo de `KMZ organizado`
-- filtros da biblioteca por workspace, torre, data e legenda
+- export total e parcial em ZIP efemero com processamento real
 - consolidacao da trilha de curadoria antes da integracao do worker
 
 ## Entregas Realizadas Neste Ciclo
@@ -104,6 +104,7 @@
   - persistencia manual da curadoria via `PUT /api/report-workspaces/:id/photos/:photoId`
   - autosave real do rascunho via `PUT /api/report-workspaces/:id` em `draftState.curationDrafts`
   - listagem agregada real de fotos por empreendimento
+  - filtros operacionais da biblioteca por `workspace`, `torre`, `legenda` e `data`
   - CTA de exportacao efemera no frontend
   - criacao de dossies
   - criacao de relatorios compostos
@@ -115,6 +116,12 @@
   - persistencia de `caption`, `towerId` e `includeInReport`
   - autosave do `draftState` do workspace
 - `photo-library` deixou de ser apenas scaffold e agora tem listagem agregada real por empreendimento via `GET /api/projects/:id/photos`
+- `photo-library` agora tambem aplica filtros reais na listagem e na exportacao efemera via:
+  - `workspaceId`
+  - `towerId`
+  - `captionQuery`
+  - `dateFrom`
+  - `dateTo`
 - exportacao de fotos por empreendimento tem request efemero real via:
   - `POST /api/projects/:id/photos/export`
   - `GET /api/projects/:id/photos/exports/:token`
@@ -179,7 +186,7 @@
 - `workspace-curadoria`: em progresso
   - status: stepper, selecao obrigatoria, tres modos de entrada no frontend, curadoria minima e autosave entregues; falta processamento efetivo de `KMZ organizado`
 - `photo-library`: parcialmente entregue
-  - status: listagem agregada e request efemero de exportacao entregues; faltam filtros ricos e ZIP real
+  - status: listagem agregada, filtros operacionais e request efemero de exportacao entregues; falta ZIP real
 - `project-dossier`: parcialmente entregue
   - status: CRUD, preflight e fila entregues; faltam builder de escopo e DOCX final
 - `relatorio-composto`: parcialmente entregue
@@ -199,10 +206,10 @@
 
 ## Resultado da Validacao
 
-- backend verde em `21/21` suites e `87/87` testes
-- frontend verde em `47/47` arquivos e `251/251` testes
+- backend verde em `21/21` suites e `88/88` testes
+- frontend verde em `47/47` arquivos e `252/252` testes
 - build web verde
-- warning residual de chunk grande em `dist/assets/index-CPYm-BJb.js`
+- warning residual de chunk grande em `dist/assets/index-6Uh7CLrd.js`
 
 ## Risco Residual Atual
 
@@ -210,7 +217,7 @@
 - o `postgresStore` e os repositorios alvo ja existem, mas ainda falta smoke real com banco provisionado
 - ainda nao houve bootstrap real em conta Fly; os artefatos e scripts estao versionados, mas os recursos cloud continuam pendentes
 - `media` ja possui backend Tigris por signed URL e o frontend cobre os tres modos de entrada, mas `KMZ organizado` ainda fica em registro/metadata e nao em processamento efetivo
-- a biblioteca agregada ja lista fotos por empreendimento, mas ainda nao possui filtros ricos nem ZIP real
+- a biblioteca agregada ja lista e filtra fotos por empreendimento, mas ainda nao possui ZIP real
 - dossie, composto, exportacao de fotos e KMZ ainda estao em fila/metadata, nao em processamento efetivo
 - worker Python ainda nao foi integrado ao consumo real de jobs
 - o build segue com warning de chunk grande no bundle principal
@@ -224,7 +231,7 @@
 ## Proximos Passos Imediatos
 
 1. transformar `KMZ organizado` de registro em processamento efetivo de importacao
-2. abrir filtros da biblioteca por workspace, torre, data e legenda
+2. transformar a exportacao da biblioteca em ZIP efemero real
 3. abrir area de administracao de templates e fila real de jobs
 4. consolidar o corte final do store generico remanescente e validar smoke em Postgres real
 5. expandir `mediaAssetRepository` para a trilha completa de curadoria, exportacao e geracao

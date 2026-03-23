@@ -151,6 +151,26 @@ function getWorkspacePhotoStatus(photo = {}, draft = {}) {
   return String(photo.curationStatus || 'uploaded').trim() || 'uploaded';
 }
 
+function buildProjectPhotoFilters(filters = {}) {
+  const workspaceId = String(filters.workspaceId || '').trim();
+  const towerId = String(filters.towerId || '').trim();
+  const captionQuery = String(filters.captionQuery || '').trim();
+  const dateFrom = String(filters.dateFrom || '').trim();
+  const dateTo = String(filters.dateTo || '').trim();
+
+  return {
+    ...(workspaceId ? { workspaceId } : {}),
+    ...(towerId ? { towerId } : {}),
+    ...(captionQuery ? { captionQuery } : {}),
+    ...(dateFrom ? { dateFrom } : {}),
+    ...(dateTo ? { dateTo } : {}),
+  };
+}
+
+function getProjectPhotoDate(photo = {}) {
+  return photo.captureAt || photo.createdAt || photo.updatedAt || '';
+}
+
 export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [tab, setTab] = useState('workspaces');
   const [projects, setProjects] = useState([]);
@@ -159,6 +179,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [projectPhotos, setProjectPhotos] = useState([]);
   const [projectDossiers, setProjectDossiers] = useState([]);
+  const [libraryFilters, setLibraryFilters] = useState({ workspaceId: '', towerId: '', captionQuery: '', dateFrom: '', dateTo: '' });
   const [workspaceDraft, setWorkspaceDraft] = useState({ projectId: '', nome: '', descricao: '' });
   const [dossierDraft, setDossierDraft] = useState({ nome: '', observacoes: '' });
   const [compoundDraft, setCompoundDraft] = useState({ nome: '', texto: '' });
@@ -191,17 +212,48 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   }, [selectedProjectId, workspaceImportTargetId, workspaces]);
 
   useEffect(() => {
-    if (!selectedProjectId) return;
+    setLibraryFilters({ workspaceId: '', towerId: '', captionQuery: '', dateFrom: '', dateTo: '' });
+  }, [selectedProjectId]);
+
+  const libraryQueryFilters = useMemo(
+    () => buildProjectPhotoFilters(libraryFilters),
+    [libraryFilters],
+  );
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setProjectPhotos([]);
+      return;
+    }
     let cancelled = false;
-    Promise.all([listProjectPhotos(selectedProjectId), listProjectDossiers(selectedProjectId)])
-      .then(([photos, dossiers]) => {
+    listProjectPhotos(selectedProjectId, libraryQueryFilters)
+      .then((photos) => {
         if (cancelled) return;
         setProjectPhotos(Array.isArray(photos) ? photos : []);
+      })
+      .catch((error) => !cancelled && showToast(error?.message || 'Erro ao carregar fotos do empreendimento.', 'error'));
+    return () => { cancelled = true; };
+  }, [libraryQueryFilters, selectedProjectId, showToast]);
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setProjectDossiers([]);
+      return;
+    }
+    let cancelled = false;
+    listProjectDossiers(selectedProjectId)
+      .then((dossiers) => {
+        if (cancelled) return;
         setProjectDossiers(Array.isArray(dossiers) ? dossiers : []);
       })
       .catch((error) => !cancelled && showToast(error?.message || 'Erro ao carregar dados do empreendimento.', 'error'));
     return () => { cancelled = true; };
   }, [selectedProjectId, showToast]);
+
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) || null,
+    [projects, selectedProjectId],
+  );
 
   const selectedWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.id === workspaceImportTargetId) || null,
@@ -255,6 +307,19 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const workspaceCandidates = useMemo(
     () => workspaces.filter((workspace) => !selectedProjectId || workspace.projectId === selectedProjectId),
     [selectedProjectId, workspaces],
+  );
+
+  const projectTowerOptions = useMemo(
+    () => getProjectTowerList(selectedProject),
+    [selectedProject],
+  );
+
+  const libraryTowerOptions = useMemo(
+    () => Array.from(new Set([
+      ...projectTowerOptions,
+      ...projectPhotos.map((photo) => String(photo.towerId || '').trim()).filter(Boolean),
+    ])),
+    [projectPhotos, projectTowerOptions],
   );
 
   const workspaceTowerOptions = useMemo(
@@ -318,7 +383,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       return [];
     }
 
-    const photos = await listProjectPhotos(projectId);
+    const photos = await listProjectPhotos(projectId, libraryQueryFilters);
     const nextPhotos = Array.isArray(photos) ? photos : [];
     setProjectPhotos(nextPhotos);
     return nextPhotos;
@@ -506,7 +571,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       setBusy('export');
       const result = await requestProjectPhotoExport(selectedProjectId, {
         folderMode: 'tower',
-        filters: { includedOnly: false },
+        filters: libraryQueryFilters,
       }, { updatedBy: userEmail || 'web' });
       showToast(`Exportacao solicitada para ${result?.data?.itemCount || 0} foto(s).`, 'success');
     } catch (error) {
@@ -907,12 +972,74 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
 
       {tab === 'library' ? (
         <>
-          <Card variant="nested" className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
+          <Card variant="nested" className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             <Select id="library-project" label="Empreendimento" hint="A biblioteca cruza todas as fotos do empreendimento, nao apenas as de um workspace." value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
               <option value="">Selecione...</option>
               {projects.map((project) => <option key={project.id} value={project.id}>{project.id} - {project.nome || project.id}</option>)}
             </Select>
-            <div className="flex items-end"><Button variant="outline" onClick={handlePhotoExport} disabled={busy === 'export' || !selectedProjectId}><AppIcon name="save" />{busy === 'export' ? 'Solicitando...' : 'Baixar Tudo Filtrado'}</Button></div>
+            <Select
+              id="library-workspace"
+              label="Workspace"
+              hint="Filtra a biblioteca agregada por origem do workspace."
+              value={libraryFilters.workspaceId}
+              onChange={(event) => setLibraryFilters((prev) => ({ ...prev, workspaceId: event.target.value }))}
+            >
+              <option value="">Todos</option>
+              {workspaceCandidates.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.nome || workspace.id}</option>)}
+            </Select>
+            <Select
+              id="library-tower"
+              label="Torre"
+              hint="Use a torre para cruzar a curadoria ja aplicada nas fotos."
+              value={libraryFilters.towerId}
+              onChange={(event) => setLibraryFilters((prev) => ({ ...prev, towerId: event.target.value }))}
+            >
+              <option value="">Todas</option>
+              {libraryTowerOptions.map((towerId) => <option key={towerId} value={towerId}>{towerId}</option>)}
+            </Select>
+            <Input
+              id="library-caption"
+              label="Legenda"
+              hint="Busca por trecho da legenda da foto."
+              value={libraryFilters.captionQuery}
+              onChange={(event) => setLibraryFilters((prev) => ({ ...prev, captionQuery: event.target.value }))}
+              placeholder="Ex: fundacao, isolador, erosao"
+            />
+            <Input
+              id="library-date-from"
+              label="Data Inicial"
+              type="date"
+              value={libraryFilters.dateFrom}
+              onChange={(event) => setLibraryFilters((prev) => ({ ...prev, dateFrom: event.target.value }))}
+            />
+            <Input
+              id="library-date-to"
+              label="Data Final"
+              type="date"
+              value={libraryFilters.dateTo}
+              onChange={(event) => setLibraryFilters((prev) => ({ ...prev, dateTo: event.target.value }))}
+            />
+            <div className="flex flex-col justify-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="text-xs text-slate-500">
+                {Object.keys(libraryQueryFilters).length > 0
+                  ? `${Object.keys(libraryQueryFilters).length} filtro(s) ativo(s) nesta biblioteca.`
+                  : 'Nenhum filtro adicional ativo; a biblioteca mostra todas as fotos do empreendimento.'}
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setLibraryFilters({ workspaceId: '', towerId: '', captionQuery: '', dateFrom: '', dateTo: '' })}
+                  disabled={Object.keys(libraryQueryFilters).length === 0}
+                >
+                  <AppIcon name="close" />
+                  Limpar Filtros
+                </Button>
+                <Button variant="outline" onClick={handlePhotoExport} disabled={busy === 'export' || !selectedProjectId}>
+                  <AppIcon name="save" />
+                  {busy === 'export' ? 'Solicitando...' : 'Baixar Tudo Filtrado'}
+                </Button>
+              </div>
+            </div>
           </Card>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Card variant="nested"><strong className="text-slate-800">{metrics.total}</strong><p className="mt-1 mb-0 text-xs text-slate-500">Fotos agregadas</p></Card>
@@ -925,6 +1052,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
               <span>Biblioteca agregada</span>
               <HintText label="Biblioteca agregada">O download total ou parcial sera entregue como ZIP efemero, sem persistencia duravel.</HintText>
             </div>
+            <div className="text-xs text-slate-500">
+              {selectedProjectId
+                ? `${projectPhotos.length} foto(s) encontradas para o recorte atual.`
+                : 'Selecione um empreendimento para abrir a biblioteca agregada.'}
+            </div>
             {projectPhotos.map((photo) => (
               <article key={photo.id} className="rounded-xl border border-slate-200 bg-white p-4">
                 <strong className="text-slate-800">{photo.id}</strong>
@@ -933,6 +1065,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                   <span className="rounded-full bg-slate-100 px-2 py-1">Torre: {photo.towerId || '-'}</span>
                   <span className="rounded-full bg-slate-100 px-2 py-1">Workspace: {photo.workspaceId || '-'}</span>
                   <span className="rounded-full bg-slate-100 px-2 py-1">Origem: {photo.importSource || '-'}</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-1">Data: {fmt(getProjectPhotoDate(photo))}</span>
                 </div>
               </article>
             ))}
