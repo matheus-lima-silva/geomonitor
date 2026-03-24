@@ -32,7 +32,6 @@ import { subscribeUsers } from '../services/userService';
 import { subscribeRulesConfig } from '../services/rulesService';
 import { subscribeOperatingLicenses } from '../services/licenseService';
 import { subscribeReportDeliveryTracking } from '../services/reportDeliveryTrackingService';
-import { listReportTemplates } from '../services/reportTemplateService';
 import { normalizeRulesConfig } from '../features/shared/rulesConfig';
 import { normalizeUserStatus } from '../features/shared/statusUtils';
 import {
@@ -54,7 +53,6 @@ const ErosionsView = lazy(() => import('../features/erosions/components/Erosions
 const VisitPlanningView = lazy(() => import('../features/inspections/components/VisitPlanningView'));
 const AdminView = lazy(() => import('../features/admin/components/AdminView'));
 const FollowupsView = lazy(() => import('../features/followups/components/FollowupsView'));
-const ReportsView = lazy(() => import('../features/reports/components/ReportsView'));
 
 function formatReportDueDays(days) {
   const safeDays = Number(days);
@@ -683,7 +681,6 @@ function DashboardView() {
   const [deliveryTracking, setDeliveryTracking] = useState([]);
   const [users, setUsers] = useState([]);
   const [rulesConfig, setRulesConfig] = useState(() => normalizeRulesConfig({}));
-  const [reportTemplates, setReportTemplates] = useState([]);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
   const [editProjectId, setEditProjectId] = useState(null);
@@ -797,7 +794,6 @@ function DashboardView() {
 
     if (!shouldLoadAdminData) {
       setUsers([]);
-      setReportTemplates([]);
       return () => { };
     }
 
@@ -811,21 +807,11 @@ function DashboardView() {
       () => show('Erro ao carregar regras.', 'error'),
     );
 
-    listReportTemplates()
-      .then((data) => setReportTemplates(data))
-      .catch(() => show('Erro ao carregar templates.', 'error'));
-
     return () => {
       unsubUsers?.();
       unsubRules?.();
     };
   }, [activeTab, show, user?.role, refreshNonce]);
-
-  function refreshTemplates() {
-    listReportTemplates()
-      .then((data) => setReportTemplates(data))
-      .catch(() => show('Erro ao recarregar templates.', 'error'));
-  }
 
   function openProjectInspections(projectId) {
     setInspectionProjectFilterId(projectId || null);
@@ -957,12 +943,8 @@ function DashboardView() {
       );
     }
 
-    if (activeTab === 'georelat') {
-      return <ReportsView userEmail={user?.email} showToast={show} />;
-    }
-
     if (activeTab === 'admin') {
-      return <AdminView users={users} rulesConfig={rulesConfig} searchTerm={searchTerm} erosions={erosions} templates={reportTemplates} onTemplatesChange={refreshTemplates} />;
+      return <AdminView users={users} rulesConfig={rulesConfig} searchTerm={searchTerm} erosions={erosions} />;
     }
 
     if (activeTab === 'dashboard') {

@@ -24,6 +24,11 @@ function isLocalApiUpload(uploadDescriptor = {}) {
   return href.startsWith(API_BASE_URL) || href.startsWith('/');
 }
 
+function isLocalAccessUrl(url = '') {
+  const href = String(url || '').trim();
+  return href.startsWith(API_BASE_URL) || href.startsWith('/');
+}
+
 export async function createMediaUpload(payload, meta = {}) {
   return requestMedia(`${API_BASE_URL}/media/upload-url`, {
     method: 'POST',
@@ -71,4 +76,35 @@ export async function uploadMediaBinary(uploadDescriptor, file) {
   }
 
   return response;
+}
+
+export async function downloadMediaAsset(mediaId) {
+  const result = await requestMedia(`${API_BASE_URL}/media/${encodeURIComponent(mediaId)}/access-url`, {
+    method: 'GET',
+  });
+
+  const accessUrl = String(result?.data?.accessUrl || '').trim();
+  if (!accessUrl) {
+    throw new Error('URL de acesso da midia invalida.');
+  }
+
+  const headers = {};
+  if (isLocalAccessUrl(accessUrl)) {
+    const token = await getAuthToken();
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(accessUrl, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error('Erro ao baixar a midia.');
+  }
+
+  return {
+    blob: await response.blob(),
+    contentType: String(response.headers.get('Content-Type') || ''),
+  };
 }

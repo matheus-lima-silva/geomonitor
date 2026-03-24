@@ -1,7 +1,13 @@
 const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
-const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
+const {
+    verifyToken,
+    requireActiveUser,
+    requireActiveUserOrWorker,
+    requireEditor,
+    requireEditorOrWorker,
+} = require('../utils/authMiddleware');
 const { mediaAssetRepository } = require('../repositories');
 const { createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/hateoas');
 const {
@@ -26,7 +32,7 @@ function createMediaResponse(req, asset, extraLinks = {}) {
     });
 }
 
-router.post('/upload-url', verifyToken, requireEditor, async (req, res) => {
+router.post('/upload-url', requireEditorOrWorker, async (req, res) => {
     try {
         const body = req.body && typeof req.body === 'object' ? req.body : {};
         const data = body.data && typeof body.data === 'object' ? body.data : {};
@@ -82,7 +88,7 @@ router.post('/upload-url', verifyToken, requireEditor, async (req, res) => {
     }
 });
 
-router.put('/:id/upload', verifyToken, requireEditor, express.raw({ type: '*/*', limit: '50mb' }), async (req, res) => {
+router.put('/:id/upload', requireEditorOrWorker, express.raw({ type: '*/*', limit: '50mb' }), async (req, res) => {
     try {
         const mediaId = normalizeText(req.params.id);
         const asset = await mediaAssetRepository.getById(mediaId);
@@ -124,7 +130,7 @@ router.put('/:id/upload', verifyToken, requireEditor, express.raw({ type: '*/*',
     }
 });
 
-router.post('/complete', verifyToken, requireEditor, async (req, res) => {
+router.post('/complete', requireEditorOrWorker, async (req, res) => {
     try {
         const body = req.body && typeof req.body === 'object' ? req.body : {};
         const data = body.data && typeof body.data === 'object' ? body.data : {};
@@ -200,7 +206,7 @@ router.get('/:id/access-url', verifyToken, requireActiveUser, async (req, res) =
     }
 });
 
-router.get('/:id/content', verifyToken, requireActiveUser, async (req, res) => {
+router.get('/:id/content', requireActiveUserOrWorker, async (req, res) => {
     try {
         const asset = await mediaAssetRepository.getById(req.params.id);
         if (!asset) {

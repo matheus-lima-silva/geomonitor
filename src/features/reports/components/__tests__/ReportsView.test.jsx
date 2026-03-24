@@ -2,10 +2,11 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ReportsView from '../ReportsView';
-import { listReportWorkspacePhotos, saveReportWorkspacePhoto, updateReportWorkspace } from '../../../../services/reportWorkspaceService';
+import { getWorkspaceKmzRequest, listReportWorkspacePhotos, requestWorkspaceKmz, saveReportWorkspacePhoto, updateReportWorkspace } from '../../../../services/reportWorkspaceService';
 import { downloadProjectPhotoExport, listProjectPhotos, requestProjectPhotoExport } from '../../../../services/projectPhotoLibraryService';
-import { createProjectDossier } from '../../../../services/projectDossierService';
-import { addWorkspaceToReportCompound, generateReportCompound, reorderReportCompound, runReportCompoundPreflight } from '../../../../services/reportCompoundService';
+import { createProjectDossier, listProjectDossiers } from '../../../../services/projectDossierService';
+import { addWorkspaceToReportCompound, generateReportCompound, listReportCompounds, reorderReportCompound, runReportCompoundPreflight } from '../../../../services/reportCompoundService';
+import { downloadMediaAsset } from '../../../../services/mediaService';
 
 const mockData = vi.hoisted(() => ({
   workspaces: [
@@ -27,6 +28,8 @@ vi.mock('../../../../services/reportWorkspaceService', () => ({
   createReportWorkspace: vi.fn().mockResolvedValue({ data: { id: 'RW-2' } }),
   importReportWorkspace: vi.fn().mockResolvedValue({ data: { id: 'RW-1' } }),
   listReportWorkspacePhotos: vi.fn().mockResolvedValue(mockData.workspacePhotos),
+  requestWorkspaceKmz: vi.fn().mockResolvedValue({ data: { token: 'kmz-1', statusExecucao: 'completed', outputKmzMediaId: 'MED-KMZ-1' } }),
+  getWorkspaceKmzRequest: vi.fn().mockResolvedValue({ data: { token: 'kmz-1', statusExecucao: 'completed', outputKmzMediaId: 'MED-KMZ-1' } }),
   saveReportWorkspacePhoto: vi.fn().mockResolvedValue({ data: { id: 'RPH-2' } }),
   updateReportWorkspace: vi.fn().mockResolvedValue({ data: { id: 'RW-1' } }),
 }));
@@ -37,6 +40,7 @@ vi.mock('../../../../services/projectService', () => ({
 
 vi.mock('../../../../services/reportCompoundService', () => ({
   subscribeReportCompounds: vi.fn((onData) => { onData(mockData.compounds); return () => {}; }),
+  listReportCompounds: vi.fn().mockImplementation(async () => mockData.compounds),
   createReportCompound: vi.fn().mockResolvedValue({ data: { id: 'RC-2' } }),
   addWorkspaceToReportCompound: vi.fn().mockResolvedValue({
     data: {
@@ -92,7 +96,7 @@ vi.mock('../../../../services/projectPhotoLibraryService', () => ({
 }));
 
 vi.mock('../../../../services/projectDossierService', () => ({
-  listProjectDossiers: vi.fn().mockResolvedValue(mockData.dossiers),
+  listProjectDossiers: vi.fn().mockImplementation(async () => mockData.dossiers),
   createProjectDossier: vi.fn().mockResolvedValue({ data: { id: 'DOS-2' } }),
   runProjectDossierPreflight: vi.fn().mockResolvedValue({ data: { canGenerate: true, summary: {} } }),
   generateProjectDossier: vi.fn().mockResolvedValue({ data: { id: 'DOS-1', status: 'queued' } }),
@@ -102,15 +106,35 @@ vi.mock('../../../../services/mediaService', () => ({
   createMediaUpload: vi.fn().mockResolvedValue({ data: { id: 'MED-1', upload: { href: 'https://example.com/upload', method: 'PUT', headers: { 'Content-Type': 'image/jpeg' } } } }),
   uploadMediaBinary: vi.fn().mockResolvedValue({}),
   completeMediaUpload: vi.fn().mockResolvedValue({ data: { id: 'MED-1' } }),
+  downloadMediaAsset: vi.fn().mockResolvedValue({ blob: new Blob(['docx']) }),
 }));
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+function resetMockData() {
+  mockData.workspaces = [
+    { id: 'RW-1', nome: 'Workspace 1', projectId: 'PRJ-01', status: 'draft', updatedAt: '2026-03-22T10:00:00.000Z' },
+    { id: 'RW-2', nome: 'Workspace 2', projectId: 'PRJ-01', status: 'draft', updatedAt: '2026-03-22T11:00:00.000Z' },
+  ];
+  mockData.projects = [{ id: 'PRJ-01', nome: 'Linha Norte', torresCoordenadas: [{ numero: '1' }, { numero: '2' }] }];
+  mockData.compounds = [{ id: 'RC-1', nome: 'Composto 1', workspaceIds: ['RW-1'], orderJson: ['RW-1'], status: 'draft', updatedAt: '2026-03-22T10:00:00.000Z' }];
+  mockData.workspacePhotos = [{ id: 'RPH-1', caption: 'Foto 1', towerId: 'T-01', workspaceId: 'RW-1', importSource: 'structured_folders', includeInReport: true }];
+  mockData.projectPhotos = [
+    { id: 'RPH-1', caption: 'Foto 1 fundacao', towerId: 'T-01', workspaceId: 'RW-1', importSource: 'structured_folders', includeInReport: true, captureAt: '2026-03-21T10:00:00.000Z' },
+    { id: 'RPH-2', caption: 'Vista geral', towerId: 'T-02', workspaceId: 'RW-2', importSource: 'loose_photos', includeInReport: false, captureAt: '2026-03-18T10:00:00.000Z' },
+  ];
+  mockData.dossiers = [{ id: 'DOS-1', nome: 'Dossie 1', status: 'draft' }];
+}
 
 describe('ReportsView', () => {
   let container;
   let root;
 
   beforeEach(() => {
+    resetMockData();
+    global.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+    global.URL.revokeObjectURL = vi.fn();
+    window.HTMLAnchorElement.prototype.click = vi.fn();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -264,6 +288,8 @@ describe('ReportsView', () => {
   it('cria dossie com escopo editorial configuravel', async () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     const dossierButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Dossie do Empreendimento'));
@@ -376,6 +402,59 @@ describe('ReportsView', () => {
     expect(container.textContent).toContain('queued');
   });
 
+  it('exibe download do DOCX final para dossie concluido', async () => {
+    mockData.dossiers = [{
+      id: 'DOS-1',
+      nome: 'Dossie 1',
+      status: 'completed',
+      outputDocxMediaId: 'MED-DOCX-1',
+      lastError: '',
+    }];
+
+    await act(async () => {
+      root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+    });
+
+    const dossierButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Dossie do Empreendimento'));
+    await act(async () => {
+      dossierButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const downloadButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Baixar DOCX'));
+    expect(downloadButton).toBeTruthy();
+
+    await act(async () => {
+      downloadButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(downloadMediaAsset).toHaveBeenCalledWith('MED-DOCX-1');
+  });
+
+  it('faz refresh curto enquanto houver relatorios em fila ou processando', async () => {
+    vi.useFakeTimers();
+    mockData.dossiers = [{ id: 'DOS-1', nome: 'Dossie 1', status: 'queued' }];
+    mockData.compounds = [{ id: 'RC-1', nome: 'Composto 1', workspaceIds: ['RW-1'], orderJson: ['RW-1'], status: 'processing' }];
+
+    await act(async () => {
+      root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    expect(listProjectDossiers).toHaveBeenCalledTimes(1);
+    expect(listReportCompounds).toHaveBeenCalledTimes(0);
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(listProjectDossiers).toHaveBeenCalledTimes(2);
+    expect(listReportCompounds).toHaveBeenCalledTimes(1);
+  });
+
   it('autosalva o rascunho da curadoria no draftState do workspace', async () => {
     vi.useFakeTimers();
 
@@ -413,5 +492,35 @@ describe('ReportsView', () => {
       }),
       expect.objectContaining({ updatedBy: 'teste@exemplo.com' }),
     );
+  });
+
+  it('solicita o KMZ do workspace atual e libera o download do artefato final', async () => {
+    await act(async () => {
+      root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    const requestButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Gerar KMZ com Fotos'));
+    expect(requestButton).toBeTruthy();
+
+    await act(async () => {
+      requestButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(requestWorkspaceKmz).toHaveBeenCalledWith(
+      'RW-1',
+      expect.objectContaining({ updatedBy: 'teste@exemplo.com' }),
+    );
+    expect(getWorkspaceKmzRequest).not.toHaveBeenCalled();
+
+    const downloadButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Baixar KMZ'));
+    expect(downloadButton).toBeTruthy();
+
+    await act(async () => {
+      downloadButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(downloadMediaAsset).toHaveBeenCalledWith('MED-KMZ-1');
   });
 });

@@ -68,6 +68,34 @@ async function getById(id) {
     });
 }
 
+async function listByProject(projectId) {
+    const normalizedProjectId = normalizeKey(projectId);
+    if (!isPostgresBackend()) {
+        const rows = await list();
+        return rows.filter((row) => normalizeKey(row.projectId) === normalizedProjectId);
+    }
+
+    const result = await postgresStore.query(
+        `
+            SELECT id, project_id, status, draft_state, payload, created_at, updated_at, updated_by
+            FROM report_workspaces
+            WHERE project_id = $1
+            ORDER BY updated_at DESC, id ASC
+        `,
+        [normalizedProjectId],
+    );
+
+    return result.rows.map((row) => hydrateWorkspaceRow({
+        ...row,
+        payload: {
+            ...(row.payload || {}),
+            projectId: row.project_id,
+            status: row.status,
+            draftState: row.draft_state || {},
+        },
+    }));
+}
+
 async function save(payload, options = {}) {
     const normalizedId = normalizeText(payload?.id);
     const current = options.merge ? await getById(normalizedId) : null;
@@ -143,6 +171,7 @@ async function countByProject(projectId) {
 module.exports = {
     list,
     getById,
+    listByProject,
     save,
     remove,
     countByProject,

@@ -7,6 +7,9 @@ const {
     saveFirestoreDoc,
     buildMetadata,
 } = require('./common');
+const projectDossierRepository = require('./projectDossierRepository');
+const reportCompoundRepository = require('./reportCompoundRepository');
+const workspaceKmzRequestRepository = require('./workspaceKmzRequestRepository');
 
 function hydrateRow(row) {
     return buildMetadata(
@@ -33,6 +36,66 @@ const JOB_SELECT = `
            payload, created_at, updated_at, updated_by
     FROM report_jobs
 `;
+
+async function syncParentJobStatus(job, overrides = {}) {
+    if (!job || typeof job !== 'object') return;
+
+    const updatedBy = normalizeText(overrides.updatedBy) || normalizeText(job.updatedBy) || 'API';
+    const status = normalizeText(overrides.status || job.statusExecucao);
+    const outputDocxMediaId = normalizeText(
+        overrides.outputDocxMediaId !== undefined ? overrides.outputDocxMediaId : job.outputDocxMediaId,
+    );
+    const outputKmzMediaId = normalizeText(
+        overrides.outputKmzMediaId !== undefined ? overrides.outputKmzMediaId : job.outputKmzMediaId,
+    );
+    const lastError = overrides.lastError !== undefined
+        ? String(overrides.lastError || '')
+        : String(job.errorLog || '');
+
+    if (normalizeText(job.kind) === 'project_dossier' && normalizeText(job.dossierId)) {
+        const current = await projectDossierRepository.getById(job.dossierId);
+        if (!current) return;
+        await projectDossierRepository.save({
+            ...current,
+            status: status || current.status || 'draft',
+            lastJobId: job.id,
+            outputDocxMediaId: outputDocxMediaId || current.outputDocxMediaId || '',
+            lastError,
+            updatedAt: new Date().toISOString(),
+            updatedBy,
+        }, { merge: true });
+        return;
+    }
+
+    if (normalizeText(job.kind) === 'report_compound' && normalizeText(job.compoundId)) {
+        const current = await reportCompoundRepository.getById(job.compoundId);
+        if (!current) return;
+        await reportCompoundRepository.save({
+            ...current,
+            status: status || current.status || 'draft',
+            lastJobId: job.id,
+            outputDocxMediaId: outputDocxMediaId || current.outputDocxMediaId || '',
+            lastError,
+            updatedAt: new Date().toISOString(),
+            updatedBy,
+        }, { merge: true });
+        return;
+    }
+
+    if (normalizeText(job.kind) === 'workspace_kmz' && normalizeText(job.workspaceKmzToken)) {
+        const current = await workspaceKmzRequestRepository.getByToken(job.workspaceKmzToken);
+        if (!current) return;
+        await workspaceKmzRequestRepository.save(job.workspaceKmzToken, {
+            ...current,
+            statusExecucao: status || current.statusExecucao || 'queued',
+            lastJobId: job.id,
+            outputKmzMediaId: outputKmzMediaId || current.outputKmzMediaId || '',
+            lastError,
+            updatedAt: new Date().toISOString(),
+            updatedBy,
+        }, { merge: true });
+    }
+}
 
 async function getById(id) {
     const normalizedId = normalizeText(id);
@@ -75,12 +138,14 @@ async function claimNext(meta = {}) {
         const queued = await listQueued();
         if (queued.length === 0) return null;
         const job = queued[0];
-        return saveFirestoreDoc('reportJobs', job.id, {
+        const saved = await saveFirestoreDoc('reportJobs', job.id, {
             ...job,
             statusExecucao: 'processing',
             updatedAt: new Date().toISOString(),
             updatedBy,
         }, { merge: true });
+        await syncParentJobStatus(saved, { status: 'processing', updatedBy, lastError: '' });
+        return saved;
     }
 
     const result = await postgresStore.query(
@@ -101,7 +166,11 @@ async function claimNext(meta = {}) {
         [updatedBy],
     );
 
-    return result.rows.length > 0 ? hydrateRow(result.rows[0]) : null;
+    const job = result.rows.length > 0 ? hydrateRow(result.rows[0]) : null;
+    if (job) {
+        await syncParentJobStatus(job, { status: 'processing', updatedBy, lastError: '' });
+    }
+    return job;
 }
 
 async function markComplete(id, outputIds = {}, meta = {}) {
@@ -119,7 +188,15 @@ async function markComplete(id, outputIds = {}, meta = {}) {
         updatedBy: normalizeText(meta.updatedBy) || job.updatedBy || 'API',
     };
 
-    return save(nextPayload, { merge: true });
+    const saved = await save(nextPayload, { merge: true });
+    await syncParentJobStatus(saved, {
+        status: 'completed',
+        outputDocxMediaId: saved.outputDocxMediaId,
+        outputKmzMediaId: saved.outputKmzMediaId,
+        updatedBy: nextPayload.updatedBy,
+        lastError: '',
+    });
+    return saved;
 }
 
 async function markFailed(id, errorLog, meta = {}) {
@@ -136,7 +213,13 @@ async function markFailed(id, errorLog, meta = {}) {
         updatedBy: normalizeText(meta.updatedBy) || job.updatedBy || 'API',
     };
 
-    return save(nextPayload, { merge: true });
+    const saved = await save(nextPayload, { merge: true });
+    await syncParentJobStatus(saved, {
+        status: 'failed',
+        updatedBy: nextPayload.updatedBy,
+        lastError: String(errorLog || ''),
+    });
+    return saved;
 }
 
 async function save(payload, options = {}) {

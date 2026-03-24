@@ -1,5 +1,7 @@
 # TODO - Migracao GeoMonitor + GeoRelat + Tigris
 
+Status atual: `70/80` itens concluidos (`87,5%`), `10` pendentes.
+
 ## infra/schema
 
 - [x] adicionar abstractions para backend nao-Firestore
@@ -35,11 +37,11 @@
 
 - [x] versionar configuracoes do Fly para `geomonitor-web`, `geomonitor-api` e `geomonitor-worker`
 - [x] definir estrategia de apps por ambiente (`homologacao` e `producao`)
-- [ ] provisionar `Managed Postgres` do ambiente alvo
-- [ ] provisionar bucket `Tigris` e vincular ao app
+- [x] provisionar `Managed Postgres` do ambiente alvo
+- [x] provisionar bucket `Tigris` e vincular ao app
 - [x] mapear e documentar secrets por app
 - [x] configurar healthchecks, regiao primaria e escala inicial
-- [ ] validar deploy inicial em homologacao via `flyctl`
+- [x] validar deploy inicial em homologacao via `flyctl`
 - [x] documentar promote para producao
 
 ## media-tigris
@@ -50,6 +52,12 @@
 - [x] plugar o frontend de relatorios no fluxo real de upload assinado
 - [x] adicionar queries especializadas ao `mediaAssetRepository` para pipeline de geracao
 - [ ] usar `mediaAssetRepository` na trilha completa de curadoria/exportacao/geracao
+
+Avanco desta rodada:
+- exportacao efemera de fotos por empreendimento agora persiste e reutiliza artefato ZIP via `mediaAssetRepository` (`purpose=project_photo_export_zip`, `linkedResourceType=project_photo_export`), evitando regeneracao do arquivo a cada download.
+- homologacao Fly com `MEDIA_BACKEND=tigris` validada no endpoint real de media (`upload-url` -> upload assinado -> `complete` -> `content`) usando token interno do worker.
+- hotfix em homologacao: rota `report-jobs` foi montada na API (`/api/report-jobs`) e redeployada com `backend/Dockerfile`.
+- smoke real de jobs `project_dossier` e `report_compound` concluido em `DATA_BACKEND=postgres` + `MEDIA_BACKEND=tigris`, com artefatos DOCX gravados em `media_assets` (`statusExecucao=ready`).
 
 ## workspace-curadoria
 
@@ -76,7 +84,8 @@
 - [x] builder de escopo do dossie
 - [x] preflight inicial do dossie por secao e com UI web exposta
 - [ ] validar preflight do dossie em Postgres real
-- [ ] geracao de DOCX
+- [x] geracao de DOCX
+- [x] smoke funcional em homologacao Postgres/Tigris via worker
 
 ## templates-admin
 
@@ -88,10 +97,10 @@
 
 - [x] criar scaffold bootstrap do app `geomonitor-worker`
 - [x] integrar consumo manual de `report-jobs` via API com token interno do worker
-- [ ] provisionar app `geomonitor-worker` no Fly
-- [ ] portar template base
-- [ ] staging temporario
-- [ ] KMZ com fotos
+- [x] provisionar app `geomonitor-worker` no Fly
+- [x] portar template base
+- [x] staging temporario
+- [x] KMZ com fotos
 
 ## etl-migracao
 
@@ -107,7 +116,8 @@
 - [x] ordenar blocos com UI web exposta
 - [x] preflight com UI web exposta
 - [x] enfileirar geracao inicial com UI web exposta
-- [ ] gerar documento final no worker
+- [x] gerar documento final no worker
+- [x] smoke funcional em homologacao Postgres/Tigris via worker
 
 ## cutover-cleanup
 

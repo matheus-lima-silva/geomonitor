@@ -6,12 +6,6 @@ import { useToast } from '../../../context/ToastContext';
 import { deleteUser, saveUser } from '../../../services/userService';
 import { saveRulesConfig } from '../../../services/rulesService';
 import {
-  createReportTemplate,
-  updateReportTemplate,
-  deleteReportTemplate,
-  activateReportTemplate,
-} from '../../../services/reportTemplateService';
-import {
   CRITICALITY_DEFAULTS,
   mergeCriticalityConfig,
   normalizeRulesConfig,
@@ -22,8 +16,6 @@ function AdminView({
   users,
   rulesConfig,
   searchTerm,
-  templates = [],
-  onTemplatesChange,
 }) {
   const { user } = useAuth();
   const { show } = useToast();
@@ -46,15 +38,6 @@ function AdminView({
     telefone: '',
     perfil: 'Utilizador',
     status: 'Pendente',
-  });
-
-  const [isTemplateFormOpen, setIsTemplateFormOpen] = useState(false);
-  const [isEditingTemplate, setIsEditingTemplate] = useState(false);
-  const [templateForm, setTemplateForm] = useState({
-    id: '',
-    versionLabel: '',
-    sourceKind: 'docx_base',
-    notes: '',
   });
 
   useEffect(() => {
@@ -160,78 +143,18 @@ function AdminView({
     show('Regras salvas com sucesso.', 'success');
   }
 
-  function openNewTemplate() {
-    setTemplateForm({ id: '', versionLabel: '', sourceKind: 'docx_base', notes: '' });
-    setIsEditingTemplate(false);
-    setIsTemplateFormOpen(true);
-  }
-
-  function openEditTemplate(tpl) {
-    setTemplateForm({
-      id: String(tpl?.id || ''),
-      versionLabel: String(tpl?.versionLabel || ''),
-      sourceKind: String(tpl?.sourceKind || 'docx_base'),
-      notes: String(tpl?.notes || ''),
-    });
-    setIsEditingTemplate(true);
-    setIsTemplateFormOpen(true);
-  }
-
-  async function handleSaveTemplate() {
-    const versionLabel = String(templateForm.versionLabel || '').trim();
-    if (!versionLabel) {
-      show('Preencha a versao do template.', 'error');
-      return;
-    }
-
-    try {
-      if (isEditingTemplate && templateForm.id) {
-        await updateReportTemplate(templateForm.id, templateForm, { updatedBy: user?.email });
-      } else {
-        await createReportTemplate(templateForm, { updatedBy: user?.email });
-      }
-      setIsTemplateFormOpen(false);
-      show(isEditingTemplate ? 'Template atualizado.' : 'Template criado.', 'success');
-      onTemplatesChange?.();
-    } catch (error) {
-      show(error?.message || 'Erro ao salvar template.', 'error');
-    }
-  }
-
-  async function handleActivateTemplate(tplId) {
-    try {
-      await activateReportTemplate(tplId);
-      show('Template ativado.', 'success');
-      onTemplatesChange?.();
-    } catch (error) {
-      show(error?.message || 'Erro ao ativar template.', 'error');
-    }
-  }
-
-  async function handleDeleteTemplate(tplId) {
-    if (!window.confirm('Remover este template?')) return;
-    try {
-      await deleteReportTemplate(tplId);
-      show('Template removido.', 'success');
-      onTemplatesChange?.();
-    } catch (error) {
-      show(error?.message || 'Erro ao remover template.', 'error');
-    }
-  }
-
   return (
     <section className="bg-white rounded-2xl shadow-[0_4px_18px_rgba(15,23,42,0.08)] p-5 mb-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div>
           <h2 className="text-xl font-bold text-slate-800 m-0">Administracao</h2>
-          <p className="text-sm text-slate-500 mt-1">Gestao de utilizadores, criticidade e templates de relatorio.</p>
+          <p className="text-sm text-slate-500 mt-1">Gestao de utilizadores e configuracao canonica de criticidade.</p>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-6">
         <Button variant={section === 'users' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('users')}>Utilizadores</Button>
         <Button variant={section === 'rules' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('rules')}>Criticidade</Button>
-        <Button variant={section === 'templates' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('templates')}>Templates</Button>
       </div>
 
       {section === 'users' && (
@@ -336,68 +259,6 @@ function AdminView({
         </div>
       )}
 
-      {section === 'templates' && (
-        <div className="flex flex-col gap-4">
-          <div className="flex justify-start sm:justify-end gap-2">
-            <Button variant="primary" size="sm" onClick={openNewTemplate}>
-              <AppIcon name="plus" />
-              Novo Template
-            </Button>
-          </div>
-
-          <div className="overflow-x-auto w-full bg-white rounded-xl border border-slate-200">
-            <table className="w-full text-left border-collapse whitespace-nowrap">
-              <thead>
-                <tr>
-                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Versao</th>
-                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tipo</th>
-                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Ativo</th>
-                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Notas</th>
-                  <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Acoes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {templates.map((tpl) => (
-                  <tr key={tpl.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 text-sm text-slate-700">{tpl.versionLabel || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700">{tpl.sourceKind || '-'}</td>
-                    <td className="px-4 py-3 text-sm">
-                      {tpl.isActive
-                        ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Ativo</span>
-                        : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">Inativo</span>}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-700 max-w-[200px] truncate">{tpl.notes || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEditTemplate(tpl)}>
-                          <AppIcon name="edit" />
-                          Editar
-                        </Button>
-                        {!tpl.isActive && (
-                          <Button variant="primary" size="sm" onClick={() => handleActivateTemplate(tpl.id)}>
-                            <AppIcon name="check" />
-                            Ativar
-                          </Button>
-                        )}
-                        <Button variant="danger" size="sm" onClick={() => handleDeleteTemplate(tpl.id)}>
-                          <AppIcon name="trash" />
-                          Excluir
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {templates.length === 0 && (
-                  <tr>
-                    <td colSpan="5" className="px-4 py-6 text-center text-sm text-slate-500">Nenhum template cadastrado.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       <Modal
         open={isUserFormOpen}
         onClose={() => setIsUserFormOpen(false)}
@@ -475,50 +336,6 @@ function AdminView({
             <option value="Ativo">Ativo</option>
             <option value="Inativo">Inativo</option>
           </Select>
-        </div>
-      </Modal>
-
-      <Modal
-        open={isTemplateFormOpen}
-        onClose={() => setIsTemplateFormOpen(false)}
-        title={isEditingTemplate ? 'Editar Template' : 'Novo Template'}
-        size="md"
-        footer={(
-          <>
-            <Button variant="outline" onClick={() => setIsTemplateFormOpen(false)}>
-              <AppIcon name="close" />
-              Cancelar
-            </Button>
-            <Button variant="primary" onClick={handleSaveTemplate}>
-              <AppIcon name="save" />
-              Salvar
-            </Button>
-          </>
-        )}
-      >
-        <div className="grid grid-cols-1 gap-4">
-          <Input
-            id="tpl-version"
-            label="Versao"
-            value={templateForm.versionLabel}
-            onChange={(event) => setTemplateForm((prev) => ({ ...prev, versionLabel: event.target.value }))}
-          />
-          <Select
-            id="tpl-source-kind"
-            label="Tipo"
-            value={templateForm.sourceKind}
-            onChange={(event) => setTemplateForm((prev) => ({ ...prev, sourceKind: event.target.value }))}
-          >
-            <option value="docx_base">Base DOCX</option>
-            <option value="override">Override</option>
-          </Select>
-          <Textarea
-            id="tpl-notes"
-            label="Notas"
-            rows={3}
-            value={templateForm.notes}
-            onChange={(event) => setTemplateForm((prev) => ({ ...prev, notes: event.target.value }))}
-          />
         </div>
       </Modal>
     </section>

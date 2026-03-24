@@ -10,6 +10,11 @@ export function subscribeReportCompounds(onData, onError) {
   return service.subscribe(onData, onError);
 }
 
+export async function listReportCompounds() {
+  const result = await service.list();
+  return Array.isArray(result?.data) ? result.data : [];
+}
+
 export function createReportCompound(payload, meta = {}) {
   return service.create(payload, meta, (item) => String(item?.id || `RC-${Date.now()}`).trim());
 }

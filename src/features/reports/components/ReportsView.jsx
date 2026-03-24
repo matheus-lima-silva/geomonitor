@@ -13,17 +13,20 @@ import {
   addWorkspaceToReportCompound,
   createReportCompound,
   generateReportCompound,
+  listReportCompounds,
   reorderReportCompound,
   runReportCompoundPreflight,
   subscribeReportCompounds,
 } from '../../../services/reportCompoundService';
-import { completeMediaUpload, createMediaUpload, uploadMediaBinary } from '../../../services/mediaService';
+import { completeMediaUpload, createMediaUpload, downloadMediaAsset, uploadMediaBinary } from '../../../services/mediaService';
 import { getProjectTowerList } from '../../../utils/getProjectTowerList';
 import {
   createReportWorkspace,
+  getWorkspaceKmzRequest,
   importReportWorkspace,
   listReportWorkspacePhotos,
   processWorkspaceKmz,
+  requestWorkspaceKmz,
   saveReportWorkspacePhoto,
   subscribeReportWorkspaces,
   updateReportWorkspace,
@@ -79,9 +82,14 @@ function fmt(value) {
 function tone(status) {
   const value = String(status || '').toLowerCase();
   if (value.includes('queued') || value.includes('process') || value.includes('saving') || value.includes('pending')) return 'bg-amber-100 text-amber-700';
-  if (value.includes('ready') || value.includes('done') || value.includes('ativo')) return 'bg-emerald-100 text-emerald-700';
+  if (value.includes('ready') || value.includes('done') || value.includes('ativo') || value.includes('complete')) return 'bg-emerald-100 text-emerald-700';
   if (value.includes('error') || value.includes('fail')) return 'bg-rose-100 text-rose-700';
   return 'bg-slate-100 text-slate-600';
+}
+
+function isPendingExecutionStatus(status) {
+  const value = String(status || '').toLowerCase();
+  return value.includes('queued') || value.includes('process');
 }
 
 function buildDefaultCaption(fileName = '') {
@@ -200,6 +208,26 @@ function triggerBlobDownload(filename, blob) {
   return true;
 }
 
+function sanitizeDownloadName(value = '', fallback = 'documento.docx') {
+  const normalized = String(value || '')
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '-')
+    .replace(/\s+/g, '-');
+  return normalized || fallback;
+}
+
+function buildDossierDownloadFileName(projectId, dossier = {}) {
+  return sanitizeDownloadName(`dossie-${projectId}-${dossier.id || 'documento'}.docx`);
+}
+
+function buildCompoundDownloadFileName(compound = {}) {
+  return sanitizeDownloadName(`relatorio-composto-${compound.id || 'documento'}.docx`);
+}
+
+function buildWorkspaceKmzDownloadFileName(workspace = {}, requestEntry = {}) {
+  return sanitizeDownloadName(`workspace-${workspace.id || 'workspace'}-${requestEntry.token || 'fotos'}.kmz`, 'workspace-fotos.kmz');
+}
+
 const DOSSIER_SCOPE_FIELDS = [
   ['includeLicencas', 'Licencas'],
   ['includeInspecoes', 'Inspecoes'],
@@ -253,6 +281,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [workspaceImportMode, setWorkspaceImportMode] = useState('loose_photos');
   const [workspacePhotos, setWorkspacePhotos] = useState([]);
   const [workspacePhotoDrafts, setWorkspacePhotoDrafts] = useState({});
+  const [workspaceKmzRequests, setWorkspaceKmzRequests] = useState({});
   const [workspaceAutosave, setWorkspaceAutosave] = useState({ status: 'idle', savedAt: '', error: '' });
   const [lastPersistedWorkspaceDraftSignature, setLastPersistedWorkspaceDraftSignature] = useState('');
   const [pendingFiles, setPendingFiles] = useState([]);
@@ -308,7 +337,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       return;
     }
     let cancelled = false;
-    listProjectDossiers(selectedProjectId)
+    refreshProjectDossiers(selectedProjectId)
       .then((dossiers) => {
         if (cancelled) return;
         setProjectDossiers(Array.isArray(dossiers) ? dossiers : []);
@@ -471,6 +500,25 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     return nextPhotos;
   }
 
+  async function refreshProjectDossiers(projectId) {
+    if (!projectId) {
+      setProjectDossiers([]);
+      return [];
+    }
+
+    const dossiers = await listProjectDossiers(projectId);
+    const nextDossiers = Array.isArray(dossiers) ? dossiers : [];
+    setProjectDossiers(nextDossiers);
+    return nextDossiers;
+  }
+
+  async function refreshCompounds() {
+    const rows = await listReportCompounds();
+    const nextRows = Array.isArray(rows) ? rows : [];
+    setCompounds(nextRows);
+    return nextRows;
+  }
+
   useEffect(() => {
     if (!selectedWorkspace || workspacePhotos.length === 0) return undefined;
     if (workspaceDraftSignature === lastPersistedWorkspaceDraftSignature) {
@@ -534,6 +582,66 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     workspaceDraftSnapshot,
     workspacePhotos.length,
   ]);
+
+  const hasPendingReportOutputs = useMemo(
+    () => projectDossiers.some((dossier) => isPendingExecutionStatus(dossier.status))
+      || compounds.some((compound) => isPendingExecutionStatus(compound.status))
+      || Object.values(workspaceKmzRequests).some((requestEntry) => isPendingExecutionStatus(requestEntry?.statusExecucao)),
+    [compounds, projectDossiers, workspaceKmzRequests],
+  );
+
+  useEffect(() => {
+    if (!hasPendingReportOutputs) return undefined;
+
+    let cancelled = false;
+    const runRefresh = async () => {
+      try {
+        if (selectedProjectId) {
+          const dossiers = await listProjectDossiers(selectedProjectId);
+          if (!cancelled) {
+            setProjectDossiers(Array.isArray(dossiers) ? dossiers : []);
+          }
+        }
+
+        const nextCompounds = await listReportCompounds();
+        if (!cancelled) {
+          setCompounds(Array.isArray(nextCompounds) ? nextCompounds : []);
+        }
+
+        const pendingKmzRequests = Object.entries(workspaceKmzRequests)
+          .filter(([, requestEntry]) => requestEntry?.token && isPendingExecutionStatus(requestEntry?.statusExecucao));
+
+        if (pendingKmzRequests.length > 0) {
+          const refreshedRequests = await Promise.all(
+            pendingKmzRequests.map(async ([workspaceId, requestEntry]) => {
+              const result = await getWorkspaceKmzRequest(workspaceId, requestEntry.token);
+              return [workspaceId, result?.data || requestEntry];
+            }),
+          );
+
+          if (!cancelled) {
+            setWorkspaceKmzRequests((prev) => ({
+              ...prev,
+              ...Object.fromEntries(refreshedRequests),
+            }));
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          showToast(error?.message || 'Erro ao atualizar status dos relatórios.', 'error');
+        }
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      runRefresh();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [hasPendingReportOutputs, selectedProjectId, showToast, workspaceKmzRequests]);
 
   async function handleCreateWorkspace() {
     if (!workspaceDraft.projectId || !String(workspaceDraft.nome || '').trim()) {
@@ -610,8 +718,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         draftState: { autosave: 'pending' },
       }, { updatedBy: userEmail || 'web' });
       setDossierDraft({ nome: '', observacoes: '', scopeJson: buildDefaultDossierScope() });
-      const dossiers = await listProjectDossiers(selectedProjectId);
-      setProjectDossiers(Array.isArray(dossiers) ? dossiers : []);
+      await refreshProjectDossiers(selectedProjectId);
       setProjectDossierPreflights({});
       showToast('Dossie criado.', 'success');
     } catch (error) {
@@ -649,12 +756,32 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       if (savedDossier?.id) {
         setProjectDossiers((prev) => prev.map((item) => (item.id === savedDossier.id ? savedDossier : item)));
       } else {
-        const dossiers = await listProjectDossiers(selectedProjectId);
-        setProjectDossiers(Array.isArray(dossiers) ? dossiers : []);
+        await refreshProjectDossiers(selectedProjectId);
       }
       showToast('Geracao do dossie enfileirada.', 'success');
     } catch (error) {
       showToast(error?.message || 'Erro ao enfileirar geracao do dossie.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleDownloadReportOutput(mediaId, fileName) {
+    if (!mediaId) return;
+
+    try {
+      setBusy(`download:${mediaId}`);
+      const result = await downloadMediaAsset(mediaId);
+      const downloaded = triggerBlobDownload(
+        fileName || sanitizeDownloadName(`relatorio-${mediaId}.docx`),
+        result?.blob,
+      );
+      if (!downloaded) {
+        throw new Error('Ambiente sem suporte para disparar o download.');
+      }
+      showToast('Download do DOCX iniciado.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao baixar o DOCX final.', 'error');
     } finally {
       setBusy('');
     }
@@ -676,6 +803,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         orderJson: [],
       }, { updatedBy: userEmail || 'web' });
       setCompoundDraft({ nome: '', texto: '' });
+      await refreshCompounds();
       showToast('Relatorio composto criado.', 'success');
     } catch (error) {
       showToast(error?.message || 'Erro ao criar relatorio composto.', 'error');
@@ -739,6 +867,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       const savedCompound = result?.data;
       if (savedCompound?.id) {
         setCompounds((prev) => prev.map((item) => (item.id === savedCompound.id ? savedCompound : item)));
+      } else {
+        await refreshCompounds();
       }
       showToast('Geracao do relatorio composto enfileirada.', 'success');
     } catch (error) {
@@ -957,6 +1087,50 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
+  async function handleRequestWorkspaceKmz() {
+    if (!selectedWorkspace?.id) {
+      showToast('Selecione um workspace para gerar o KMZ.', 'error');
+      return;
+    }
+
+    try {
+      setBusy('workspace-kmz');
+      const result = await requestWorkspaceKmz(selectedWorkspace.id, { updatedBy: userEmail || 'web' });
+      const requestEntry = result?.data || {};
+      setWorkspaceKmzRequests((prev) => ({
+        ...prev,
+        [selectedWorkspace.id]: requestEntry,
+      }));
+      showToast('KMZ com fotos enfileirado para o workspace atual.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao solicitar KMZ do workspace.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleDownloadWorkspaceKmz(requestEntry) {
+    const mediaId = String(requestEntry?.outputKmzMediaId || '').trim();
+    if (!mediaId || !selectedWorkspace?.id) {
+      showToast('O KMZ ainda nao esta pronto para download.', 'error');
+      return;
+    }
+
+    try {
+      setBusy(`download:${mediaId}`);
+      const result = await downloadMediaAsset(mediaId);
+      triggerBlobDownload(buildWorkspaceKmzDownloadFileName(selectedWorkspace, requestEntry), result.blob);
+    } catch (error) {
+      showToast(error?.message || 'Erro ao baixar KMZ do workspace.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  const selectedWorkspaceKmzRequest = selectedWorkspace?.id
+    ? (workspaceKmzRequests[selectedWorkspace.id] || null)
+    : null;
+
   return (
     <section className="flex flex-col gap-5 p-2">
       <div>
@@ -1061,11 +1235,21 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                     {workspaceAutosave.status === 'idle' ? 'Autosave inativo' : null}
                   </span>
                 ) : null}
+                {selectedWorkspaceKmzRequest ? (
+                  <span className={`rounded-full px-2 py-1 ${tone(selectedWorkspaceKmzRequest.statusExecucao)}`}>
+                    KMZ: {selectedWorkspaceKmzRequest.statusExecucao || 'queued'}
+                  </span>
+                ) : null}
               </div>
             </div>
             {selectedWorkspace && workspaceAutosave.status === 'error' ? (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
                 {workspaceAutosave.error || 'Erro ao autosalvar rascunho do workspace.'}
+              </div>
+            ) : null}
+            {selectedWorkspaceKmzRequest?.lastError ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {selectedWorkspaceKmzRequest.lastError}
               </div>
             ) : null}
 
@@ -1076,6 +1260,27 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                   <Card variant="nested"><strong className="text-slate-800">{workspaceMetrics.included}</strong><p className="mt-1 mb-0 text-xs text-slate-500">Incluidas no relatorio</p></Card>
                   <Card variant="nested"><strong className="text-slate-800">{workspaceMetrics.missingCaption}</strong><p className="mt-1 mb-0 text-xs text-slate-500">Sem legenda</p></Card>
                   <Card variant="nested"><strong className="text-slate-800">{workspaceMetrics.missingTower}</strong><p className="mt-1 mb-0 text-xs text-slate-500">Sem torre</p></Card>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleRequestWorkspaceKmz}
+                    disabled={busy === 'workspace-kmz' || !selectedWorkspace}
+                  >
+                    <AppIcon name="file-text" />
+                    {busy === 'workspace-kmz' ? 'Enfileirando KMZ...' : 'Gerar KMZ com Fotos'}
+                  </Button>
+                  {selectedWorkspaceKmzRequest?.outputKmzMediaId ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => handleDownloadWorkspaceKmz(selectedWorkspaceKmzRequest)}
+                      disabled={busy === `download:${selectedWorkspaceKmzRequest.outputKmzMediaId}`}
+                    >
+                      <AppIcon name="download" />
+                      {busy === `download:${selectedWorkspaceKmzRequest.outputKmzMediaId}` ? 'Baixando...' : 'Baixar KMZ'}
+                    </Button>
+                  ) : null}
                 </div>
 
                 <div className="flex flex-col gap-3">
@@ -1362,7 +1567,25 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                     <AppIcon name="file-text" />
                     {busy === `dossier-generate:${dossier.id}` ? 'Enfileirando...' : 'Enfileirar Geracao'}
                   </Button>
+                  {dossier.outputDocxMediaId ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => handleDownloadReportOutput(
+                        dossier.outputDocxMediaId,
+                        buildDossierDownloadFileName(selectedProjectId, dossier),
+                      )}
+                      disabled={busy === `download:${dossier.outputDocxMediaId}`}
+                    >
+                      <AppIcon name="download" />
+                      {busy === `download:${dossier.outputDocxMediaId}` ? 'Baixando...' : 'Baixar DOCX'}
+                    </Button>
+                  ) : null}
                 </div>
+                {dossier.lastError ? (
+                  <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    {dossier.lastError}
+                  </div>
+                ) : null}
                 {projectDossierPreflights[dossier.id] ? (
                   <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -1491,8 +1714,26 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                       <AppIcon name="file-text" />
                       {busy === `compound-generate:${compound.id}` ? 'Enfileirando...' : 'Enfileirar Geracao'}
                     </Button>
+                    {compound.outputDocxMediaId ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => handleDownloadReportOutput(
+                          compound.outputDocxMediaId,
+                          buildCompoundDownloadFileName(compound),
+                        )}
+                        disabled={busy === `download:${compound.outputDocxMediaId}`}
+                      >
+                        <AppIcon name="download" />
+                        {busy === `download:${compound.outputDocxMediaId}` ? 'Baixando...' : 'Baixar DOCX'}
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
+                {compound.lastError ? (
+                  <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    {compound.lastError}
+                  </div>
+                ) : null}
                 {compoundPreflights[compound.id] ? (
                   <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                     <div className="mb-2 flex flex-wrap items-center gap-2">

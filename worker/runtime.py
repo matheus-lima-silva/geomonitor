@@ -4,6 +4,8 @@ import threading
 from datetime import datetime, timezone
 from urllib import error, parse, request
 
+from worker.job_processor import DOCX_CONTENT_TYPE, process_claimed_job
+
 
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
@@ -45,6 +47,14 @@ class WorkerClient:
             return None
         return payload.get("data") if isinstance(payload, dict) else None
 
+    def get_job_context(self, job_id):
+        _, payload = self._request_json(
+            "GET",
+            f"/api/report-jobs/{parse.quote(normalize_text(job_id))}/context",
+            expected_statuses={200},
+        )
+        return payload.get("data") if isinstance(payload, dict) else None
+
     def mark_complete(self, job_id, output_docx_media_id=None, output_kmz_media_id=None):
         payload = {"data": {}}
         if normalize_text(output_docx_media_id):
@@ -63,6 +73,100 @@ class WorkerClient:
             "PUT",
             f"/api/report-jobs/{parse.quote(normalize_text(job_id))}/fail",
             payload={"data": {"errorLog": str(error_log or "")}},
+            expected_statuses={200},
+        )
+
+    def download_media_content(self, media_id):
+        status_code, raw_body, headers = self._request_binary(
+            "GET",
+            f"/api/media/{parse.quote(normalize_text(media_id))}/content",
+            expected_statuses={200},
+        )
+        return {
+            "statusCode": status_code,
+            "buffer": raw_body,
+            "contentType": headers.get("Content-Type") if isinstance(headers, dict) else "",
+        }
+
+    def create_output_media(
+        self,
+        job_id,
+        file_name,
+        content_type=DOCX_CONTENT_TYPE,
+        size_bytes=0,
+        purpose="report_output_docx",
+    ):
+        _, payload = self._request_json(
+            "POST",
+            "/api/media/upload-url",
+            payload={
+                "data": {
+                    "fileName": normalize_text(file_name) or "arquivo.docx",
+                    "contentType": normalize_text(content_type) or DOCX_CONTENT_TYPE,
+                    "sizeBytes": int(size_bytes or 0),
+                    "purpose": normalize_text(purpose) or "generic",
+                    "linkedResourceType": "report_job",
+                    "linkedResourceId": normalize_text(job_id),
+                },
+            },
+            expected_statuses={201},
+        )
+        return payload.get("data") if isinstance(payload, dict) else None
+
+    def upload_media_binary(self, upload_descriptor, content, content_type=DOCX_CONTENT_TYPE):
+        if not isinstance(upload_descriptor, dict):
+            raise WorkerClientError("Descritor de upload invalido retornado pela API.")
+
+        href = normalize_text(upload_descriptor.get("href"))
+        method = normalize_text(upload_descriptor.get("method")) or "PUT"
+        if not href:
+            raise WorkerClientError("URL de upload nao informada pela API.")
+
+        headers = dict(upload_descriptor.get("headers") or {})
+        if "Content-Type" not in headers:
+            headers["Content-Type"] = normalize_text(content_type) or DOCX_CONTENT_TYPE
+
+        if self._is_local_api_url(href):
+            headers["X-Worker-Token"] = self.token
+            url = self._resolve_absolute_url(href)
+        else:
+            url = href
+
+        req = request.Request(
+            url,
+            data=content,
+            method=method,
+            headers=headers,
+        )
+
+        try:
+            with self.urlopen(req, timeout=self.timeout) as response:
+                status_code = getattr(response, "status", None) or response.getcode()
+                if status_code < 200 or status_code >= 300:
+                    raise WorkerClientError(f"Upload retornou status {status_code}.")
+                response.read()
+        except error.HTTPError as exc:
+            raise WorkerClientError(
+                self._build_error_message(exc.code, exc.read()),
+            ) from exc
+        except error.URLError as exc:
+            raise WorkerClientError(f"Falha ao enviar media para a API/storage: {exc.reason}") from exc
+
+    def complete_media_upload(self, media_id, stored_size_bytes=None, sha256=""):
+        payload = {
+            "data": {
+                "id": normalize_text(media_id),
+            },
+        }
+        if stored_size_bytes is not None:
+            payload["data"]["storedSizeBytes"] = int(stored_size_bytes)
+        if normalize_text(sha256):
+            payload["data"]["sha256"] = normalize_text(sha256)
+
+        return self._request_json(
+            "POST",
+            "/api/media/complete",
+            payload=payload,
             expected_statuses={200},
         )
 
@@ -107,6 +211,51 @@ class WorkerClient:
             return status_code, json.loads(raw_body.decode("utf-8"))
         except json.JSONDecodeError as exc:
             raise WorkerClientError("Resposta JSON invalida da API.") from exc
+
+    def _request_binary(self, method, path, expected_statuses=None):
+        if not self.is_configured():
+            raise WorkerClientError("GEOMONITOR_API_URL e WORKER_API_TOKEN devem estar configurados.")
+
+        req = request.Request(
+            f"{self.base_url}{path}",
+            method=method,
+            headers={"X-Worker-Token": self.token},
+        )
+
+        try:
+            with self.urlopen(req, timeout=self.timeout) as response:
+                status_code = getattr(response, "status", None)
+                if status_code is None:
+                    status_code = response.getcode()
+                raw_body = response.read()
+                headers = dict(getattr(response, "headers", {}) or {})
+        except error.HTTPError as exc:
+            status_code = exc.code
+            raw_body = exc.read()
+            headers = dict(getattr(exc, "headers", {}) or {})
+            if expected_statuses and status_code not in expected_statuses:
+                raise WorkerClientError(self._build_error_message(status_code, raw_body)) from exc
+        except error.URLError as exc:
+            raise WorkerClientError(f"Falha ao comunicar com a API: {exc.reason}") from exc
+
+        if expected_statuses and status_code not in expected_statuses:
+            raise WorkerClientError(self._build_error_message(status_code, raw_body))
+
+        return status_code, raw_body, headers
+
+    def _resolve_absolute_url(self, href):
+        text = normalize_text(href)
+        if text.startswith("http://") or text.startswith("https://"):
+            return text
+        return parse.urljoin(f"{self.base_url}/", text)
+
+    def _is_local_api_url(self, href):
+        text = normalize_text(href)
+        if not text:
+            return False
+        if text.startswith("/"):
+            return True
+        return text.startswith(self.base_url)
 
     @staticmethod
     def _build_error_message(status_code, raw_body):
@@ -194,7 +343,7 @@ class WorkerRuntime:
         self.auto_poll_enabled = bool(
             is_truthy(os.getenv("WORKER_AUTO_POLL")) if auto_poll is None else auto_poll
         )
-        self.processor = processor or self._process_claimed_job
+        self.processor = processor or (lambda job: process_claimed_job(self.client, job))
         self.state = WorkerState(
             auto_poll_enabled=self.auto_poll_enabled,
             poll_interval_seconds=self.poll_interval_seconds,
@@ -288,12 +437,4 @@ class WorkerRuntime:
             "kind": job_kind,
             "errorLog": error_log,
             "timestamp": finished_at,
-        }
-
-    @staticmethod
-    def _process_claimed_job(job):
-        kind = normalize_text(job.get("kind")) or "unknown"
-        return {
-            "status": "failed",
-            "errorLog": f"Worker Python conectado, mas o handler para '{kind}' ainda nao foi implementado.",
         }

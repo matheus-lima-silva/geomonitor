@@ -65,3 +65,16 @@ export async function processWorkspaceKmz(workspaceId, data, meta = {}) {
     body: JSON.stringify({ data, meta }),
   });
 }
+
+export async function requestWorkspaceKmz(workspaceId, meta = {}) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/kmz`, {
+    method: 'POST',
+    body: JSON.stringify({ meta }),
+  });
+}
+
+export async function getWorkspaceKmzRequest(workspaceId, token) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/kmz/${encodeURIComponent(token)}`, {
+    method: 'GET',
+  });
+}

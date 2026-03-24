@@ -271,6 +271,13 @@ const ICON_PATHS = {
       <path d="M4 19h16" />
     </>
   ),
+  download: (
+    <>
+      <path d="M12 5v11" />
+      <path d="m7 12 5 5 5-5" />
+      <path d="M4 19h16" />
+    </>
+  ),
   login: (
     <>
       <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />

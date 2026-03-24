@@ -6,6 +6,7 @@ const { createHateoasResponse, createResourceHateoasResponse, resolveApiBaseUrl 
 const {
     reportWorkspaceRepository,
     reportPhotoRepository,
+    reportJobRepository,
     workspaceImportRepository,
     workspaceKmzRequestRepository,
     mediaAssetRepository,
@@ -90,6 +91,34 @@ function createWorkspacePhotoResponse(req, workspaceId, photo) {
             extraLinks,
         },
     );
+}
+
+function buildWorkspaceKmzLinks(req, workspaceId, requestEntry) {
+    const links = {
+        workspace: { href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}`, method: 'GET' },
+    };
+
+    const lastJobId = normalizeText(requestEntry?.lastJobId);
+    if (lastJobId) {
+        links.job = {
+            href: `${resolveApiBaseUrl(req)}/report-jobs/${lastJobId}`,
+            method: 'GET',
+        };
+    }
+
+    const outputKmzMediaId = normalizeText(requestEntry?.outputKmzMediaId);
+    if (outputKmzMediaId) {
+        links.download = {
+            href: `${resolveApiBaseUrl(req)}/media/${outputKmzMediaId}/access-url`,
+            method: 'GET',
+        };
+        links.media = {
+            href: `${resolveApiBaseUrl(req)}/media/${outputKmzMediaId}`,
+            method: 'GET',
+        };
+    }
+
+    return links;
 }
 
 router.get('/', verifyToken, requireActiveUser, async (req, res) => {
@@ -393,18 +422,40 @@ router.post('/:id/kmz', verifyToken, requireEditor, async (req, res) => {
         const workspaceId = normalizeText(req.params.id);
         const body = req.body && typeof req.body === 'object' ? req.body : {};
         const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
+        const workspace = await reportWorkspaceRepository.getById(workspaceId);
+        if (!workspace) {
+            return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
+        }
+
         const token = `kmz-${crypto.randomUUID()}`;
+        const jobId = `JOB-${crypto.randomUUID()}`;
         const now = new Date();
+        const updatedBy = meta.updatedBy || req.user?.email || 'API';
         const payload = {
             id: `WKMZ-${crypto.randomUUID()}`,
             token,
             workspaceId,
+            projectId: normalizeText(workspace.projectId).toUpperCase(),
             statusExecucao: 'queued',
+            lastJobId: jobId,
+            outputKmzMediaId: '',
+            lastError: '',
             createdAt: now.toISOString(),
             expiresAt: new Date(now.getTime() + (15 * 60 * 1000)).toISOString(),
             updatedAt: now.toISOString(),
-            updatedBy: meta.updatedBy || req.user?.email || 'API',
+            updatedBy,
         };
+
+        await reportJobRepository.save({
+            id: jobId,
+            kind: 'workspace_kmz',
+            workspaceId,
+            projectId: normalizeText(workspace.projectId).toUpperCase(),
+            workspaceKmzToken: token,
+            statusExecucao: 'queued',
+            updatedAt: now.toISOString(),
+            updatedBy,
+        }, { merge: true });
         const savedRequest = await workspaceKmzRequestRepository.save(token, payload, { merge: true });
 
         return res.status(202).json({
@@ -417,9 +468,7 @@ router.post('/:id/kmz', verifyToken, requireEditor, async (req, res) => {
                     allowUpdate: false,
                     allowDelete: false,
                     collectionPath: `report-workspaces/${workspaceId}`,
-                    extraLinks: {
-                        workspace: { href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}`, method: 'GET' },
-                    },
+                    extraLinks: buildWorkspaceKmzLinks(req, workspaceId, savedRequest || payload),
                 },
             ),
         });
@@ -448,9 +497,7 @@ router.get('/:id/kmz/:token', verifyToken, requireActiveUser, async (req, res) =
                     allowUpdate: false,
                     allowDelete: false,
                     collectionPath: `report-workspaces/${workspaceId}`,
-                    extraLinks: {
-                        workspace: { href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}`, method: 'GET' },
-                    },
+                    extraLinks: buildWorkspaceKmzLinks(req, workspaceId, requestEntry),
                 },
             ),
         });

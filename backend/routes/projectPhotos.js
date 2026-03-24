@@ -5,7 +5,13 @@ const { verifyToken, requireActiveUser, requireEditor } = require('../utils/auth
 const { createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/hateoas');
 const { normalizeText } = require('../utils/projectScope');
 const { reportPhotoRepository, projectPhotoExportRepository, mediaAssetRepository } = require('../repositories');
-const { readStoredMediaContent, sanitizeFileName } = require('../utils/mediaStorage');
+const {
+    getConfiguredMediaBackend,
+    isTigrisBackend,
+    readStoredMediaContent,
+    sanitizeFileName,
+    writeStoredContent,
+} = require('../utils/mediaStorage');
 const { buildStoredZip } = require('../utils/zipBuilder');
 
 function normalizeSelectionIds(values) {
@@ -35,6 +41,10 @@ function sanitizeZipSegment(value, fallback) {
 
 function buildProjectPhotoExportFileName(projectId, token) {
     return sanitizeFileName(`photos-${projectId}-${token}.zip`);
+}
+
+function buildProjectPhotoExportStorageKey(projectId, token, fileName) {
+    return `project-photo-exports/${projectId}/${token}/${sanitizeFileName(fileName)}`;
 }
 
 function buildProjectPhotoEntryName(photo, asset, folderMode = 'tower') {
@@ -109,6 +119,72 @@ async function buildProjectPhotoExportArchive(projectId, exported) {
         itemCount: photoEntries.length - (skippedEntries.length > 0 ? 1 : 0),
         skippedCount: skippedEntries.length,
         fileName: buildProjectPhotoExportFileName(projectId, exported?.token || exported?.id || crypto.randomUUID()),
+    };
+}
+
+async function ensureProjectPhotoExportArchiveMedia(projectId, exported, actor) {
+    const now = new Date().toISOString();
+    const existingMediaId = normalizeText(exported?.outputMediaAssetId);
+
+    if (existingMediaId) {
+        const existingAsset = await mediaAssetRepository.getById(existingMediaId);
+        if (existingAsset && normalizeText(existingAsset.statusExecucao) === 'ready') {
+            return {
+                asset: existingAsset,
+                generatedItemCount: Number.isFinite(Number(exported?.generatedItemCount))
+                    ? Number(exported.generatedItemCount)
+                    : Number(exported?.itemCount || 0),
+                skippedItemCount: Number.isFinite(Number(exported?.skippedItemCount))
+                    ? Number(exported.skippedItemCount)
+                    : 0,
+                generatedAt: normalizeText(exported?.generatedAt) || now,
+                reused: true,
+            };
+        }
+    }
+
+    const archive = await buildProjectPhotoExportArchive(projectId, exported);
+    const mediaId = existingMediaId || `MED-${crypto.randomUUID()}`;
+    const fileName = archive.fileName;
+    const payload = {
+        id: mediaId,
+        fileName,
+        contentType: 'application/zip',
+        sizeBytes: archive.buffer.byteLength,
+        purpose: 'project_photo_export_zip',
+        linkedResourceType: 'project_photo_export',
+        linkedResourceId: normalizeText(exported?.token),
+        storageKey: buildProjectPhotoExportStorageKey(projectId, normalizeText(exported?.token), fileName),
+        statusExecucao: 'pending_upload',
+        sourceKind: isTigrisBackend() ? 'tigris' : 'local',
+        storageBackend: getConfiguredMediaBackend(),
+        updatedAt: now,
+        updatedBy: actor || 'API',
+    };
+
+    const savedAsset = await mediaAssetRepository.save(payload, { merge: true });
+    const storageResult = await writeStoredContent(savedAsset, archive.buffer);
+
+    const readyAsset = await mediaAssetRepository.save({
+        ...savedAsset,
+        statusExecucao: 'ready',
+        storedAt: storageResult.storedAt,
+        storedSizeBytes: storageResult.storedSizeBytes,
+        sizeBytes: storageResult.storedSizeBytes,
+        filePath: storageResult.filePath || '',
+        contentSha256: storageResult.sha256,
+        sha256: storageResult.sha256,
+        etag: normalizeText(storageResult.etag || savedAsset.etag),
+        updatedAt: now,
+        updatedBy: actor || 'API',
+    }, { merge: true });
+
+    return {
+        asset: readyAsset,
+        generatedItemCount: archive.itemCount,
+        skippedItemCount: archive.skippedCount,
+        generatedAt: now,
+        reused: false,
     };
 }
 
@@ -248,15 +324,18 @@ router.get('/:id/photos/exports/:token', verifyToken, requireActiveUser, async (
         }
 
         if (wantsBinaryDownload(req.query || {})) {
-            const archive = await buildProjectPhotoExportArchive(projectId, exported);
+            const archiveResult = await ensureProjectPhotoExportArchiveMedia(projectId, exported, req.user?.email || 'API');
+            const readyAsset = archiveResult.asset;
+            const content = await readStoredMediaContent(readyAsset);
             const now = new Date().toISOString();
             await projectPhotoExportRepository.save(token, {
                 ...exported,
                 statusExecucao: 'ready',
-                generatedAt: now,
-                generatedItemCount: archive.itemCount,
-                skippedItemCount: archive.skippedCount,
-                downloadFileName: archive.fileName,
+                outputMediaAssetId: readyAsset.id,
+                generatedAt: archiveResult.generatedAt,
+                generatedItemCount: archiveResult.generatedItemCount,
+                skippedItemCount: archiveResult.skippedItemCount,
+                downloadFileName: readyAsset.fileName,
                 updatedAt: now,
                 updatedBy: req.user?.email || 'API',
             }, { merge: true });
@@ -264,9 +343,9 @@ router.get('/:id/photos/exports/:token', verifyToken, requireActiveUser, async (
             return res
                 .status(200)
                 .set('Content-Type', 'application/zip')
-                .set('Content-Disposition', `attachment; filename="${archive.fileName}"`)
+                .set('Content-Disposition', `attachment; filename="${readyAsset.fileName}"`)
                 .set('Cache-Control', 'no-store')
-                .send(archive.buffer);
+                .send(content.buffer);
         }
 
         return res.status(200).json({

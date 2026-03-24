@@ -45,7 +45,7 @@ describe('Report Workspaces API Integration Tests (Mocked DB)', () => {
         }));
     });
 
-    it('cria solicitacao de KMZ efemero e consulta o status pelo token', async () => {
+    it('cria solicitacao de KMZ efemero, acompanha o job e expone o download final', async () => {
         await request(app)
             .post('/api/report-workspaces')
             .set(AUTH_HEADER)
@@ -67,9 +67,20 @@ describe('Report Workspaces API Integration Tests (Mocked DB)', () => {
             workspaceId: 'RW-KMZ-1',
             statusExecucao: 'queued',
             token: expect.any(String),
+            lastJobId: expect.any(String),
         }));
 
         const token = createResponse.body.data.token;
+        const jobId = createResponse.body.data.lastJobId;
+
+        const claimResponse = await request(app)
+            .post('/api/report-jobs/claim')
+            .set(AUTH_HEADER);
+
+        expect(claimResponse.status).toBe(200);
+        expect(claimResponse.body.data.id).toBe(jobId);
+        expect(claimResponse.body.data.kind).toBe('workspace_kmz');
+
         const getResponse = await request(app)
             .get(`/api/report-workspaces/RW-KMZ-1/kmz/${token}`)
             .set(AUTH_HEADER);
@@ -78,9 +89,32 @@ describe('Report Workspaces API Integration Tests (Mocked DB)', () => {
         expect(getResponse.body.data).toEqual(expect.objectContaining({
             workspaceId: 'RW-KMZ-1',
             token,
-            statusExecucao: 'queued',
+            statusExecucao: 'processing',
             _links: expect.objectContaining({
                 self: expect.objectContaining({ href: expect.stringContaining(`/api/report-workspaces/RW-KMZ-1/kmz/${token}`) }),
+                job: expect.objectContaining({ href: expect.stringContaining(`/api/report-jobs/${jobId}`) }),
+            }),
+        }));
+
+        const completeResponse = await request(app)
+            .put(`/api/report-jobs/${jobId}/complete`)
+            .set(AUTH_HEADER)
+            .send({ data: { outputKmzMediaId: 'MEDIA-KMZ-1' } });
+
+        expect(completeResponse.status).toBe(200);
+
+        const readyResponse = await request(app)
+            .get(`/api/report-workspaces/RW-KMZ-1/kmz/${token}`)
+            .set(AUTH_HEADER);
+
+        expect(readyResponse.status).toBe(200);
+        expect(readyResponse.body.data).toEqual(expect.objectContaining({
+            workspaceId: 'RW-KMZ-1',
+            token,
+            statusExecucao: 'completed',
+            outputKmzMediaId: 'MEDIA-KMZ-1',
+            _links: expect.objectContaining({
+                download: expect.objectContaining({ href: expect.stringContaining('/api/media/MEDIA-KMZ-1/access-url') }),
             }),
         }));
     });

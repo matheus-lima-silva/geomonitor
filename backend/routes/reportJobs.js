@@ -3,6 +3,7 @@ const router = express.Router();
 const { verifyToken, requireActiveUser, requireEditorOrWorker } = require('../utils/authMiddleware');
 const { createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/hateoas');
 const { reportJobRepository } = require('../repositories');
+const { buildReportJobContext } = require('../utils/reportJobContext');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -24,6 +25,7 @@ function createJobResponse(req, job) {
             extraLinks: {
                 complete: { href: `${resolveApiBaseUrl(req)}/report-jobs/${jobId}/complete`, method: 'PUT' },
                 fail: { href: `${resolveApiBaseUrl(req)}/report-jobs/${jobId}/fail`, method: 'PUT' },
+                context: { href: `${resolveApiBaseUrl(req)}/report-jobs/${jobId}/context`, method: 'GET' },
             },
         },
     );
@@ -55,6 +57,25 @@ router.get('/:id', verifyToken, requireActiveUser, async (req, res) => {
     } catch (error) {
         console.error('[report-jobs API] Error GET /:id:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao buscar job' });
+    }
+});
+
+router.get('/:id/context', requireEditorOrWorker, async (req, res) => {
+    try {
+        const context = await buildReportJobContext(req.params.id);
+        return res.status(200).json({
+            status: 'success',
+            data: context,
+        });
+    } catch (error) {
+        const statusCode = Number.isFinite(Number(error.statusCode)) ? Number(error.statusCode) : 500;
+        if (statusCode >= 500) {
+            console.error('[report-jobs API] Error GET /:id/context:', error);
+        }
+        return res.status(statusCode).json({
+            status: 'error',
+            message: error?.message || 'Erro ao montar contexto do job',
+        });
     }
 });
 

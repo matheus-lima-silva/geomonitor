@@ -64,6 +64,33 @@ function createDocumentTableRepository(config = {}) {
         return hydrateRow(result.rows[0]);
     }
 
+    async function listByProject(projectId) {
+        const normalizedProjectId = normalizeKey(projectId);
+
+        if (!isPostgresBackend()) {
+            const rows = await list();
+            return rows.filter((row) => (
+                projectIdFields.some((fieldName) => normalizeKey(row?.[fieldName]) === normalizedProjectId)
+            ));
+        }
+
+        const coalesceFields = projectIdFields
+            .map((fieldName) => `payload->>'${fieldName}'`)
+            .join(', ');
+
+        const result = await postgresStore.query(
+            `
+                SELECT id, payload, created_at, updated_at, updated_by
+                FROM ${tableName}
+                WHERE UPPER(COALESCE(${coalesceFields}, '')) = $1
+                ORDER BY updated_at DESC, id ASC
+            `,
+            [normalizedProjectId],
+        );
+
+        return result.rows.map((row) => hydrateRow(row));
+    }
+
     async function save(payload, options = {}) {
         const normalizedId = normalizeText(payload?.id);
         const current = options.merge ? await getById(normalizedId) : null;
@@ -137,6 +164,7 @@ function createDocumentTableRepository(config = {}) {
     return {
         list,
         getById,
+        listByProject,
         save,
         remove,
         countByProject,

@@ -96,6 +96,27 @@ async function getById(id) {
     return hydrateRow(result.rows[0]);
 }
 
+async function listByProject(projectId) {
+    const normalizedProjectId = normalizeKey(projectId);
+    if (!isPostgresBackend()) {
+        const rows = await list();
+        return rows.filter((row) => buildProjectId(row) === normalizedProjectId);
+    }
+
+    const result = await postgresStore.query(
+        `
+            SELECT id, project_id, status, criticality_code, criticality_score,
+                   inspection_ids, latitude, longitude, payload, created_at, updated_at, updated_by
+            FROM erosions
+            WHERE project_id = $1
+            ORDER BY updated_at DESC, id ASC
+        `,
+        [normalizedProjectId],
+    );
+
+    return result.rows.map((row) => hydrateRow(row));
+}
+
 async function save(payload, options = {}) {
     const normalizedId = normalizeText(payload?.id);
     const current = options.merge ? await getById(normalizedId) : null;
@@ -176,6 +197,7 @@ async function countByProject(projectId) {
 module.exports = {
     list,
     getById,
+    listByProject,
     save,
     remove,
     countByProject,

@@ -192,5 +192,25 @@ describe('Project Photos API Integration Tests (Mocked DB)', () => {
         expect(downloadResponse.body.subarray(0, 4).toString('hex')).toBe('504b0304');
         expect(downloadResponse.body.toString('utf8')).toContain('T-01/RPH-1-foto-principal.jpg');
         expect(downloadResponse.body.toString('utf8')).toContain('T-02/RPH-2-vista-geral.jpg');
+
+        const statusResponse = await request(app)
+            .get(`/api/projects/PRJ-01/photos/exports/${token}`)
+            .set(AUTH_HEADER);
+
+        expect(statusResponse.status).toBe(200);
+        expect(statusResponse.body.data.statusExecucao).toBe('ready');
+        expect(statusResponse.body.data.outputMediaAssetId).toEqual(expect.stringMatching(/^MED-/));
+        expect(statusResponse.body.data.downloadFileName).toContain('.zip');
+
+        const secondDownloadResponse = await request(app)
+            .get(`/api/projects/PRJ-01/photos/exports/${token}`)
+            .query({ download: '1' })
+            .buffer(true)
+            .parse(binaryParser)
+            .set(AUTH_HEADER);
+
+        expect(secondDownloadResponse.status).toBe(200);
+        expect(secondDownloadResponse.headers['content-disposition']).toContain(statusResponse.body.data.downloadFileName);
+        expect(secondDownloadResponse.body.subarray(0, 4).toString('hex')).toBe('504b0304');
     });
 });

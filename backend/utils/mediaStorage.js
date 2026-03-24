@@ -161,6 +161,43 @@ async function createSignedAccessUrl({ storageKey }) {
     };
 }
 
+async function writeStoredContent(asset, buffer) {
+    if (!asset || typeof asset !== 'object') {
+        throw new Error('Media invalida para gravacao.');
+    }
+
+    const contentBuffer = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || '');
+    const sha256 = crypto.createHash('sha256').update(contentBuffer).digest('hex');
+
+    if (isTigrisAsset(asset)) {
+        const storageKey = normalizeText(asset.storageKey);
+        if (!storageKey) {
+            throw new Error('storageKey nao configurado para media Tigris.');
+        }
+
+        const response = await getS3Client().send(new PutObjectCommand({
+            Bucket: getBucketName(),
+            Key: storageKey,
+            Body: contentBuffer,
+            ContentType: normalizeText(asset.contentType) || 'application/octet-stream',
+        }));
+
+        return {
+            storedAt: new Date().toISOString(),
+            storedSizeBytes: contentBuffer.byteLength,
+            sha256,
+            etag: normalizeText(response?.ETag).replace(/^\"|\"$/g, ''),
+            filePath: '',
+        };
+    }
+
+    const localResult = await writeLocalContent(asset.id, asset.fileName, contentBuffer);
+    return {
+        ...localResult,
+        sha256: localResult.sha256 || sha256,
+    };
+}
+
 async function deleteTigrisObject(storageKey) {
     if (!normalizeText(storageKey)) return;
 
@@ -230,5 +267,6 @@ module.exports = {
     removeStoredMedia,
     resetS3Client,
     sanitizeFileName,
+    writeStoredContent,
     writeLocalContent,
 };
