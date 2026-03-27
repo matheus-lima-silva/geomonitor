@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs/promises');
 const router = express.Router();
 const {
     verifyToken,
@@ -19,6 +20,7 @@ const {
     removeStoredMedia,
     sanitizeFileName,
     writeLocalContent,
+    buildLocalContentPath,
 } = require('../utils/mediaStorage');
 
 function normalizeText(value) {
@@ -218,12 +220,22 @@ router.get('/:id/content', requireActiveUserOrWorker, async (req, res) => {
             return res.redirect(302, access.href);
         }
 
-        const filePath = normalizeText(asset.filePath);
-        if (!filePath) {
-            return res.status(404).json({ status: 'error', message: 'Conteudo da media ainda nao disponivel' });
+        const filePath = asset.filePath ? normalizeText(asset.filePath) : buildLocalContentPath(asset.id, asset.fileName);
+        const resolvedPath = buildLocalContentPath(asset.id, asset.fileName);
+
+        // Verifica se o arquivo fisicamente existe no disco para evitar que o
+        // express lance erro ao global handler lotando o log do terminal.
+        try {
+            await fs.access(resolvedPath);
+        } catch (missingError) {
+            return res.status(404).json({ status: 'error', message: 'Conteudo fisico da media ainda nao salvo ou apagado do disco.' });
         }
 
-        return res.type(asset.contentType || 'application/octet-stream').sendFile(filePath);
+        // Se o filePath antigo persistido no banco não coincidir mais com a realidade
+        // (ex: mudança de pasta no Windows), usamos a recriação dinâmica garantida.
+        // Importante: Passamos { dotfiles: 'allow' } pois a pasta padrão do backend
+        // se chama .storage e o express.sendFile recusa trafegar pastas ocultas por padrão.
+        return res.type(asset.contentType || 'application/octet-stream').sendFile(resolvedPath, { dotfiles: 'allow' });
     } catch (error) {
         console.error('[media API] Error GET /:id/content:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao carregar conteudo da media' });

@@ -265,6 +265,33 @@ router.get('/:id/photos', verifyToken, requireActiveUser, async (req, res) => {
     }
 });
 
+router.delete('/:id/photos/:photoId', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const photoId = normalizeText(req.params.photoId);
+
+        const workspace = await reportWorkspaceRepository.getById(workspaceId);
+        if (!workspace) {
+            return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
+        }
+
+        const photo = await reportPhotoRepository.getById(photoId);
+        if (!photo || photo.workspaceId !== workspaceId) {
+            return res.status(404).json({ status: 'error', message: 'Foto nao vinculada a este workspace ou nao encontrada' });
+        }
+
+        await reportPhotoRepository.remove(photoId);
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Foto removida do workspace com sucesso',
+        });
+    } catch (error) {
+        console.error('[report-workspaces API] Error DELETE /:id/photos/:photoId:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao deletar foto do workspace' });
+    }
+});
+
 router.put('/:id/photos/:photoId', verifyToken, requireEditor, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
