@@ -9,6 +9,7 @@ function ErosionReportPanel({
   onExportCsv,
   onExportPdf,
   onPrintBatchFichasPdf = () => { },
+  onPrintBatchFichasSimplificadas = () => { },
   collapsed = true,
   onToggleCollapsed = () => { },
 }) {
@@ -116,6 +117,10 @@ function ErosionReportPanel({
             <Button variant="outline" size="md" onClick={onPrintBatchFichasPdf}>
               <AppIcon name="pdf" />
               Imprimir fichas (lote)
+            </Button>
+            <Button variant="outline" size="md" onClick={onPrintBatchFichasSimplificadas}>
+              <AppIcon name="pdf" />
+              Fichas simplificadas (lote)
             </Button>
           </div>
         </div>

@@ -157,6 +157,7 @@ function ErosionDetailsModal({
   onOpenMaps,
   onSaveManualEvent,
   onExportPdf,
+  onExportSimplificadaPdf,
 }) {
   const [showAddEventForm, setShowAddEventForm] = useState(false);
   const [savingEvent, setSavingEvent] = useState(false);
@@ -334,6 +335,12 @@ function ErosionDetailsModal({
         <AppIcon name="pdf" />
         Gerar PDF
       </Button>
+      {onExportSimplificadaPdf ? (
+        <Button variant="outline" onClick={onExportSimplificadaPdf}>
+          <AppIcon name="pdf" />
+          Ficha simplificada
+        </Button>
+      ) : null}
       <Button variant="outline" onClick={onClose}>
         <AppIcon name="close" />
         Fechar
