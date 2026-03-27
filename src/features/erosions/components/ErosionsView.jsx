@@ -37,8 +37,10 @@ import {
 } from '../../shared/erosionCoordinates';
 import {
   buildBatchErosionFichasPdfDocument,
+  buildBatchErosionFichasSimplificadasDocument,
   buildReportPdfDocument,
   buildSingleErosionFichaPdfDocument,
+  buildSingleErosionFichaSimplificadaDocument,
   openPrintableWindow,
 } from '../utils/erosionPdfTemplates';
 import { formatTowerLabel } from '../../projects/utils/kmlUtils';
@@ -47,7 +49,7 @@ import ErosionReportPanel from './ErosionReportPanel';
 import ErosionCardGrid from './ErosionCardGrid';
 import ErosionFormModal from './ErosionFormModal';
 import ErosionDetailsModal from './ErosionDetailsModal';
-import { ConfirmDeleteModal } from '../../../components/ui';
+import { Button, ConfirmDeleteModal, Modal } from '../../../components/ui';
 
 const BASE_FORM = {
   id: '',
@@ -283,6 +285,16 @@ function openBatchErosionFichasPdfWindow({
   openPrintableWindow(documentHtml);
 }
 
+function openErosionDetailsSimplificadaPdfWindow({ erosion, project }) {
+  const documentHtml = buildSingleErosionFichaSimplificadaDocument({ erosion, project });
+  openPrintableWindow(documentHtml);
+}
+
+function openBatchErosionFichasSimplificadasPdfWindow({ projectId, project, rows }) {
+  const documentHtml = buildBatchErosionFichasSimplificadasDocument({ projectId, project, rows });
+  openPrintableWindow(documentHtml);
+}
+
 function resolveCriticalityCodeForFilter(erosion) {
   const code = getCriticalityCode(resolveErosionCriticality(erosion));
   if (['C1', 'C2', 'C3', 'C4'].includes(code)) return code;
@@ -323,6 +335,7 @@ function ErosionsView({
   const [utmErrorToken, setUtmErrorToken] = useState(0);
   const [isCardsVisible, setIsCardsVisible] = useState(false);
   const [isReportPanelCollapsed, setIsReportPanelCollapsed] = useState(true);
+  const [fichaFormatModal, setFichaFormatModal] = useState(null);
   const [projectSearchTerm, setProjectSearchTerm] = useState('');
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
   const projectDropdownRef = useRef(null);
@@ -788,13 +801,19 @@ function ErosionsView({
       return;
     }
 
+    const projectErosions = buildPdfRowsByProject(reportFilters.projetoId);
+    if (projectErosions.length === 0) {
+      show('Nenhuma erosao encontrada para o empreendimento selecionado.', 'error');
+      return;
+    }
+
+    setFichaFormatModal({ mode: 'batch' });
+  }
+
+  function executeBatchFichasPdf(formato) {
+    setFichaFormatModal(null);
     try {
       const projectErosions = buildPdfRowsByProject(reportFilters.projetoId);
-      if (projectErosions.length === 0) {
-        show('Nenhuma erosao encontrada para o empreendimento selecionado.', 'error');
-        return;
-      }
-
       const project = (projects || []).find(
         (item) => String(item?.id || '').trim().toLowerCase() === String(reportFilters.projetoId || '').trim().toLowerCase(),
       ) || null;
@@ -806,11 +825,19 @@ function ErosionsView({
         relatedInspections: getRelatedInspections(erosion),
       }));
 
-      openBatchErosionFichasPdfWindow({
-        projectId: reportFilters.projetoId,
-        project,
-        rows,
-      });
+      if (formato === 'simplificada') {
+        openBatchErosionFichasSimplificadasPdfWindow({
+          projectId: reportFilters.projetoId,
+          project,
+          rows,
+        });
+      } else {
+        openBatchErosionFichasPdfWindow({
+          projectId: reportFilters.projetoId,
+          project,
+          rows,
+        });
+      }
       show('Fichas em lote preparadas para impressao.', 'success');
     } catch (err) {
       show(err.message || 'Erro ao gerar fichas PDF.', 'error');
@@ -846,13 +873,27 @@ function ErosionsView({
 
   function handleExportDetailsPdf() {
     if (!activeDetailsErosion) return;
-    openErosionDetailsPdfWindow({
-      erosion: activeDetailsErosion,
-      project: projects.find((project) => project.id === activeDetailsErosion.projetoId),
-      history: getSortedHistory(activeDetailsErosion),
-      relatedInspections: relatedInspectionsInDetails,
-    });
-    show('PDF de detalhes preparado para impressao.', 'success');
+    setFichaFormatModal({ mode: 'single' });
+  }
+
+  function executeSingleFichaPdf(formato) {
+    setFichaFormatModal(null);
+    if (!activeDetailsErosion) return;
+    const project = projects.find((p) => p.id === activeDetailsErosion.projetoId);
+    if (formato === 'simplificada') {
+      openErosionDetailsSimplificadaPdfWindow({
+        erosion: activeDetailsErosion,
+        project,
+      });
+    } else {
+      openErosionDetailsPdfWindow({
+        erosion: activeDetailsErosion,
+        project,
+        history: getSortedHistory(activeDetailsErosion),
+        relatedInspections: relatedInspectionsInDetails,
+      });
+    }
+    show('PDF preparado para impressao.', 'success');
   }
 
   const criticality = useMemo(() => {
@@ -1085,6 +1126,33 @@ function ErosionsView({
           onCancel={() => setDeleteModal(null)}
         />
       )}
+
+      <Modal
+        open={!!fichaFormatModal}
+        onClose={() => setFichaFormatModal(null)}
+        title="Formato da ficha"
+        size="sm"
+      >
+        <p className="text-sm text-slate-600 mb-4">Escolha o formato de impressão da ficha de erosão:</p>
+        <div className="flex flex-col gap-3">
+          <Button
+            variant="primary"
+            size="md"
+            onClick={() => fichaFormatModal?.mode === 'batch' ? executeBatchFichasPdf('completa') : executeSingleFichaPdf('completa')}
+          >
+            <AppIcon name="pdf" />
+            Ficha Completa
+          </Button>
+          <Button
+            variant="outline"
+            size="md"
+            onClick={() => fichaFormatModal?.mode === 'batch' ? executeBatchFichasPdf('simplificada') : executeSingleFichaPdf('simplificada')}
+          >
+            <AppIcon name="pdf" />
+            Ficha Simplificada
+          </Button>
+        </div>
+      </Modal>
     </section>
   );
 }

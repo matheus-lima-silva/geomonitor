@@ -264,6 +264,192 @@ function renderFicha({
   `;
 }
 
+function checkbox(checked) {
+  return checked ? '☑' : '☐';
+}
+
+function classifyDeclividade(graus) {
+  if (!Number.isFinite(graus)) return null;
+  if (graus <= 6) return '0_6';
+  if (graus <= 12) return '6_12';
+  if (graus <= 20) return '12_20';
+  return 'gt_20';
+}
+
+function renderFichaSimplificada({
+  erosion,
+  project,
+  generatedAt,
+}) {
+  const locationCoordinates = normalizeLocationCoordinates(erosion || {});
+  const technical = normalizeErosionTechnicalFields(erosion || {});
+  const localContexto = technical.localContexto || {};
+  const criticalidade = resolveErosionCriticality(erosion || {});
+
+  const exposicao = String(localContexto.exposicao || '').toLowerCase();
+  const status = normalizeErosionStatus(erosion?.status);
+  const tiposFeicao = Array.isArray(technical.tiposFeicao) ? technical.tiposFeicao : [];
+  const usosSolo = Array.isArray(technical.usosSolo) ? technical.usosSolo : [];
+  const tipoSolo = String(technical.tipoSolo || '').toLowerCase();
+  const presencaAgua = String(technical.presencaAguaFundo || '').toLowerCase();
+  const declFaixa = classifyDeclividade(technical.declividadeGraus);
+
+  const criticidadeClasse = String(criticalidade?.criticidade_classe || criticalidade?.criticidadeClasse || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  const fotosLinks = Array.isArray(erosion?.fotosLinks) ? erosion.fotosLinks : [];
+
+  const hasUtm = locationCoordinates.utmEasting || locationCoordinates.utmNorthing;
+  const hasDecimal = locationCoordinates.latitude || locationCoordinates.longitude;
+
+  return `
+    <h1>Ficha Simplificada de Erosao ${escapeHtml(erosion?.id || '-')}</h1>
+    <div class="ficha-meta-line"><strong>Empreendimento:</strong> ${escapeHtml(erosion?.projetoId || '')} ${project?.nome ? `(${escapeHtml(project.nome)})` : ''}</div>
+    <div class="ficha-meta-line"><strong>CADASTRO DE FOCOS EROSIVOS</strong></div>
+
+    <section class="ficha-section">
+      <div class="ficha-grid-two">
+        <div><strong>Ficha n\u00ba:</strong> ${escapeHtml(erosion?.id || '')}</div>
+        <div><strong>Data:</strong> ${escapeHtml(generatedAt)}</div>
+        <div class="ficha-full"><strong>Profissional:</strong> ${escapeHtml(erosion?.updatedBy || '')}</div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Localiza\u00e7\u00e3o</h2>
+      <div class="ficha-grid-two">
+        ${hasDecimal ? `
+          <div><strong>Latitude:</strong> ${escapeHtml(locationCoordinates.latitude || '-')}</div>
+          <div><strong>Longitude:</strong> ${escapeHtml(locationCoordinates.longitude || '-')}</div>
+        ` : ''}
+        ${hasUtm ? `
+          <div><strong>UTM E:</strong> ${escapeHtml(locationCoordinates.utmEasting || '-')}</div>
+          <div><strong>UTM N:</strong> ${escapeHtml(locationCoordinates.utmNorthing || '-')}</div>
+        ` : ''}
+        ${!hasDecimal && !hasUtm ? `
+          <div><strong>Coordenadas:</strong> -</div>
+        ` : ''}
+        <div><strong>Altitude:</strong> ${escapeHtml(locationCoordinates.altitude || '-')}</div>
+        <div><strong>Fotos:</strong> ${fotosLinks.length > 0 ? escapeHtml(fotosLinks.join(', ')) : '-'}</div>
+        <div class="ficha-full">
+          ${checkbox(exposicao === 'faixa_servidao')} Faixa de Servid\u00e3o &nbsp;&nbsp;
+          ${checkbox(exposicao === 'area_terceiros')} \u00c1rea de Terceiros &nbsp;&nbsp;
+          ${checkbox(false)} \u00c1rea P\u00fablica
+        </div>
+        <div class="ficha-full"><strong>Refer\u00eancia:</strong> ${escapeHtml(erosion?.torreRef ? `Torre ${erosion.torreRef}` : '-')}</div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Classifica\u00e7\u00e3o de Criticidade - Grau Erosivo</h2>
+      <div class="ficha-grid-two">
+        <div class="ficha-full">
+          ${checkbox(criticidadeClasse.includes('baixo') && !criticidadeClasse.includes('muito'))} Baixo &nbsp;&nbsp;
+          ${checkbox(criticidadeClasse.includes('medio'))} M\u00e9dio &nbsp;&nbsp;
+          ${checkbox(criticidadeClasse.includes('alto') && !criticidadeClasse.includes('muito'))} Alto &nbsp;&nbsp;
+          ${checkbox(criticidadeClasse.includes('muito alto'))} Muito Alto
+        </div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Situa\u00e7\u00e3o Atual</h2>
+      <div class="ficha-grid-two">
+        <div><strong>Est\u00e1gio Erosivo:</strong></div>
+        <div>
+          ${checkbox(status === 'Ativo')} Ativo &nbsp;&nbsp;
+          ${checkbox(status === 'Estabilizado')} Est\u00e1vel &nbsp;&nbsp;
+          ${checkbox(status === 'Monitoramento')} Regenera\u00e7\u00e3o Natural
+        </div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Tipo / Caracter\u00edsticas da Fei\u00e7\u00e3o</h2>
+      <div class="ficha-grid-two">
+        <div class="ficha-full">
+          ${checkbox(tiposFeicao.includes('laminar'))} Laminar &nbsp;&nbsp;
+          ${checkbox(tiposFeicao.includes('sulco'))} Sulco &nbsp;&nbsp;
+          ${checkbox(tiposFeicao.includes('ravina'))} Ravina &nbsp;&nbsp;
+          ${checkbox(tiposFeicao.includes('vocoroca'))} Vo\u00e7oroca
+        </div>
+        <div class="ficha-full">
+          <strong>Presen\u00e7a de \u00e1gua no fundo da fei\u00e7\u00e3o:</strong> &nbsp;
+          ${checkbox(presencaAgua === 'sim')} Sim &nbsp;&nbsp;
+          ${checkbox(presencaAgua === 'nao')} N\u00e3o &nbsp;&nbsp;
+          ${checkbox(presencaAgua === 'nao_verificado')} N\u00e3o verificado
+        </div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Declividade</h2>
+      <div class="ficha-grid-two">
+        <div class="ficha-full">
+          ${checkbox(declFaixa === '0_6')} 0\u00ba \u00e0 6\u00ba &nbsp;&nbsp;
+          ${checkbox(declFaixa === '6_12')} 6\u00ba \u00e0 12\u00ba &nbsp;&nbsp;
+          ${checkbox(declFaixa === '12_20')} 12\u00ba \u00e0 20\u00ba &nbsp;&nbsp;
+          ${checkbox(declFaixa === 'gt_20')} &gt; 20\u00ba
+        </div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Dimens\u00f5es</h2>
+      <div class="ficha-grid-two">
+        <div><strong>Largura M\u00e1xima:</strong></div>
+        <div>
+          ${checkbox(false)} At\u00e9 1 metro &nbsp;&nbsp;
+          ${checkbox(false)} 1 a 10 metros &nbsp;&nbsp;
+          ${checkbox(false)} Maior que 30 metros
+        </div>
+        <div><strong>Altura M\u00e1xima:</strong></div>
+        <div>
+          ${checkbox(false)} At\u00e9 1 metro &nbsp;&nbsp;
+          ${checkbox(false)} 1 a 10 metros &nbsp;&nbsp;
+          ${checkbox(false)} Maior que 30 metros
+        </div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Caracteriza\u00e7\u00e3o</h2>
+      <div class="ficha-grid-two">
+        <div><strong>Tipo de Solo:</strong></div>
+        <div>
+          ${checkbox(tipoSolo === 'argiloso')} Argiloso &nbsp;&nbsp;
+          ${checkbox(tipoSolo === 'arenoso')} Arenoso &nbsp;&nbsp;
+          ${checkbox(tipoSolo === 'lateritico')} Later\u00edtico
+        </div>
+        <div><strong>Usos do Solo:</strong></div>
+        <div>
+          ${checkbox(usosSolo.includes('pastagem'))} Pastagem &nbsp;&nbsp;
+          ${checkbox(usosSolo.includes('cultivo'))} Cultivo &nbsp;&nbsp;
+          ${checkbox(usosSolo.includes('campo'))} Campo &nbsp;&nbsp;
+          ${checkbox(usosSolo.includes('veg_arborea'))} Veg. Arb\u00f3rea
+        </div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Obst\u00e1culos</h2>
+      <div class="ficha-grid-two">
+        <div class="ficha-full">
+          ${checkbox(usosSolo.includes('acesso'))} Acesso &nbsp;&nbsp;
+          ${checkbox(usosSolo.includes('cerca'))} Cerca &nbsp;&nbsp;
+          ${checkbox(usosSolo.includes('curso_agua'))} Curso d'\u00e1gua &nbsp;&nbsp;
+          ${checkbox(usosSolo.includes('tubulacao'))} Tubula\u00e7\u00e3o
+        </div>
+        <div class="ficha-full"><strong>Outros:</strong> ${escapeHtml(technical.usoSoloOutro || '-')}</div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Medida Preventiva</h2>
+      <div>${escapeHtml(erosion?.medidaPreventiva || '-')}</div>
+    </section>
+  `;
+}
+
 function buildDocument(title, content) {
   return `
     <html>
@@ -474,4 +660,74 @@ export function buildReportPdfDocument({
   `;
 
   return buildDocument(`Relatorio de Erosoes - ${projectId}`, content);
+}
+
+export function buildSingleErosionFichaSimplificadaDocument({
+  erosion,
+  project,
+  generatedAt = new Date().toLocaleString('pt-BR'),
+}) {
+  const content = renderFichaSimplificada({ erosion, project, generatedAt });
+  return buildDocument(`Ficha Simplificada ${erosion?.id || '-'}`, content);
+}
+
+export function buildBatchErosionFichasSimplificadasDocument({
+  projectId,
+  project,
+  rows = [],
+  generatedAt = new Date().toLocaleString('pt-BR'),
+}) {
+  const sortedRows = [...rows].sort((a, b) => {
+    const groupA = buildTowerGrouping(a);
+    const groupB = buildTowerGrouping(b);
+    if (groupA.sortBucket !== groupB.sortBucket) return groupA.sortBucket - groupB.sortBucket;
+    if (groupA.sortValue !== groupB.sortValue) return groupA.sortValue - groupB.sortValue;
+    if (groupA.sortText !== groupB.sortText) return groupA.sortText.localeCompare(groupB.sortText, 'pt-BR', { sensitivity: 'base', numeric: true });
+    return String(a?.erosion?.id || '').localeCompare(String(b?.erosion?.id || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+  });
+
+  const groupCountByKey = new Map();
+  sortedRows.forEach((row) => {
+    const group = buildTowerGrouping(row);
+    groupCountByKey.set(group.key, (groupCountByKey.get(group.key) || 0) + 1);
+  });
+
+  let previousGroupKey = null;
+  const fichasParts = [];
+  sortedRows.forEach((row, index) => {
+    const group = buildTowerGrouping(row);
+    const isFirstInGroup = group.key !== previousGroupKey;
+    previousGroupKey = group.key;
+    const groupCount = groupCountByKey.get(group.key) || 0;
+
+    fichasParts.push(`
+      <section class="${index > 0 ? 'pdf-page-break' : ''}">
+        ${isFirstInGroup ? `
+          <div class="pdf-group-head">
+            <strong>Grupo da torre:</strong> ${escapeHtml(group.label)}
+            <span class="ficha-muted">${groupCount} ficha(s)</span>
+          </div>
+        ` : ''}
+        ${renderFichaSimplificada({
+      erosion: row.erosion,
+      project: row.project || project,
+      generatedAt,
+    })}
+      </section>
+    `);
+  });
+
+  const summaryHeader = `
+    <section>
+      <div style="text-align:center;font-size:14px;font-weight:700;margin-bottom:4px;">Fichas Simplificadas de Cadastro de Eros\u00f5es</div>
+      <div style="font-size:11px;margin-bottom:2px;"><strong>Empreendimento:</strong> ${escapeHtml(projectId || '-')} ${project?.nome ? `(${escapeHtml(project.nome)})` : ''}</div>
+      <div style="font-size:11px;margin-bottom:2px;"><strong>Total de fichas:</strong> ${rows.length}</div>
+      <div style="font-size:11px;margin-bottom:8px;"><strong>Gerado em:</strong> ${escapeHtml(generatedAt)}</div>
+    </section>
+  `;
+
+  return buildDocument(
+    `Fichas Simplificadas - ${projectId || '-'}`,
+    `${summaryHeader}${fichasParts.join('')}`,
+  );
 }
