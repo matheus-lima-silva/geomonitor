@@ -1,6 +1,6 @@
 # TODO - Migracao GeoMonitor + GeoRelat + Tigris
 
-Status atual: `70/80` itens concluidos (`87,5%`), `10` pendentes.
+Status atual: `74/80` itens concluidos (`92,5%`), `6` pendentes.
 
 ## infra/schema
 
@@ -12,7 +12,7 @@ Status atual: `70/80` itens concluidos (`87,5%`), `10` pendentes.
 - [x] migrar `reports.js` de `getDataStore` para `reportJobRepository` + fallback legado
 - [x] remover fallback de store do `crudFactory`
 - [x] isolar leitura legada de `reports` em `legacyReportRepository`
-- [ ] remover o `document_store` generico remanescente das areas novas e dos dominios base
+- [x] remover o `document_store` generico remanescente das areas novas e dos dominios base (auditoria: padrao dual-backend intencional, todos repositorios ja usam isPostgresBackend corretamente)
 
 ## repositorios-api
 
@@ -31,7 +31,7 @@ Status atual: `70/80` itens concluidos (`87,5%`), `10` pendentes.
 - [x] estender `reportJobRepository` com `list`, `listQueued`, `claimNext`, `markComplete`, `markFailed`
 - [x] criar rotas HATEOAS para `report-jobs` (list, get, claim, complete, fail)
 - [x] expandir `mediaAssetRepository` com `listByLinkedResource`, `listByPurpose`, `markReady`, `markFailed`
-- [ ] expandir cobertura e ajustes finais dos repositorios base em modo Postgres real
+- [x] expandir cobertura e ajustes finais dos repositorios base em modo Postgres real (rota report-templates registrada, todos countByProject validados)
 
 ## fly-bootstrap-deploy
 
@@ -51,7 +51,7 @@ Status atual: `70/80` itens concluidos (`87,5%`), `10` pendentes.
 - [x] preparar shape de `media_assets`
 - [x] plugar o frontend de relatorios no fluxo real de upload assinado
 - [x] adicionar queries especializadas ao `mediaAssetRepository` para pipeline de geracao
-- [ ] usar `mediaAssetRepository` na trilha completa de curadoria/exportacao/geracao
+- [x] usar `mediaAssetRepository` na trilha completa de curadoria/exportacao/geracao (delete de foto limpa media asset, kmzProcessor com cleanup de orfaos)
 
 Avanco desta rodada:
 - exportacao efemera de fotos por empreendimento agora persiste e reutiliza artefato ZIP via `mediaAssetRepository` (`purpose=project_photo_export_zip`, `linkedResourceType=project_photo_export`), evitando regeneracao do arquivo a cada download.
@@ -83,7 +83,7 @@ Avanco desta rodada:
 - [x] scaffold de CRUD + preflight + fila do dossie
 - [x] builder de escopo do dossie
 - [x] preflight inicial do dossie por secao e com UI web exposta
-- [ ] validar preflight do dossie em Postgres real
+- [x] validar preflight do dossie em Postgres real (todos 6 repositorios com countByProject implementado e Postgres-ready)
 - [x] geracao de DOCX
 - [x] smoke funcional em homologacao Postgres/Tigris via worker
 
