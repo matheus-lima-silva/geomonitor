@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { extractKmzContents } = require('./kmzReader');
 const { parseKmlPlacemarks, inferTowerIdFromPath, findTowerIdFromSource } = require('./kmlParser');
-const { writeLocalContent, readStoredMediaContent } = require('./mediaStorage');
+const { writeLocalContent, readStoredMediaContent, removeLocalMedia } = require('./mediaStorage');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -77,21 +77,26 @@ async function processKmzImport({
         const mediaId = `MA-${crypto.randomUUID()}`;
         const storageResult = await writeLocalContent(mediaId, entry.name, entry.data);
 
-        await mediaAssetRepository.save({
-            id: mediaId,
-            purpose: 'workspace-photo',
-            linkedResourceType: 'reportWorkspaces',
-            linkedResourceId: workspaceId,
-            contentType: guessContentType(entry.name),
-            sizeBytes: entry.data.byteLength,
-            sha256,
-            statusExecucao: 'completed',
-            sourceKind: 'local',
-            filePath: storageResult.filePath,
-            fileName: entry.name,
-            updatedBy,
-            updatedAt: new Date().toISOString(),
-        }, { merge: true });
+        try {
+            await mediaAssetRepository.save({
+                id: mediaId,
+                purpose: 'workspace-photo',
+                linkedResourceType: 'reportWorkspaces',
+                linkedResourceId: workspaceId,
+                contentType: guessContentType(entry.name),
+                sizeBytes: entry.data.byteLength,
+                sha256,
+                statusExecucao: 'completed',
+                sourceKind: 'local',
+                filePath: storageResult.filePath,
+                fileName: entry.name,
+                updatedBy,
+                updatedAt: new Date().toISOString(),
+            }, { merge: true });
+        } catch (dbErr) {
+            await removeLocalMedia(mediaId).catch(() => {});
+            throw dbErr;
+        }
 
         let towerId = inferTowerIdFromPath(entry.internalPath);
         let towerSource = towerId ? 'kmz_folder' : '';

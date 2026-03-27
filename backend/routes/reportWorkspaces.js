@@ -12,6 +12,7 @@ const {
     mediaAssetRepository,
 } = require('../repositories');
 const { processKmzImport } = require('../utils/kmzProcessor');
+const { removeStoredMedia } = require('../utils/mediaStorage');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -281,6 +282,14 @@ router.delete('/:id/photos/:photoId', verifyToken, requireEditor, async (req, re
         }
 
         await reportPhotoRepository.remove(photoId);
+
+        if (photo.mediaAssetId) {
+            const asset = await mediaAssetRepository.getById(photo.mediaAssetId);
+            if (asset) {
+                await removeStoredMedia(asset);
+                await mediaAssetRepository.remove(photo.mediaAssetId);
+            }
+        }
 
         return res.status(200).json({
             status: 'success',
