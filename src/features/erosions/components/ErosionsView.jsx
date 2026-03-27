@@ -285,13 +285,13 @@ function openBatchErosionFichasPdfWindow({
   openPrintableWindow(documentHtml);
 }
 
-function openSingleErosionFichaSimplificadaWindow({ erosion, project }) {
-  const documentHtml = buildSingleErosionFichaSimplificadaDocument({ erosion, project });
+function openSingleErosionFichaSimplificadaWindow({ erosion, project, generatedBy }) {
+  const documentHtml = buildSingleErosionFichaSimplificadaDocument({ erosion, project, generatedBy });
   openPrintableWindow(documentHtml);
 }
 
-function openBatchErosionFichasSimplificadasWindow({ projectId, project, rows }) {
-  const documentHtml = buildBatchErosionFichasSimplificadasDocument({ projectId, project, rows });
+function openBatchErosionFichasSimplificadasWindow({ projectId, project, rows, generatedBy }) {
+  const documentHtml = buildBatchErosionFichasSimplificadasDocument({ projectId, project, rows, generatedBy });
   openPrintableWindow(documentHtml);
 }
 
@@ -872,6 +872,7 @@ function ErosionsView({
     openSingleErosionFichaSimplificadaWindow({
       erosion: activeDetailsErosion,
       project: projects.find((p) => p.id === activeDetailsErosion.projetoId),
+      generatedBy: actorName,
     });
     show('Ficha simplificada preparada para impressao.', 'success');
   }
@@ -891,7 +892,7 @@ function ErosionsView({
         (item) => String(item?.id || '').trim().toLowerCase() === String(reportFilters.projetoId || '').trim().toLowerCase(),
       ) || null;
       const rows = projectErosions.map((erosion) => ({ erosion, project }));
-      openBatchErosionFichasSimplificadasWindow({ projectId: reportFilters.projetoId, project, rows });
+      openBatchErosionFichasSimplificadasWindow({ projectId: reportFilters.projetoId, project, rows, generatedBy: actorName });
       show('Fichas simplificadas em lote preparadas para impressao.', 'success');
     } catch (err) {
       show(err.message || 'Erro ao gerar fichas simplificadas.', 'error');
@@ -1082,6 +1083,7 @@ function ErosionsView({
         onExportPdf={handleExportPdf}
         onPrintBatchFichasPdf={handlePrintBatchFichasPdf}
         onPrintBatchFichasSimplificadas={handlePrintBatchFichasSimplificadas}
+        projetoId={reportFilters.projetoId}
         collapsed={isReportPanelCollapsed}
         onToggleCollapsed={() => setIsReportPanelCollapsed((prev) => !prev)}
       />

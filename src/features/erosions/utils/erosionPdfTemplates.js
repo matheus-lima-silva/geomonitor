@@ -496,6 +496,7 @@ function renderFichaSimplificada({
   erosion,
   project,
   generatedAt,
+  generatedBy,
 }) {
   const locationCoordinates = normalizeLocationCoordinates(erosion || {});
   const technical = normalizeErosionTechnicalFields(erosion || {});
@@ -513,6 +514,7 @@ function renderFichaSimplificada({
   const fotosLinks = Array.isArray(erosion?.fotosLinks) ? erosion.fotosLinks : [];
   const hasDecimal = locationCoordinates.latitude || locationCoordinates.longitude;
   const hasUtm = locationCoordinates.utmEasting || locationCoordinates.utmNorthing;
+  const profissional = erosion?.updatedBy || generatedBy || '-';
 
   return `
     <div class="ficha-header">
@@ -528,7 +530,7 @@ function renderFichaSimplificada({
       <div class="ficha-grid-three">
         <div><strong>Ficha n\u00ba:</strong> ${escapeHtml(erosion?.id || '')}</div>
         <div><strong>Data:</strong> ${escapeHtml(generatedAt)}</div>
-        <div><strong>Profissional:</strong> ${escapeHtml(erosion?.updatedBy || '')}</div>
+        <div><strong>Profissional:</strong> ${escapeHtml(profissional)}</div>
       </div>
     </section>
 
@@ -664,8 +666,9 @@ export function buildSingleErosionFichaSimplificadaDocument({
   erosion,
   project,
   generatedAt = new Date().toLocaleString('pt-BR'),
+  generatedBy,
 }) {
-  const content = renderFichaSimplificada({ erosion, project, generatedAt });
+  const content = renderFichaSimplificada({ erosion, project, generatedAt, generatedBy });
   return buildDocument(`Ficha Simplificada ${erosion?.id || '-'}`, content);
 }
 
@@ -674,6 +677,7 @@ export function buildBatchErosionFichasSimplificadasDocument({
   project,
   rows = [],
   generatedAt = new Date().toLocaleString('pt-BR'),
+  generatedBy,
 }) {
   const sortedRows = [...rows].sort((a, b) => {
     const groupA = buildTowerGrouping(a);
@@ -710,6 +714,7 @@ export function buildBatchErosionFichasSimplificadasDocument({
       erosion: row.erosion,
       project: row.project || project,
       generatedAt,
+      generatedBy,
     })}
       </section>
     `);

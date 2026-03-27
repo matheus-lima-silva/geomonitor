@@ -248,7 +248,7 @@ describe('ErosionsView', () => {
   it('shows export validation error when empreendimento is not selected', async () => {
     renderView(root);
     await clickByText('Expandir', container);
-    await clickByText('Imprimir fichas (lote)', container);
+    await clickByText('Ficha Completa (lote)', container);
     expect(showMock).toHaveBeenCalledWith('Selecione um empreendimento para imprimir fichas.', 'error');
   });
 

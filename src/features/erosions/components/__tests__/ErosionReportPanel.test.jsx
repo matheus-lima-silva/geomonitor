@@ -88,7 +88,7 @@ describe('ErosionReportPanel', () => {
     });
 
     expect(container.textContent).toContain('Exportar CSV');
-    await clickByText('Imprimir fichas (lote)', container);
+    await clickByText('Ficha Completa (lote)', container);
     expect(onPrintBatchFichasPdf).toHaveBeenCalledTimes(1);
   });
 });

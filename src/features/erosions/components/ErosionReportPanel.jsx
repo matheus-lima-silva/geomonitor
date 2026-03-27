@@ -10,6 +10,7 @@ function ErosionReportPanel({
   onExportPdf,
   onPrintBatchFichasPdf = () => { },
   onPrintBatchFichasSimplificadas = () => { },
+  projetoId = '',
   collapsed = true,
   onToggleCollapsed = () => { },
 }) {
@@ -114,14 +115,25 @@ function ErosionReportPanel({
               <AppIcon name="pdf" />
               Exportar PDF
             </Button>
-            <Button variant="outline" size="md" onClick={onPrintBatchFichasPdf}>
-              <AppIcon name="pdf" />
-              Imprimir fichas (lote)
-            </Button>
-            <Button variant="outline" size="md" onClick={onPrintBatchFichasSimplificadas}>
-              <AppIcon name="pdf" />
-              Fichas simplificadas (lote)
-            </Button>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-4 border-t border-slate-200">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-700">Fichas de Cadastro</span>
+              {!projetoId ? (
+                <span className="text-xs text-slate-400 italic">— selecione um empreendimento para habilitar</span>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="outline" size="md" onClick={onPrintBatchFichasPdf}>
+                <AppIcon name="pdf" />
+                Ficha Completa (lote)
+              </Button>
+              <Button variant="outline" size="md" onClick={onPrintBatchFichasSimplificadas}>
+                <AppIcon name="pdf" />
+                Ficha Simplificada (lote)
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}
