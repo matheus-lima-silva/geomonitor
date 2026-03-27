@@ -21,12 +21,32 @@ async function requestMedia(url, options = {}) {
 
 function isLocalApiUpload(uploadDescriptor = {}) {
   const href = String(uploadDescriptor?.href || '').trim();
-  return href.startsWith(API_BASE_URL) || href.startsWith('/');
+  if (!href) return false;
+  if (href.startsWith('/')) return true;
+
+  try {
+    const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const targetUrl = new URL(href, fallbackOrigin);
+    const apiBaseUrl = new URL(API_BASE_URL, fallbackOrigin);
+    return targetUrl.origin === apiBaseUrl.origin;
+  } catch {
+    return href.startsWith(API_BASE_URL);
+  }
 }
 
 function isLocalAccessUrl(url = '') {
   const href = String(url || '').trim();
-  return href.startsWith(API_BASE_URL) || href.startsWith('/');
+  if (!href) return false;
+  if (href.startsWith('/')) return true;
+
+  try {
+    const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const targetUrl = new URL(href, fallbackOrigin);
+    const apiBaseUrl = new URL(API_BASE_URL, fallbackOrigin);
+    return targetUrl.origin === apiBaseUrl.origin;
+  } catch {
+    return href.startsWith(API_BASE_URL);
+  }
 }
 
 export async function createMediaUpload(payload, meta = {}) {
