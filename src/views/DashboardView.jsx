@@ -53,6 +53,7 @@ const ErosionsView = lazy(() => import('../features/erosions/components/Erosions
 const VisitPlanningView = lazy(() => import('../features/inspections/components/VisitPlanningView'));
 const AdminView = lazy(() => import('../features/admin/components/AdminView'));
 const FollowupsView = lazy(() => import('../features/followups/components/FollowupsView'));
+const ReportsView = lazy(() => import('../features/reports/components/ReportsView'));
 
 function formatReportDueDays(days) {
   const safeDays = Number(days);
@@ -941,6 +942,10 @@ function DashboardView() {
           }}
         />
       );
+    }
+
+    if (activeTab === 'georelat') {
+      return <ReportsView userEmail={user?.email} showToast={show} />;
     }
 
     if (activeTab === 'admin') {

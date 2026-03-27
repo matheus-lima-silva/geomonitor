@@ -523,4 +523,52 @@ describe('ReportsView', () => {
 
     expect(downloadMediaAsset).toHaveBeenCalledWith('MED-KMZ-1');
   });
+
+  it('gera miniatura quando existe blob valido mesmo sem content-type de imagem', async () => {
+    listReportWorkspacePhotos.mockResolvedValueOnce([{
+      id: 'RPH-1',
+      caption: 'Foto 1',
+      towerId: 'T-01',
+      workspaceId: 'RW-1',
+      importSource: 'structured_folders',
+      includeInReport: true,
+      mediaAssetId: 'MED-PREVIEW-1',
+    }]);
+    downloadMediaAsset.mockResolvedValueOnce({
+      blob: new Blob(['preview'], { type: 'application/octet-stream' }),
+      contentType: 'application/pdf',
+    });
+
+    await act(async () => {
+      root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(downloadMediaAsset).toHaveBeenCalledWith('MED-PREVIEW-1');
+    expect(global.URL.createObjectURL).toHaveBeenCalledTimes(1);
+  });
+
+  it('nao faz retry infinito de miniatura quando o download falha', async () => {
+    listReportWorkspacePhotos.mockResolvedValueOnce([{
+      id: 'RPH-1',
+      caption: 'Foto 1',
+      towerId: 'T-01',
+      workspaceId: 'RW-1',
+      importSource: 'structured_folders',
+      includeInReport: true,
+      mediaAssetId: 'MED-PREVIEW-ERR',
+    }]);
+    downloadMediaAsset.mockRejectedValue(new Error('falha de preview'));
+
+    await act(async () => {
+      root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(downloadMediaAsset).toHaveBeenCalledTimes(1);
+    expect(downloadMediaAsset).toHaveBeenCalledWith('MED-PREVIEW-ERR');
+  });
 });

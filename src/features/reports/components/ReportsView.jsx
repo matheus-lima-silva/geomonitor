@@ -30,6 +30,7 @@ import {
   saveReportWorkspacePhoto,
   subscribeReportWorkspaces,
   updateReportWorkspace,
+  deleteReportWorkspacePhoto,
 } from '../../../services/reportWorkspaceService';
 
 const TABS = [
@@ -285,6 +286,17 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [workspaceAutosave, setWorkspaceAutosave] = useState({ status: 'idle', savedAt: '', error: '' });
   const [lastPersistedWorkspaceDraftSignature, setLastPersistedWorkspaceDraftSignature] = useState('');
   const [pendingFiles, setPendingFiles] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState({
+    total: 0,
+    completed: 0,
+    currentFileName: '',
+  });
+  const [deletedPhotoIds, setDeletedPhotoIds] = useState([]);
+  const [lastDeletedPhotoId, setLastDeletedPhotoId] = useState('');
+  const [activePreviewPhotoId, setActivePreviewPhotoId] = useState('');
+  const [photoPreviewUrls, setPhotoPreviewUrls] = useState({});
+  const [photoPreviewLoading, setPhotoPreviewLoading] = useState({});
+  const [photoPreviewFailed, setPhotoPreviewFailed] = useState({});
   const [busy, setBusy] = useState('');
 
   useEffect(() => subscribeReportWorkspaces((rows) => setWorkspaces(rows || []), () => showToast('Erro ao carregar workspaces.', 'error')), [showToast]);
@@ -394,6 +406,23 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     return () => { cancelled = true; };
   }, [workspaceImportTargetId, selectedWorkspace, showToast]);
 
+  useEffect(() => {
+    setDeletedPhotoIds([]);
+    setLastDeletedPhotoId('');
+    setActivePreviewPhotoId('');
+    setPhotoPreviewLoading({});
+    setPhotoPreviewFailed({});
+
+    setPhotoPreviewUrls((prev) => {
+      if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+        Object.values(prev).forEach((url) => {
+          if (url) URL.revokeObjectURL(url);
+        });
+      }
+      return {};
+    });
+  }, [workspaceImportTargetId]);
+
   const metrics = useMemo(() => ({
     total: projectPhotos.length,
     included: projectPhotos.filter((photo) => photo.includeInReport).length,
@@ -452,6 +481,34 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     };
   }, [workspacePhotoDrafts, workspacePhotos]);
 
+  const visibleWorkspacePhotos = useMemo(
+    () => workspacePhotos.filter((photo) => !deletedPhotoIds.includes(photo.id)),
+    [deletedPhotoIds, workspacePhotos],
+  );
+
+  const activePreviewPhoto = useMemo(
+    () => workspacePhotos.find((photo) => photo.id === activePreviewPhotoId) || null,
+    [activePreviewPhotoId, workspacePhotos],
+  );
+
+  const workspaceCurationSummary = useMemo(() => {
+    const rows = workspacePhotos.map((photo) => ({
+      ...photo,
+      ...(workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo)),
+    }));
+
+    const reviewed = rows.filter((photo) => {
+      const status = getWorkspacePhotoStatus(photo, photo);
+      return status === 'reviewed' || status === 'curated';
+    }).length;
+    const curated = rows.filter((photo) => getWorkspacePhotoStatus(photo, photo) === 'curated').length;
+    const total = rows.length;
+    const pending = Math.max(total - reviewed, 0);
+    const completionPercent = total > 0 ? Math.round((curated / total) * 100) : 0;
+
+    return { reviewed, curated, pending, completionPercent };
+  }, [workspacePhotoDrafts, workspacePhotos]);
+
   const activeImportMode = IMPORT_MODES[workspaceImportMode] || IMPORT_MODES.loose_photos;
 
   const workspaceDraftSnapshot = useMemo(
@@ -468,6 +525,125 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     () => JSON.stringify(workspaceDraftSnapshot),
     [workspaceDraftSnapshot],
   );
+
+  const uploadPercent = uploadProgress.total > 0
+    ? Math.min(100, Math.round((uploadProgress.completed / uploadProgress.total) * 100))
+    : 0;
+
+  useEffect(() => {
+    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return undefined;
+
+    const pendingPreviews = visibleWorkspacePhotos
+      .filter((photo) => {
+        const mediaAssetId = String(photo.mediaAssetId || '').trim();
+        return mediaAssetId
+          && !photoPreviewUrls[photo.id]
+          && !photoPreviewLoading[photo.id]
+          && !photoPreviewFailed[photo.id];
+      });
+
+    if (pendingPreviews.length === 0) return undefined;
+
+    let cancelled = false;
+
+    (async () => {
+      for (const photo of pendingPreviews) {
+        if (cancelled) break;
+
+        const mediaAssetId = String(photo.mediaAssetId || '').trim();
+        if (!mediaAssetId) continue;
+
+        setPhotoPreviewLoading((prev) => ({ ...prev, [photo.id]: true }));
+        try {
+          const result = await downloadMediaAsset(mediaAssetId);
+          if (cancelled) break;
+
+          const blob = result?.blob;
+          const previewUrl = URL.createObjectURL(blob);
+          setPhotoPreviewUrls((prev) => {
+            const previousUrl = prev[photo.id];
+            if (previousUrl && previousUrl !== previewUrl && typeof URL.revokeObjectURL === 'function') {
+              URL.revokeObjectURL(previousUrl);
+            }
+            return { ...prev, [photo.id]: previewUrl };
+          });
+          setPhotoPreviewFailed((prev) => {
+            if (!prev[photo.id]) return prev;
+            const next = { ...prev };
+            delete next[photo.id];
+            return next;
+          });
+        } catch {
+          // Falha de preview nao deve interromper a curadoria.
+          setPhotoPreviewFailed((prev) => ({ ...prev, [photo.id]: true }));
+        } finally {
+          if (!cancelled) {
+            setPhotoPreviewLoading((prev) => ({ ...prev, [photo.id]: false }));
+          }
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [photoPreviewFailed, visibleWorkspacePhotos]);
+
+  function handleMovePhotoToTrash(photoId) {
+    const normalizedPhotoId = String(photoId || '').trim();
+    if (!normalizedPhotoId) return;
+
+    setDeletedPhotoIds((prev) => (prev.includes(normalizedPhotoId) ? prev : [...prev, normalizedPhotoId]));
+    setLastDeletedPhotoId(normalizedPhotoId);
+    if (activePreviewPhotoId === normalizedPhotoId) {
+      setActivePreviewPhotoId('');
+    }
+  }
+
+  function handleUndoLastDeletedPhoto() {
+    const targetId = String(lastDeletedPhotoId || '').trim();
+    if (!targetId) return;
+
+    setDeletedPhotoIds((prev) => prev.filter((photoId) => photoId !== targetId));
+    setLastDeletedPhotoId('');
+  }
+
+  function handleRestoreAllDeletedPhotos() {
+    setDeletedPhotoIds([]);
+    setLastDeletedPhotoId('');
+  }
+
+  async function handleEmptyTrash() {
+    if (!selectedWorkspace || deletedPhotoIds.length === 0) return;
+
+    if (!window.confirm(`Tem certeza que deseja APELAR FINALMENTE ${deletedPhotoIds.length} foto(s) do workspace? Isso apagara os registros do relatorio definitivamente e nao pode ser desfeito.`)) {
+      return;
+    }
+
+    setBusy('empty-trash');
+    let successCount = 0;
+
+    for (const photoId of deletedPhotoIds) {
+      if (!photoId) continue;
+      try {
+        await deleteReportWorkspacePhoto(selectedWorkspace.id, photoId);
+        successCount++;
+      } catch (error) {
+        console.error('Falha ao deletar foto permanentemente', photoId, error);
+      }
+    }
+
+    setBusy('');
+
+    if (successCount > 0) {
+      showToast(`${successCount} foto(s) apagada(s) do workspace definitivamente.`, 'success');
+      await refreshWorkspacePhotos(selectedWorkspace.id);
+      setDeletedPhotoIds([]);
+      setLastDeletedPhotoId('');
+    } else {
+      showToast('Nenhuma foto pode ser apagada do servidor.', 'error');
+    }
+  }
 
   async function refreshWorkspacePhotos(workspaceId) {
     if (!workspaceId) {
@@ -957,11 +1133,21 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
 
     try {
       setBusy('workspace-import');
+      setUploadProgress({
+        total: pendingFiles.length,
+        completed: 0,
+        currentFileName: String(pendingFiles[0]?.name || ''),
+      });
       const uploadedMediaIds = [];
       const warnings = [];
 
       if (workspaceImportMode === 'organized_kmz') {
         const kmzFile = pendingFiles[0];
+        setUploadProgress({
+          total: 1,
+          completed: 0,
+          currentFileName: String(kmzFile?.name || ''),
+        });
         const uploaded = await uploadWorkspaceFile(
           kmzFile,
           workspace,
@@ -970,6 +1156,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
           { purpose: 'workspace-import', skipPhotoRegistration: true },
         );
         uploadedMediaIds.push(uploaded.mediaAssetId);
+        setUploadProgress({
+          total: 1,
+          completed: 1,
+          currentFileName: String(kmzFile?.name || ''),
+        });
 
         const processResult = await processWorkspaceKmz(workspace.id, {
           mediaAssetId: uploaded.mediaAssetId,
@@ -990,6 +1181,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         let pendingTowerCount = 0;
 
         for (const [index, file] of pendingFiles.entries()) {
+          setUploadProgress({
+            total: pendingFiles.length,
+            completed: index,
+            currentFileName: String(file?.name || ''),
+          });
           const inferredTowerId = workspaceImportMode === 'tower_subfolders'
             ? inferTowerIdFromRelativePath(file.webkitRelativePath || file.name)
             : '';
@@ -1003,6 +1199,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
           );
 
           uploadedMediaIds.push(uploaded.mediaAssetId);
+          setUploadProgress({
+            total: pendingFiles.length,
+            completed: index + 1,
+            currentFileName: String(file?.name || ''),
+          });
           if (inferredTowerId) inferredTowerCount += 1;
           else if (workspaceImportMode === 'tower_subfolders') pendingTowerCount += 1;
         }
@@ -1040,6 +1241,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     } catch (error) {
       showToast(error?.message || 'Erro ao importar arquivos para o workspace.', 'error');
     } finally {
+      setUploadProgress({ total: 0, completed: 0, currentFileName: '' });
       setBusy('');
     }
   }
@@ -1206,6 +1408,24 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                 <div className="font-bold uppercase tracking-wide text-slate-600">Selecao Atual</div>
                 <div>{activeImportMode.label}</div>
                 <div>{pendingFiles.length} arquivo(s) pronto(s) para envio.</div>
+                {busy === 'workspace-import' ? (
+                  <>
+                    <div className="mt-2 font-semibold text-slate-700">
+                      Progresso: {uploadProgress.completed}/{uploadProgress.total} ({uploadPercent}%)
+                    </div>
+                    {uploadProgress.currentFileName ? (
+                      <div className="truncate" title={uploadProgress.currentFileName}>
+                        Arquivo atual: {uploadProgress.currentFileName}
+                      </div>
+                    ) : null}
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        className="h-full rounded-full bg-emerald-500 transition-all duration-300"
+                        style={{ width: `${uploadPercent}%` }}
+                      />
+                    </div>
+                  </>
+                ) : null}
               </div>
               <Button onClick={handleImportWorkspace} disabled={busy === 'workspace-import' || !workspaceImportTargetId || pendingFiles.length === 0}>
                 <AppIcon name={workspaceImportMode === 'organized_kmz' ? 'file-text' : 'upload'} />
@@ -1255,59 +1475,160 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
 
             {selectedWorkspace ? (
               <>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <Card variant="nested"><strong className="text-slate-800">{workspaceMetrics.total}</strong><p className="mt-1 mb-0 text-xs text-slate-500">Fotos no workspace</p></Card>
-                  <Card variant="nested"><strong className="text-slate-800">{workspaceMetrics.included}</strong><p className="mt-1 mb-0 text-xs text-slate-500">Incluidas no relatorio</p></Card>
-                  <Card variant="nested"><strong className="text-slate-800">{workspaceMetrics.missingCaption}</strong><p className="mt-1 mb-0 text-xs text-slate-500">Sem legenda</p></Card>
-                  <Card variant="nested"><strong className="text-slate-800">{workspaceMetrics.missingTower}</strong><p className="mt-1 mb-0 text-xs text-slate-500">Sem torre</p></Card>
-                </div>
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+                  <aside className="flex h-fit flex-col gap-3 xl:sticky xl:top-4">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="m-0 text-2xs font-bold uppercase tracking-[0.18em] text-slate-500">Workspace Ativo</p>
+                      <p className="mt-2 mb-1 text-sm font-bold text-slate-800">{selectedWorkspace.nome || selectedWorkspace.id}</p>
+                      <p className="m-0 text-xs text-slate-500">{selectedWorkspace.id}</p>
+                    </div>
 
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={handleRequestWorkspaceKmz}
-                    disabled={busy === 'workspace-kmz' || !selectedWorkspace}
-                  >
-                    <AppIcon name="file-text" />
-                    {busy === 'workspace-kmz' ? 'Enfileirando KMZ...' : 'Gerar KMZ com Fotos'}
-                  </Button>
-                  {selectedWorkspaceKmzRequest?.outputKmzMediaId ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => handleDownloadWorkspaceKmz(selectedWorkspaceKmzRequest)}
-                      disabled={busy === `download:${selectedWorkspaceKmzRequest.outputKmzMediaId}`}
-                    >
-                      <AppIcon name="download" />
-                      {busy === `download:${selectedWorkspaceKmzRequest.outputKmzMediaId}` ? 'Baixando...' : 'Baixar KMZ'}
-                    </Button>
-                  ) : null}
-                </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="m-0 text-2xs font-bold uppercase tracking-[0.18em] text-slate-500">Resumo Persistente</p>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-2xs font-semibold text-slate-600">
+                          {workspaceCurationSummary.completionPercent}% curado
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-emerald-500 transition-all duration-300"
+                          style={{ width: `${workspaceCurationSummary.completionPercent}%` }}
+                        />
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
+                          <strong className="text-slate-800">{workspaceMetrics.total}</strong>
+                          <p className="mt-1 mb-0 text-slate-500">Fotos</p>
+                        </div>
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2">
+                          <strong className="text-emerald-700">{workspaceCurationSummary.curated}</strong>
+                          <p className="mt-1 mb-0 text-emerald-700">Curadas</p>
+                        </div>
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-2">
+                          <strong className="text-amber-700">{workspaceCurationSummary.pending}</strong>
+                          <p className="mt-1 mb-0 text-amber-700">Pendentes</p>
+                        </div>
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-2">
+                          <strong className="text-blue-700">{workspaceMetrics.included}</strong>
+                          <p className="mt-1 mb-0 text-blue-700">No relatorio</p>
+                        </div>
+                      </div>
+                      <p className="mt-3 mb-0 text-xs text-slate-500">
+                        Falta curadoria completa em {workspaceMetrics.missingCaption} sem legenda e {workspaceMetrics.missingTower} sem torre.
+                      </p>
+                    </div>
 
-                <div className="flex flex-col gap-3">
-                  {workspacePhotos.map((photo) => {
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="flex flex-col gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={handleRequestWorkspaceKmz}
+                          disabled={busy === 'workspace-kmz' || !selectedWorkspace}
+                        >
+                          <AppIcon name="file-text" />
+                          {busy === 'workspace-kmz' ? 'Enfileirando KMZ...' : 'Gerar KMZ com Fotos'}
+                        </Button>
+                        {selectedWorkspaceKmzRequest?.outputKmzMediaId ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => handleDownloadWorkspaceKmz(selectedWorkspaceKmzRequest)}
+                            disabled={busy === `download:${selectedWorkspaceKmzRequest.outputKmzMediaId}`}
+                          >
+                            <AppIcon name="download" />
+                            {busy === `download:${selectedWorkspaceKmzRequest.outputKmzMediaId}` ? 'Baixando...' : 'Baixar KMZ'}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </aside>
+
+                  <div className="flex min-w-0 w-full flex-col gap-3">
+                    <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-3">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">{workspaceCurationSummary.reviewed} revisadas</span>
+                        <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">{workspaceCurationSummary.curated} aptas</span>
+                        <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">{workspaceCurationSummary.pending} pendentes</span>
+                        <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-700">{workspaceMetrics.included} marcadas para o DOCX</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                      {deletedPhotoIds.length > 0 ? (
+                        <div className="col-span-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 sm:col-span-2 lg:col-span-3 2xl:col-span-4 shadow-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-rose-800">
+                            <span className="font-semibold px-1">{deletedPhotoIds.length} foto(s) pendentes na lixeira.</span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button variant="outline" onClick={handleUndoLastDeletedPhoto} disabled={!lastDeletedPhotoId || busy === 'empty-trash'}>
+                                <AppIcon name="chevron-left" />Desfazer ultima
+                              </Button>
+                              <Button variant="outline" onClick={handleRestoreAllDeletedPhotos} disabled={busy === 'empty-trash'}>
+                                <AppIcon name="reset" />Restaurar todas
+                              </Button>
+                              <div className="flex pl-2 border-l border-rose-200 ml-1">
+                                <Button onClick={handleEmptyTrash} disabled={busy === 'empty-trash'} className="bg-rose-600 hover:bg-rose-700 text-white border-0">
+                                  <AppIcon name="trash" className="text-white" />
+                                  {busy === 'empty-trash' ? 'Esvaziando...' : 'Esvaziar Definitivo'}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {visibleWorkspacePhotos.map((photo) => {
                     const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
                     const dirty = isWorkspacePhotoDirty(photo, draft);
                     const currentStatus = getWorkspacePhotoStatus(photo, draft);
                     const towerOptions = draft.towerId && !workspaceTowerOptions.includes(draft.towerId)
                       ? [draft.towerId, ...workspaceTowerOptions]
                       : workspaceTowerOptions;
+                    const previewUrl = photoPreviewUrls[photo.id];
+                    const previewLoading = Boolean(photoPreviewLoading[photo.id]);
 
                     return (
-                      <article key={photo.id} className="rounded-xl border border-slate-200 bg-white p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
+                      <article key={photo.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                          {previewUrl ? (
+                            <button
+                              type="button"
+                              className="block w-full"
+                              onClick={() => setActivePreviewPhotoId(photo.id)}
+                              title="Abrir preview da foto"
+                            >
+                              <img
+                                src={previewUrl}
+                                alt={draft.caption || photo.id}
+                                className="aspect-[4/3] w-full object-cover transition-transform duration-300 hover:scale-105"
+                                loading="lazy"
+                              />
+                            </button>
+                          ) : (
+                            <div className="flex aspect-[4/3] w-full items-center justify-center text-xs text-slate-500">
+                              {previewLoading ? 'Carregando miniatura...' : 'Miniatura indisponivel'}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
                           <div>
                             <strong className="text-slate-800">{photo.id}</strong>
                             <p className="mt-1 mb-0 text-xs text-slate-500">
                               Origem: {photo.importSource || '-'} • Torre sugerida: {photo.towerId || '-'} ({photo.towerSource || 'pendente'})
                             </p>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button variant="outline" onClick={() => setActivePreviewPhotoId(photo.id)}>
+                              <AppIcon name="details" />Visualizar
+                            </Button>
+                            <Button variant="outline" onClick={() => handleMovePhotoToTrash(photo.id)}>
+                              <AppIcon name="trash" />Lixeira
+                            </Button>
                             {dirty ? <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Alteracoes pendentes</span> : null}
                             <span className={`rounded-full px-2 py-1 text-xs ${tone(currentStatus)}`}>{currentStatus}</span>
                           </div>
                         </div>
 
-                        <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_220px_auto]">
+                        <div className="mt-4 flex flex-col gap-4">
                           <Input
                             id={`rw-photo-caption-${photo.id}`}
                             label="Legenda"
@@ -1338,10 +1659,12 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                               <option key={towerId} value={towerId}>{towerId}</option>
                             ))}
                           </Select>
-                          <div className="flex h-full flex-col justify-end rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                            <label htmlFor={`rw-photo-include-${photo.id}`} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                          
+                          <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                            <label htmlFor={`rw-photo-include-${photo.id}`} className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
                               <input
                                 id={`rw-photo-include-${photo.id}`}
+                                className="shrink-0"
                                 type="checkbox"
                                 checked={Boolean(draft.includeInReport)}
                                 onChange={(event) => setWorkspacePhotoDrafts((prev) => ({
@@ -1354,9 +1677,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                               />
                               <span>Incluir no relatorio</span>
                             </label>
-                            <p className="mt-2 mb-0 text-xs text-slate-500">Use a curadoria manual para confirmar o que vira insumo do DOCX.</p>
-                          </div>
-                          <div className="flex items-end justify-end">
+                            
                             <Button
                               variant={dirty ? 'primary' : 'outline'}
                               onClick={() => handleSaveWorkspacePhoto(photo)}
@@ -1369,12 +1690,79 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                         </div>
                       </article>
                     );
-                  })}
-                  {workspacePhotos.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
-                      Nenhuma foto registrada ainda neste workspace.
+                      })}
+                      {visibleWorkspacePhotos.length === 0 ? (
+                        <div className="col-span-1 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500 md:col-span-2 xl:col-span-3">
+                          Nenhuma foto visivel para curadoria neste workspace.
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
+
+                    {activePreviewPhoto ? (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 p-4">
+                        <div className="flex max-h-[95vh] w-full max-w-[95vw] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl xl:max-w-screen-2xl">
+                          <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 shrink-0">
+                            <strong className="text-slate-800">Preview da Foto - {activePreviewPhoto.id}</strong>
+                            <button
+                              type="button"
+                              className="rounded-md px-3 py-1 text-sm text-slate-600 hover:bg-slate-100"
+                              onClick={() => setActivePreviewPhotoId('')}
+                            >
+                              Fechar
+                            </button>
+                          </div>
+                          <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px]">
+                            <div className="flex items-center justify-center bg-slate-950 p-4">
+                              {photoPreviewUrls[activePreviewPhoto.id] ? (
+                                <img
+                                  src={photoPreviewUrls[activePreviewPhoto.id]}
+                                  alt={workspacePhotoDrafts[activePreviewPhoto.id]?.caption || activePreviewPhoto.id}
+                                  className="max-h-[80vh] w-full rounded-lg object-contain"
+                                />
+                              ) : (
+                                <div className="flex aspect-video w-full items-center justify-center text-sm text-slate-200">
+                                  Preview indisponivel para esta foto.
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-4 text-sm text-slate-600">
+                              <p className="m-0"><strong>ID:</strong> {activePreviewPhoto.id}</p>
+                              <p className="mt-2 mb-0"><strong>Origem:</strong> {activePreviewPhoto.importSource || '-'}</p>
+                              <p className="mt-2 mb-0"><strong>Torre sugerida:</strong> {workspacePhotoDrafts[activePreviewPhoto.id]?.towerId || activePreviewPhoto.towerId || 'Pendente'}</p>
+                              
+                              <div className="mt-6 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                <Textarea
+                                  id={`modal-caption-${activePreviewPhoto.id}`}
+                                  label="Editar Legenda"
+                                  rows={3}
+                                  value={workspacePhotoDrafts[activePreviewPhoto.id]?.caption || ''}
+                                  onChange={(event) => setWorkspacePhotoDrafts((prev) => ({
+                                    ...prev,
+                                    [activePreviewPhoto.id]: {
+                                      ...(prev[activePreviewPhoto.id] || buildWorkspacePhotoDraft(activePreviewPhoto)),
+                                      caption: event.target.value,
+                                    },
+                                  }))}
+                                  placeholder="Detalhe os achados operacionais desta foto..."
+                                />
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-slate-500">A legenda sera salva neste workspace.</span>
+                                  <Button
+                                    variant={isWorkspacePhotoDirty(activePreviewPhoto, workspacePhotoDrafts[activePreviewPhoto.id] || buildWorkspacePhotoDraft(activePreviewPhoto)) ? 'primary' : 'outline'}
+                                    onClick={() => handleSaveWorkspacePhoto(activePreviewPhoto)}
+                                    disabled={busy === `photo:${activePreviewPhoto.id}` || !isWorkspacePhotoDirty(activePreviewPhoto, workspacePhotoDrafts[activePreviewPhoto.id] || buildWorkspacePhotoDraft(activePreviewPhoto))}
+                                  >
+                                    <AppIcon name="save" />
+                                    {busy === `photo:${activePreviewPhoto.id}` ? 'Salvando...' : 'Salvar Legenda'}
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </>
             ) : (

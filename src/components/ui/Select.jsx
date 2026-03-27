@@ -32,7 +32,7 @@ export default function Select({
     ].filter(Boolean).join(' ');
 
     return (
-        <div className={`relative ${fullWidth ? 'w-full' : ''}`}>
+        <div className={fullWidth ? 'w-full' : ''}>
             {label && (
                 <label
                     htmlFor={id}
@@ -42,15 +42,17 @@ export default function Select({
                     {hint ? <HintText label={label}>{hint}</HintText> : null}
                 </label>
             )}
-            <select id={id} className={selectClass} {...props}>
-                {children}
-            </select>
-            {/* Chevron decorativo */}
-            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                    <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-            </span>
+            <div className="relative">
+                <select id={id} className={selectClass} {...props}>
+                    {children}
+                </select>
+                {/* Chevron decorativo */}
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                        <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                </span>
+            </div>
             {error && (
                 <p className="mt-0.5 text-2xs text-danger font-medium">{error}</p>
             )}
