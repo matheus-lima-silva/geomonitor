@@ -510,6 +510,7 @@ function renderFichaSimplificada({
   const tipoSolo = String(technical.tipoSolo || '').toLowerCase();
   const presencaAgua = String(technical.presencaAguaFundo || '').toLowerCase();
   const declFaixa = classifyDeclividade(technical.declividadeGraus);
+  const relevo = String(erosion?.relevo || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const criticidadeClasse = String(criticalidade?.criticidade_classe || criticalidade?.criticidadeClasse || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const fotosLinks = Array.isArray(erosion?.fotosLinks) ? erosion.fotosLinks : [];
   const hasDecimal = locationCoordinates.latitude || locationCoordinates.longitude;
@@ -602,6 +603,15 @@ function renderFichaSimplificada({
         ${checkbox(declFaixa === '6_12')} 6\u00ba a 12\u00ba &nbsp;&nbsp;
         ${checkbox(declFaixa === '12_20')} 12\u00ba a 20\u00ba &nbsp;&nbsp;
         ${checkbox(declFaixa === 'gt_20')} &gt; 20\u00ba
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Relevo</h2>
+      <div class="ficha-checkbox-row">
+        ${checkbox(relevo === 'suave')} Suave &nbsp;&nbsp;
+        ${checkbox(relevo === 'ondulado')} Ondulado &nbsp;&nbsp;
+        ${checkbox(relevo === 'escarpado')} Escarpado
       </div>
     </section>
 
