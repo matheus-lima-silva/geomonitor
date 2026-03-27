@@ -264,28 +264,44 @@ function renderFicha({
   `;
 }
 
+function checkbox(checked) {
+  return checked ? '☑' : '☐';
+}
+
+function classifyDeclividade(graus) {
+  if (!Number.isFinite(graus)) return null;
+  if (graus <= 6) return '0_6';
+  if (graus <= 12) return '6_12';
+  if (graus <= 20) return '12_20';
+  return 'gt_20';
+}
+
 function buildDocument(title, content) {
   return `
     <html>
       <head>
         <title>${escapeHtml(title)}</title>
         <style>
-          body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; }
-          h1 { margin: 0 0 8px; font-size: 22px; }
-          h2 { margin: 0 0 8px; font-size: 14px; }
-          .ficha-meta-line { margin-bottom: 4px; }
+          body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; font-size: 12px; }
+          h1 { margin: 0 0 8px; font-size: 18px; color: #1e293b; }
+          h2 { margin: 0 0 8px; font-size: 13px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #3b82f6; padding-bottom: 4px; }
+          .ficha-meta-line { margin-bottom: 4px; font-size: 12px; }
           .ficha-muted { font-size: 10px; color: #64748b; }
-          .ficha-section { margin-top: 12px; border: 1px solid #dbe4ee; border-radius: 10px; background: #fff; padding: 12px; }
-          .ficha-grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-          .ficha-grid-three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 12px; }
+          .ficha-header { border-bottom: 3px solid #1e40af; padding-bottom: 8px; margin-bottom: 4px; }
+          .ficha-header h1 { color: #1e40af; margin-bottom: 4px; }
+          .ficha-header-meta { font-size: 12px; }
+          .ficha-section { margin-top: 10px; border: 1px solid #dbe4ee; border-radius: 8px; background: #fff; padding: 10px 12px; }
+          .ficha-grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+          .ficha-grid-three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px 12px; }
           .ficha-full { grid-column: 1 / -1; }
+          .ficha-checkbox-row { font-size: 12px; line-height: 1.8; }
           .ficha-section ul { margin: 6px 0 0; padding-left: 18px; }
           .ficha-history-item { border: 1px solid #e2e8f0; border-left: 4px solid #94a3b8; border-radius: 8px; padding: 8px; margin-bottom: 8px; }
           .ficha-history-item-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
           .ficha-history-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #e2e8f0; color: #334155; }
           .ficha-history-summary { font-weight: 600; color: #1f2937; margin-bottom: 2px; }
           .ficha-history-details { font-size: 11px; color: #334155; margin-bottom: 2px; }
-          .pdf-group-head { border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; padding: 10px 12px; margin-bottom: 10px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+          .pdf-group-head { border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; padding: 10px 12px; margin-bottom: 10px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
           .pdf-page-break { page-break-before: always; }
           @media print {
             body { padding: 0; }
