@@ -1,3 +1,5 @@
+# Compatibilidade com o fluxo legado.
+# Referencia canonica desta frente: deploy/fly/producao/web.toml
 app = 'geomonitor-web'
 primary_region = 'gru'
 

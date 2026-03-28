@@ -91,25 +91,71 @@ jest.mock('./utils/authMiddleware', () => {
         profileCache.delete(uid);
     };
 
-    return {
-        verifyToken: (req, res, next) => {
-            const authHeader = String(req.headers?.authorization || '');
-            if (!authHeader.startsWith('Bearer ')) {
-                return res.status(401).json({
-                    status: 'error',
-                    message: 'Token nao informado',
-                });
-            }
+    const attachWorkerIdentity = (req) => {
+        req.user = {
+            uid: 'internal-worker',
+            email: 'geomonitor-worker@internal',
+            service: 'worker',
+        };
+        req.userProfile = {
+            status: 'Ativo',
+            perfil: 'Administrador',
+        };
+    };
 
-            req.user = {
-                uid: 'test-admin-123',
-                email: 'admin@test.com',
-            };
-            next();
-        },
+    const verifyEditorFromBearer = (req, res, next) => {
+        const authHeader = String(req.headers?.authorization || '');
+        if (!authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({
+                status: 'error',
+                message: 'Token nao informado',
+            });
+        }
+
+        req.user = {
+            uid: 'test-admin-123',
+            email: 'admin@test.com',
+        };
+        next();
+    };
+
+    const requireWorkerToken = (req, res, next) => {
+        const workerToken = String(req.headers?.['x-worker-token'] || '');
+        const expectedToken = String(process.env.WORKER_API_TOKEN || '');
+        if (!workerToken) {
+            return null;
+        }
+
+        if (!expectedToken || workerToken !== expectedToken) {
+            return res.status(403).json({
+                status: 'error',
+                message: 'Token interno do worker invalido.',
+            });
+        }
+
+        attachWorkerIdentity(req);
+        next();
+        return true;
+    };
+
+    return {
+        verifyToken: verifyEditorFromBearer,
         requireActiveUser: (req, res, next) => { req.userProfile = { status: 'Ativo', perfil: 'Admin' }; next(); },
         requireEditor: (req, res, next) => next(),
         requireAdmin: (req, res, next) => next(),
+        requireEditorOrWorker: (req, res, next) => {
+            const handled = requireWorkerToken(req, res, next);
+            if (handled) return handled;
+            return verifyEditorFromBearer(req, res, next);
+        },
+        requireActiveUserOrWorker: (req, res, next) => {
+            const handled = requireWorkerToken(req, res, next);
+            if (handled) return handled;
+            return verifyEditorFromBearer(req, res, () => {
+                req.userProfile = { status: 'Ativo', perfil: 'Admin' };
+                next();
+            });
+        },
         getCachedProfile,
         setCachedProfile,
         invalidateCachedProfile,

@@ -1,6 +1,6 @@
 import { createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
+import { auth } from '../firebase/config';
+import { bootstrapCurrentUserProfile, getCurrentUserProfile } from './userService';
 
 function mapRoleFromPerfil(perfil) {
   if (perfil === 'Administrador') return 'admin';
@@ -24,9 +24,11 @@ function toProfile(authUser, profile) {
 }
 
 export async function loadProfile(authUser) {
-  const profileRef = doc(db, 'shared', 'geomonitor', 'users', authUser.uid);
-  const profileSnap = await getDoc(profileRef);
-  return toProfile(authUser, profileSnap.exists() ? profileSnap.data() : null);
+  const profile = await bootstrapCurrentUserProfile({
+    nome: authUser.displayName || '',
+    email: authUser.email || '',
+  }, { updatedBy: authUser.email || 'app' });
+  return toProfile(authUser, profile);
 }
 
 export async function login(email, password) {
@@ -36,25 +38,20 @@ export async function login(email, password) {
 
 export async function register(email, password, nome = '') {
   const result = await createUserWithEmailAndPassword(auth, email, password);
-  
+
   try {
-    await setDoc(
-      doc(db, 'shared', 'geomonitor', 'users', result.user.uid),
-      {
-        id: result.user.uid,
-        nome: nome || '',
-        email,
-        cargo: '',
-        departamento: '',
-        telefone: '',
-        perfil: 'Utilizador',
-        status: 'Pendente',
-        perfilAtualizadoPrimeiroLogin: false,
-        createdAt: new Date().toISOString(),
-      },
-      { merge: true },
-    );
-    return loadProfile(result.user);
+    const profile = await bootstrapCurrentUserProfile({
+      nome: nome || '',
+      email,
+      cargo: '',
+      departamento: '',
+      telefone: '',
+      perfilAtualizadoPrimeiroLogin: false,
+    }, {
+      updatedBy: email,
+    });
+
+    return toProfile(result.user, profile);
   } catch (error) {
     if (result.user) {
       await deleteUser(result.user).catch(console.error);

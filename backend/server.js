@@ -62,13 +62,31 @@ const inspectionsRouter = require('./routes/inspections');
 const usersRouter = require('./routes/users');
 const reportDeliveryTrackingRouter = require('./routes/reportDeliveryTracking');
 const rulesRouter = require('./routes/rules');
+const mediaRouter = require('./routes/media');
+const reportsRouter = require('./routes/reports');
+const reportJobsRouter = require('./routes/reportJobs');
+const reportWorkspacesRouter = require('./routes/reportWorkspaces');
+const projectReportDefaultsRouter = require('./routes/projectReportDefaults');
+const projectPhotosRouter = require('./routes/projectPhotos');
+const projectDossiersRouter = require('./routes/projectDossiers');
+const reportCompoundsRouter = require('./routes/reportCompounds');
+const reportTemplatesRouter = require('./routes/reportTemplates');
 
 app.use('/api/erosions', erosionsRouter);
 app.use('/api/projects', projectsRouter);
+app.use('/api/projects', projectReportDefaultsRouter);
+app.use('/api/projects', projectPhotosRouter);
+app.use('/api/projects', projectDossiersRouter);
 app.use('/api/licenses', licensesRouter);
 app.use('/api/inspections', inspectionsRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/media', mediaRouter);
+app.use('/api/report-workspaces', reportWorkspacesRouter);
+app.use('/api/report-compounds', reportCompoundsRouter);
+app.use('/api/report-jobs', reportJobsRouter);
+app.use('/api/reports', reportsRouter);
 app.use('/api/report-delivery-tracking', reportDeliveryTrackingRouter);
+app.use('/api/report-templates', reportTemplatesRouter);
 app.use('/api/rules', rulesRouter);
 
 // Global Error Handler para não expor erros ao cliente em prod

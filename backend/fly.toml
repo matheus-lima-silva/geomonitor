@@ -1,3 +1,5 @@
+# Compatibilidade com o fluxo legado.
+# Referencia canonica desta frente: deploy/fly/producao/api.toml
 app = 'geomonitor-api'
 primary_region = 'gru'
 

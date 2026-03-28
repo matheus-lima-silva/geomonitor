@@ -19,15 +19,20 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // ../src/features/shared/erosionCoordinates.js
 var erosionCoordinates_exports = {};
 __export(erosionCoordinates_exports, {
+  convertDecimalToUtm: () => convertDecimalToUtm,
   convertUtmToDecimalWgs84: () => convertUtmToDecimalWgs84,
+  decimalToDms: () => decimalToDms,
+  dmsToDecimal: () => dmsToDecimal,
   formatDecimalCoordinate: () => formatDecimalCoordinate,
   hasValidDecimalCoordinates: () => hasValidDecimalCoordinates,
   isCompleteUtmCoordinates: () => isCompleteUtmCoordinates,
   isPartialUtmCoordinates: () => isPartialUtmCoordinates,
   normalizeLocationCoordinates: () => normalizeLocationCoordinates,
   parseCoordinateNumber: () => parseCoordinateNumber,
+  parseDmsCoordinate: () => parseDmsCoordinate,
   parseUtmNumber: () => parseUtmNumber,
-  resolveLocationCoordinatesForSave: () => resolveLocationCoordinatesForSave
+  resolveLocationCoordinatesForSave: () => resolveLocationCoordinatesForSave,
+  syncCoordinateFields: () => syncCoordinateFields
 });
 module.exports = __toCommonJS(erosionCoordinates_exports);
 var WGS84_A = 6378137;
@@ -125,6 +130,134 @@ function convertUtmToDecimalWgs84({
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
   return { latitude, longitude };
 }
+function convertDecimalToUtm(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < -80 || lat > 84) return null;
+  const latRad = lat * Math.PI / 180;
+  const lonRad = lon * Math.PI / 180;
+  const zone = Math.floor((lon + 180) / 6) + 1;
+  const lonOrigin = (zone - 1) * 6 - 180 + 3;
+  const lonOriginRad = lonOrigin * Math.PI / 180;
+  const eccPrimeSquared = WGS84_ECC_SQUARED / (1 - WGS84_ECC_SQUARED);
+  const N = WGS84_A / Math.sqrt(1 - WGS84_ECC_SQUARED * Math.sin(latRad) ** 2);
+  const T = Math.tan(latRad) ** 2;
+  const C = eccPrimeSquared * Math.cos(latRad) ** 2;
+  const A = Math.cos(latRad) * (lonRad - lonOriginRad);
+  const M = WGS84_A * ((1 - WGS84_ECC_SQUARED / 4 - 3 * WGS84_ECC_SQUARED ** 2 / 64 - 5 * WGS84_ECC_SQUARED ** 3 / 256) * latRad - (3 * WGS84_ECC_SQUARED / 8 + 3 * WGS84_ECC_SQUARED ** 2 / 32 + 45 * WGS84_ECC_SQUARED ** 3 / 1024) * Math.sin(2 * latRad) + (15 * WGS84_ECC_SQUARED ** 2 / 256 + 45 * WGS84_ECC_SQUARED ** 3 / 1024) * Math.sin(4 * latRad) - 35 * WGS84_ECC_SQUARED ** 3 / 3072 * Math.sin(6 * latRad));
+  const easting = UTM_SCALE_FACTOR * N * (A + (1 - T + C) * A ** 3 / 6 + (5 - 18 * T + T ** 2 + 72 * C - 58 * eccPrimeSquared) * A ** 5 / 120) + 5e5;
+  let northing = UTM_SCALE_FACTOR * (M + N * Math.tan(latRad) * (A ** 2 / 2 + (5 - T + 9 * C + 4 * C ** 2) * A ** 4 / 24 + (61 - 58 * T + T ** 2 + 600 * C - 330 * eccPrimeSquared) * A ** 6 / 720));
+  if (lat < 0) northing += 1e7;
+  if (!Number.isFinite(easting) || !Number.isFinite(northing)) return null;
+  return {
+    easting: Math.round(easting),
+    northing: Math.round(northing),
+    zone,
+    hemisphere: lat >= 0 ? "N" : "S"
+  };
+}
+function parseDmsCoordinate(text) {
+  const raw = toTrimmedString(text);
+  if (!raw) return null;
+  const structured = raw.match(
+    /^(-?)(\d{1,3})\s*[°ºd]\s*(\d{1,2})\s*['''m]\s*(\d{1,2}(?:[.,]\d+)?)\s*(?:["""s])?\s*([NSEWnsew]?)$/
+  );
+  if (structured) {
+    const sign = structured[1] === "-" ? -1 : 1;
+    const hemi = structured[5].toUpperCase();
+    return {
+      degrees: Number(structured[2]),
+      minutes: Number(structured[3]),
+      seconds: Number(structured[4].replace(",", ".")),
+      hemisphere: hemi || (sign < 0 ? "" : ""),
+      sign: hemi === "S" || hemi === "W" ? -1 : sign
+    };
+  }
+  const separated = raw.match(
+    /^(-?)(\d{1,3})\s*[:°ºd\s]\s*(\d{1,2})\s*[:'''m\s]\s*(\d{1,2}(?:[.,]\d+)?)\s*([NSEWnsew]?)$/
+  );
+  if (separated) {
+    const sign = separated[1] === "-" ? -1 : 1;
+    const hemi = separated[5].toUpperCase();
+    return {
+      degrees: Number(separated[2]),
+      minutes: Number(separated[3]),
+      seconds: Number(separated[4].replace(",", ".")),
+      hemisphere: hemi || "",
+      sign: hemi === "S" || hemi === "W" ? -1 : sign
+    };
+  }
+  return null;
+}
+function dmsToDecimal(dms) {
+  if (!dms || !Number.isFinite(dms.degrees)) return null;
+  const dec = dms.degrees + (dms.minutes || 0) / 60 + (dms.seconds || 0) / 3600;
+  const sign = dms.sign ?? (dms.hemisphere === "S" || dms.hemisphere === "W" ? -1 : 1);
+  const result = dec * sign;
+  return Number.isFinite(result) ? result : null;
+}
+function decimalToDms(decimal, axis = "lat") {
+  if (!Number.isFinite(decimal)) return "";
+  const abs = Math.abs(decimal);
+  const deg = Math.floor(abs);
+  const minFull = (abs - deg) * 60;
+  const min = Math.floor(minFull);
+  const sec = (minFull - min) * 60;
+  const hemi = axis === "lat" ? decimal >= 0 ? "N" : "S" : decimal >= 0 ? "E" : "W";
+  return `${deg}\xB0${String(min).padStart(2, "0")}'${sec.toFixed(2).padStart(5, "0")}"${hemi}`;
+}
+function syncCoordinateFields(changedGroup, coords) {
+  const loc = { ...coords };
+  if (changedGroup === "decimal") {
+    const lat = parseCoordinateNumber(loc.latitude);
+    const lon = parseCoordinateNumber(loc.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return loc;
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return loc;
+    loc.dmsLatitude = decimalToDms(lat, "lat");
+    loc.dmsLongitude = decimalToDms(lon, "lon");
+    const utm = convertDecimalToUtm(lat, lon);
+    if (utm) {
+      loc.utmEasting = String(utm.easting);
+      loc.utmNorthing = String(utm.northing);
+      loc.utmZone = String(utm.zone);
+      loc.utmHemisphere = utm.hemisphere;
+    }
+    return loc;
+  }
+  if (changedGroup === "utm") {
+    if (!isCompleteUtmCoordinates(loc)) return loc;
+    const result = convertUtmToDecimalWgs84({
+      zone: loc.utmZone,
+      hemisphere: loc.utmHemisphere,
+      easting: loc.utmEasting,
+      northing: loc.utmNorthing
+    });
+    if (!result) return loc;
+    loc.latitude = formatDecimalCoordinate(result.latitude);
+    loc.longitude = formatDecimalCoordinate(result.longitude);
+    loc.dmsLatitude = decimalToDms(result.latitude, "lat");
+    loc.dmsLongitude = decimalToDms(result.longitude, "lon");
+    return loc;
+  }
+  if (changedGroup === "dms") {
+    const dmsLat = parseDmsCoordinate(loc.dmsLatitude);
+    const dmsLon = parseDmsCoordinate(loc.dmsLongitude);
+    if (!dmsLat || !dmsLon) return loc;
+    const lat = dmsToDecimal(dmsLat);
+    const lon = dmsToDecimal(dmsLon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return loc;
+    loc.latitude = formatDecimalCoordinate(lat);
+    loc.longitude = formatDecimalCoordinate(lon);
+    const utm = convertDecimalToUtm(lat, lon);
+    if (utm) {
+      loc.utmEasting = String(utm.easting);
+      loc.utmNorthing = String(utm.northing);
+      loc.utmZone = String(utm.zone);
+      loc.utmHemisphere = utm.hemisphere;
+    }
+    return loc;
+  }
+  return loc;
+}
 function hasValidDecimalCoordinates(input = {}) {
   const locationCoordinates = normalizeLocationCoordinates(input);
   const latitude = parseCoordinateNumber(locationCoordinates.latitude);
@@ -158,6 +291,18 @@ function resolveLocationCoordinatesForSave(input = {}) {
     locationCoordinates.latitude = formatDecimalCoordinate(converted.latitude);
     locationCoordinates.longitude = formatDecimalCoordinate(converted.longitude);
   }
+  if (!locationCoordinates.latitude && !locationCoordinates.longitude) {
+    const dmsLat = parseDmsCoordinate(locationCoordinates.dmsLatitude);
+    const dmsLon = parseDmsCoordinate(locationCoordinates.dmsLongitude);
+    if (dmsLat && dmsLon) {
+      const lat = dmsToDecimal(dmsLat);
+      const lon = dmsToDecimal(dmsLon);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        locationCoordinates.latitude = formatDecimalCoordinate(lat);
+        locationCoordinates.longitude = formatDecimalCoordinate(lon);
+      }
+    }
+  }
   return {
     ok: true,
     locationCoordinates,
@@ -167,13 +312,18 @@ function resolveLocationCoordinatesForSave(input = {}) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  convertDecimalToUtm,
   convertUtmToDecimalWgs84,
+  decimalToDms,
+  dmsToDecimal,
   formatDecimalCoordinate,
   hasValidDecimalCoordinates,
   isCompleteUtmCoordinates,
   isPartialUtmCoordinates,
   normalizeLocationCoordinates,
   parseCoordinateNumber,
+  parseDmsCoordinate,
   parseUtmNumber,
-  resolveLocationCoordinatesForSave
+  resolveLocationCoordinatesForSave,
+  syncCoordinateFields
 });

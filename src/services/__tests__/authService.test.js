@@ -2,30 +2,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('firebase/auth', () => ({
   createUserWithEmailAndPassword: vi.fn(),
+  deleteUser: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
   signInWithEmailAndPassword: vi.fn(),
   signOut: vi.fn(),
 }));
 
-vi.mock('firebase/firestore', () => ({
-  doc: vi.fn(),
-  getDoc: vi.fn(),
-  setDoc: vi.fn(),
+vi.mock('../userService', () => ({
+  bootstrapCurrentUserProfile: vi.fn(),
+  getCurrentUserProfile: vi.fn(),
 }));
 
 vi.mock('../../firebase/config', () => ({
   auth: { name: 'mock-auth' },
-  db: { name: 'mock-db' },
 }));
 
 import {
   createUserWithEmailAndPassword,
+  deleteUser,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../../firebase/config';
+import { auth } from '../../firebase/config';
+import { bootstrapCurrentUserProfile, getCurrentUserProfile } from '../userService';
 import {
   loadProfile,
   login,
@@ -44,18 +44,14 @@ describe('authService', () => {
     ['Gerente', 'manager'],
     ['Utilizador', 'viewer'],
   ])('loadProfile mapeia perfil %s para role %s', async (perfil, role) => {
-    vi.mocked(doc).mockReturnValue('PROFILE_REF');
-    vi.mocked(getDoc).mockResolvedValue({
-      exists: () => true,
-      data: () => ({
-        nome: 'Maria',
-        perfil,
-        status: 'Ativo',
-        cargo: 'Engenheira',
-        departamento: 'Campo',
-        telefone: '9999',
-        perfilAtualizadoPrimeiroLogin: true,
-      }),
+    vi.mocked(bootstrapCurrentUserProfile).mockResolvedValue({
+      nome: 'Maria',
+      perfil,
+      status: 'Ativo',
+      cargo: 'Engenheira',
+      departamento: 'Campo',
+      telefone: '9999',
+      perfilAtualizadoPrimeiroLogin: true,
     });
 
     const profile = await loadProfile({
@@ -64,12 +60,15 @@ describe('authService', () => {
       displayName: 'Display Maria',
     });
 
-    expect(doc).toHaveBeenCalledWith(db, 'shared', 'geomonitor', 'users', 'U-1');
+    expect(bootstrapCurrentUserProfile).toHaveBeenCalledWith(
+      { nome: 'Display Maria', email: 'maria@empresa.com' },
+      { updatedBy: 'maria@empresa.com' },
+    );
     expect(profile.role).toBe(role);
     expect(profile.nome).toBe('Maria');
   });
 
-  it('login autentica e retorna perfil carregado', async () => {
+  it('login autentica e retorna perfil carregado da API', async () => {
     vi.mocked(signInWithEmailAndPassword).mockResolvedValue({
       user: {
         uid: 'U-1',
@@ -77,14 +76,10 @@ describe('authService', () => {
         displayName: 'Ana Display',
       },
     });
-    vi.mocked(doc).mockReturnValue('PROFILE_REF');
-    vi.mocked(getDoc).mockResolvedValue({
-      exists: () => true,
-      data: () => ({
-        nome: 'Ana',
-        perfil: 'Gerente',
-        status: 'Ativo',
-      }),
+    vi.mocked(bootstrapCurrentUserProfile).mockResolvedValue({
+      nome: 'Ana',
+      perfil: 'Gerente',
+      status: 'Ativo',
     });
 
     const profile = await login('ana@empresa.com', '123456');
@@ -100,9 +95,7 @@ describe('authService', () => {
     );
   });
 
-  it('register cria usuário, grava documento padrão e retorna perfil', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2025-09-10T15:20:30.000Z'));
+  it('register cria utilizador, faz bootstrap do perfil via API e retorna perfil', async () => {
     vi.mocked(createUserWithEmailAndPassword).mockResolvedValue({
       user: {
         uid: 'U-9',
@@ -110,35 +103,29 @@ describe('authService', () => {
         displayName: '',
       },
     });
-    vi.mocked(doc).mockReturnValue('PROFILE_REF');
-    vi.mocked(setDoc).mockResolvedValue(undefined);
-    vi.mocked(getDoc).mockResolvedValue({
-      exists: () => true,
-      data: () => ({
-        nome: 'Novo',
-        perfil: 'Utilizador',
-        status: 'Pendente',
-      }),
+    vi.mocked(bootstrapCurrentUserProfile).mockResolvedValue({
+      nome: 'Novo',
+      perfil: 'Utilizador',
+      status: 'Pendente',
+      cargo: '',
+      departamento: '',
+      telefone: '',
+      perfilAtualizadoPrimeiroLogin: false,
     });
 
     const profile = await register('novo@empresa.com', 'senha', 'Novo');
 
     expect(createUserWithEmailAndPassword).toHaveBeenCalledWith(auth, 'novo@empresa.com', 'senha');
-    expect(setDoc).toHaveBeenCalledWith(
-      'PROFILE_REF',
+    expect(bootstrapCurrentUserProfile).toHaveBeenCalledWith(
       {
-        id: 'U-9',
         nome: 'Novo',
         email: 'novo@empresa.com',
         cargo: '',
         departamento: '',
         telefone: '',
-        perfil: 'Utilizador',
-        status: 'Pendente',
         perfilAtualizadoPrimeiroLogin: false,
-        createdAt: '2025-09-10T15:20:30.000Z',
       },
-      { merge: true },
+      { updatedBy: 'novo@empresa.com' },
     );
     expect(profile).toEqual(
       expect.objectContaining({
@@ -148,8 +135,22 @@ describe('authService', () => {
         role: 'viewer',
       }),
     );
+  });
 
-    vi.useRealTimers();
+  it('register desfaz utilizador quando bootstrap falha', async () => {
+    const createdUser = {
+      uid: 'U-ERR',
+      email: 'falha@empresa.com',
+      displayName: '',
+    };
+    vi.mocked(createUserWithEmailAndPassword).mockResolvedValue({ user: createdUser });
+    vi.mocked(bootstrapCurrentUserProfile).mockRejectedValue(new Error('Bootstrap falhou'));
+    vi.mocked(deleteUser).mockResolvedValue(undefined);
+
+    await expect(register('falha@empresa.com', 'senha', 'Falha')).rejects.toThrow(
+      'Falha ao criar perfil. A conta foi desfeita. Tente novamente.',
+    );
+    expect(deleteUser).toHaveBeenCalledWith(createdUser);
   });
 
   it('resetPassword e logout delegam para firebase auth', async () => {

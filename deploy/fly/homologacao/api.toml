@@ -1,0 +1,37 @@
+app = "geomonitor-api-hml"
+primary_region = "gru"
+
+[build]
+  dockerfile = "../../../backend/Dockerfile"
+
+[deploy]
+  strategy = "rolling"
+
+[env]
+  PORT = "8080"
+  NODE_ENV = "production"
+  TRUST_PROXY = "1"
+  API_BASE_URL = "https://geomonitor-api-hml.fly.dev/api"
+  FRONTEND_URL = "https://geomonitor-web-hml.fly.dev"
+  DATA_BACKEND = "postgres"
+  MEDIA_BACKEND = "tigris"
+  REPORT_EXECUTION_BACKEND = "python"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[http_service.checks]]
+  grace_period = "30s"
+  interval = "60s"
+  method = "GET"
+  timeout = "5s"
+  path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

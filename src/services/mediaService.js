@@ -1,0 +1,130 @@
+import { API_BASE_URL, getAuthToken } from '../utils/serviceFactory';
+
+async function requestMedia(url, options = {}) {
+  const token = await getAuthToken();
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData?.message || 'Erro ao operar midia.');
+  }
+
+  return response.json();
+}
+
+function isLocalApiUpload(uploadDescriptor = {}) {
+  const href = String(uploadDescriptor?.href || '').trim();
+  if (!href) return false;
+  if (href.startsWith('/')) return true;
+
+  try {
+    const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const targetUrl = new URL(href, fallbackOrigin);
+    const apiBaseUrl = new URL(API_BASE_URL, fallbackOrigin);
+    return targetUrl.origin === apiBaseUrl.origin;
+  } catch {
+    return href.startsWith(API_BASE_URL);
+  }
+}
+
+function isLocalAccessUrl(url = '') {
+  const href = String(url || '').trim();
+  if (!href) return false;
+  if (href.startsWith('/')) return true;
+
+  try {
+    const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const targetUrl = new URL(href, fallbackOrigin);
+    const apiBaseUrl = new URL(API_BASE_URL, fallbackOrigin);
+    return targetUrl.origin === apiBaseUrl.origin;
+  } catch {
+    return href.startsWith(API_BASE_URL);
+  }
+}
+
+export async function createMediaUpload(payload, meta = {}) {
+  return requestMedia(`${API_BASE_URL}/media/upload-url`, {
+    method: 'POST',
+    body: JSON.stringify({ data: payload, meta }),
+  });
+}
+
+export async function completeMediaUpload(payload, meta = {}) {
+  return requestMedia(`${API_BASE_URL}/media/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ data: payload, meta }),
+  });
+}
+
+export async function uploadMediaBinary(uploadDescriptor, file) {
+  if (!uploadDescriptor?.href || !uploadDescriptor?.method) {
+    throw new Error('Upload de midia invalido.');
+  }
+
+  const isLocal = isLocalApiUpload(uploadDescriptor);
+  const headers = {
+    ...(uploadDescriptor.headers || {}),
+  };
+
+  if (!headers['Content-Type'] && file?.type) {
+    headers['Content-Type'] = file.type;
+  }
+
+  if (isLocal) {
+    const token = await getAuthToken();
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(uploadDescriptor.href, {
+    method: uploadDescriptor.method,
+    headers,
+    body: file,
+  });
+
+  if (!response.ok) {
+    const fallbackMessage = isLocal
+      ? 'Erro ao enviar midia para o backend.'
+      : 'Erro ao enviar midia para o storage assinado.';
+    throw new Error(fallbackMessage);
+  }
+
+  return response;
+}
+
+export async function downloadMediaAsset(mediaId) {
+  const result = await requestMedia(`${API_BASE_URL}/media/${encodeURIComponent(mediaId)}/access-url`, {
+    method: 'GET',
+  });
+
+  const accessUrl = String(result?.data?.accessUrl || '').trim();
+  if (!accessUrl) {
+    throw new Error('URL de acesso da midia invalida.');
+  }
+
+  const headers = {};
+  if (isLocalAccessUrl(accessUrl)) {
+    const token = await getAuthToken();
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(accessUrl, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error('Erro ao baixar a midia.');
+  }
+
+  return {
+    blob: await response.blob(),
+    contentType: String(response.headers.get('Content-Type') || ''),
+  };
+}

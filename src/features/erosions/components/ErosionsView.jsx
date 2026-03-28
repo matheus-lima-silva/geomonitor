@@ -37,8 +37,10 @@ import {
 } from '../../shared/erosionCoordinates';
 import {
   buildBatchErosionFichasPdfDocument,
+  buildBatchErosionFichasSimplificadasDocument,
   buildReportPdfDocument,
   buildSingleErosionFichaPdfDocument,
+  buildSingleErosionFichaSimplificadaDocument,
   openPrintableWindow,
 } from '../utils/erosionPdfTemplates';
 import { formatTowerLabel } from '../../projects/utils/kmlUtils';
@@ -280,6 +282,16 @@ function openBatchErosionFichasPdfWindow({
     project,
     rows,
   });
+  openPrintableWindow(documentHtml);
+}
+
+function openSingleErosionFichaSimplificadaWindow({ erosion, project, generatedBy }) {
+  const documentHtml = buildSingleErosionFichaSimplificadaDocument({ erosion, project, generatedBy });
+  openPrintableWindow(documentHtml);
+}
+
+function openBatchErosionFichasSimplificadasWindow({ projectId, project, rows, generatedBy }) {
+  const documentHtml = buildBatchErosionFichasSimplificadasDocument({ projectId, project, rows, generatedBy });
   openPrintableWindow(documentHtml);
 }
 
@@ -855,6 +867,38 @@ function ErosionsView({
     show('PDF de detalhes preparado para impressao.', 'success');
   }
 
+  function handleExportDetailsSimplificadaPdf() {
+    if (!activeDetailsErosion) return;
+    openSingleErosionFichaSimplificadaWindow({
+      erosion: activeDetailsErosion,
+      project: projects.find((p) => p.id === activeDetailsErosion.projetoId),
+      generatedBy: actorName,
+    });
+    show('Ficha simplificada preparada para impressao.', 'success');
+  }
+
+  function handlePrintBatchFichasSimplificadas() {
+    if (!reportFilters.projetoId) {
+      show('Selecione um empreendimento para imprimir fichas simplificadas.', 'error');
+      return;
+    }
+    try {
+      const projectErosions = buildPdfRowsByProject(reportFilters.projetoId);
+      if (projectErosions.length === 0) {
+        show('Nenhuma erosao encontrada para o empreendimento selecionado.', 'error');
+        return;
+      }
+      const project = (projects || []).find(
+        (item) => String(item?.id || '').trim().toLowerCase() === String(reportFilters.projetoId || '').trim().toLowerCase(),
+      ) || null;
+      const rows = projectErosions.map((erosion) => ({ erosion, project }));
+      openBatchErosionFichasSimplificadasWindow({ projectId: reportFilters.projetoId, project, rows, generatedBy: actorName });
+      show('Fichas simplificadas em lote preparadas para impressao.', 'success');
+    } catch (err) {
+      show(err.message || 'Erro ao gerar fichas simplificadas.', 'error');
+    }
+  }
+
   const criticality = useMemo(() => {
     if (isHistoricalErosionRecord(formData || {})) {
       return {
@@ -1038,6 +1082,8 @@ function ErosionsView({
         onExportCsv={handleExportCsv}
         onExportPdf={handleExportPdf}
         onPrintBatchFichasPdf={handlePrintBatchFichasPdf}
+        onPrintBatchFichasSimplificadas={handlePrintBatchFichasSimplificadas}
+        projetoId={reportFilters.projetoId}
         collapsed={isReportPanelCollapsed}
         onToggleCollapsed={() => setIsReportPanelCollapsed((prev) => !prev)}
       />
@@ -1074,6 +1120,7 @@ function ErosionsView({
         onOpenMaps={openGoogleMapsRoute}
         onSaveManualEvent={handleSaveManualHistoryEvent}
         onExportPdf={handleExportDetailsPdf}
+        onExportSimplificadaPdf={handleExportDetailsSimplificadaPdf}
       />
 
       {deleteModal && (

@@ -264,28 +264,44 @@ function renderFicha({
   `;
 }
 
+function checkbox(checked) {
+  return checked ? '☑' : '☐';
+}
+
+function classifyDeclividade(graus) {
+  if (!Number.isFinite(graus)) return null;
+  if (graus <= 6) return '0_6';
+  if (graus <= 12) return '6_12';
+  if (graus <= 20) return '12_20';
+  return 'gt_20';
+}
+
 function buildDocument(title, content) {
   return `
     <html>
       <head>
         <title>${escapeHtml(title)}</title>
         <style>
-          body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; }
-          h1 { margin: 0 0 8px; font-size: 22px; }
-          h2 { margin: 0 0 8px; font-size: 14px; }
-          .ficha-meta-line { margin-bottom: 4px; }
+          body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; font-size: 12px; }
+          h1 { margin: 0 0 8px; font-size: 18px; color: #1e293b; }
+          h2 { margin: 0 0 8px; font-size: 13px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #3b82f6; padding-bottom: 4px; }
+          .ficha-meta-line { margin-bottom: 4px; font-size: 12px; }
           .ficha-muted { font-size: 10px; color: #64748b; }
-          .ficha-section { margin-top: 12px; border: 1px solid #dbe4ee; border-radius: 10px; background: #fff; padding: 12px; }
-          .ficha-grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-          .ficha-grid-three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 12px; }
+          .ficha-header { border-bottom: 3px solid #1e40af; padding-bottom: 8px; margin-bottom: 4px; }
+          .ficha-header h1 { color: #1e40af; margin-bottom: 4px; }
+          .ficha-header-meta { font-size: 12px; }
+          .ficha-section { margin-top: 10px; border: 1px solid #dbe4ee; border-radius: 8px; background: #fff; padding: 10px 12px; }
+          .ficha-grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+          .ficha-grid-three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px 12px; }
           .ficha-full { grid-column: 1 / -1; }
+          .ficha-checkbox-row { font-size: 12px; line-height: 1.8; }
           .ficha-section ul { margin: 6px 0 0; padding-left: 18px; }
           .ficha-history-item { border: 1px solid #e2e8f0; border-left: 4px solid #94a3b8; border-radius: 8px; padding: 8px; margin-bottom: 8px; }
           .ficha-history-item-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
           .ficha-history-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #e2e8f0; color: #334155; }
           .ficha-history-summary { font-weight: 600; color: #1f2937; margin-bottom: 2px; }
           .ficha-history-details { font-size: 11px; color: #334155; margin-bottom: 2px; }
-          .pdf-group-head { border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; padding: 10px 12px; margin-bottom: 10px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+          .pdf-group-head { border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; padding: 10px 12px; margin-bottom: 10px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
           .pdf-page-break { page-break-before: always; }
           @media print {
             body { padding: 0; }
@@ -474,4 +490,257 @@ export function buildReportPdfDocument({
   `;
 
   return buildDocument(`Relatorio de Erosoes - ${projectId}`, content);
+}
+
+function renderFichaSimplificada({
+  erosion,
+  project,
+  generatedAt,
+  generatedBy,
+}) {
+  const locationCoordinates = normalizeLocationCoordinates(erosion || {});
+  const technical = normalizeErosionTechnicalFields(erosion || {});
+  const localContexto = technical.localContexto || {};
+  const criticalidade = resolveErosionCriticality(erosion || {});
+
+  const exposicao = String(localContexto.exposicao || '').toLowerCase();
+  const status = normalizeErosionStatus(erosion?.status);
+  const tiposFeicao = Array.isArray(technical.tiposFeicao) ? technical.tiposFeicao : [];
+  const usosSolo = Array.isArray(technical.usosSolo) ? technical.usosSolo : [];
+  const tipoSolo = String(technical.tipoSolo || '').toLowerCase();
+  const presencaAgua = String(technical.presencaAguaFundo || '').toLowerCase();
+  const declFaixa = classifyDeclividade(technical.declividadeGraus);
+  const relevo = String(erosion?.relevo || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const criticidadeClasse = String(criticalidade?.criticidade_classe || criticalidade?.criticidadeClasse || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const fotosLinks = Array.isArray(erosion?.fotosLinks) ? erosion.fotosLinks : [];
+  const hasDecimal = locationCoordinates.latitude || locationCoordinates.longitude;
+  const hasUtm = locationCoordinates.utmEasting || locationCoordinates.utmNorthing;
+  const profissional = erosion?.updatedBy || generatedBy || '-';
+
+  return `
+    <div class="ficha-header">
+      <h1>Ficha Simplificada de Erosao</h1>
+      <div class="ficha-header-meta">
+        <div class="ficha-meta-line"><strong>Empreendimento:</strong> ${escapeHtml(erosion?.projetoId || '')} ${project?.nome ? `- ${escapeHtml(project.nome)}` : ''}</div>
+        <div class="ficha-meta-line"><strong>CADASTRO DE FOCOS EROSIVOS</strong></div>
+      </div>
+    </div>
+
+    <section class="ficha-section">
+      <h2>Identificacao</h2>
+      <div class="ficha-grid-three">
+        <div><strong>Ficha n\u00ba:</strong> ${escapeHtml(erosion?.id || '')}</div>
+        <div><strong>Data:</strong> ${escapeHtml(generatedAt)}</div>
+        <div><strong>Profissional:</strong> ${escapeHtml(profissional)}</div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Localizacao e referencia</h2>
+      <div class="ficha-grid-three">
+        ${hasDecimal ? `
+          <div><strong>Latitude:</strong> ${escapeHtml(locationCoordinates.latitude || '-')}</div>
+          <div><strong>Longitude:</strong> ${escapeHtml(locationCoordinates.longitude || '-')}</div>
+        ` : hasUtm ? `
+          <div><strong>UTM E:</strong> ${escapeHtml(locationCoordinates.utmEasting || '-')}</div>
+          <div><strong>UTM N:</strong> ${escapeHtml(locationCoordinates.utmNorthing || '-')}</div>
+        ` : `<div><strong>Coordenadas:</strong> -</div>`}
+        <div><strong>Altitude:</strong> ${escapeHtml(locationCoordinates.altitude || '-')}</div>
+        <div><strong>Torre ref.:</strong> ${escapeHtml(erosion?.torreRef ? `Torre ${erosion.torreRef}` : '-')}</div>
+        <div class="ficha-full ficha-checkbox-row">
+          ${checkbox(exposicao === 'faixa_servidao')} Faixa de Servid\u00e3o &nbsp;&nbsp;
+          ${checkbox(exposicao === 'area_terceiros')} \u00c1rea de Terceiros &nbsp;&nbsp;
+          ${checkbox(false)} \u00c1rea P\u00fablica
+        </div>
+        <div class="ficha-full"><strong>Fotos:</strong> ${fotosLinks.length > 0 ? escapeHtml(fotosLinks.join(', ')) : '-'}</div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Classificacao de Criticidade - Grau Erosivo</h2>
+      <div class="ficha-checkbox-row">
+        ${checkbox(criticidadeClasse.includes('baixo') && !criticidadeClasse.includes('muito'))} Baixo &nbsp;&nbsp;
+        ${checkbox(criticidadeClasse.includes('medio'))} M\u00e9dio &nbsp;&nbsp;
+        ${checkbox(criticidadeClasse.includes('alto') && !criticidadeClasse.includes('muito'))} Alto &nbsp;&nbsp;
+        ${checkbox(criticidadeClasse.includes('muito alto'))} Muito Alto
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Situacao Atual</h2>
+      <div class="ficha-grid-two">
+        <div><strong>Estagio Erosivo:</strong></div>
+        <div class="ficha-checkbox-row">
+          ${checkbox(status === 'Ativo')} Ativo &nbsp;&nbsp;
+          ${checkbox(status === 'Estabilizado')} Est\u00e1vel &nbsp;&nbsp;
+          ${checkbox(status === 'Monitoramento')} Regenera\u00e7\u00e3o Natural
+        </div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Tipo / Caracteristicas da Feicao</h2>
+      <div class="ficha-grid-two">
+        <div class="ficha-full ficha-checkbox-row">
+          ${checkbox(tiposFeicao.includes('laminar'))} Laminar &nbsp;&nbsp;
+          ${checkbox(tiposFeicao.includes('sulco'))} Sulco &nbsp;&nbsp;
+          ${checkbox(tiposFeicao.includes('ravina'))} Ravina &nbsp;&nbsp;
+          ${checkbox(tiposFeicao.includes('vocoroca'))} Vo\u00e7oroca
+        </div>
+        <div class="ficha-full">
+          <strong>Presenca de agua no fundo:</strong> &nbsp;
+          ${checkbox(presencaAgua === 'sim')} Sim &nbsp;&nbsp;
+          ${checkbox(presencaAgua === 'nao')} N\u00e3o &nbsp;&nbsp;
+          ${checkbox(presencaAgua === 'nao_verificado')} N\u00e3o verificado
+        </div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Declividade</h2>
+      <div class="ficha-checkbox-row">
+        ${checkbox(declFaixa === '0_6')} 0\u00ba a 6\u00ba &nbsp;&nbsp;
+        ${checkbox(declFaixa === '6_12')} 6\u00ba a 12\u00ba &nbsp;&nbsp;
+        ${checkbox(declFaixa === '12_20')} 12\u00ba a 20\u00ba &nbsp;&nbsp;
+        ${checkbox(declFaixa === 'gt_20')} &gt; 20\u00ba
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Relevo</h2>
+      <div class="ficha-checkbox-row">
+        ${checkbox(relevo === 'suave')} Suave &nbsp;&nbsp;
+        ${checkbox(relevo === 'ondulado')} Ondulado &nbsp;&nbsp;
+        ${checkbox(relevo === 'escarpado')} Escarpado
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Dimensoes</h2>
+      <div class="ficha-grid-two">
+        <div><strong>Largura Maxima:</strong></div>
+        <div class="ficha-checkbox-row">
+          ${checkbox(false)} Ate 1 m &nbsp;&nbsp;
+          ${checkbox(false)} 1 a 10 m &nbsp;&nbsp;
+          ${checkbox(false)} &gt; 30 m
+        </div>
+        <div><strong>Altura Maxima:</strong></div>
+        <div class="ficha-checkbox-row">
+          ${checkbox(false)} Ate 1 m &nbsp;&nbsp;
+          ${checkbox(false)} 1 a 10 m &nbsp;&nbsp;
+          ${checkbox(false)} &gt; 30 m
+        </div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Caracterizacao</h2>
+      <div class="ficha-grid-two">
+        <div><strong>Tipo de Solo:</strong></div>
+        <div class="ficha-checkbox-row">
+          ${checkbox(tipoSolo === 'argiloso')} Argiloso &nbsp;&nbsp;
+          ${checkbox(tipoSolo === 'arenoso')} Arenoso &nbsp;&nbsp;
+          ${checkbox(tipoSolo === 'lateritico')} Later\u00edtico
+        </div>
+        <div><strong>Usos do Solo:</strong></div>
+        <div class="ficha-checkbox-row">
+          ${checkbox(usosSolo.includes('pastagem'))} Pastagem &nbsp;&nbsp;
+          ${checkbox(usosSolo.includes('cultivo'))} Cultivo &nbsp;&nbsp;
+          ${checkbox(usosSolo.includes('campo'))} Campo &nbsp;&nbsp;
+          ${checkbox(usosSolo.includes('veg_arborea'))} Veg. Arb\u00f3rea
+        </div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Obstaculos</h2>
+      <div class="ficha-grid-two">
+        <div class="ficha-full ficha-checkbox-row">
+          ${checkbox(usosSolo.includes('acesso'))} Acesso &nbsp;&nbsp;
+          ${checkbox(usosSolo.includes('cerca'))} Cerca &nbsp;&nbsp;
+          ${checkbox(usosSolo.includes('curso_agua'))} Curso d'agua &nbsp;&nbsp;
+          ${checkbox(usosSolo.includes('tubulacao'))} Tubulacao
+        </div>
+        <div class="ficha-full"><strong>Outros:</strong> ${escapeHtml(technical.usoSoloOutro || '-')}</div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Medida Preventiva</h2>
+      <div>${escapeHtml(erosion?.medidaPreventiva || '-')}</div>
+    </section>
+  `;
+}
+
+export function buildSingleErosionFichaSimplificadaDocument({
+  erosion,
+  project,
+  generatedAt = new Date().toLocaleString('pt-BR'),
+  generatedBy,
+}) {
+  const content = renderFichaSimplificada({ erosion, project, generatedAt, generatedBy });
+  return buildDocument(`Ficha Simplificada ${erosion?.id || '-'}`, content);
+}
+
+export function buildBatchErosionFichasSimplificadasDocument({
+  projectId,
+  project,
+  rows = [],
+  generatedAt = new Date().toLocaleString('pt-BR'),
+  generatedBy,
+}) {
+  const sortedRows = [...rows].sort((a, b) => {
+    const groupA = buildTowerGrouping(a);
+    const groupB = buildTowerGrouping(b);
+    if (groupA.sortBucket !== groupB.sortBucket) return groupA.sortBucket - groupB.sortBucket;
+    if (groupA.sortValue !== groupB.sortValue) return groupA.sortValue - groupB.sortValue;
+    if (groupA.sortText !== groupB.sortText) return groupA.sortText.localeCompare(groupB.sortText, 'pt-BR', { sensitivity: 'base', numeric: true });
+    return String(a?.erosion?.id || '').localeCompare(String(b?.erosion?.id || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+  });
+
+  const groupCountByKey = new Map();
+  sortedRows.forEach((row) => {
+    const group = buildTowerGrouping(row);
+    groupCountByKey.set(group.key, (groupCountByKey.get(group.key) || 0) + 1);
+  });
+
+  let previousGroupKey = null;
+  const fichasParts = [];
+  sortedRows.forEach((row, index) => {
+    const group = buildTowerGrouping(row);
+    const isFirstInGroup = group.key !== previousGroupKey;
+    previousGroupKey = group.key;
+    const groupCount = groupCountByKey.get(group.key) || 0;
+
+    fichasParts.push(`
+      <section class="${index > 0 ? 'pdf-page-break' : ''}">
+        ${isFirstInGroup ? `
+          <div class="pdf-group-head">
+            <strong>Grupo da torre:</strong> ${escapeHtml(group.label)}
+            <span class="ficha-muted">${groupCount} ficha(s)</span>
+          </div>
+        ` : ''}
+        ${renderFichaSimplificada({
+      erosion: row.erosion,
+      project: row.project || project,
+      generatedAt,
+      generatedBy,
+    })}
+      </section>
+    `);
+  });
+
+  const summaryHeader = `
+    <section>
+      <div style="text-align:center;font-size:14px;font-weight:700;margin-bottom:4px;">Fichas Simplificadas de Cadastro de Eros\u00f5es</div>
+      <div style="font-size:11px;margin-bottom:2px;"><strong>Empreendimento:</strong> ${escapeHtml(projectId || '-')} ${project?.nome ? `(${escapeHtml(project.nome)})` : ''}</div>
+      <div style="font-size:11px;margin-bottom:2px;"><strong>Total de fichas:</strong> ${rows.length}</div>
+      <div style="font-size:11px;margin-bottom:8px;"><strong>Gerado em:</strong> ${escapeHtml(generatedAt)}</div>
+    </section>
+  `;
+
+  return buildDocument(
+    `Fichas Simplificadas - ${projectId || '-'}`,
+    `${summaryHeader}${fichasParts.join('')}`,
+  );
 }

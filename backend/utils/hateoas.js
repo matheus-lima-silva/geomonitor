@@ -50,9 +50,44 @@ function createSingletonHateoasResponse(req, data, resourcePath) {
     };
 }
 
+function createResourceHateoasResponse(req, data, resourcePath, options = {}) {
+    const baseUrl = resolveApiBaseUrl(req);
+    const normalizedPath = String(resourcePath || '').replace(/^\/+/, '');
+    const normalizedCollectionPath = String(
+        options.collectionPath || normalizedPath.split('/').slice(0, -1).join('/'),
+    ).replace(/^\/+/, '');
+
+    const links = {
+        self: { href: buildApiHref(baseUrl, normalizedPath), method: 'GET' },
+    };
+
+    if (normalizedCollectionPath) {
+        links.collection = { href: buildApiHref(baseUrl, normalizedCollectionPath), method: 'GET' };
+    }
+
+    if (options.allowUpdate !== false) {
+        links.update = { href: buildApiHref(baseUrl, normalizedPath), method: 'PUT' };
+    }
+
+    if (options.allowDelete !== false) {
+        links.delete = { href: buildApiHref(baseUrl, normalizedPath), method: 'DELETE' };
+    }
+
+    if (options.extraLinks && typeof options.extraLinks === 'object') {
+        Object.assign(links, options.extraLinks);
+    }
+
+    return {
+        ...data,
+        _links: links,
+    };
+}
+
 module.exports = {
+    resolveApiBaseUrl,
     generateHateoasLinks,
     generateSingletonHateoasLinks,
     createHateoasResponse,
-    createSingletonHateoasResponse
+    createSingletonHateoasResponse,
+    createResourceHateoasResponse,
 };

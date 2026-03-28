@@ -1,11 +1,12 @@
 const express = require('express');
-const { getCollection, getDocRef } = require('./firebaseSetup');
 const { verifyToken, requireActiveUser, requireEditor, requireAdmin } = require('./authMiddleware');
 const { createHateoasResponse, generateHateoasLinks } = require('./hateoas');
+const { getCollection, getDocRef } = require('./firebaseSetup');
 
 function createCrudRouter(collectionName, options = {}) {
     const router = express.Router();
     const routerName = options.routerName || collectionName;
+    const repository = options.repository || null;
     const listGuards = options.listGuards || [verifyToken, requireActiveUser];
     const getGuards = options.getGuards || [verifyToken, requireActiveUser];
     const createGuards = options.createGuards || [verifyToken, requireEditor];
@@ -40,7 +41,11 @@ function createCrudRouter(collectionName, options = {}) {
                 updatedBy: meta.updatedBy || req.user?.email || 'API',
             };
 
-            await getDocRef(collectionName, id).set(mergedData, { merge: true });
+            if (repository) {
+                await repository.save(mergedData, { merge: true });
+            } else {
+                await getDocRef(collectionName, id).set(mergedData, { merge: true });
+            }
 
             return res.status(201).json({
                 status: 'success',
@@ -54,8 +59,9 @@ function createCrudRouter(collectionName, options = {}) {
 
     router.get('/', ...listGuards, async (req, res) => {
         try {
-            const snapshot = await getCollection(collectionName).get();
-            const items = snapshot.docs.map((doc) => createHateoasResponse(req, doc.data(), routerName, doc.id));
+            const items = repository
+                ? (await repository.list()).map((item) => createHateoasResponse(req, item, routerName, item.id))
+                : (await getCollection(collectionName).get()).docs.map((doc) => createHateoasResponse(req, doc.data(), routerName, doc.id));
             return res.status(200).json({ status: 'success', data: items });
         } catch (error) {
             console.error(`[${collectionName} API] Error GET:`, error);
@@ -66,15 +72,18 @@ function createCrudRouter(collectionName, options = {}) {
     router.get('/:id', ...getGuards, async (req, res) => {
         try {
             const { id } = req.params;
-            const doc = await getDocRef(collectionName, id).get();
+            const record = repository ? await repository.getById(id) : null;
+            const doc = repository ? null : await getDocRef(collectionName, id).get();
 
-            if (!doc.exists) {
+            if (repository ? !record : !doc.exists) {
                 return res.status(404).json({ status: 'error', message: 'Registro nao encontrado' });
             }
 
             return res.status(200).json({
                 status: 'success',
-                data: createHateoasResponse(req, doc.data(), routerName, doc.id),
+                data: repository
+                    ? createHateoasResponse(req, record, routerName, record.id)
+                    : createHateoasResponse(req, doc.data(), routerName, doc.id),
             });
         } catch (error) {
             console.error(`[${collectionName} API] Error GET /:id:`, error);
@@ -100,7 +109,11 @@ function createCrudRouter(collectionName, options = {}) {
     router.delete('/:id', ...deleteGuards, async (req, res) => {
         try {
             const { id } = req.params;
-            await getDocRef(collectionName, id).delete();
+            if (repository) {
+                await repository.remove(id);
+            } else {
+                await getDocRef(collectionName, id).delete();
+            }
             return res.status(200).json({ status: 'success', message: 'Registro deletado' });
         } catch (error) {
             console.error(`[${collectionName} API] Error DELETE /:id:`, error);

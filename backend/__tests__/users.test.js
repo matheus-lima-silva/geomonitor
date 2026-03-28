@@ -25,7 +25,41 @@ describe('Users API Integration Tests (Mocked DB)', () => {
         });
     }
 
-    it('permite autoatualização do próprio perfil e preserva perfil/status quando o usuário não pode se gerenciar', async () => {
+    it('promove primeiro utilizador a Administrador Ativo no bootstrap', async () => {
+        const response = await request(app)
+            .post('/api/users/bootstrap')
+            .set(AUTH_HEADER)
+            .send({
+                data: {
+                    nome: 'Primeiro Utilizador',
+                    cargo: 'Campo',
+                },
+            });
+
+        expect(response.status).toBe(201);
+        expect(response.body.status).toBe('success');
+        expect(response.body.data.nome).toBe('Primeiro Utilizador');
+        expect(response.body.data.perfil).toBe('Administrador');
+        expect(response.body.data.status).toBe('Ativo');
+    });
+
+    it('GET /api/users/me retorna o proprio perfil', async () => {
+        await seedViewerProfile();
+
+        const response = await request(app)
+            .get('/api/users/me')
+            .set(AUTH_HEADER);
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toEqual(
+            expect.objectContaining({
+                id: 'test-admin-123',
+                nome: 'Viewer Tester',
+            }),
+        );
+    });
+
+    it('permite autoatualizacao do proprio perfil e preserva perfil/status quando o utilizador nao pode se gerenciar', async () => {
         await seedViewerProfile();
 
         const putResponse = await request(app)
