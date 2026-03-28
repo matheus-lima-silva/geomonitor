@@ -1,6 +1,6 @@
 # TODO - Migracao GeoMonitor + GeoRelat + Tigris
 
-Status atual: `78/82` itens concluidos (`95,1%`), `4` pendentes (cutover-cleanup: virar flags em producao, ligar worker, remover Firestore).
+Status atual: `81/82` itens concluidos (`98,8%`), `1` pendente (remover dependencias operacionais de Firestore — pos-estabilizacao).
 
 ## infra/schema
 
@@ -121,7 +121,7 @@ Avanco desta rodada:
 
 ## cutover-cleanup
 
-- [ ] virar `DATA_BACKEND=postgres`
-- [ ] virar `MEDIA_BACKEND=tigris`
-- [ ] ligar worker python
+- [x] virar `DATA_BACKEND=postgres`
+- [x] virar `MEDIA_BACKEND=tigris`
+- [x] ligar worker python
 - [ ] remover dependencias operacionais de Firestore
