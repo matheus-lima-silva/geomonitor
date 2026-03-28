@@ -30,7 +30,7 @@ const postgresStore = require('../data/postgresStore');
 const COLLECTION_TABLE_MAP = [
     { collection: 'users',                 table: 'users',                    pkCol: 'id' },
     { collection: 'projects',              table: 'projects',                 pkCol: 'id' },
-    { collection: 'operating_licenses',    table: 'operating_licenses',       pkCol: 'id' },
+    { collection: 'operatingLicenses',      table: 'operating_licenses',       pkCol: 'id' },
     { collection: 'inspections',           table: 'inspections',              pkCol: 'id' },
     { collection: 'reportTemplates',       table: 'report_templates',         pkCol: 'id' },
     { collection: 'erosions',              table: 'erosions',                 pkCol: 'id' },

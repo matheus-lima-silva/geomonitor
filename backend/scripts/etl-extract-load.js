@@ -65,7 +65,7 @@ function buildDispatch() {
             handler: (data) => projectRepository.save(data),
         },
         {
-            name: 'operating_licenses',
+            name: 'operatingLicenses',
             handler: (data) => operatingLicenseRepository.save(data),
         },
         {
