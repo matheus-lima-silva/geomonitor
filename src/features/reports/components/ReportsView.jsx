@@ -275,6 +275,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [compoundPreflights, setCompoundPreflights] = useState({});
   const [compoundWorkspaceSelections, setCompoundWorkspaceSelections] = useState({});
   const [libraryFilters, setLibraryFilters] = useState({ workspaceId: '', towerId: '', captionQuery: '', dateFrom: '', dateTo: '' });
+  const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState('');
   const [workspaceDraft, setWorkspaceDraft] = useState({ projectId: '', nome: '', descricao: '' });
   const [dossierDraft, setDossierDraft] = useState({ nome: '', observacoes: '', scopeJson: buildDefaultDossierScope() });
   const [compoundDraft, setCompoundDraft] = useState({ nome: '', texto: '' });
@@ -448,6 +449,19 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     })),
     [projectNamesById, workspaces],
   );
+
+  const filteredWorkspaceList = useMemo(() => {
+    const q = workspaceSearchQuery.trim().toLowerCase();
+    return workspaces.filter((ws) => {
+      if (selectedProjectId && ws.projectId !== selectedProjectId) return false;
+      if (!q) return true;
+      return (
+        (ws.nome || '').toLowerCase().includes(q) ||
+        (ws.descricao || '').toLowerCase().includes(q) ||
+        (ws.projectId || '').toLowerCase().includes(q)
+      );
+    });
+  }, [workspaces, selectedProjectId, workspaceSearchQuery]);
 
   const projectTowerOptions = useMemo(
     () => getProjectTowerList(selectedProject),
@@ -1772,21 +1786,42 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             )}
           </Card>
 
-          <Card variant="nested" className="flex flex-col gap-3">
-            {workspaces.map((workspace) => (
+          <Card variant="nested" className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-48">
+                <Select id="ws-list-project" label="Filtrar por Empreendimento" value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
+                  <option value="">Todos</option>
+                  {projects.map((project) => <option key={project.id} value={project.id}>{project.id} - {project.nome || project.id}</option>)}
+                </Select>
+              </div>
+              <div className="flex-1 min-w-48">
+                <Input id="ws-list-search" label="Buscar Workspace" placeholder="Nome, descricao ou empreendimento..." value={workspaceSearchQuery} onChange={(event) => setWorkspaceSearchQuery(event.target.value)} />
+              </div>
+              <div className="flex items-center gap-3">
+                {(selectedProjectId || workspaceSearchQuery) ? (
+                  <Button variant="outline" onClick={() => { setSelectedProjectId(''); setWorkspaceSearchQuery(''); }}>
+                    <AppIcon name="close" />
+                    Limpar Filtros
+                  </Button>
+                ) : null}
+                <span className="text-xs text-slate-500">{filteredWorkspaceList.length} de {workspaces.length} workspace(s)</span>
+              </div>
+            </div>
+            {filteredWorkspaceList.map((workspace) => (
               <article key={workspace.id} className="rounded-xl border border-slate-200 bg-white p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div><strong className="text-slate-800">{workspace.nome || workspace.id}</strong><p className="mt-1 mb-0 text-xs text-slate-500">{workspace.descricao || 'Sem descricao'}</p></div>
                   <span className={`rounded-full px-2 py-1 text-xs ${tone(workspace.status)}`}>{workspace.status || 'draft'}</span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
-                  <span>Empreendimento: {workspace.projectId || '-'}</span>
+                  <span>Empreendimento: {projectNamesById.get(workspace.projectId) || workspace.projectId || '-'}</span>
                   <span>Slots: {Array.isArray(workspace.slots) ? workspace.slots.length : 0}</span>
                   <span>Atualizado: {fmt(workspace.updatedAt)}</span>
                 </div>
               </article>
             ))}
             {workspaces.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">Nenhum workspace criado ainda.</div> : null}
+            {workspaces.length > 0 && filteredWorkspaceList.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">Nenhum workspace encontrado com o filtro atual.</div> : null}
           </Card>
         </>
       ) : null}
