@@ -167,7 +167,8 @@ describe('InspectionsView wizard flow', () => {
     await clickByText('Avancar');
     expect(showMock).toHaveBeenCalled();
 
-    const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
     changeInput(dateInputs[0], '2026-02-06');
@@ -227,7 +228,8 @@ describe('InspectionsView wizard flow', () => {
 
     await clickByText('Nova Vistoria');
 
-    const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
     changeInput(dateInputs[0], '2026-03-09');
@@ -262,7 +264,8 @@ describe('InspectionsView wizard flow', () => {
 
     await clickByText('Nova Vistoria');
 
-    const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
     changeInput(dateInputs[0], '2026-03-10');
@@ -310,7 +313,8 @@ describe('InspectionsView wizard flow', () => {
 
     await clickByText('Nova Vistoria');
 
-    const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
     changeInput(dateInputs[0], '2026-03-16');
@@ -360,7 +364,8 @@ describe('InspectionsView wizard flow', () => {
     });
 
     await clickByText('Nova Vistoria');
-    const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
     changeInput(dateInputs[0], '2026-03-20');
@@ -394,7 +399,8 @@ describe('InspectionsView wizard flow', () => {
     renderView(root);
 
     await clickByText('Nova Vistoria');
-    const projectSelect = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
     changeInput(dateInputs[0], '2026-04-01');
