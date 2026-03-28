@@ -1,6 +1,6 @@
 # TODO - Migracao GeoMonitor + GeoRelat + Tigris
 
-Status atual: `74/80` itens concluidos (`92,5%`), `6` pendentes.
+Status atual: `78/82` itens concluidos (`95,1%`), `4` pendentes (cutover-cleanup: virar flags em producao, ligar worker, remover Firestore).
 
 ## infra/schema
 
@@ -104,10 +104,10 @@ Avanco desta rodada:
 
 ## etl-migracao
 
-- [ ] extract Firestore
-- [ ] sanitize
-- [ ] load Postgres
-- [ ] backfill de fotos para Tigris
+- [x] extract Firestore
+- [x] sanitize
+- [x] load Postgres
+- [x] backfill de fotos para Tigris
 
 ## relatorio-composto
 

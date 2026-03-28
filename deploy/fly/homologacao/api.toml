@@ -1,6 +1,9 @@
 app = "geomonitor-api-hml"
 primary_region = "gru"
 
+[build]
+  dockerfile = "../../../backend/Dockerfile"
+
 [deploy]
   strategy = "rolling"
 
@@ -10,6 +13,9 @@ primary_region = "gru"
   TRUST_PROXY = "1"
   API_BASE_URL = "https://geomonitor-api-hml.fly.dev/api"
   FRONTEND_URL = "https://geomonitor-web-hml.fly.dev"
+  DATA_BACKEND = "postgres"
+  MEDIA_BACKEND = "tigris"
+  REPORT_EXECUTION_BACKEND = "python"
 
 [http_service]
   internal_port = 8080
