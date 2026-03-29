@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, Card, HintText, Input, Select, Textarea } from '../../../components/ui';
+import SearchableSelect from '../../../components/ui/SearchableSelect';
 import { subscribeProjects } from '../../../services/projectService';
 import {
   createProjectDossier,
@@ -97,24 +98,6 @@ function buildDefaultCaption(fileName = '') {
   return String(fileName || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
 }
 
-function SearchableProjectSelect({ id, label, hint, value, onChange, projects, placeholder = 'Selecione...' }) {
-  const [query, setQuery] = useState('');
-  const filtered = query.trim()
-    ? projects.filter((p) => {
-        const q = query.toLowerCase();
-        return (p.nome || '').toLowerCase().includes(q) || (p.id || '').toLowerCase().includes(q);
-      })
-    : projects;
-  return (
-    <div className="flex flex-col gap-1">
-      <Input label={label} hint={hint} placeholder="Buscar empreendimento..." value={query} onChange={(e) => setQuery(e.target.value)} />
-      <Select id={id} value={value} onChange={onChange}>
-        <option value="">{placeholder}</option>
-        {filtered.map((p) => <option key={p.id} value={p.id}>{p.id} - {p.nome || p.id}</option>)}
-      </Select>
-    </div>
-  );
-}
 
 function normalizeTowerToken(rawValue = '') {
   const normalized = String(rawValue || '')
@@ -458,6 +441,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => (a.nome || a.id).localeCompare(b.nome || b.id, 'pt-BR', { sensitivity: 'base' })),
     [projects],
+  );
+
+  const projectOptions = useMemo(
+    () => sortedProjects.map((p) => ({ value: p.id, label: `${p.id} - ${p.nome || p.id}` })),
+    [sortedProjects],
   );
 
   const projectNamesById = useMemo(
@@ -1408,7 +1396,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
           </Card>
 
           <Card variant="nested" className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <SearchableProjectSelect id="rw-project" label="Empreendimento" hint="Toda inferencia espacial acontece dentro do empreendimento selecionado." value={workspaceDraft.projectId} onChange={(event) => { setWorkspaceDraft((prev) => ({ ...prev, projectId: event.target.value })); setSelectedProjectId(event.target.value); }} projects={sortedProjects} />
+            <SearchableSelect id="rw-project" label="Empreendimento" hint="Toda inferencia espacial acontece dentro do empreendimento selecionado." value={workspaceDraft.projectId} onChange={(val) => { setWorkspaceDraft((prev) => ({ ...prev, projectId: val })); setSelectedProjectId(val); }} options={projectOptions} placeholder="Buscar empreendimento..." />
             <Input id="rw-name" label="Nome" value={workspaceDraft.nome} onChange={(event) => setWorkspaceDraft((prev) => ({ ...prev, nome: event.target.value }))} placeholder="Ex: RT LT Norte - Abril" />
             <Input id="rw-desc" label="Descricao" hint="Os textos-base do empreendimento serao copiados para um rascunho editavel." value={workspaceDraft.descricao} onChange={(event) => setWorkspaceDraft((prev) => ({ ...prev, descricao: event.target.value }))} placeholder="Escopo, periodo ou observacoes" />
             <div className="md:col-span-3 flex justify-end">
@@ -1810,7 +1798,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
           <Card variant="nested" className="flex flex-col gap-4">
             <div className="flex flex-wrap items-end gap-3">
               <div className="flex-1 min-w-48">
-                <SearchableProjectSelect id="ws-list-project" label="Filtrar por Empreendimento" value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} projects={sortedProjects} placeholder="Todos" />
+                <SearchableSelect id="ws-list-project" label="Filtrar por Empreendimento" value={selectedProjectId} onChange={(val) => setSelectedProjectId(val)} options={[{ value: '', label: 'Todos' }, ...projectOptions]} placeholder="Buscar empreendimento..." />
               </div>
               <div className="flex-1 min-w-48">
                 <Input id="ws-list-search" label="Buscar Workspace" placeholder="Nome, descricao ou empreendimento..." value={workspaceSearchQuery} onChange={(event) => setWorkspaceSearchQuery(event.target.value)} />
@@ -1847,7 +1835,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       {tab === 'library' ? (
         <>
           <Card variant="nested" className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <SearchableProjectSelect id="library-project" label="Empreendimento" hint="A biblioteca cruza todas as fotos do empreendimento, nao apenas as de um workspace." value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} projects={sortedProjects} />
+            <SearchableSelect id="library-project" label="Empreendimento" hint="A biblioteca cruza todas as fotos do empreendimento, nao apenas as de um workspace." value={selectedProjectId} onChange={(val) => setSelectedProjectId(val)} options={projectOptions} placeholder="Buscar empreendimento..." />
             <Select
               id="library-workspace"
               label="Workspace"
@@ -1948,7 +1936,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       {tab === 'dossier' ? (
         <>
           <Card variant="nested" className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <SearchableProjectSelect id="dossier-project" label="Empreendimento" hint="O dossie consolida dados operacionais de um unico empreendimento." value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} projects={sortedProjects} />
+            <SearchableSelect id="dossier-project" label="Empreendimento" hint="O dossie consolida dados operacionais de um unico empreendimento." value={selectedProjectId} onChange={(val) => setSelectedProjectId(val)} options={projectOptions} placeholder="Buscar empreendimento..." />
             <Input id="dossier-name" label="Nome do Dossie" value={dossierDraft.nome} onChange={(event) => setDossierDraft((prev) => ({ ...prev, nome: event.target.value }))} placeholder="Ex: Dossie operacional" />
             <Textarea id="dossier-notes" label="Observacoes" hint="O dossie tera seu proprio rascunho persistido, independente do workspace." rows={2} value={dossierDraft.observacoes} onChange={(event) => setDossierDraft((prev) => ({ ...prev, observacoes: event.target.value }))} />
             <div className="md:col-span-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
