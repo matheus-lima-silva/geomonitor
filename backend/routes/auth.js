@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const authCredentials = require('../repositories/authCredentialsRepository');
 const { buildBootstrapProfile, loadUserProfile, saveUserProfile } = require('../utils/userProfiles');
+const { userRepository } = require('../repositories');
 const { getMailTransport, sendResetEmail } = require('../utils/mailer');
 
 const router = express.Router();
@@ -64,17 +65,28 @@ router.post('/register', async (req, res) => {
             return res.status(409).json({ status: 'error', code: 'EMAIL_IN_USE', message: 'Este email já está cadastrado.' });
         }
 
-        const userId = crypto.randomUUID();
+        // Reuse existing profile if one already exists with this email (e.g. migrated from Firebase)
+        const allUsers = await userRepository.list();
+        const existingProfile = allUsers.find(
+            (u) => String(u.email || '').trim().toLowerCase() === trimmedEmail.toLowerCase(),
+        );
+
+        const userId = existingProfile?.id || crypto.randomUUID();
         const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
         await authCredentials.create({ userId, email: trimmedEmail, passwordHash });
 
-        const profile = buildBootstrapProfile(
-            { uid: userId, email: trimmedEmail },
-            { nome: trimmedNome },
-            { updatedBy: trimmedEmail },
-        );
-        await saveUserProfile(userId, profile);
+        let profile;
+        if (existingProfile) {
+            profile = existingProfile;
+        } else {
+            profile = buildBootstrapProfile(
+                { uid: userId, email: trimmedEmail },
+                { nome: trimmedNome },
+                { updatedBy: trimmedEmail },
+            );
+            await saveUserProfile(userId, profile);
+        }
 
         return res.status(201).json({
             status: 'success',
