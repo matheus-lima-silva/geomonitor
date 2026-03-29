@@ -1,6 +1,5 @@
-import { createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth } from '../firebase/config';
-import { bootstrapCurrentUserProfile, getCurrentUserProfile } from './userService';
+import { API_BASE_URL } from '../utils/serviceFactory';
+import { storeTokens, clearTokens } from '../utils/tokenStorage';
 
 function mapRoleFromPerfil(perfil) {
   if (perfil === 'Administrador') return 'admin';
@@ -8,11 +7,11 @@ function mapRoleFromPerfil(perfil) {
   return 'viewer';
 }
 
-function toProfile(authUser, profile) {
+function toProfile(profile) {
   return {
-    uid: authUser.uid,
-    email: authUser.email,
-    nome: profile?.nome || authUser.displayName || '',
+    uid: profile?.id || profile?.uid || '',
+    email: profile?.email || '',
+    nome: profile?.nome || '',
     cargo: profile?.cargo || '',
     departamento: profile?.departamento || '',
     telefone: profile?.telefone || '',
@@ -23,47 +22,78 @@ function toProfile(authUser, profile) {
   };
 }
 
-export async function loadProfile(authUser) {
-  const profile = await bootstrapCurrentUserProfile({
-    nome: authUser.displayName || '',
-    email: authUser.email || '',
-  }, { updatedBy: authUser.email || 'app' });
-  return toProfile(authUser, profile);
-}
-
-export async function login(email, password) {
-  const result = await signInWithEmailAndPassword(auth, email, password);
-  return loadProfile(result.user);
-}
-
-export async function register(email, password, nome = '') {
-  const result = await createUserWithEmailAndPassword(auth, email, password);
-
+async function parseApiError(res) {
   try {
-    const profile = await bootstrapCurrentUserProfile({
-      nome: nome || '',
-      email,
-      cargo: '',
-      departamento: '',
-      telefone: '',
-      perfilAtualizadoPrimeiroLogin: false,
-    }, {
-      updatedBy: email,
-    });
-
-    return toProfile(result.user, profile);
-  } catch (error) {
-    if (result.user) {
-      await deleteUser(result.user).catch(console.error);
-    }
-    throw new Error('Falha ao criar perfil. A conta foi desfeita. Tente novamente.');
+    const body = await res.json();
+    const error = new Error(body.message || 'Erro desconhecido.');
+    error.code = body.code || '';
+    return error;
+  } catch {
+    return new Error('Erro de comunicação com o servidor.');
   }
 }
 
-export function resetPassword(email) {
-  return sendPasswordResetEmail(auth, email);
+export async function login(email, password) {
+  const res = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!res.ok) throw await parseApiError(res);
+
+  const { data } = await res.json();
+  storeTokens(data.accessToken, data.refreshToken);
+  return toProfile(data.user);
+}
+
+export async function register(email, password, nome = '') {
+  const res = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, nome }),
+  });
+
+  if (!res.ok) throw await parseApiError(res);
+
+  const { data } = await res.json();
+  return toProfile(data.user);
+}
+
+export async function resetPassword(email) {
+  const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!res.ok) throw await parseApiError(res);
+}
+
+export async function confirmResetPassword(token, newPassword) {
+  const res = await fetch(`${API_BASE_URL}/auth/reset-password/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, newPassword }),
+  });
+
+  if (!res.ok) throw await parseApiError(res);
 }
 
 export function logout() {
-  return signOut(auth);
+  clearTokens();
+}
+
+export async function loadProfile() {
+  const { getAuthToken } = await import('../utils/serviceFactory');
+  const token = await getAuthToken();
+
+  const res = await fetch(`${API_BASE_URL}/users/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) return null;
+
+  const { data } = await res.json();
+  return toProfile(data);
 }

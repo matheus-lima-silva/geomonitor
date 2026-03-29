@@ -1,4 +1,4 @@
-import { auth } from '../firebase/config';
+import { getAuthToken } from './serviceFactory';
 
 export function isNetworkFailureError(error) {
     const message = String(error?.message || '').trim();
@@ -62,7 +62,7 @@ export async function fetchWithHateoas(hateoasLink, body = null, preferredBaseUr
         throw new Error('Link HATEOAS inválido ou ação não permitida.');
     }
 
-    const token = await auth?.currentUser?.getIdToken();
+    const token = await getAuthToken();
     if (!token) throw new Error('Usuário não autenticado.');
 
     const options = {

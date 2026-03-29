@@ -48,3 +48,9 @@ export async function bootstrapCurrentUserProfile(payload, meta = {}) {
   });
   return result?.data || null;
 }
+
+export async function sendUserResetEmail(id) {
+  await requestUser(`${API_BASE_URL}/users/${encodeURIComponent(id)}/send-reset`, {
+    method: 'POST',
+  });
+}

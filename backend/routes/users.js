@@ -1,9 +1,14 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const { verifyToken, requireAdmin, getCachedProfile, setCachedProfile, invalidateCachedProfile } = require('../utils/authMiddleware');
 const { createHateoasResponse } = require('../utils/hateoas');
 const { buildBootstrapProfile, loadUserProfile, sanitizeUserProfileInput } = require('../utils/userProfiles');
 const { userRepository } = require('../repositories');
+const authCredentials = require('../repositories/authCredentialsRepository');
+const { getMailTransport, sendResetEmail } = require('../utils/mailer');
+
+const ADMIN_RESET_TOKEN_EXPIRY_HOURS = 48;
 
 const MANAGER_ROLES = new Set(['Admin', 'Administrador', 'Editor', 'Gerente']);
 const adminGuards = Array.isArray(requireAdmin) ? requireAdmin : [requireAdmin];
@@ -206,6 +211,39 @@ router.put('/:id', verifyToken, async (req, res) => {
         },
     };
     return saveUserHandler(req, res, true);
+});
+
+router.post('/:id/send-reset', verifyToken, ...adminGuards, async (req, res) => {
+    try {
+        const targetId = String(req.params.id || '').trim();
+
+        const profile = await userRepository.getById(targetId);
+        if (!profile) {
+            return res.status(404).json({ status: 'error', message: 'Usuário não encontrado.' });
+        }
+
+        const creds = await authCredentials.getByUserId(targetId);
+        if (!creds) {
+            return res.status(404).json({ status: 'error', message: 'Credenciais não encontradas para este usuário. O usuário pode ainda não ter sido migrado.' });
+        }
+
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + ADMIN_RESET_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
+
+        await authCredentials.setResetToken(creds.email, resetToken, expiresAt);
+
+        const transport = getMailTransport();
+        if (transport) {
+            await sendResetEmail(transport, creds.email, resetToken, ADMIN_RESET_TOKEN_EXPIRY_HOURS);
+        } else {
+            console.warn(`[users API] SMTP não configurado. Reset token gerado para ${creds.email} mas email não enviado.`);
+        }
+
+        return res.status(200).json({ status: 'success', message: 'Email de reset enviado.' });
+    } catch (error) {
+        console.error('[users API] Error POST /:id/send-reset:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao enviar email de reset.' });
+    }
 });
 
 router.delete('/:id', verifyToken, ...adminGuards, async (req, res) => {

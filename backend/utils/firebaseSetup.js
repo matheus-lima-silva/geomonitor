@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 
 let db;
-let auth;
 
 const BASE_PATH = ['shared', 'geomonitor'];
 
@@ -49,8 +48,7 @@ function initFirebase() {
         });
 
         db = admin.firestore();
-        auth = admin.auth();
-        console.log('[Geomonitor API] Firebase Admin SDK inicializado com sucesso.');
+        console.log('[Geomonitor API] Firebase Admin SDK inicializado com sucesso (Firestore only).');
     } catch (error) {
         console.error('[Geomonitor API] Erro ao inicializar Firebase Admin:', error);
     }
@@ -61,13 +59,6 @@ function getDb() {
         initFirebase();
     }
     return db;
-}
-
-function getAuth() {
-    if (!auth) {
-        initFirebase();
-    }
-    return auth;
 }
 
 function getCollection(colName) {
@@ -82,7 +73,6 @@ function getDocRef(colName, docId) {
 module.exports = {
     initFirebase,
     getDb,
-    getAuth,
     getCollection,
     getDocRef,
     admin

@@ -1,4 +1,4 @@
-import { auth } from '../firebase/config';
+import { getAccessToken, refreshAccessToken } from './tokenStorage';
 import { fetchWithHateoas, isNetworkFailureError, normalizeRequestError } from './apiClient';
 
 const FALLBACK_PROD_API_BASE_URL = 'https://geomonitor-api.fly.dev/api';
@@ -136,7 +136,10 @@ function resolveApiBaseUrl() {
 export const API_BASE_URL = resolveApiBaseUrl();
 
 export async function getAuthToken(forceRefresh = false) {
-  const token = await auth?.currentUser?.getIdToken(forceRefresh);
+  let token = getAccessToken();
+  if (!token || forceRefresh) {
+    token = await refreshAccessToken();
+  }
   if (!token) throw new Error('Usuário não autenticado.');
   return token;
 }

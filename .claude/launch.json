@@ -3,13 +3,13 @@
   "configurations": [
     {
       "name": "frontend",
-      "runtimeExecutable": "node",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
       "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "5173"],
       "port": 5173
     },
     {
       "name": "backend",
-      "runtimeExecutable": "node",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
       "runtimeArgs": ["backend/server.js"],
       "port": 8080
     }

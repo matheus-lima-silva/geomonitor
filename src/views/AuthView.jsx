@@ -34,19 +34,17 @@ function getPasswordStrength(rules) {
 function getAuthErrorMessage(error) {
   const code = String(error?.code || '').trim();
   const byCode = {
-    'auth/invalid-email': 'Email invalido.',
-    'auth/missing-email': 'Informe o email.',
-    'auth/missing-password': 'Informe a senha.',
-    'auth/invalid-credential': 'Email ou senha invalidos.',
-    'auth/user-not-found': 'Conta nao encontrada para este email.',
-    'auth/wrong-password': 'Senha incorreta.',
-    'auth/user-disabled': 'Conta desativada. Entre em contato com um administrador.',
-    'auth/email-already-in-use': 'Este email ja esta em uso.',
-    'auth/weak-password': 'Senha fraca. Use uma senha mais forte.',
-    'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
-    'auth/network-request-failed': 'Falha de rede. Verifique sua conexao.',
+    INVALID_EMAIL: 'Email invalido.',
+    MISSING_NAME: 'Informe o nome.',
+    MISSING_CREDENTIALS: 'Informe email e senha.',
+    INVALID_CREDENTIALS: 'Email ou senha incorretos.',
+    EMAIL_IN_USE: 'Este email ja esta em uso.',
+    WEAK_PASSWORD: 'Senha fraca. Use uma senha mais forte.',
+    PROFILE_NOT_FOUND: 'Perfil nao encontrado. Contate um administrador.',
+    MIGRATION_RESET_REQUIRED: 'Sua conta foi migrada. Redefina sua senha clicando em "Esqueci minha senha".',
   };
   if (byCode[code]) return byCode[code];
+  if (error?.message) return error.message;
   return 'Nao foi possivel concluir a acao. Tente novamente.';
 }
 

@@ -75,7 +75,6 @@ jest.mock('./utils/firebaseSetup', () => {
         getCollection,
         getDocRef,
         initFirebase: jest.fn(),
-        getAuth: jest.fn(),
         __resetMockDb,
     };
 });

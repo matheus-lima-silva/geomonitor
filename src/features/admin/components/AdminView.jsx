@@ -3,7 +3,7 @@ import AppIcon from '../../../components/AppIcon';
 import { Button, Input, Modal, Select, Textarea } from '../../../components/ui';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
-import { deleteUser, saveUser } from '../../../services/userService';
+import { deleteUser, saveUser, sendUserResetEmail } from '../../../services/userService';
 import { saveRulesConfig } from '../../../services/rulesService';
 import {
   CRITICALITY_DEFAULTS,
@@ -72,6 +72,15 @@ function AdminView({
     if (!window.confirm(`Excluir utilizador ${uid}?`)) return;
     await deleteUser(uid);
     show('Utilizador excluido.', 'success');
+  }
+
+  async function handleSendReset(uid) {
+    try {
+      await sendUserResetEmail(uid);
+      show('Email de reset enviado.', 'success');
+    } catch {
+      show('Falha ao enviar email de reset.', 'error');
+    }
   }
 
   function openNewUser() {
@@ -203,6 +212,12 @@ function AdminView({
                               Inativar
                             </Button>
                           </>
+                        )}
+                        {canApproveUsers && normalizeUserStatus(item.status) !== 'Inativo' && (
+                          <Button variant="outline" size="sm" onClick={() => handleSendReset(item.id)}>
+                            <AppIcon name="mail" />
+                            Reset
+                          </Button>
                         )}
                         <Button variant="danger" size="sm" onClick={() => handleDeleteUser(item.id)}>
                           <AppIcon name="trash" />

@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../firebase/config', () => ({
-  auth: {
-    currentUser: {
-      getIdToken: vi.fn()
-    }
-  }
+vi.mock('../../utils/tokenStorage', () => ({
+  getAccessToken: vi.fn(() => 'token-123'),
+  refreshAccessToken: vi.fn(() => Promise.resolve('token-123')),
+  storeTokens: vi.fn(),
+  clearTokens: vi.fn(),
+  hasStoredSession: vi.fn(() => true),
 }));
-
-import { auth } from '../../firebase/config';
 import { deleteInspection, saveInspection, subscribeInspections } from '../inspectionService';
 
 async function flushPromises() {
@@ -21,9 +19,6 @@ describe('inspectionService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', fetchMock);
-    auth.currentUser = {
-      getIdToken: vi.fn().mockResolvedValue('token-123')
-    };
   });
 
   it('subscribeInspections busca lista via API', async () => {
@@ -94,9 +89,9 @@ describe('inspectionService', () => {
   });
 
   it('saveInspection falha sem autenticacao', async () => {
-    auth.currentUser = {
-      getIdToken: vi.fn().mockResolvedValue('')
-    };
+    const { getAccessToken, refreshAccessToken } = await import('../../utils/tokenStorage');
+    getAccessToken.mockReturnValueOnce(null);
+    refreshAccessToken.mockResolvedValueOnce(null);
 
     await expect(saveInspection({ id: 'VS-1' })).rejects.toThrow(/autenticado/i);
     expect(fetchMock).not.toHaveBeenCalled();

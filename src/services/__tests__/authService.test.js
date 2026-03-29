@@ -1,166 +1,199 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('firebase/auth', () => ({
-  createUserWithEmailAndPassword: vi.fn(),
-  deleteUser: vi.fn(),
-  sendPasswordResetEmail: vi.fn(),
-  signInWithEmailAndPassword: vi.fn(),
-  signOut: vi.fn(),
+vi.mock('../../utils/tokenStorage', () => ({
+  getAccessToken: vi.fn(() => 'token-123'),
+  refreshAccessToken: vi.fn(() => Promise.resolve('token-123')),
+  storeTokens: vi.fn(),
+  clearTokens: vi.fn(),
+  hasStoredSession: vi.fn(() => true),
 }));
 
-vi.mock('../userService', () => ({
-  bootstrapCurrentUserProfile: vi.fn(),
-  getCurrentUserProfile: vi.fn(),
-}));
-
-vi.mock('../../firebase/config', () => ({
-  auth: { name: 'mock-auth' },
-}));
-
-import {
-  createUserWithEmailAndPassword,
-  deleteUser,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-  signOut,
-} from 'firebase/auth';
-import { auth } from '../../firebase/config';
-import { bootstrapCurrentUserProfile, getCurrentUserProfile } from '../userService';
-import {
-  loadProfile,
-  login,
-  logout,
-  register,
-  resetPassword,
-} from '../authService';
+import { storeTokens, clearTokens } from '../../utils/tokenStorage';
+import { login, register, resetPassword, logout, loadProfile } from '../authService';
 
 describe('authService', () => {
+  const fetchMock = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  describe('login', () => {
+    it('chama POST /auth/login, armazena tokens e retorna perfil', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          status: 'success',
+          data: {
+            accessToken: 'acc-tok',
+            refreshToken: 'ref-tok',
+            user: {
+              id: 'U-1',
+              email: 'ana@empresa.com',
+              nome: 'Ana',
+              perfil: 'Gerente',
+              status: 'Ativo',
+            },
+          },
+        }),
+      });
+
+      const profile = await login('ana@empresa.com', 'senha123');
+
+      expect(fetchMock.mock.calls[0][0]).toContain('/auth/login');
+      expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+        email: 'ana@empresa.com',
+        password: 'senha123',
+      });
+      expect(storeTokens).toHaveBeenCalledWith('acc-tok', 'ref-tok');
+      expect(profile).toEqual(expect.objectContaining({
+        uid: 'U-1',
+        email: 'ana@empresa.com',
+        nome: 'Ana',
+        role: 'manager',
+      }));
+    });
+
+    it('lança erro quando API retorna 401', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({
+          status: 'error',
+          code: 'INVALID_CREDENTIALS',
+          message: 'Email ou senha incorretos.',
+        }),
+      });
+
+      await expect(login('x@empresa.com', 'errada')).rejects.toThrow('Email ou senha incorretos.');
+    });
+  });
+
+  describe('register', () => {
+    it('chama POST /auth/register e retorna perfil', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          status: 'success',
+          data: {
+            user: {
+              id: 'U-9',
+              email: 'novo@empresa.com',
+              nome: 'Novo',
+              perfil: 'Utilizador',
+              status: 'Pendente',
+            },
+          },
+        }),
+      });
+
+      const profile = await register('novo@empresa.com', 'Senha1A', 'Novo');
+
+      expect(fetchMock.mock.calls[0][0]).toContain('/auth/register');
+      expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+        email: 'novo@empresa.com',
+        password: 'Senha1A',
+        nome: 'Novo',
+      });
+      expect(profile).toEqual(expect.objectContaining({
+        uid: 'U-9',
+        email: 'novo@empresa.com',
+        nome: 'Novo',
+        role: 'viewer',
+        status: 'Pendente',
+      }));
+    });
+
+    it('lança erro quando email já existe', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({
+          status: 'error',
+          code: 'EMAIL_IN_USE',
+          message: 'Este email já está cadastrado.',
+        }),
+      });
+
+      await expect(register('x@empresa.com', 'Senha1A', 'X')).rejects.toThrow('Este email já está cadastrado.');
+    });
+  });
+
+  describe('resetPassword', () => {
+    it('chama POST /auth/reset-password', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ status: 'success' }),
+      });
+
+      await resetPassword('reset@empresa.com');
+
+      expect(fetchMock.mock.calls[0][0]).toContain('/auth/reset-password');
+      expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: 'reset@empresa.com' });
+    });
+  });
+
+  describe('logout', () => {
+    it('limpa os tokens', () => {
+      logout();
+      expect(clearTokens).toHaveBeenCalled();
+    });
+  });
+
+  describe('loadProfile', () => {
+    it('chama GET /users/me com token e retorna perfil', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          status: 'success',
+          data: {
+            id: 'U-1',
+            email: 'ana@empresa.com',
+            nome: 'Ana',
+            perfil: 'Administrador',
+            status: 'Ativo',
+          },
+        }),
+      });
+
+      const profile = await loadProfile();
+
+      expect(fetchMock.mock.calls[0][0]).toContain('/users/me');
+      expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer token-123');
+      expect(profile).toEqual(expect.objectContaining({
+        uid: 'U-1',
+        role: 'admin',
+      }));
+    });
+
+    it('retorna null quando API retorna 404', async () => {
+      fetchMock.mockResolvedValue({ ok: false, json: vi.fn() });
+
+      const profile = await loadProfile();
+      expect(profile).toBeNull();
+    });
   });
 
   it.each([
     ['Administrador', 'admin'],
     ['Gerente', 'manager'],
     ['Utilizador', 'viewer'],
-  ])('loadProfile mapeia perfil %s para role %s', async (perfil, role) => {
-    vi.mocked(bootstrapCurrentUserProfile).mockResolvedValue({
-      nome: 'Maria',
-      perfil,
-      status: 'Ativo',
-      cargo: 'Engenheira',
-      departamento: 'Campo',
-      telefone: '9999',
-      perfilAtualizadoPrimeiroLogin: true,
+  ])('perfil %s mapeia para role %s', async (perfil, role) => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        status: 'success',
+        data: {
+          accessToken: 'acc',
+          refreshToken: 'ref',
+          user: { id: 'U-1', email: 'a@b.com', nome: 'A', perfil, status: 'Ativo' },
+        },
+      }),
     });
 
-    const profile = await loadProfile({
-      uid: 'U-1',
-      email: 'maria@empresa.com',
-      displayName: 'Display Maria',
-    });
-
-    expect(bootstrapCurrentUserProfile).toHaveBeenCalledWith(
-      { nome: 'Display Maria', email: 'maria@empresa.com' },
-      { updatedBy: 'maria@empresa.com' },
-    );
+    const profile = await login('a@b.com', 'Senha1A');
     expect(profile.role).toBe(role);
-    expect(profile.nome).toBe('Maria');
-  });
-
-  it('login autentica e retorna perfil carregado da API', async () => {
-    vi.mocked(signInWithEmailAndPassword).mockResolvedValue({
-      user: {
-        uid: 'U-1',
-        email: 'ana@empresa.com',
-        displayName: 'Ana Display',
-      },
-    });
-    vi.mocked(bootstrapCurrentUserProfile).mockResolvedValue({
-      nome: 'Ana',
-      perfil: 'Gerente',
-      status: 'Ativo',
-    });
-
-    const profile = await login('ana@empresa.com', '123456');
-
-    expect(signInWithEmailAndPassword).toHaveBeenCalledWith(auth, 'ana@empresa.com', '123456');
-    expect(profile).toEqual(
-      expect.objectContaining({
-        uid: 'U-1',
-        email: 'ana@empresa.com',
-        nome: 'Ana',
-        role: 'manager',
-      }),
-    );
-  });
-
-  it('register cria utilizador, faz bootstrap do perfil via API e retorna perfil', async () => {
-    vi.mocked(createUserWithEmailAndPassword).mockResolvedValue({
-      user: {
-        uid: 'U-9',
-        email: 'novo@empresa.com',
-        displayName: '',
-      },
-    });
-    vi.mocked(bootstrapCurrentUserProfile).mockResolvedValue({
-      nome: 'Novo',
-      perfil: 'Utilizador',
-      status: 'Pendente',
-      cargo: '',
-      departamento: '',
-      telefone: '',
-      perfilAtualizadoPrimeiroLogin: false,
-    });
-
-    const profile = await register('novo@empresa.com', 'senha', 'Novo');
-
-    expect(createUserWithEmailAndPassword).toHaveBeenCalledWith(auth, 'novo@empresa.com', 'senha');
-    expect(bootstrapCurrentUserProfile).toHaveBeenCalledWith(
-      {
-        nome: 'Novo',
-        email: 'novo@empresa.com',
-        cargo: '',
-        departamento: '',
-        telefone: '',
-        perfilAtualizadoPrimeiroLogin: false,
-      },
-      { updatedBy: 'novo@empresa.com' },
-    );
-    expect(profile).toEqual(
-      expect.objectContaining({
-        uid: 'U-9',
-        email: 'novo@empresa.com',
-        nome: 'Novo',
-        role: 'viewer',
-      }),
-    );
-  });
-
-  it('register desfaz utilizador quando bootstrap falha', async () => {
-    const createdUser = {
-      uid: 'U-ERR',
-      email: 'falha@empresa.com',
-      displayName: '',
-    };
-    vi.mocked(createUserWithEmailAndPassword).mockResolvedValue({ user: createdUser });
-    vi.mocked(bootstrapCurrentUserProfile).mockRejectedValue(new Error('Bootstrap falhou'));
-    vi.mocked(deleteUser).mockResolvedValue(undefined);
-
-    await expect(register('falha@empresa.com', 'senha', 'Falha')).rejects.toThrow(
-      'Falha ao criar perfil. A conta foi desfeita. Tente novamente.',
-    );
-    expect(deleteUser).toHaveBeenCalledWith(createdUser);
-  });
-
-  it('resetPassword e logout delegam para firebase auth', async () => {
-    vi.mocked(sendPasswordResetEmail).mockResolvedValue(undefined);
-    vi.mocked(signOut).mockResolvedValue(undefined);
-
-    await resetPassword('reset@empresa.com');
-    await logout();
-
-    expect(sendPasswordResetEmail).toHaveBeenCalledWith(auth, 'reset@empresa.com');
-    expect(signOut).toHaveBeenCalledWith(auth);
   });
 });

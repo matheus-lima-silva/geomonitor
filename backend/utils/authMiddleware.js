@@ -1,4 +1,4 @@
-const { getAuth } = require('./firebaseSetup');
+const { verifyAccessToken } = require('./jwt');
 const { loadUserProfile } = require('./userProfiles');
 
 // In-memory profile cache: evita 1 leitura Firestore por request
@@ -89,7 +89,7 @@ function allowWorkerOrRunStack(roleStack) {
 }
 
 /**
- * Express middleware to verify Firebase ID Tokens.
+ * Express middleware to verify JWT access tokens.
  * Ensures that only authenticated users can access the route.
  */
 async function verifyToken(req, res, next) {
@@ -106,14 +106,11 @@ async function verifyToken(req, res, next) {
     }
 
     try {
-        const auth = getAuth();
-        const decodedToken = await auth.verifyIdToken(token);
-
-        // Attach the decoded user to the request object
-        req.user = decodedToken;
+        const decoded = verifyAccessToken(token);
+        req.user = { uid: decoded.sub, email: decoded.email };
         next();
     } catch (error) {
-        console.error('[Geomonitor API] Auth Error:', error);
+        console.error('[Geomonitor API] Auth Error:', error.message);
         return res.status(403).json({ status: 'error', message: 'Token de autenticação inválido ou expirado.' });
     }
 }

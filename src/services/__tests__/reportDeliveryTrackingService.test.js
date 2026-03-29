@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../firebase/config', () => ({
-  auth: {
-    currentUser: {
-      getIdToken: vi.fn()
-    }
-  }
+vi.mock('../../utils/tokenStorage', () => ({
+  getAccessToken: vi.fn(() => 'token-123'),
+  refreshAccessToken: vi.fn(() => Promise.resolve('token-123')),
+  storeTokens: vi.fn(),
+  clearTokens: vi.fn(),
+  hasStoredSession: vi.fn(() => true),
 }));
-
-import { auth } from '../../firebase/config';
 import {
   buildReportDeliveryTrackingId,
   normalizeReportDeliveryTrackingPayload,
@@ -26,9 +24,6 @@ describe('reportDeliveryTrackingService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', fetchMock);
-    auth.currentUser = {
-      getIdToken: vi.fn().mockResolvedValue('token-123')
-    };
   });
 
   afterEach(() => {

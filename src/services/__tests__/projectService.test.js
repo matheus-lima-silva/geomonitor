@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../firebase/config', () => ({
-  auth: {
-    currentUser: {
-      getIdToken: vi.fn()
-    }
-  }
+vi.mock('../../utils/tokenStorage', () => ({
+  getAccessToken: vi.fn(() => 'token-123'),
+  refreshAccessToken: vi.fn(() => Promise.resolve('token-123')),
+  storeTokens: vi.fn(),
+  clearTokens: vi.fn(),
+  hasStoredSession: vi.fn(() => true),
 }));
-
-import { auth } from '../../firebase/config';
 import { createProject, removeProject, subscribeProjects, updateProject } from '../projectService';
 
 async function flushPromises() {
@@ -22,9 +20,6 @@ describe('projectService', () => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', fetchMock);
     sessionStorage.clear();
-    auth.currentUser = {
-      getIdToken: vi.fn().mockResolvedValue('token-123')
-    };
   });
 
   it('subscribeProjects busca lista via API e entrega itens com HATEOAS', async () => {
@@ -64,7 +59,6 @@ describe('projectService', () => {
       createProject({ id: ' lt-99 ' }, { updatedBy: 'ops@empresa.com' })
     ).resolves.toEqual({ id: 'LT-99' });
 
-    expect(auth.currentUser.getIdToken).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toContain('/projects');
 
@@ -83,9 +77,9 @@ describe('projectService', () => {
   });
 
   it('createProject falha sem token de autenticacao', async () => {
-    auth.currentUser = {
-      getIdToken: vi.fn().mockResolvedValue('')
-    };
+    const { getAccessToken, refreshAccessToken } = await import('../../utils/tokenStorage');
+    getAccessToken.mockReturnValueOnce(null);
+    refreshAccessToken.mockResolvedValueOnce(null);
 
     await expect(createProject({ id: 'P-1' })).rejects.toThrow(/autenticado/i);
     expect(fetchMock).not.toHaveBeenCalled();

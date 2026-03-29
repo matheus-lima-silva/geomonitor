@@ -4,7 +4,7 @@ describe('Auth Middleware', () => {
     let req;
     let res;
     let next;
-    let getAuth;
+    let verifyAccessToken;
     let loadUserProfile;
     let verifyToken;
     let requireActiveUser;
@@ -15,15 +15,15 @@ describe('Auth Middleware', () => {
     beforeEach(() => {
         jest.resetModules();
 
-        jest.doMock('../firebaseSetup', () => ({
-            getAuth: jest.fn(),
+        jest.doMock('../jwt', () => ({
+            verifyAccessToken: jest.fn(),
         }));
 
         jest.doMock('../userProfiles', () => ({
             loadUserProfile: jest.fn(),
         }));
 
-        ({ getAuth } = require('../firebaseSetup'));
+        ({ verifyAccessToken } = require('../jwt'));
         ({ loadUserProfile } = require('../userProfiles'));
         ({
             verifyToken,
@@ -53,7 +53,7 @@ describe('Auth Middleware', () => {
 
         it('should return 403 if token is invalid', async () => {
             req.headers.authorization = 'Bearer invalid_token';
-            getAuth.mockReturnValue({ verifyIdToken: jest.fn().mockRejectedValue(new Error('Invalid token')) });
+            verifyAccessToken.mockImplementation(() => { throw new Error('Invalid token'); });
 
             await verifyToken(req, res, next);
 
@@ -63,12 +63,12 @@ describe('Auth Middleware', () => {
 
         it('should call next if token is valid', async () => {
             req.headers.authorization = 'Bearer valid_token';
-            const decodedToken = { uid: 'user_123', email: 'test@test.com' };
-            getAuth.mockReturnValue({ verifyIdToken: jest.fn().mockResolvedValue(decodedToken) });
+            const decoded = { sub: 'user_123', email: 'test@test.com' };
+            verifyAccessToken.mockReturnValue(decoded);
 
             await verifyToken(req, res, next);
 
-            expect(req.user).toEqual(decodedToken);
+            expect(req.user).toEqual({ uid: 'user_123', email: 'test@test.com' });
             expect(next).toHaveBeenCalled();
         });
     });
@@ -76,8 +76,8 @@ describe('Auth Middleware', () => {
     describe('Authorization Middlewares (requireActiveUser, requireEditor, requireAdmin)', () => {
         beforeEach(async () => {
             req.headers.authorization = 'Bearer valid_token';
-            const decodedToken = { uid: 'user_123', email: 'test@test.com' };
-            getAuth.mockReturnValue({ verifyIdToken: jest.fn().mockResolvedValue(decodedToken) });
+            const decoded = { sub: 'user_123', email: 'test@test.com' };
+            verifyAccessToken.mockReturnValue(decoded);
             await verifyToken(req, res, next);
             next.mockClear();
         });

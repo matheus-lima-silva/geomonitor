@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const admin = require('firebase-admin');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 
@@ -71,7 +70,9 @@ const projectPhotosRouter = require('./routes/projectPhotos');
 const projectDossiersRouter = require('./routes/projectDossiers');
 const reportCompoundsRouter = require('./routes/reportCompounds');
 const reportTemplatesRouter = require('./routes/reportTemplates');
+const authRouter = require('./routes/auth');
 
+app.use('/api/auth', authRouter);
 app.use('/api/erosions', erosionsRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/projects', projectReportDefaultsRouter);

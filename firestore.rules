@@ -1,98 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    // Perfil canonico: users/{uid}
-    function userDoc() {
-      return get(/databases/$(database)/documents/shared/geomonitor/users/$(request.auth.uid));
-    }
-
-    function hasUserDoc() {
-      return signedIn() && userDoc().data != null;
-    }
-
-    // Compativel com nomenclaturas antigas e atuais
-    function isAdmin() {
-      return hasUserDoc() &&
-        (userDoc().data.perfil in ["Admin", "Administrador"]);
-    }
-
-    function isEditor() {
-      return hasUserDoc() &&
-        (userDoc().data.perfil in ["Admin", "Administrador", "Editor", "Gerente"]);
-    }
-
-    function isApprovedUser() {
-      return hasUserDoc() && userDoc().data.status == "Ativo";
-    }
-
-    function isOwnUserDoc(uid) {
-      return signedIn() && request.auth.uid == uid;
-    }
-
-    function allowedSelfUserKeys() {
-      return [
-        "id",
-        "nome",
-        "email",
-        "cargo",
-        "departamento",
-        "telefone",
-        "perfil",
-        "status",
-        "perfilAtualizadoPrimeiroLogin",
-        "createdAt",
-        "dataCadastro",
-        "ultimaAtualizacao",
-        "atualizadoPor"
-      ];
-    }
-
-    // Dados do sistema
-    match /shared/geomonitor/{col}/{docId} {
-      allow read: if col != "users" && isApprovedUser();
-      allow create, update: if col != "users" && isEditor();
-      allow delete: if col != "users" && isAdmin();
-    }
-
-    // Usuario pode editar apenas dados basicos do proprio perfil (sem elevar privilegios)
-    match /shared/geomonitor/users/{uid} {
-      allow read: if isOwnUserDoc(uid) || isEditor();
-
-      allow create: if (
-          // Auto-cadastro do proprio usuario
-          isOwnUserDoc(uid)
-          && request.resource.data.keys().hasOnly(allowedSelfUserKeys())
-          && request.resource.data.id == uid
-          && request.resource.data.email == request.auth.token.email
-          && request.resource.data.perfil == "Utilizador"
-          && request.resource.data.status == "Pendente"
-          && request.resource.data.perfilAtualizadoPrimeiroLogin == false
-        ) || (
-          // Admin pode criar/regularizar perfis manualmente
-          isAdmin()
-          && request.resource.data.keys().hasOnly(allowedSelfUserKeys())
-          && request.resource.data.id == uid
-        );
-
-      allow update: if (
-          // Somente admin pode alterar status/perfil
-          isAdmin()
-        ) || (
-          // Dono atualiza apenas campos nao-privilegiados
-          isOwnUserDoc(uid)
-          && request.resource.data.keys().hasOnly(allowedSelfUserKeys())
-          && request.resource.data.id == resource.data.id
-          && request.resource.data.email == resource.data.email
-          && request.resource.data.perfil == resource.data.perfil
-          && request.resource.data.status == resource.data.status
-        );
-
-      allow delete: if isAdmin();
+    // All data access now goes through the backend API (Admin SDK bypasses rules).
+    // Client-side Firestore access is no longer needed after auth migration.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
