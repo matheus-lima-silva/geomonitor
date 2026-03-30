@@ -13,6 +13,7 @@ const {
 } = require('../repositories');
 const { processKmzImport } = require('../utils/kmzProcessor');
 const { removeStoredMedia } = require('../utils/mediaStorage');
+const { triggerWorkerRun } = require('../utils/workerTrigger');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -493,6 +494,8 @@ router.post('/:id/kmz', verifyToken, requireEditor, async (req, res) => {
             updatedBy,
         }, { merge: true });
         const savedRequest = await workspaceKmzRequestRepository.save(token, payload, { merge: true });
+
+        triggerWorkerRun();
 
         return res.status(202).json({
             status: 'success',

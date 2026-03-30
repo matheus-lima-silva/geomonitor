@@ -14,6 +14,7 @@ const {
     erosionRepository,
     reportDeliveryTrackingRepository,
 } = require('../repositories');
+const { triggerWorkerRun } = require('../utils/workerTrigger');
 
 function createDossierResponse(req, projectId, dossier) {
     const dossierId = normalizeText(dossier.id);
@@ -226,6 +227,8 @@ router.post('/:id/dossiers/:dossierId/generate', verifyToken, requireEditor, asy
             updatedBy: req.user?.email || 'API',
         };
         const saved = await projectDossierRepository.save(nextDossier, { merge: true });
+
+        triggerWorkerRun();
 
         return res.status(202).json({
             status: 'success',

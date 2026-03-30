@@ -382,6 +382,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       setWorkspacePhotos([]);
       setWorkspacePhotoDrafts({});
       setLastPersistedWorkspaceDraftSignature('');
+      setTowerFilter('');
       setWorkspaceAutosave({ status: 'idle', savedAt: '', error: '' });
       return;
     }
@@ -507,10 +508,32 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     };
   }, [workspacePhotoDrafts, workspacePhotos]);
 
+  const [towerFilter, setTowerFilter] = useState('');
+
   const visibleWorkspacePhotos = useMemo(
     () => workspacePhotos.filter((photo) => !deletedPhotoIds.includes(photo.id)),
     [deletedPhotoIds, workspacePhotos],
   );
+
+  const photoCountsByTower = useMemo(() => {
+    const counts = {};
+    for (const photo of visibleWorkspacePhotos) {
+      const draft = workspacePhotoDrafts[photo.id];
+      const tower = (draft?.towerId || photo.towerId || '').trim();
+      counts[tower || '__none__'] = (counts[tower || '__none__'] || 0) + 1;
+    }
+    return counts;
+  }, [visibleWorkspacePhotos, workspacePhotoDrafts]);
+
+  const filteredWorkspacePhotos = useMemo(() => {
+    if (!towerFilter) return visibleWorkspacePhotos;
+    return visibleWorkspacePhotos.filter((photo) => {
+      const draft = workspacePhotoDrafts[photo.id];
+      const tower = (draft?.towerId || photo.towerId || '').trim();
+      if (towerFilter === '__none__') return !tower;
+      return tower === towerFilter;
+    });
+  }, [visibleWorkspacePhotos, workspacePhotoDrafts, towerFilter]);
 
   const activePreviewPhoto = useMemo(
     () => workspacePhotos.find((photo) => photo.id === activePreviewPhotoId) || null,
@@ -1355,6 +1378,37 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
+  function handleExportCaptions(format) {
+    const rows = visibleWorkspacePhotos.map((photo) => {
+      const draft = workspacePhotoDrafts[photo.id] || {};
+      return {
+        id: photo.id,
+        tower: draft.towerId || photo.towerId || '',
+        caption: draft.caption || photo.caption || '',
+        included: draft.includeInReport ?? photo.includeInReport ?? false,
+      };
+    });
+
+    let content, mimeType, ext;
+    if (format === 'csv') {
+      content = 'ID,Torre,Legenda,No Relatorio\n' + rows.map((r) =>
+        `"${r.id}","${r.tower}","${r.caption.replace(/"/g, '""')}",${r.included}`,
+      ).join('\n');
+      mimeType = 'text/csv;charset=utf-8';
+      ext = 'csv';
+    } else {
+      content = '| ID | Torre | Legenda | No Relatorio |\n|---|---|---|---|\n' + rows.map((r) =>
+        `| ${r.id} | ${r.tower} | ${r.caption} | ${r.included ? 'Sim' : 'Nao'} |`,
+      ).join('\n');
+      mimeType = 'text/markdown;charset=utf-8';
+      ext = 'md';
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const name = (selectedWorkspace?.nome || selectedWorkspace?.id || 'workspace').replace(/\s+/g, '_');
+    triggerBlobDownload(`${name}-legendas.${ext}`, blob);
+  }
+
   const selectedWorkspaceKmzRequest = selectedWorkspace?.id
     ? (workspaceKmzRequests[selectedWorkspace.id] || null)
     : null;
@@ -1564,6 +1618,55 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                         ) : null}
                       </div>
                     </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <p className="m-0 mb-2 text-2xs font-bold uppercase tracking-[0.18em] text-slate-500">Torres</p>
+                      <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
+                        <button
+                          type="button"
+                          className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${!towerFilter ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                          onClick={() => setTowerFilter('')}
+                        >
+                          <span>Todas</span>
+                          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-2xs font-semibold text-slate-600">{visibleWorkspacePhotos.length}</span>
+                        </button>
+                        {(photoCountsByTower.__none__ || 0) > 0 && (
+                          <button
+                            type="button"
+                            className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${towerFilter === '__none__' ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                            onClick={() => setTowerFilter('__none__')}
+                          >
+                            <span className="italic">Sem torre</span>
+                            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-700">{photoCountsByTower.__none__}</span>
+                          </button>
+                        )}
+                        {workspaceTowerOptions.map((tower) => (
+                          <button
+                            key={tower}
+                            type="button"
+                            className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${towerFilter === tower ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                            onClick={() => setTowerFilter(tower)}
+                          >
+                            <span>Torre {tower}</span>
+                            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-2xs font-semibold text-slate-600">{photoCountsByTower[tower] || 0}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <p className="m-0 mb-2 text-2xs font-bold uppercase tracking-[0.18em] text-slate-500">Exportar Legendas</p>
+                      <div className="flex flex-col gap-2">
+                        <Button variant="outline" onClick={() => handleExportCaptions('csv')} disabled={visibleWorkspacePhotos.length === 0}>
+                          <AppIcon name="download" />
+                          CSV
+                        </Button>
+                        <Button variant="outline" onClick={() => handleExportCaptions('md')} disabled={visibleWorkspacePhotos.length === 0}>
+                          <AppIcon name="download" />
+                          Markdown
+                        </Button>
+                      </div>
+                    </div>
                   </aside>
 
                   <div className="flex min-w-0 w-full flex-col gap-3">
@@ -1573,6 +1676,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                         <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">{workspaceCurationSummary.curated} aptas</span>
                         <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">{workspaceCurationSummary.pending} pendentes</span>
                         <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-700">{workspaceMetrics.included} marcadas para o DOCX</span>
+                        {towerFilter && (
+                          <button type="button" className="rounded-full bg-brand-100 px-2 py-1 text-brand-700 hover:bg-brand-200 transition-colors" onClick={() => setTowerFilter('')}>
+                            {towerFilter === '__none__' ? 'Sem torre' : `Torre ${towerFilter}`} ({filteredWorkspacePhotos.length}) ✕
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -1599,7 +1707,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                         </div>
                       ) : null}
 
-                      {visibleWorkspacePhotos.map((photo) => {
+                      {filteredWorkspacePhotos.map((photo) => {
                     const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
                     const dirty = isWorkspacePhotoDirty(photo, draft);
                     const currentStatus = getWorkspacePhotoStatus(photo, draft);

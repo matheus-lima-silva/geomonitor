@@ -5,6 +5,7 @@ const { verifyToken, requireActiveUser, requireEditor } = require('../utils/auth
 const { createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/hateoas');
 const { normalizeText } = require('../utils/projectScope');
 const { reportCompoundRepository, reportWorkspaceRepository, reportJobRepository } = require('../repositories');
+const { triggerWorkerRun } = require('../utils/workerTrigger');
 
 function normalizeWorkspaceIds(value) {
     if (!Array.isArray(value)) return [];
@@ -235,6 +236,8 @@ router.post('/:id/generate', verifyToken, requireEditor, async (req, res) => {
             updatedBy: req.user?.email || 'API',
         };
         const saved = await reportCompoundRepository.save(nextPayload, { merge: true });
+
+        triggerWorkerRun();
 
         return res.status(202).json({
             status: 'success',
