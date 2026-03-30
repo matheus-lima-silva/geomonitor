@@ -280,7 +280,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState('');
   const [workspaceDraft, setWorkspaceDraft] = useState({ projectId: '', nome: '', descricao: '' });
   const [dossierDraft, setDossierDraft] = useState({ nome: '', observacoes: '', scopeJson: buildDefaultDossierScope() });
-  const [compoundDraft, setCompoundDraft] = useState({ nome: '', texto: '' });
+  const [compoundDraft, setCompoundDraft] = useState({ nome: '', introducao: '', observacoes: '' });
+  const [workspaceTextsDraft, setWorkspaceTextsDraft] = useState({ introducao: '', observacoes: '' });
   const [workspaceImportTargetId, setWorkspaceImportTargetId] = useState('');
   const [workspaceImportMode, setWorkspaceImportMode] = useState('loose_photos');
   const [workspacePhotos, setWorkspacePhotos] = useState([]);
@@ -383,6 +384,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       setWorkspacePhotoDrafts({});
       setLastPersistedWorkspaceDraftSignature('');
       setTowerFilter('');
+      setWorkspaceTextsDraft({ introducao: '', observacoes: '' });
       setWorkspaceAutosave({ status: 'idle', savedAt: '', error: '' });
       return;
     }
@@ -426,6 +428,13 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       return {};
     });
   }, [workspaceImportTargetId]);
+
+  useEffect(() => {
+    setWorkspaceTextsDraft({
+      introducao: selectedWorkspace?.texts?.introducao || '',
+      observacoes: selectedWorkspace?.texts?.observacoes || '',
+    });
+  }, [selectedWorkspace?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const metrics = useMemo(() => ({
     total: projectPhotos.length,
@@ -1022,12 +1031,15 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       await createReportCompound({
         id: `RC-${Date.now()}`,
         nome: compoundDraft.nome.trim(),
-        sharedTextsJson: { introducao: String(compoundDraft.texto || '').trim() },
+        sharedTextsJson: {
+          introducao: String(compoundDraft.introducao || '').trim(),
+          observacoes: String(compoundDraft.observacoes || '').trim(),
+        },
         status: 'draft',
         workspaceIds: [],
         orderJson: [],
       }, { updatedBy: userEmail || 'web' });
-      setCompoundDraft({ nome: '', texto: '' });
+      setCompoundDraft({ nome: '', introducao: '', observacoes: '' });
       await refreshCompounds();
       showToast('Relatorio composto criado.', 'success');
     } catch (error) {
@@ -1378,6 +1390,23 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
+  async function handleSaveWorkspaceTexts() {
+    if (!selectedWorkspace?.id) return;
+    try {
+      setBusy('workspace-texts');
+      await updateReportWorkspace(
+        selectedWorkspace.id,
+        { texts: workspaceTextsDraft },
+        { updatedBy: userEmail || 'web' },
+      );
+      showToast('Textos do workspace salvos.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao salvar textos do workspace.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
   function handleExportCaptions(format) {
     const rows = visibleWorkspacePhotos.map((photo) => {
       const draft = workspacePhotoDrafts[photo.id] || {};
@@ -1596,6 +1625,34 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                       </p>
                     </div>
 
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="m-0 mb-3 text-2xs font-bold uppercase tracking-[0.18em] text-slate-500">Textos do Relatorio</p>
+                      <div className="flex flex-col gap-3">
+                        <Textarea
+                          id="ws-texto-intro"
+                          label="Introducao"
+                          hint="Texto de introducao do workspace no DOCX."
+                          rows={3}
+                          value={workspaceTextsDraft.introducao}
+                          onChange={(event) => setWorkspaceTextsDraft((prev) => ({ ...prev, introducao: event.target.value }))}
+                          placeholder="Descreva o contexto desta campanha..."
+                        />
+                        <Textarea
+                          id="ws-texto-obs"
+                          label="Observacoes"
+                          hint="Texto de observacoes ao final do workspace no DOCX."
+                          rows={2}
+                          value={workspaceTextsDraft.observacoes}
+                          onChange={(event) => setWorkspaceTextsDraft((prev) => ({ ...prev, observacoes: event.target.value }))}
+                          placeholder="Observacoes gerais ou pendencias..."
+                        />
+                        <Button variant="outline" onClick={handleSaveWorkspaceTexts} disabled={busy === 'workspace-texts'}>
+                          <AppIcon name="save" />
+                          {busy === 'workspace-texts' ? 'Salvando...' : 'Salvar Textos'}
+                        </Button>
+                      </div>
+                    </div>
+
                     <div className="rounded-xl border border-slate-200 bg-white p-3">
                       <div className="flex flex-col gap-2">
                         <Button
@@ -1640,7 +1697,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                             <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-700">{photoCountsByTower.__none__}</span>
                           </button>
                         )}
-                        {workspaceTowerOptions.map((tower) => (
+                        {workspaceTowerOptions.filter((tower) => (photoCountsByTower[tower] || 0) > 0).map((tower) => (
                           <button
                             key={tower}
                             type="button"
@@ -2098,19 +2155,17 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                     <AppIcon name="file-text" />
                     {busy === `dossier-generate:${dossier.id}` ? 'Enfileirando...' : 'Enfileirar Geracao'}
                   </Button>
-                  {dossier.outputDocxMediaId ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => handleDownloadReportOutput(
-                        dossier.outputDocxMediaId,
-                        buildDossierDownloadFileName(selectedProjectId, dossier),
-                      )}
-                      disabled={busy === `download:${dossier.outputDocxMediaId}`}
-                    >
-                      <AppIcon name="download" />
-                      {busy === `download:${dossier.outputDocxMediaId}` ? 'Baixando...' : 'Baixar DOCX'}
-                    </Button>
-                  ) : null}
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDownloadReportOutput(
+                      dossier.outputDocxMediaId,
+                      buildDossierDownloadFileName(selectedProjectId, dossier),
+                    )}
+                    disabled={!dossier.outputDocxMediaId || busy === `download:${dossier.outputDocxMediaId}`}
+                  >
+                    <AppIcon name="download" />
+                    {busy === `download:${dossier.outputDocxMediaId}` ? 'Baixando...' : 'Baixar DOCX'}
+                  </Button>
                 </div>
                 {dossier.lastError ? (
                   <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -2155,7 +2210,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         <>
           <Card variant="nested" className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Input id="compound-name" label="Nome" value={compoundDraft.nome} onChange={(event) => setCompoundDraft((prev) => ({ ...prev, nome: event.target.value }))} placeholder="Ex: Consolidado trimestral" />
-            <Textarea id="compound-text" label="Texto Global" hint="Esse texto e do relatorio composto e nao sobrescreve os workspaces filhos." rows={2} value={compoundDraft.texto} onChange={(event) => setCompoundDraft((prev) => ({ ...prev, texto: event.target.value }))} />
+            <Textarea id="compound-texto-intro" label="Introducao" hint="Texto de introducao do relatorio composto no DOCX." rows={2} value={compoundDraft.introducao} onChange={(event) => setCompoundDraft((prev) => ({ ...prev, introducao: event.target.value }))} />
+            <Textarea id="compound-texto-obs" label="Observacoes" hint="Texto de observacoes finais do relatorio composto no DOCX." rows={2} value={compoundDraft.observacoes} onChange={(event) => setCompoundDraft((prev) => ({ ...prev, observacoes: event.target.value }))} />
             <div className="md:col-span-2 flex justify-end"><Button onClick={handleCreateCompound} disabled={busy === 'compound'}><AppIcon name="plus" />{busy === 'compound' ? 'Criando...' : 'Criar Relatorio Composto'}</Button></div>
           </Card>
           <Card variant="nested" className="flex flex-col gap-3">
@@ -2245,19 +2301,17 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                       <AppIcon name="file-text" />
                       {busy === `compound-generate:${compound.id}` ? 'Enfileirando...' : 'Enfileirar Geracao'}
                     </Button>
-                    {compound.outputDocxMediaId ? (
-                      <Button
-                        variant="outline"
-                        onClick={() => handleDownloadReportOutput(
-                          compound.outputDocxMediaId,
-                          buildCompoundDownloadFileName(compound),
-                        )}
-                        disabled={busy === `download:${compound.outputDocxMediaId}`}
-                      >
-                        <AppIcon name="download" />
-                        {busy === `download:${compound.outputDocxMediaId}` ? 'Baixando...' : 'Baixar DOCX'}
-                      </Button>
-                    ) : null}
+                    <Button
+                      variant="outline"
+                      onClick={() => handleDownloadReportOutput(
+                        compound.outputDocxMediaId,
+                        buildCompoundDownloadFileName(compound),
+                      )}
+                      disabled={!compound.outputDocxMediaId || busy === `download:${compound.outputDocxMediaId}`}
+                    >
+                      <AppIcon name="download" />
+                      {busy === `download:${compound.outputDocxMediaId}` ? 'Baixando...' : 'Baixar DOCX'}
+                    </Button>
                   </div>
                 </div>
                 {compound.lastError ? (
