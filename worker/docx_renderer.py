@@ -7,10 +7,11 @@ from datetime import datetime, timezone
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
-from docx.shared import Inches
+from docx.shared import Cm, Inches
 
 
-MAX_IMAGE_WIDTH_INCHES = 5.8
+MAX_IMAGE_WIDTH_CM = 15
+MAX_IMAGE_WIDTH_INCHES = MAX_IMAGE_WIDTH_CM / 2.54
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "assets", "template_relatorio.docx")
 
 
@@ -282,39 +283,18 @@ def add_workspace_summary(document, workspaces):
         row[3].text = format_timestamp(workspace.get("importedAt"))
 
 
-def build_photo_group_label(photo, workspace_name=""):
-    tower_id = normalize_text(photo.get("towerId"))
-    if tower_id:
-        return f"Regiao da Torre {tower_id}"
+def add_photo_entry(document, photo, image_loader, photo_index, heading_level=3):
+    document.add_heading(f"Foto {photo_index}", level=heading_level)
 
-    normalized_workspace = normalize_text(workspace_name or photo.get("workspaceId"))
-    if normalized_workspace:
-        if normalized_workspace.lower().startswith("workspace ") or " - " in normalized_workspace:
-            return normalized_workspace
-        return f"Workspace {normalized_workspace}"
-
-    return "Fotos sem agrupamento"
-
-
-def build_photo_title(photo, photo_index):
-    label = normalize_text(photo.get("caption")) or normalize_text(photo.get("id")) or "Registro sem legenda"
-    return f"Foto {photo_index} - {label}"
-
-
-def add_photo_entry(document, photo, image_loader, photo_index, workspace_name="", heading_level=3):
-    title = build_photo_title(photo, photo_index)
-    document.add_heading(title, level=heading_level)
-    details = [
-        f"Workspace: {normalize_text(workspace_name or photo.get('workspaceId')) or 'N/D'}",
-        f"Torre: {normalize_text(photo.get('towerId')) or 'N/D'}",
-        f"Origem: {normalize_text(photo.get('importSource')) or 'N/D'}",
-        f"Captura: {format_timestamp(photo.get('captureAt') or photo.get('createdAt'))}",
-    ]
-    document.add_paragraph(" | ".join(details))
+    caption = normalize_text(photo.get("caption"))
+    if caption:
+        p = document.add_paragraph()
+        run = p.add_run(caption)
+        run.italic = True
 
     media_asset_id = normalize_text(photo.get("mediaAssetId"))
     if not media_asset_id:
-        document.add_paragraph("[Imagem indisponivel: mediaAssetId ausente]")
+        document.add_paragraph("[Imagem indisponivel]")
         return
 
     try:
@@ -322,7 +302,7 @@ def add_photo_entry(document, photo, image_loader, photo_index, workspace_name="
         buffer = media.get("buffer") if isinstance(media, dict) else None
         if not buffer:
             raise ValueError("conteudo vazio")
-        document.add_picture(io.BytesIO(buffer), width=Inches(MAX_IMAGE_WIDTH_INCHES))
+        document.add_picture(io.BytesIO(buffer), width=Cm(MAX_IMAGE_WIDTH_CM))
     except Exception as exc:  # pragma: no cover - defensive fallback
         document.add_paragraph(f"[Imagem indisponivel: {exc}]")
 
@@ -331,15 +311,18 @@ def add_photos_section(
     document,
     photos,
     image_loader,
-    workspace_name_getter=None,
-    section_title="Ilustracao fotografica",
+    section_title="ILUSTRACAO FOTOGRAFICA",
+    section_number=None,
     section_level=1,
     group_level=2,
     photo_level=3,
 ):
     rows = [photo for photo in safe_list(photos) if photo.get("includeInReport") is True]
-    if section_title:
-        document.add_heading(section_title, level=section_level)
+
+    label = f"{section_number}. {section_title}" if section_number else section_title
+    if label:
+        document.add_heading(label, level=section_level)
+
     if not rows:
         document.add_paragraph("Nenhuma foto marcada para inclusao no relatorio.")
         return
@@ -347,27 +330,22 @@ def add_photos_section(
     grouped = []
     lookup = {}
     for photo in rows:
-        workspace_name = ""
-        if callable(workspace_name_getter):
-            workspace_name = workspace_name_getter(photo)
-        group_label = build_photo_group_label(photo, workspace_name=workspace_name)
-        if group_label not in lookup:
-            lookup[group_label] = []
-            grouped.append((group_label, lookup[group_label]))
-        lookup[group_label].append((photo, workspace_name))
+        tower_id = normalize_text(photo.get("towerId"))
+        if tower_id:
+            group_key = f"Regiao da Torre {tower_id}"
+        else:
+            group_key = "Fotos sem agrupamento"
+        if group_key not in lookup:
+            lookup[group_key] = []
+            grouped.append((group_key, lookup[group_key]))
+        lookup[group_key].append(photo)
 
     photo_index = 1
-    for group_label, items in grouped:
-        document.add_heading(group_label, level=group_level)
-        for photo, workspace_name in items:
-            add_photo_entry(
-                document,
-                photo,
-                image_loader,
-                photo_index,
-                workspace_name=workspace_name,
-                heading_level=photo_level,
-            )
+    for group_index, (group_label, items) in enumerate(grouped, 1):
+        numbered = f"{section_number}.{group_index}. {group_label}" if section_number else group_label
+        document.add_heading(numbered, level=group_level)
+        for photo in items:
+            add_photo_entry(document, photo, image_loader, photo_index, heading_level=photo_level)
             photo_index += 1
 
 
@@ -395,6 +373,7 @@ def resolve_template_metadata(defaults=None, source=None):
     payload = ensure_dict(source)
     return {
         "document_code": first_nonempty(
+            payload.get("codigo_documento"),
             payload.get("codigoRt"),
             payload.get("codigo_rt"),
             payload.get("numeroDocumento"),
@@ -410,6 +389,15 @@ def resolve_template_metadata(defaults=None, source=None):
             "00",
         ),
     }
+
+
+def add_numbered_text_section(document, section_number, title, text):
+    document.add_heading(f"{section_number}. {title}", level=1)
+    for paragraph_text in text.split("\n\n"):
+        stripped = normalize_text(paragraph_text)
+        if stripped:
+            document.add_paragraph(stripped)
+    return section_number + 1
 
 
 def render_project_dossier_docx(context, output_path, image_loader):
@@ -437,67 +425,89 @@ def render_project_dossier_docx(context, output_path, image_loader):
             ],
         )
 
-    add_key_value_table(document, "Resumo do Empreendimento", build_project_summary_rows(project, defaults))
+    section_num = 1
+
+    add_key_value_table(document, f"{section_num}. Resumo do Empreendimento", build_project_summary_rows(project, defaults))
+    section_num += 1
 
     observacoes = normalize_text(dossier.get("observacoes"))
     if observacoes:
-        document.add_heading("Observacoes", level=1)
-        document.add_paragraph(observacoes)
+        section_num = add_numbered_text_section(document, section_num, "OBSERVACOES", observacoes)
 
-    add_record_table(
-        document,
-        "Licencas",
-        sections.get("licencas"),
-        [
-            {"label": "ID", "getter": lambda item: item.get("id")},
-            {"label": "Orgao", "getter": lambda item: item.get("orgao") or item.get("agencia")},
-            {"label": "Numero", "getter": lambda item: item.get("numero") or item.get("numeroLicenca")},
-            {"label": "Status", "getter": lambda item: item.get("status")},
-        ],
-    )
-    add_record_table(
-        document,
-        "Inspecoes",
-        sections.get("inspecoes"),
-        [
-            {"label": "ID", "getter": lambda item: item.get("id")},
-            {"label": "Inicio", "getter": lambda item: item.get("dataInicio")},
-            {"label": "Fim", "getter": lambda item: item.get("dataFim")},
-            {"label": "Status", "getter": lambda item: item.get("status")},
-        ],
-    )
-    add_record_table(
-        document,
-        "Erosoes",
-        sections.get("erosoes"),
-        [
-            {"label": "ID", "getter": lambda item: item.get("id")},
-            {"label": "Status", "getter": lambda item: item.get("status")},
-            {"label": "Criticidade", "getter": lambda item: item.get("criticalityCode")},
-            {"label": "Score", "getter": lambda item: item.get("criticalityScore")},
-        ],
-    )
-    add_record_table(
-        document,
-        "Entregas",
-        sections.get("entregas"),
-        [
-            {"label": "ID", "getter": lambda item: item.get("id")},
-            {"label": "Competencia", "getter": lambda item: item.get("monthKey")},
-            {"label": "Status", "getter": lambda item: item.get("operationalStatus")},
-            {"label": "Atualizado em", "getter": lambda item: item.get("updatedAt")},
-        ],
-    )
-    add_workspace_summary(document, sections.get("workspaces"))
-    add_photos_section(
-        document,
-        sections.get("photos"),
-        image_loader,
-        section_title="Ilustracao fotografica",
-        section_level=1,
-        group_level=2,
-        photo_level=3,
-    )
+    scope = ensure_dict(dossier.get("scopeJson"))
+
+    if scope.get("includeLicencas", True):
+        add_record_table(
+            document,
+            f"{section_num}. Licencas",
+            sections.get("licencas"),
+            [
+                {"label": "ID", "getter": lambda item: item.get("id")},
+                {"label": "Orgao", "getter": lambda item: item.get("orgao") or item.get("agencia")},
+                {"label": "Numero", "getter": lambda item: item.get("numero") or item.get("numeroLicenca")},
+                {"label": "Status", "getter": lambda item: item.get("status")},
+            ],
+        )
+        section_num += 1
+
+    if scope.get("includeInspecoes", True):
+        add_record_table(
+            document,
+            f"{section_num}. Inspecoes",
+            sections.get("inspecoes"),
+            [
+                {"label": "ID", "getter": lambda item: item.get("id")},
+                {"label": "Inicio", "getter": lambda item: item.get("dataInicio")},
+                {"label": "Fim", "getter": lambda item: item.get("dataFim")},
+                {"label": "Status", "getter": lambda item: item.get("status")},
+            ],
+        )
+        section_num += 1
+
+    if scope.get("includeErosoes", True):
+        add_record_table(
+            document,
+            f"{section_num}. Erosoes",
+            sections.get("erosoes"),
+            [
+                {"label": "ID", "getter": lambda item: item.get("id")},
+                {"label": "Status", "getter": lambda item: item.get("status")},
+                {"label": "Criticidade", "getter": lambda item: item.get("criticalityCode")},
+                {"label": "Score", "getter": lambda item: item.get("criticalityScore")},
+            ],
+        )
+        section_num += 1
+
+    if scope.get("includeEntregas", True):
+        add_record_table(
+            document,
+            f"{section_num}. Entregas",
+            sections.get("entregas"),
+            [
+                {"label": "ID", "getter": lambda item: item.get("id")},
+                {"label": "Competencia", "getter": lambda item: item.get("monthKey")},
+                {"label": "Status", "getter": lambda item: item.get("operationalStatus")},
+                {"label": "Atualizado em", "getter": lambda item: item.get("updatedAt")},
+            ],
+        )
+        section_num += 1
+
+    if scope.get("includeWorkspaces", True):
+        add_workspace_summary(document, sections.get("workspaces"))
+        section_num += 1
+
+    if scope.get("includeFotos", True):
+        add_photos_section(
+            document,
+            sections.get("photos"),
+            image_loader,
+            section_title="ILUSTRACAO FOTOGRAFICA",
+            section_number=section_num,
+            section_level=1,
+            group_level=2,
+            photo_level=3,
+        )
+        section_num += 1
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     document.save(output_path)
@@ -517,76 +527,78 @@ def render_report_compound_docx(context, output_path, image_loader):
     compound = ensure_dict(render_model.get("compound"))
     workspaces = safe_list(render_model.get("workspaces"))
     job = ensure_dict(context.get("job"))
-    metadata = resolve_template_metadata(source=compound.get("sharedTextsJson"))
+    shared = ensure_dict(compound.get("sharedTextsJson"))
+    metadata = resolve_template_metadata(source=shared)
+
+    lt_name = normalize_text(shared.get("nome_lt")) or normalize_text(compound.get("nome")) or "Relatorio composto"
+    doc_code = metadata["document_code"]
+    revision = metadata["revision"]
 
     document, used_template = create_document_from_template(
-        normalize_text(compound.get("nome")) or "Relatorio composto",
-        metadata["document_code"],
+        lt_name,
+        doc_code,
         job.get("updatedAt") or job.get("createdAt"),
-        metadata["revision"],
+        revision,
     )
     if not used_template:
-        add_cover(
-            document,
-            normalize_text(compound.get("nome")) or "Relatorio composto",
-            [f"Gerado em {format_timestamp()}"],
-        )
+        subtitle_lines = []
+        titulo_programa = normalize_text(shared.get("titulo_programa"))
+        if titulo_programa:
+            subtitle_lines.append(titulo_programa)
+        if doc_code:
+            subtitle_lines.append(doc_code)
+        subtitle_lines.append(f"Gerado em {format_timestamp()}")
+        add_cover(document, lt_name, subtitle_lines)
 
-    introducao = normalize_text((compound.get("sharedTextsJson") or {}).get("introducao"))
-    if introducao:
-        document.add_heading("Introducao", level=1)
-        document.add_paragraph(introducao)
+    section_num = 1
 
-    if not workspaces:
-        document.add_heading("Workspaces", level=1)
-        document.add_paragraph("Nenhum workspace encontrado para o relatorio composto.")
+    pre_photo_sections = [
+        ("INTRODUCAO", "introducao"),
+        ("CARACTERIZACAO TECNICA", "caracterizacao_tecnica"),
+        ("DESCRICAO DAS ATIVIDADES", "descricao_atividades"),
+    ]
+    for title, key in pre_photo_sections:
+        text = normalize_text(shared.get(key))
+        if text:
+            section_num = add_numbered_text_section(document, section_num, title, text)
 
-    for index, bundle in enumerate(workspaces):
-        workspace = bundle.get("workspace") if isinstance(bundle, dict) else {}
-        project = bundle.get("project") if isinstance(bundle, dict) else {}
-        photos = bundle.get("photos") if isinstance(bundle, dict) else []
+    all_photos = []
+    for bundle in workspaces:
+        photos = safe_list(bundle.get("photos") if isinstance(bundle, dict) else [])
+        all_photos.extend(photos)
 
-        if index > 0:
-            document.add_page_break()
+    photo_section_num = section_num
+    add_photos_section(
+        document,
+        all_photos,
+        image_loader,
+        section_title="ILUSTRACAO FOTOGRAFICA",
+        section_number=photo_section_num,
+        section_level=1,
+        group_level=2,
+        photo_level=3,
+    )
+    section_num += 1
 
-        title = normalize_text(workspace.get("nome")) or normalize_text(workspace.get("id")) or "Workspace"
-        document.add_heading(title, level=1)
-        document.add_paragraph(
-            " | ".join([
-                f"Workspace: {normalize_text(workspace.get('id')) or 'N/D'}",
-                f"Empreendimento: {normalize_text(project.get('nome')) or normalize_text(project.get('id')) or 'N/D'}",
-                f"Status: {normalize_text(workspace.get('status')) or 'N/D'}",
-            ]),
-        )
-
-        texts = workspace.get("texts") if isinstance(workspace.get("texts"), dict) else {}
-        for label, key in [("Introducao do workspace", "introducao"), ("Observacoes", "observacoes")]:
-            value = normalize_text(texts.get(key))
-            if value:
-                document.add_heading(label, level=2)
-                document.add_paragraph(value)
-
-        add_photos_section(
-            document,
-            photos,
-            image_loader,
-            workspace_name_getter=lambda _photo, current=title, current_project=project: (
-                f"{normalize_text(current_project.get('nome')) or normalize_text(current_project.get('id')) or 'Empreendimento'} - {current}"
-            ),
-            section_title="",
-            group_level=2,
-            photo_level=3,
-        )
+    post_photo_sections = [
+        ("CONCLUSOES E RECOMENDACOES", "conclusoes"),
+        ("ANALISE DA EVOLUCAO DOS PROCESSOS EROSIVOS", "analise_evolucao"),
+        ("CONSIDERACOES FINAIS", "observacoes"),
+    ]
+    for title, key in post_photo_sections:
+        text = normalize_text(shared.get(key))
+        if text:
+            section_num = add_numbered_text_section(document, section_num, title, text)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     document.save(output_path)
     if used_template:
         rewrite_template_header_metadata(
             output_path,
-            normalize_text(compound.get("nome")) or "Relatorio composto",
-            metadata["document_code"],
+            lt_name,
+            doc_code,
             job.get("updatedAt") or job.get("createdAt"),
-            metadata["revision"],
+            revision,
         )
     return output_path
 

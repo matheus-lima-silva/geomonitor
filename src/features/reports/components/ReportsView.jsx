@@ -280,7 +280,19 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState('');
   const [workspaceDraft, setWorkspaceDraft] = useState({ projectId: '', nome: '', descricao: '' });
   const [dossierDraft, setDossierDraft] = useState({ nome: '', observacoes: '', scopeJson: buildDefaultDossierScope() });
-  const [compoundDraft, setCompoundDraft] = useState({ nome: '', introducao: '', observacoes: '' });
+  const [compoundDraft, setCompoundDraft] = useState({
+    nome: '',
+    nome_lt: '',
+    titulo_programa: '',
+    codigo_documento: '',
+    revisao: '00',
+    introducao: '',
+    caracterizacao_tecnica: '',
+    descricao_atividades: '',
+    conclusoes: '',
+    analise_evolucao: '',
+    observacoes: '',
+  });
   const [workspaceTextsDraft, setWorkspaceTextsDraft] = useState({ introducao: '', observacoes: '' });
   const [workspaceImportTargetId, setWorkspaceImportTargetId] = useState('');
   const [workspaceImportMode, setWorkspaceImportMode] = useState('loose_photos');
@@ -1028,18 +1040,31 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
     try {
       setBusy('compound');
+      const trimField = (key) => String(compoundDraft[key] || '').trim();
       await createReportCompound({
         id: `RC-${Date.now()}`,
         nome: compoundDraft.nome.trim(),
         sharedTextsJson: {
-          introducao: String(compoundDraft.introducao || '').trim(),
-          observacoes: String(compoundDraft.observacoes || '').trim(),
+          nome_lt: trimField('nome_lt'),
+          titulo_programa: trimField('titulo_programa'),
+          codigo_documento: trimField('codigo_documento'),
+          revisao: trimField('revisao') || '00',
+          introducao: trimField('introducao'),
+          caracterizacao_tecnica: trimField('caracterizacao_tecnica'),
+          descricao_atividades: trimField('descricao_atividades'),
+          conclusoes: trimField('conclusoes'),
+          analise_evolucao: trimField('analise_evolucao'),
+          observacoes: trimField('observacoes'),
         },
         status: 'draft',
         workspaceIds: [],
         orderJson: [],
       }, { updatedBy: userEmail || 'web' });
-      setCompoundDraft({ nome: '', introducao: '', observacoes: '' });
+      setCompoundDraft({
+        nome: '', nome_lt: '', titulo_programa: '', codigo_documento: '', revisao: '00',
+        introducao: '', caracterizacao_tecnica: '', descricao_atividades: '',
+        conclusoes: '', analise_evolucao: '', observacoes: '',
+      });
       await refreshCompounds();
       showToast('Relatorio composto criado.', 'success');
     } catch (error) {
@@ -2208,11 +2233,109 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
 
       {tab === 'compounds' ? (
         <>
-          <Card variant="nested" className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Input id="compound-name" label="Nome" value={compoundDraft.nome} onChange={(event) => setCompoundDraft((prev) => ({ ...prev, nome: event.target.value }))} placeholder="Ex: Consolidado trimestral" />
-            <Textarea id="compound-texto-intro" label="Introducao" hint="Texto de introducao do relatorio composto no DOCX." rows={2} value={compoundDraft.introducao} onChange={(event) => setCompoundDraft((prev) => ({ ...prev, introducao: event.target.value }))} />
-            <Textarea id="compound-texto-obs" label="Observacoes" hint="Texto de observacoes finais do relatorio composto no DOCX." rows={2} value={compoundDraft.observacoes} onChange={(event) => setCompoundDraft((prev) => ({ ...prev, observacoes: event.target.value }))} />
-            <div className="md:col-span-2 flex justify-end"><Button onClick={handleCreateCompound} disabled={busy === 'compound'}><AppIcon name="plus" />{busy === 'compound' ? 'Criando...' : 'Criar Relatorio Composto'}</Button></div>
+          <Card variant="nested" className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Input
+                id="compound-name"
+                label="Nome do relatorio"
+                value={compoundDraft.nome}
+                onChange={(event) => setCompoundDraft((prev) => ({ ...prev, nome: event.target.value }))}
+                placeholder="Ex: Consolidado trimestral"
+                hint="Identificador interno do relatorio composto."
+              />
+              <Input
+                id="compound-revisao"
+                label="Revisao"
+                value={compoundDraft.revisao}
+                onChange={(event) => setCompoundDraft((prev) => ({ ...prev, revisao: event.target.value }))}
+                placeholder="Ex: 00"
+                hint="Numero de revisao do documento."
+              />
+            </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cabecalho do documento</p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Input
+                id="compound-nome-lt"
+                label="Nome da LT"
+                value={compoundDraft.nome_lt}
+                onChange={(event) => setCompoundDraft((prev) => ({ ...prev, nome_lt: event.target.value }))}
+                placeholder="Ex: LT 500 kV Cachoeira Paulista – Adrianopolis III"
+                hint="Sera exibido no cabecalho de todas as paginas."
+              />
+              <Input
+                id="compound-titulo-programa"
+                label="Titulo do programa"
+                value={compoundDraft.titulo_programa}
+                onChange={(event) => setCompoundDraft((prev) => ({ ...prev, titulo_programa: event.target.value }))}
+                placeholder="Ex: Programa de monitoramento de processos erosivos"
+                hint="Subtitulo do relatorio exibido na capa e no cabecalho."
+              />
+              <Input
+                id="compound-codigo-doc"
+                label="Codigo do documento"
+                value={compoundDraft.codigo_documento}
+                onChange={(event) => setCompoundDraft((prev) => ({ ...prev, codigo_documento: event.target.value }))}
+                placeholder="Ex: OOSEMB.RT.061.2026"
+                hint="Numero do documento conforme sistema de gestao."
+              />
+            </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Secoes de texto</p>
+            <div className="grid grid-cols-1 gap-4">
+              <Textarea
+                id="compound-introducao"
+                label="1. Introducao"
+                hint="Contexto e objetivo do relatorio."
+                rows={4}
+                value={compoundDraft.introducao}
+                onChange={(event) => setCompoundDraft((prev) => ({ ...prev, introducao: event.target.value }))}
+              />
+              <Textarea
+                id="compound-caract-tecnica"
+                label="2. Caracterizacao Tecnica"
+                hint="Geologia, geotecnia e geomorfologia da LT."
+                rows={4}
+                value={compoundDraft.caracterizacao_tecnica}
+                onChange={(event) => setCompoundDraft((prev) => ({ ...prev, caracterizacao_tecnica: event.target.value }))}
+              />
+              <Textarea
+                id="compound-descr-atividades"
+                label="3. Descricao das Atividades"
+                hint="Metodologia e atividades realizadas na vistoria."
+                rows={4}
+                value={compoundDraft.descricao_atividades}
+                onChange={(event) => setCompoundDraft((prev) => ({ ...prev, descricao_atividades: event.target.value }))}
+              />
+              <Textarea
+                id="compound-conclusoes"
+                label="5. Conclusoes e Recomendacoes"
+                hint="Diagnostico por torre e recomendacoes tecnicas."
+                rows={4}
+                value={compoundDraft.conclusoes}
+                onChange={(event) => setCompoundDraft((prev) => ({ ...prev, conclusoes: event.target.value }))}
+              />
+              <Textarea
+                id="compound-analise-evolucao"
+                label="6. Analise da Evolucao dos Processos Erosivos"
+                hint="Comparativo com relatorios anteriores."
+                rows={4}
+                value={compoundDraft.analise_evolucao}
+                onChange={(event) => setCompoundDraft((prev) => ({ ...prev, analise_evolucao: event.target.value }))}
+              />
+              <Textarea
+                id="compound-consideracoes"
+                label="7. Consideracoes Finais"
+                hint="Texto de encerramento e consideracoes gerais."
+                rows={4}
+                value={compoundDraft.observacoes}
+                onChange={(event) => setCompoundDraft((prev) => ({ ...prev, observacoes: event.target.value }))}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleCreateCompound} disabled={busy === 'compound'}>
+                <AppIcon name="plus" />
+                {busy === 'compound' ? 'Criando...' : 'Criar Relatorio Composto'}
+              </Button>
+            </div>
           </Card>
           <Card variant="nested" className="flex flex-col gap-3">
             {compounds.map((compound) => (

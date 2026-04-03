@@ -244,9 +244,8 @@ class WorkerRuntimeTests(unittest.TestCase):
         document_xml = read_docx_entry(uploaded_docx, "word/document.xml")
         header_xml = read_metadata_header(uploaded_docx)
 
-        self.assertIn("Foto 1 - Foto 1", document_xml)
+        self.assertIn("Foto 1", document_xml)
         self.assertIn("Regiao da Torre T-01", document_xml)
-        self.assertIn('TOC \\o "1-3"', document_xml)
         self.assertIn("LT Projeto 1", header_xml)
 
     def test_run_once_completes_report_compound_job(self):
@@ -266,8 +265,10 @@ class WorkerRuntimeTests(unittest.TestCase):
 
         uploaded_docx = client.uploaded_media[0][1]
         document_xml = read_docx_entry(uploaded_docx, "word/document.xml")
-        self.assertIn("Projeto 1 - Workspace 1", document_xml)
-        self.assertIn("Foto 1 - Foto 2", document_xml)
+        self.assertIn("Introducao global", document_xml)
+        self.assertIn("ILUSTRACAO FOTOGRAFICA", document_xml)
+        self.assertIn("Foto 1", document_xml)
+        self.assertIn("Foto 2", document_xml)
 
     def test_run_once_completes_workspace_kmz_job(self):
         job = {"id": "JOB-KMZ-1", "kind": "workspace_kmz"}

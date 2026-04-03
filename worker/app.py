@@ -105,6 +105,14 @@ def start_background_poll(runtime):
 
 def main():
     port = int(os.getenv("PORT", "8080"))
+    print(
+        f"[geomonitor-worker] API URL: {RUNTIME.client.base_url}",
+        flush=True,
+    )
+    print(
+        f"[geomonitor-worker] token configured: {bool(RUNTIME.client.token)}",
+        flush=True,
+    )
     start_background_poll(RUNTIME)
     server = ThreadingHTTPServer(("0.0.0.0", port), WorkerHandler)
     print(
