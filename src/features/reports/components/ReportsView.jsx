@@ -33,6 +33,7 @@ import {
   updateReportWorkspace,
   deleteReportWorkspacePhoto,
 } from '../../../services/reportWorkspaceService';
+import { listProfissoes, listSignatarios } from '../../../services/userService';
 
 const TABS = [
   ['workspaces', 'Workspaces', 'file-text'],
@@ -92,6 +93,15 @@ function tone(status) {
 function isPendingExecutionStatus(status) {
   const value = String(status || '').toLowerCase();
   return value.includes('queued') || value.includes('process');
+}
+
+function getStatusLabel(status) {
+  const s = String(status || '').toLowerCase();
+  if (s.includes('queued')) return 'Na fila...';
+  if (s.includes('process')) return 'Gerando documento...';
+  if (s.includes('error') || s.includes('fail')) return 'Erro na geracao';
+  if (s.includes('complet')) return 'Concluido';
+  return null;
 }
 
 function buildDefaultCaption(fileName = '') {
@@ -292,7 +302,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     conclusoes: '',
     analise_evolucao: '',
     observacoes: '',
+    elaboradores: {},
+    revisores: {},
   });
+  const [profissoes, setProfissoes] = useState([]);
+  const [signatariosCandidatos, setSignatariosCandidatos] = useState([]);
   const [workspaceTextsDraft, setWorkspaceTextsDraft] = useState({ introducao: '', observacoes: '' });
   const [workspaceImportTargetId, setWorkspaceImportTargetId] = useState('');
   const [workspaceImportMode, setWorkspaceImportMode] = useState('loose_photos');
@@ -318,6 +332,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   useEffect(() => subscribeReportWorkspaces((rows) => setWorkspaces(rows || []), () => showToast('Erro ao carregar workspaces.', 'error')), [showToast]);
   useEffect(() => subscribeProjects((rows) => setProjects(rows || []), () => showToast('Erro ao carregar empreendimentos.', 'error')), [showToast]);
   useEffect(() => subscribeReportCompounds((rows) => setCompounds(rows || []), () => showToast('Erro ao carregar compostos.', 'error')), [showToast]);
+
+  useEffect(() => {
+    listProfissoes().then(setProfissoes).catch(() => {});
+    listSignatarios().then(setSignatariosCandidatos).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (projects.length === 0) return;
@@ -1025,7 +1044,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       if (!downloaded) {
         throw new Error('Ambiente sem suporte para disparar o download.');
       }
-      showToast('Download do DOCX iniciado.', 'success');
+      showToast('DOCX baixado com sucesso.', 'success', 4500);
     } catch (error) {
       showToast(error?.message || 'Erro ao baixar o DOCX final.', 'error');
     } finally {
@@ -1041,6 +1060,18 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     try {
       setBusy('compound');
       const trimField = (key) => String(compoundDraft[key] || '').trim();
+      const profLookup = Object.fromEntries(profissoes.map((p) => [p.id, p.nome]));
+      const buildSignatarySnapshot = (sigId) => {
+        const sig = signatariosCandidatos.find((s) => s.id === sigId);
+        if (!sig) return null;
+        const registro = [
+          sig.registro_conselho && sig.registro_estado ? `${sig.registro_conselho}-${sig.registro_estado}` : sig.registro_conselho || '',
+          sig.registro_numero ? (sig.registro_sufixo ? `${sig.registro_numero}/${sig.registro_sufixo}` : sig.registro_numero) : '',
+        ].filter(Boolean).join(' ');
+        return { nome: sig.nome || '', profissao: profLookup[sig.profissao_id] || sig.profissao_nome || '', registro };
+      };
+      const elaboradoresArr = Object.entries(compoundDraft.elaboradores || {}).filter(([, v]) => v).map(([id]) => buildSignatarySnapshot(id)).filter(Boolean);
+      const revisoresArr = Object.entries(compoundDraft.revisores || {}).filter(([, v]) => v).map(([id]) => buildSignatarySnapshot(id)).filter(Boolean);
       await createReportCompound({
         id: `RC-${Date.now()}`,
         nome: compoundDraft.nome.trim(),
@@ -1055,6 +1086,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
           conclusoes: trimField('conclusoes'),
           analise_evolucao: trimField('analise_evolucao'),
           observacoes: trimField('observacoes'),
+          elaboradores: elaboradoresArr,
+          revisores: revisoresArr,
         },
         status: 'draft',
         workspaceIds: [],
@@ -1064,6 +1097,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         nome: '', nome_lt: '', titulo_programa: '', codigo_documento: '', revisao: '00',
         introducao: '', caracterizacao_tecnica: '', descricao_atividades: '',
         conclusoes: '', analise_evolucao: '', observacoes: '',
+        elaboradores: {}, revisores: {},
       });
       await refreshCompounds();
       showToast('Relatorio composto criado.', 'success');
@@ -2188,10 +2222,21 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                     )}
                     disabled={!dossier.outputDocxMediaId || busy === `download:${dossier.outputDocxMediaId}`}
                   >
-                    <AppIcon name="download" />
+                    <AppIcon name={busy === `download:${dossier.outputDocxMediaId}` ? 'loader' : 'download'} className={busy === `download:${dossier.outputDocxMediaId}` ? 'animate-spin' : ''} />
                     {busy === `download:${dossier.outputDocxMediaId}` ? 'Baixando...' : 'Baixar DOCX'}
                   </Button>
                 </div>
+                {isPendingExecutionStatus(dossier.status) && (
+                  <div className="mt-2">
+                    <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                      <AppIcon name="loader" size={12} className="animate-spin" />
+                      {getStatusLabel(dossier.status)}
+                    </div>
+                    <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 rounded-full animate-pulse w-full" />
+                    </div>
+                  </div>
+                )}
                 {dossier.lastError ? (
                   <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                     {dossier.lastError}
@@ -2330,6 +2375,40 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                 onChange={(event) => setCompoundDraft((prev) => ({ ...prev, observacoes: event.target.value }))}
               />
             </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Assinaturas</p>
+            {signatariosCandidatos.length > 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-col gap-2">
+                  {signatariosCandidatos.map((sig) => {
+                    const registro = [
+                      sig.registro_conselho && sig.registro_estado ? `${sig.registro_conselho}-${sig.registro_estado}` : sig.registro_conselho || '',
+                      sig.registro_numero ? (sig.registro_sufixo ? `${sig.registro_numero}/${sig.registro_sufixo}` : sig.registro_numero) : '',
+                    ].filter(Boolean).join(' ');
+                    const profNome = profissoes.find((p) => p.id === sig.profissao_id)?.nome || sig.profissao_nome || '';
+                    const isElab = !!compoundDraft.elaboradores?.[sig.id];
+                    const isRev = !!compoundDraft.revisores?.[sig.id];
+                    return (
+                      <label key={sig.id} className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-sm ${isElab || isRev ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-1 text-xs">
+                            <input type="checkbox" checked={isElab} onChange={(e) => setCompoundDraft((prev) => ({ ...prev, elaboradores: { ...prev.elaboradores, [sig.id]: e.target.checked } }))} />
+                            Elaborador
+                          </label>
+                          <label className="flex items-center gap-1 text-xs">
+                            <input type="checkbox" checked={isRev} onChange={(e) => setCompoundDraft((prev) => ({ ...prev, revisores: { ...prev.revisores, [sig.id]: e.target.checked } }))} />
+                            Revisor
+                          </label>
+                        </div>
+                        <span className="flex-1 text-slate-800">{sig.nome}</span>
+                        <span className="text-xs text-slate-500">{[profNome, registro].filter(Boolean).join(' \u2013 ')}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">Nenhum signatario cadastrado. Adicione no seu perfil.</p>
+            )}
             <div className="flex justify-end">
               <Button onClick={handleCreateCompound} disabled={busy === 'compound'}>
                 <AppIcon name="plus" />
@@ -2432,11 +2511,22 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
                       )}
                       disabled={!compound.outputDocxMediaId || busy === `download:${compound.outputDocxMediaId}`}
                     >
-                      <AppIcon name="download" />
+                      <AppIcon name={busy === `download:${compound.outputDocxMediaId}` ? 'loader' : 'download'} className={busy === `download:${compound.outputDocxMediaId}` ? 'animate-spin' : ''} />
                       {busy === `download:${compound.outputDocxMediaId}` ? 'Baixando...' : 'Baixar DOCX'}
                     </Button>
                   </div>
                 </div>
+                {isPendingExecutionStatus(compound.status) && (
+                  <div className="mt-2">
+                    <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                      <AppIcon name="loader" size={12} className="animate-spin" />
+                      {getStatusLabel(compound.status)}
+                    </div>
+                    <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 rounded-full animate-pulse w-full" />
+                    </div>
+                  </div>
+                )}
                 {compound.lastError ? (
                   <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                     {compound.lastError}

@@ -71,8 +71,10 @@ const projectDossiersRouter = require('./routes/projectDossiers');
 const reportCompoundsRouter = require('./routes/reportCompounds');
 const reportTemplatesRouter = require('./routes/reportTemplates');
 const authRouter = require('./routes/auth');
+const profissoesRouter = require('./routes/profissoes');
 
 app.use('/api/auth', authRouter);
+app.use('/api/profissoes', profissoesRouter);
 app.use('/api/erosions', erosionsRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/projects', projectReportDefaultsRouter);

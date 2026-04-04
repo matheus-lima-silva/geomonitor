@@ -54,3 +54,39 @@ export async function sendUserResetEmail(id) {
     method: 'POST',
   });
 }
+
+// --- Profissoes ---
+
+export async function listProfissoes() {
+  const result = await requestUser(`${API_BASE_URL}/profissoes`, { method: 'GET' });
+  return result?.data || [];
+}
+
+// --- Signatarios ---
+
+export async function listSignatarios() {
+  const result = await requestUser(`${API_BASE_URL}/users/me/signatarios`, { method: 'GET' });
+  return result?.data || [];
+}
+
+export async function createSignatario(payload) {
+  const result = await requestUser(`${API_BASE_URL}/users/me/signatarios`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return result?.data || null;
+}
+
+export async function updateSignatario(sigId, payload) {
+  const result = await requestUser(`${API_BASE_URL}/users/me/signatarios/${encodeURIComponent(sigId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  return result?.data || null;
+}
+
+export async function deleteSignatario(sigId) {
+  await requestUser(`${API_BASE_URL}/users/me/signatarios/${encodeURIComponent(sigId)}`, {
+    method: 'DELETE',
+  });
+}

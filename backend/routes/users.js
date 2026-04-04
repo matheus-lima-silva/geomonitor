@@ -6,6 +6,7 @@ const { createHateoasResponse } = require('../utils/hateoas');
 const { buildBootstrapProfile, loadUserProfile, sanitizeUserProfileInput } = require('../utils/userProfiles');
 const { userRepository } = require('../repositories');
 const authCredentials = require('../repositories/authCredentialsRepository');
+const userSignatoryRepository = require('../repositories/userSignatoryRepository');
 const { getMailTransport, sendResetEmail } = require('../utils/mailer');
 
 const ADMIN_RESET_TOKEN_EXPIRY_HOURS = 48;
@@ -117,6 +118,80 @@ router.get('/me', verifyToken, async (req, res) => {
     } catch (error) {
         console.error('[users API] Error GET /me:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao buscar perfil do utilizador autenticado' });
+    }
+});
+
+// --- Signatarios do usuario autenticado ---
+
+router.get('/me/signatarios', verifyToken, async (req, res) => {
+    try {
+        const userId = String(req.user?.uid || '').trim();
+        const items = await userSignatoryRepository.listByUser(userId);
+        return res.status(200).json({ status: 'success', data: items });
+    } catch (error) {
+        console.error('[users API] Error GET /me/signatarios:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao buscar signatarios.' });
+    }
+});
+
+router.post('/me/signatarios', verifyToken, async (req, res) => {
+    try {
+        const userId = String(req.user?.uid || '').trim();
+        const { nome, profissao_id, registro_conselho, registro_estado, registro_numero, registro_sufixo } = req.body || {};
+        if (!nome || !String(nome).trim()) {
+            return res.status(400).json({ status: 'error', message: 'Nome e obrigatorio.' });
+        }
+        const created = await userSignatoryRepository.create({
+            userId,
+            nome: String(nome).trim(),
+            profissaoId: profissao_id || null,
+            registroConselho: registro_conselho || '',
+            registroEstado: registro_estado || '',
+            registroNumero: registro_numero || '',
+            registroSufixo: registro_sufixo || '',
+        });
+        return res.status(201).json({ status: 'success', data: created });
+    } catch (error) {
+        console.error('[users API] Error POST /me/signatarios:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao criar signatario.' });
+    }
+});
+
+router.put('/me/signatarios/:sigId', verifyToken, async (req, res) => {
+    try {
+        const userId = String(req.user?.uid || '').trim();
+        const existing = await userSignatoryRepository.getById(req.params.sigId);
+        if (!existing || existing.user_id !== userId) {
+            return res.status(404).json({ status: 'error', message: 'Signatario nao encontrado.' });
+        }
+        const { nome, profissao_id, registro_conselho, registro_estado, registro_numero, registro_sufixo } = req.body || {};
+        const updated = await userSignatoryRepository.update(req.params.sigId, {
+            nome: String(nome || existing.nome).trim(),
+            profissaoId: profissao_id !== undefined ? profissao_id : existing.profissao_id,
+            registroConselho: registro_conselho !== undefined ? registro_conselho : existing.registro_conselho,
+            registroEstado: registro_estado !== undefined ? registro_estado : existing.registro_estado,
+            registroNumero: registro_numero !== undefined ? registro_numero : existing.registro_numero,
+            registroSufixo: registro_sufixo !== undefined ? registro_sufixo : existing.registro_sufixo,
+        });
+        return res.status(200).json({ status: 'success', data: updated });
+    } catch (error) {
+        console.error('[users API] Error PUT /me/signatarios/:sigId:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao atualizar signatario.' });
+    }
+});
+
+router.delete('/me/signatarios/:sigId', verifyToken, async (req, res) => {
+    try {
+        const userId = String(req.user?.uid || '').trim();
+        const existing = await userSignatoryRepository.getById(req.params.sigId);
+        if (!existing || existing.user_id !== userId) {
+            return res.status(404).json({ status: 'error', message: 'Signatario nao encontrado.' });
+        }
+        await userSignatoryRepository.remove(req.params.sigId);
+        return res.status(200).json({ status: 'success', message: 'Signatario removido.' });
+    } catch (error) {
+        console.error('[users API] Error DELETE /me/signatarios/:sigId:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao remover signatario.' });
     }
 });
 

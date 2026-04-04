@@ -326,6 +326,9 @@ const ICON_PATHS = {
       <path d="M1 1l22 22" />
     </>
   ),
+  loader: (
+    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+  ),
   default: (
     <>
       <circle cx="12" cy="12" r="1.5" />

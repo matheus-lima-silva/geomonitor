@@ -25,6 +25,11 @@ function sanitizeUserProfileInput(payload = {}) {
             payload.perfilAtualizadoPrimeiroLogin,
             false,
         ),
+        profissao_id: normalizeText(payload.profissao_id),
+        registro_conselho: normalizeText(payload.registro_conselho),
+        registro_estado: normalizeText(payload.registro_estado),
+        registro_numero: normalizeText(payload.registro_numero),
+        registro_sufixo: normalizeText(payload.registro_sufixo),
     };
 }
 
