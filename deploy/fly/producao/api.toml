@@ -6,6 +6,7 @@ primary_region = "gru"
 
 [deploy]
   strategy = "rolling"
+  release_command = "/app/scripts/runMigrations.js"
 
 [env]
   PORT = "8080"
