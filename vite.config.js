@@ -6,18 +6,7 @@ import autoprefixer from 'autoprefixer';
 export default defineConfig({
   plugins: [react()],
   build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
-            return 'react-vendor';
-          }
-          if (id.includes('node_modules')) {
-            return 'vendor';
-          }
-        },
-      },
-    },
+    chunkSizeWarningLimit: 700,
   },
   css: {
     postcss: {
