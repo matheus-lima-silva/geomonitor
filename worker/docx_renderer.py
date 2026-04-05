@@ -120,7 +120,22 @@ def update_template_headers(document, title, document_code="", emission_date="",
 def clear_template_body(document):
     body = document._element.body
     children = list(body)
+    content_sectpr = None
     start_index = None
+
+    # Save the content section properties (inline sectPr with footerReference)
+    # and remove it from the original paragraph so it doesn't create an extra section break.
+    for child in children:
+        if child.tag != qn("w:p"):
+            continue
+        ppr = child.find(qn("w:pPr"))
+        if ppr is None:
+            continue
+        sectpr = ppr.find(qn("w:sectPr"))
+        if sectpr is not None and sectpr.find(qn("w:footerReference")) is not None:
+            content_sectpr = deepcopy(sectpr)
+            ppr.remove(sectpr)
+            break
 
     for index, child in enumerate(children):
         if child.tag not in {qn("w:p"), qn("w:tbl")}:
@@ -131,38 +146,44 @@ def clear_template_body(document):
             break
 
     if start_index is None:
-        return
+        return content_sectpr
 
     for child in children[start_index:]:
         if child.tag == qn("w:sectPr"):
             continue
         body.remove(child)
 
+    return content_sectpr
 
-def fix_body_sectpr(document):
-    body = document._element.body
-    body_sectpr = body.find(qn('w:sectPr'))
-    if body_sectpr is None:
+
+def insert_content_section_break(document, content_sectpr):
+    """Insert the content section break after the last paragraph, before the body sectPr.
+
+    This separates the main content (with proper margins, header, and footer)
+    from the quarta capa (body sectPr with zero margins and back-cover image).
+    """
+    if content_sectpr is None:
         return
-    for para in body.findall(qn('w:p')):
-        ppr = para.find(qn('w:pPr'))
-        if ppr is None:
-            continue
-        inline_sectpr = ppr.find(qn('w:sectPr'))
-        if inline_sectpr is not None and inline_sectpr.find(qn('w:footerReference')) is not None:
-            body.replace(body_sectpr, deepcopy(inline_sectpr))
-            return
+    body = document._element.body
+    p = OxmlElement("w:p")
+    ppr = OxmlElement("w:pPr")
+    ppr.append(deepcopy(content_sectpr))
+    p.append(ppr)
+    body_sectpr = body.find(qn("w:sectPr"))
+    if body_sectpr is not None:
+        body_sectpr.addprevious(p)
+    else:
+        body.append(p)
 
 
 def create_document_from_template(title, document_code="", emission_date="", revision="00"):
     if os.path.exists(TEMPLATE_PATH):
         document = Document(TEMPLATE_PATH)
-        clear_template_body(document)
-        fix_body_sectpr(document)
+        content_sectpr = clear_template_body(document)
         update_template_headers(document, title, document_code, emission_date, revision)
-        return document, True
+        return document, True, content_sectpr
 
-    return Document(), False
+    return Document(), False, None
 
 
 def replace_header_xml_value(xml, marker, placeholder, value):
@@ -243,16 +264,32 @@ def add_heading_paragraph(document, text, ilvl=0):
 
 
 def update_cover_page_body(document, lt_name, titulo_programa):
-    for paragraph in document.paragraphs:
-        if not paragraph.style or paragraph.style.name != 'Normal':
-            continue
-        text = "".join(r.text for r in paragraph.runs).strip()
-        if text.startswith("LT ") and lt_name:
-            replace_paragraph_text(paragraph, normalize_lt_name(lt_name))
-        elif titulo_programa and (
-            text.startswith("Programa") or "monitoramento" in text.lower() or text.startswith("Inspe")
-        ):
-            replace_paragraph_text(paragraph, titulo_programa)
+    body = document._element.body
+    for txbx_content in body.iter(qn("w:txbxContent")):
+        for p in txbx_content.findall(qn("w:p")):
+            runs = p.findall(qn("w:r"))
+            text = "".join(
+                (t.text or "") for r in runs for t in r.findall(qn("w:t"))
+            ).strip()
+            if lt_name and text.startswith("LT "):
+                normalized = normalize_lt_name(lt_name)
+                if runs:
+                    runs[0].find(qn("w:t")).text = normalized
+                    for r in runs[1:]:
+                        t = r.find(qn("w:t"))
+                        if t is not None:
+                            t.text = ""
+            elif titulo_programa and (
+                text.startswith("Programa")
+                or "monitoramento" in text.lower()
+                or text.startswith("Inspe")
+            ):
+                if runs:
+                    runs[0].find(qn("w:t")).text = titulo_programa
+                    for r in runs[1:]:
+                        t = r.find(qn("w:t"))
+                        if t is not None:
+                            t.text = ""
 
 
 def add_cover(document, title, subtitle_lines):
@@ -332,27 +369,26 @@ def add_workspace_summary(document, workspaces):
 
 
 def add_photo_entry(document, photo, image_loader, photo_index):
+    media_asset_id = normalize_text(photo.get("mediaAssetId"))
+    if not media_asset_id:
+        document.add_paragraph("[Imagem indisponível]")
+    else:
+        try:
+            media = image_loader(media_asset_id)
+            buffer = media.get("buffer") if isinstance(media, dict) else None
+            if not buffer:
+                raise ValueError("conteudo vazio")
+            document.add_picture(io.BytesIO(buffer), width=Cm(MAX_IMAGE_WIDTH_CM))
+            document.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            document.add_paragraph(f"[Imagem indisponível: {exc}]")
+
     caption = normalize_text(photo.get("caption"))
     label = f"Foto {photo_index} - {caption}" if caption else f"Foto {photo_index}"
     document.add_paragraph(label, style='Legenda')
 
-    media_asset_id = normalize_text(photo.get("mediaAssetId"))
-    if not media_asset_id:
-        document.add_paragraph("[Imagem indisponivel]")
-        return
 
-    try:
-        media = image_loader(media_asset_id)
-        buffer = media.get("buffer") if isinstance(media, dict) else None
-        if not buffer:
-            raise ValueError("conteudo vazio")
-        document.add_picture(io.BytesIO(buffer), width=Cm(MAX_IMAGE_WIDTH_CM))
-        document.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    except Exception as exc:  # pragma: no cover - defensive fallback
-        document.add_paragraph(f"[Imagem indisponivel: {exc}]")
-
-
-def add_photos_section(document, photos, image_loader, section_title="ILUSTRACAO FOTOGRAFICA"):
+def add_photos_section(document, photos, image_loader, section_title="ILUSTRAÇÃO FOTOGRÁFICA"):
     rows = [photo for photo in safe_list(photos) if photo.get("includeInReport") is True]
 
     add_heading_paragraph(document, section_title, ilvl=0)
@@ -366,7 +402,7 @@ def add_photos_section(document, photos, image_loader, section_title="ILUSTRACAO
     for photo in rows:
         tower_id = normalize_text(photo.get("towerId"))
         if tower_id:
-            group_key = f"Regiao da Torre {tower_id}"
+            group_key = f"Região da Torre {tower_id}"
         else:
             group_key = "Fotos sem agrupamento"
         if group_key not in lookup:
@@ -457,16 +493,18 @@ def add_signature_block(document, elaboradores, revisores):
             profissao = normalize_text(person.get("profissao", "")) if isinstance(person, dict) else ""
             registro = normalize_text(person.get("registro", "")) if isinstance(person, dict) else ""
             document.add_paragraph("")
-            document.add_paragraph(nome)
-            if profissao or registro:
-                meta = " \u2013 ".join(filter(None, [profissao, registro]))
-                document.add_paragraph(meta)
+            document.add_paragraph("")
             document.add_paragraph(SIGNATURE_LINE)
+            document.add_paragraph(nome)
+            if profissao:
+                document.add_paragraph(profissao)
+            if registro:
+                document.add_paragraph(registro)
 
     _render_group("Elaborado por:", safe_list(elaboradores))
     if elaboradores and revisores:
         document.add_paragraph("")
-    _render_group("Revisado por:", safe_list(revisores))
+    _render_group("Revisto por:", safe_list(revisores))
 
 
 def render_project_dossier_docx(context, output_path, image_loader):
@@ -478,7 +516,7 @@ def render_project_dossier_docx(context, output_path, image_loader):
     job = ensure_dict(context.get("job"))
     metadata = resolve_template_metadata(defaults=defaults, source=dossier)
 
-    document, used_template = create_document_from_template(
+    document, used_template, content_sectpr = create_document_from_template(
         normalize_text(project.get("nome")) or normalize_text(project.get("id")) or normalize_text(dossier.get("nome")),
         metadata["document_code"],
         job.get("updatedAt") or job.get("createdAt"),
@@ -560,6 +598,9 @@ def render_project_dossier_docx(context, output_path, image_loader):
     if scope.get("includeFotos", True):
         add_photos_section(document, sections.get("photos"), image_loader)
 
+    if used_template:
+        insert_content_section_break(document, content_sectpr)
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     document.save(output_path)
     if used_template:
@@ -585,7 +626,7 @@ def render_report_compound_docx(context, output_path, image_loader):
     doc_code = metadata["document_code"]
     revision = metadata["revision"]
 
-    document, used_template = create_document_from_template(
+    document, used_template, content_sectpr = create_document_from_template(
         lt_name,
         doc_code,
         job.get("updatedAt") or job.get("createdAt"),
@@ -605,9 +646,9 @@ def render_report_compound_docx(context, output_path, image_loader):
         add_cover(document, lt_name, subtitle_lines)
 
     pre_photo_sections = [
-        ("INTRODUCAO", "introducao"),
-        ("CARACTERIZACAO TECNICA", "caracterizacao_tecnica"),
-        ("DESCRICAO DAS ATIVIDADES", "descricao_atividades"),
+        ("INTRODUÇÃO", "introducao"),
+        ("CARACTERIZAÇÃO TÉCNICA", "caracterizacao_tecnica"),
+        ("DESCRIÇÃO DAS ATIVIDADES", "descricao_atividades"),
     ]
     for title, key in pre_photo_sections:
         text = normalize_text(shared.get(key))
@@ -622,9 +663,9 @@ def render_report_compound_docx(context, output_path, image_loader):
     add_photos_section(document, all_photos, image_loader)
 
     post_photo_sections = [
-        ("CONCLUSOES E RECOMENDACOES", "conclusoes"),
-        ("ANALISE DA EVOLUCAO DOS PROCESSOS EROSIVOS", "analise_evolucao"),
-        ("CONSIDERACOES FINAIS", "observacoes"),
+        ("CONCLUSÕES E RECOMENDAÇÕES", "conclusoes"),
+        ("ANÁLISE DA EVOLUÇÃO DOS PROCESSOS EROSIVOS", "analise_evolucao"),
+        ("CONSIDERAÇÕES FINAIS", "observacoes"),
     ]
     for title, key in post_photo_sections:
         text = normalize_text(shared.get(key))
@@ -635,6 +676,9 @@ def render_report_compound_docx(context, output_path, image_loader):
     revisores = safe_list(shared.get("revisores"))
     if elaboradores or revisores:
         add_signature_block(document, elaboradores, revisores)
+
+    if used_template:
+        insert_content_section_break(document, content_sectpr)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     document.save(output_path)
