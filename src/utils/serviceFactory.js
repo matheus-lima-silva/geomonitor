@@ -18,7 +18,17 @@ function isAuthError(error) {
     || msg.includes('401')
     || msg.includes('403')
     || msg.includes('unauthorized')
-    || msg.includes('forbidden');
+    || msg.includes('forbidden')
+    || msg.includes('expired');
+}
+
+function isTokenExpired(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return !payload.exp || (payload.exp * 1000) < (Date.now() + 30000);
+  } catch {
+    return true;
+  }
 }
 
 function getRetryDelay(attempt) {
@@ -137,7 +147,7 @@ export const API_BASE_URL = resolveApiBaseUrl();
 
 export async function getAuthToken(forceRefresh = false) {
   let token = getAccessToken();
-  if (!token || forceRefresh) {
+  if (!token || forceRefresh || isTokenExpired(token)) {
     token = await refreshAccessToken();
   }
   if (!token) throw new Error('Usuário não autenticado.');
