@@ -262,6 +262,7 @@ export default function CompoundsTab({
                     {orderedIds.map((workspaceId, index) => (
                       <div
                         key={`${compound.id}-${workspaceId}`}
+                        id={`compound-order-${compound.id}-${workspaceId}`}
                         className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                       >
                         <div className="flex items-center gap-3">
