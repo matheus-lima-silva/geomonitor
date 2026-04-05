@@ -12,3 +12,4 @@ export { default as ConfirmDeleteModal } from './ConfirmDeleteModal';
 export { default as HintText } from './HintText';
 export { default as RangeSlider } from './RangeSlider';
 export { default as SearchableSelect } from './SearchableSelect';
+export { default as Skeleton, PhotoCardSkeleton, ListItemSkeleton } from './Skeleton';

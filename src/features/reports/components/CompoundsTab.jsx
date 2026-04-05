@@ -1,0 +1,449 @@
+import { useState } from 'react';
+import AppIcon from '../../../components/AppIcon';
+import { Button, Card, HintText, Input, Textarea } from '../../../components/ui';
+import Modal from '../../../components/ui/Modal';
+import SearchableSelect from '../../../components/ui/SearchableSelect';
+import {
+  buildCompoundWorkspaceOrder,
+  fmt,
+  getTranslatedStatus,
+  isPendingExecutionStatus,
+  getStatusLabel,
+  tone,
+} from '../utils/reportUtils';
+
+const TEXT_SECTIONS = [
+  ['introducao', '1. Introducao', 'Contexto e objetivo do relatorio.'],
+  ['caracterizacao_tecnica', '2. Caracterizacao Tecnica', 'Geologia, geotecnia e geomorfologia da LT.'],
+  ['descricao_atividades', '3. Descricao das Atividades', 'Metodologia e atividades realizadas na vistoria.'],
+  ['conclusoes', '5. Conclusoes e Recomendacoes', 'Diagnostico por torre e recomendacoes tecnicas.'],
+  ['analise_evolucao', '6. Analise da Evolucao dos Processos Erosivos', 'Comparativo com relatorios anteriores.'],
+  ['observacoes', '7. Consideracoes Finais', 'Texto de encerramento e consideracoes gerais.'],
+];
+
+export default function CompoundsTab({
+  compoundDraft,
+  setCompoundDraft,
+  profissoes,
+  signatariosCandidatos,
+  compounds,
+  workspaces,
+  workspaceLabelsById,
+  compoundWorkspaceSelections,
+  setCompoundWorkspaceSelections,
+  compoundPreflights,
+  busy,
+  handleCreateCompound,
+  handleCompoundAddWorkspace,
+  handleCompoundReorder,
+  handleCompoundPreflight,
+  handleCompoundGenerate,
+  handleDownloadReportOutput,
+  buildCompoundDownloadFileName,
+}) {
+  const [openSections, setOpenSections] = useState({});
+  const [openPreflights, setOpenPreflights] = useState({});
+  const [confirmGenerate, setConfirmGenerate] = useState(null);
+
+  function toggleSection(key) {
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function togglePreflight(id) {
+    setOpenPreflights((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  return (
+    <>
+      {/* Formulario de criacao */}
+      <Card variant="nested" className="flex flex-col gap-4">
+        <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+          <AppIcon name="plus" />
+          <span>Criar Relatorio Composto</span>
+        </div>
+
+        {/* Campos basicos */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Input
+            id="compound-name"
+            label="Nome do relatorio"
+            value={compoundDraft.nome}
+            onChange={(event) => setCompoundDraft((prev) => ({ ...prev, nome: event.target.value }))}
+            placeholder="Ex: Consolidado trimestral"
+            hint="Identificador interno do relatorio composto."
+          />
+          <Input
+            id="compound-revisao"
+            label="Revisao"
+            value={compoundDraft.revisao}
+            onChange={(event) => setCompoundDraft((prev) => ({ ...prev, revisao: event.target.value }))}
+            placeholder="Ex: 00"
+            hint="Numero de revisao do documento."
+          />
+        </div>
+
+        {/* Cabecalho do documento */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Cabecalho do documento</p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Input
+              id="compound-nome-lt"
+              label="Nome da LT"
+              value={compoundDraft.nome_lt}
+              onChange={(event) => setCompoundDraft((prev) => ({ ...prev, nome_lt: event.target.value }))}
+              placeholder="Ex: LT 500 kV Cachoeira Paulista - Adrianopolis III"
+              hint="Sera exibido no cabecalho de todas as paginas."
+            />
+            <Input
+              id="compound-titulo-programa"
+              label="Titulo do programa"
+              value={compoundDraft.titulo_programa}
+              onChange={(event) => setCompoundDraft((prev) => ({ ...prev, titulo_programa: event.target.value }))}
+              placeholder="Ex: Programa de monitoramento de processos erosivos"
+              hint="Subtitulo do relatorio exibido na capa e no cabecalho."
+            />
+            <Input
+              id="compound-codigo-doc"
+              label="Codigo do documento"
+              value={compoundDraft.codigo_documento}
+              onChange={(event) => setCompoundDraft((prev) => ({ ...prev, codigo_documento: event.target.value }))}
+              placeholder="Ex: OOSEMB.RT.061.2026"
+              hint="Numero do documento conforme sistema de gestao."
+            />
+          </div>
+        </div>
+
+        {/* Secoes de texto — accordion */}
+        <div className="flex flex-col gap-2">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Secoes de texto</p>
+          {TEXT_SECTIONS.map(([key, label, hint]) => (
+            <div key={key} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                onClick={() => toggleSection(key)}
+              >
+                <span className="text-sm font-medium text-slate-700">{label}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {compoundDraft[key]?.trim() ? (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-2xs font-medium text-emerald-700">Preenchido</span>
+                  ) : (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-2xs text-slate-500">Vazio</span>
+                  )}
+                  <AppIcon
+                    name="chevron-right"
+                    size={14}
+                    className={`text-slate-400 transition-transform duration-200 ${openSections[key] ? 'rotate-90' : ''}`}
+                  />
+                </div>
+              </button>
+              {openSections[key] ? (
+                <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+                  <Textarea
+                    id={`compound-${key}`}
+                    label={hint}
+                    rows={4}
+                    value={compoundDraft[key]}
+                    onChange={(event) => setCompoundDraft((prev) => ({ ...prev, [key]: event.target.value }))}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+
+        {/* Assinaturas */}
+        <div className="flex flex-col gap-2">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Assinaturas</p>
+          {signatariosCandidatos.length > 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col gap-2">
+              {signatariosCandidatos.map((sig) => {
+                const registro = [
+                  sig.registro_conselho && sig.registro_estado ? `${sig.registro_conselho}-${sig.registro_estado}` : sig.registro_conselho || '',
+                  sig.registro_numero ? (sig.registro_sufixo ? `${sig.registro_numero}/${sig.registro_sufixo}` : sig.registro_numero) : '',
+                ].filter(Boolean).join(' ');
+                const profNome = profissoes.find((p) => p.id === sig.profissao_id)?.nome || sig.profissao_nome || '';
+                const isElab = !!compoundDraft.elaboradores?.[sig.id];
+                const isRev = !!compoundDraft.revisores?.[sig.id];
+                return (
+                  <div
+                    key={sig.id}
+                    className={`flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${isElab || isRev ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-600">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 accent-brand-600"
+                          checked={isElab}
+                          onChange={(e) => setCompoundDraft((prev) => ({ ...prev, elaboradores: { ...prev.elaboradores, [sig.id]: e.target.checked } }))}
+                        />
+                        Elaborador
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-600">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 accent-brand-600"
+                          checked={isRev}
+                          onChange={(e) => setCompoundDraft((prev) => ({ ...prev, revisores: { ...prev.revisores, [sig.id]: e.target.checked } }))}
+                        />
+                        Revisor
+                      </label>
+                    </div>
+                    <span className="flex-1 font-medium text-slate-800">{sig.nome}</span>
+                    <span className="text-xs text-slate-500">{[profNome, registro].filter(Boolean).join(' – ')}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">Nenhum signatario cadastrado. Adicione no seu perfil.</p>
+          )}
+        </div>
+
+        <div className="flex justify-end border-t border-slate-100 pt-3">
+          <Button onClick={handleCreateCompound} disabled={busy === 'compound'}>
+            <AppIcon name="plus" />
+            {busy === 'compound' ? 'Criando...' : 'Criar Relatorio Composto'}
+          </Button>
+        </div>
+      </Card>
+
+      {/* Lista de compostos */}
+      <Card variant="nested" className="flex flex-col gap-3">
+        <div className="text-sm font-bold text-slate-800">Relatorios compostos</div>
+        {compounds.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+            Nenhum relatorio composto criado ainda.
+          </div>
+        ) : null}
+
+        {compounds.map((compound) => {
+          const orderedIds = buildCompoundWorkspaceOrder(compound);
+          const unlinkedWorkspaces = workspaces.filter((ws) => !(compound.workspaceIds || []).includes(ws.id));
+
+          return (
+            <article key={compound.id} className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <strong className="text-slate-800">{compound.nome || compound.id}</strong>
+                  <p className="mt-1 mb-0 text-xs text-slate-500">
+                    {Array.isArray(compound.workspaceIds) ? compound.workspaceIds.length : 0} workspace(s) • Atualizado: {fmt(compound.updatedAt)}
+                  </p>
+                </div>
+                <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${tone(compound.status)}`}>
+                  {getTranslatedStatus(compound.status)}
+                </span>
+              </div>
+
+              {/* Workspace tags */}
+              {(Array.isArray(compound.workspaceIds) ? compound.workspaceIds.length : 0) === 0 ? (
+                <div className="mt-3">
+                  <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Sem workspaces vinculados</span>
+                </div>
+              ) : (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(compound.workspaceIds || []).map((wsId) => (
+                    <span key={wsId} className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                      {workspaceLabelsById.get(wsId) || wsId}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Ordenacao dos blocos */}
+              {orderedIds.length > 0 ? (
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                    <span>Ordem dos Blocos</span>
+                    <HintText label="Ordenacao do composto">A ordem abaixo define a sequencia dos workspaces no relatorio composto.</HintText>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {orderedIds.map((workspaceId, index) => (
+                      <div
+                        key={`${compound.id}-${workspaceId}`}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-100 px-2 text-xs font-bold text-slate-600">
+                            {index + 1}
+                          </span>
+                          <span>{workspaceLabelsById.get(workspaceId) || workspaceId}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label={`Mover ${workspaceLabelsById.get(workspaceId) || workspaceId} para cima`}
+                            onClick={() => handleCompoundReorder(compound, workspaceId, 'up')}
+                            disabled={index === 0 || busy === `compound-reorder:${compound.id}:${workspaceId}`}
+                          >
+                            <AppIcon name="chevron-left" size={14} className="-rotate-90" />
+                          </button>
+                          <button
+                            type="button"
+                            className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label={`Mover ${workspaceLabelsById.get(workspaceId) || workspaceId} para baixo`}
+                            onClick={() => handleCompoundReorder(compound, workspaceId, 'down')}
+                            disabled={index === orderedIds.length - 1 || busy === `compound-reorder:${compound.id}:${workspaceId}`}
+                          >
+                            <AppIcon name="chevron-right" size={14} className="rotate-90" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Adicionar workspace */}
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                <SearchableSelect
+                  id={`compound-workspace-${compound.id}`}
+                  label="Adicionar Workspace"
+                  value={compoundWorkspaceSelections[compound.id] || ''}
+                  onChange={(val) => setCompoundWorkspaceSelections((prev) => ({ ...prev, [compound.id]: val }))}
+                  options={unlinkedWorkspaces.map((ws) => ({
+                    value: ws.id,
+                    label: workspaceLabelsById.get(ws.id) || ws.nome || ws.id,
+                  }))}
+                  placeholder="Selecione um workspace..."
+                />
+                <div className="flex items-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleCompoundAddWorkspace(compound)}
+                    disabled={busy === `compound-add:${compound.id}`}
+                  >
+                    <AppIcon name="plus" />
+                    {busy === `compound-add:${compound.id}` ? 'Adicionando...' : 'Adicionar'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Progresso de execucao */}
+              {isPendingExecutionStatus(compound.status) && (
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                    <AppIcon name="loader" size={12} className="animate-spin" />
+                    {getStatusLabel(compound.status)}
+                  </div>
+                  <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full animate-pulse w-full" />
+                  </div>
+                </div>
+              )}
+
+              {/* Erro */}
+              {compound.lastError ? (
+                <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {compound.lastError}
+                </div>
+              ) : null}
+
+              {/* Preflight collapsible */}
+              {compoundPreflights[compound.id] ? (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-800"
+                    onClick={() => togglePreflight(compound.id)}
+                  >
+                    <AppIcon name="chevron-right" size={12} className={openPreflights[compound.id] ? 'rotate-90' : ''} />
+                    {openPreflights[compound.id] ? 'Ocultar' : 'Ver'} resultado do preflight
+                    <span className={`rounded-full px-2 py-0.5 ${tone(compoundPreflights[compound.id]?.canGenerate ? 'ready' : 'pending')}`}>
+                      {compoundPreflights[compound.id]?.canGenerate ? 'Pronto para gerar' : 'Ajustes necessarios'}
+                    </span>
+                  </button>
+                  {openPreflights[compound.id] ? (
+                    <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        <span className="rounded-full bg-white border border-slate-200 px-2 py-1">Declarados: {compoundPreflights[compound.id]?.workspaceCount ?? 0}</span>
+                        <span className="rounded-full bg-white border border-slate-200 px-2 py-1">Encontrados: {compoundPreflights[compound.id]?.foundWorkspaceCount ?? 0}</span>
+                      </div>
+                      {Array.isArray(compoundPreflights[compound.id]?.warnings) && compoundPreflights[compound.id].warnings.length > 0 ? (
+                        <div className="flex flex-col gap-1.5">
+                          {compoundPreflights[compound.id].warnings.map((warning) => (
+                            <div key={warning} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700">
+                              {warning}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {/* Acoes primarias e secundarias separadas */}
+              <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                <Button
+                  variant="outline"
+                  onClick={() => handleCompoundPreflight(compound)}
+                  disabled={busy === `compound-preflight:${compound.id}`}
+                >
+                  <AppIcon name="search" />
+                  {busy === `compound-preflight:${compound.id}` ? 'Validando...' : 'Rodar Preflight'}
+                </Button>
+                {compound.outputDocxMediaId ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDownloadReportOutput(
+                      compound.outputDocxMediaId,
+                      buildCompoundDownloadFileName(compound),
+                    )}
+                    disabled={busy === `download:${compound.outputDocxMediaId}`}
+                  >
+                    <AppIcon
+                      name={busy === `download:${compound.outputDocxMediaId}` ? 'loader' : 'download'}
+                      className={busy === `download:${compound.outputDocxMediaId}` ? 'animate-spin' : ''}
+                    />
+                    {busy === `download:${compound.outputDocxMediaId}` ? 'Baixando...' : 'Baixar DOCX'}
+                  </Button>
+                ) : null}
+                <Button
+                  onClick={() => setConfirmGenerate(compound)}
+                  disabled={busy === `compound-generate:${compound.id}`}
+                >
+                  <AppIcon name="file-text" />
+                  Enfileirar Geracao
+                </Button>
+              </div>
+            </article>
+          );
+        })}
+      </Card>
+
+      {/* Modal confirmacao geracao */}
+      <Modal
+        open={Boolean(confirmGenerate)}
+        onClose={() => setConfirmGenerate(null)}
+        title="Confirmar geracao"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfirmGenerate(null)}>
+              <AppIcon name="close" /> Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                handleCompoundGenerate(confirmGenerate);
+                setConfirmGenerate(null);
+              }}
+              disabled={busy === `compound-generate:${confirmGenerate?.id}`}
+            >
+              <AppIcon name="file-text" />
+              Confirmar Geracao
+            </Button>
+          </>
+        }
+      >
+        <p className="m-0 text-sm text-slate-700">
+          Deseja enfileirar a geracao do relatorio composto{' '}
+          <strong>{confirmGenerate?.nome || confirmGenerate?.id}</strong>?
+          O documento sera processado em segundo plano.
+        </p>
+      </Modal>
+    </>
+  );
+}
