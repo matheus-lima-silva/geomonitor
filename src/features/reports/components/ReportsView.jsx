@@ -79,7 +79,9 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     codigo_documento: '',
     revisao: '00',
     introducao: '',
-    caracterizacao_tecnica: '',
+    geologia: '',
+    geotecnia: '',
+    geomorfologia: '',
     descricao_atividades: '',
     conclusoes: '',
     analise_evolucao: '',
@@ -875,7 +877,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         sharedTextsJson: {
           nome_lt: trimField('nome_lt'), titulo_programa: trimField('titulo_programa'),
           codigo_documento: trimField('codigo_documento'), revisao: trimField('revisao') || '00',
-          introducao: trimField('introducao'), caracterizacao_tecnica: trimField('caracterizacao_tecnica'),
+          introducao: trimField('introducao'),
+          geologia: trimField('geologia'), geotecnia: trimField('geotecnia'), geomorfologia: trimField('geomorfologia'),
           descricao_atividades: trimField('descricao_atividades'), conclusoes: trimField('conclusoes'),
           analise_evolucao: trimField('analise_evolucao'), observacoes: trimField('observacoes'),
           elaboradores: elaboradoresArr, revisores: revisoresArr,
@@ -884,7 +887,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       }, { updatedBy: userEmail || 'web' });
       setCompoundDraft({
         nome: '', nome_lt: '', titulo_programa: '', codigo_documento: '', revisao: '00',
-        introducao: '', caracterizacao_tecnica: '', descricao_atividades: '',
+        introducao: '', geologia: '', geotecnia: '', geomorfologia: '', descricao_atividades: '',
         conclusoes: '', analise_evolucao: '', observacoes: '', elaboradores: {}, revisores: {},
       });
       await refreshCompounds();

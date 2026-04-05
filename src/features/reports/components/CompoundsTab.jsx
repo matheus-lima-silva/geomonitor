@@ -12,9 +12,17 @@ import {
   tone,
 } from '../utils/reportUtils';
 
-const TEXT_SECTIONS = [
+const TEXT_SECTIONS_PRE = [
   ['introducao', '1. Introducao', 'Contexto e objetivo do relatorio.'],
-  ['caracterizacao_tecnica', '2. Caracterizacao Tecnica', 'Geologia, geotecnia e geomorfologia da LT.'],
+];
+
+const CARACTERIZACAO_SUBTOPICOS = [
+  ['geologia', 'Geologia', 'Aspectos geologicos relevantes da area da LT.'],
+  ['geotecnia', 'Geotecnia', 'Caracteristicas geotecnicas dos solos e macios.'],
+  ['geomorfologia', 'Geomorfologia', 'Formas de relevo e processos morfologicos da regiao.'],
+];
+
+const TEXT_SECTIONS_POST = [
   ['descricao_atividades', '3. Descricao das Atividades', 'Metodologia e atividades realizadas na vistoria.'],
   ['conclusoes', '5. Conclusoes e Recomendacoes', 'Diagnostico por torre e recomendacoes tecnicas.'],
   ['analise_evolucao', '6. Analise da Evolucao dos Processos Erosivos', 'Comparativo com relatorios anteriores.'],
@@ -117,7 +125,80 @@ export default function CompoundsTab({
         {/* Secoes de texto — accordion */}
         <div className="flex flex-col gap-2">
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Secoes de texto</p>
-          {TEXT_SECTIONS.map(([key, label, hint]) => (
+          {TEXT_SECTIONS_PRE.map(([key, label, hint]) => (
+            <div key={key} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                onClick={() => toggleSection(key)}
+              >
+                <span className="text-sm font-medium text-slate-700">{label}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {compoundDraft[key]?.trim() ? (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-2xs font-medium text-emerald-700">Preenchido</span>
+                  ) : (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-2xs text-slate-500">Vazio</span>
+                  )}
+                  <AppIcon
+                    name="chevron-right"
+                    size={14}
+                    className={`text-slate-400 transition-transform duration-200 ${openSections[key] ? 'rotate-90' : ''}`}
+                  />
+                </div>
+              </button>
+              {openSections[key] ? (
+                <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+                  <Textarea
+                    id={`compound-${key}`}
+                    label={hint}
+                    rows={4}
+                    value={compoundDraft[key]}
+                    onChange={(event) => setCompoundDraft((prev) => ({ ...prev, [key]: event.target.value }))}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ))}
+
+          {/* 2. Caracterizacao Tecnica — accordion com subtopicos */}
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+              onClick={() => toggleSection('caracterizacao_tecnica')}
+            >
+              <span className="text-sm font-medium text-slate-700">2. Caracterizacao Tecnica</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {CARACTERIZACAO_SUBTOPICOS.some(([k]) => compoundDraft[k]?.trim()) ? (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-2xs font-medium text-emerald-700">Preenchido</span>
+                ) : (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-2xs text-slate-500">Vazio</span>
+                )}
+                <AppIcon
+                  name="chevron-right"
+                  size={14}
+                  className={`text-slate-400 transition-transform duration-200 ${openSections['caracterizacao_tecnica'] ? 'rotate-90' : ''}`}
+                />
+              </div>
+            </button>
+            {openSections['caracterizacao_tecnica'] ? (
+              <div className="border-t border-slate-100 px-4 pb-4 pt-3 flex flex-col gap-4">
+                {CARACTERIZACAO_SUBTOPICOS.map(([key, label, hint]) => (
+                  <Textarea
+                    key={key}
+                    id={`compound-${key}`}
+                    label={label}
+                    hint={hint}
+                    rows={4}
+                    value={compoundDraft[key]}
+                    onChange={(event) => setCompoundDraft((prev) => ({ ...prev, [key]: event.target.value }))}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {TEXT_SECTIONS_POST.map(([key, label, hint]) => (
             <div key={key} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
               <button
                 type="button"

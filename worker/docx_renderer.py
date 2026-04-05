@@ -645,15 +645,35 @@ def render_report_compound_docx(context, output_path, image_loader):
         subtitle_lines.append(f"Gerado em {format_timestamp()}")
         add_cover(document, lt_name, subtitle_lines)
 
-    pre_photo_sections = [
-        ("INTRODUÇÃO", "introducao"),
-        ("CARACTERIZAÇÃO TÉCNICA", "caracterizacao_tecnica"),
-        ("DESCRIÇÃO DAS ATIVIDADES", "descricao_atividades"),
+    intro_text = normalize_text(shared.get("introducao"))
+    if intro_text:
+        add_numbered_text_section(document, "INTRODUÇÃO", intro_text)
+
+    caracterizacao_subtopicos = [
+        ("geologia", "Geologia"),
+        ("geotecnia", "Geotecnia"),
+        ("geomorfologia", "Geomorfologia"),
     ]
-    for title, key in pre_photo_sections:
-        text = normalize_text(shared.get(key))
-        if text:
-            add_numbered_text_section(document, title, text)
+    subtopico_texts = [(label, normalize_text(shared.get(key))) for key, label in caracterizacao_subtopicos if normalize_text(shared.get(key))]
+    legacy_caracterizacao = normalize_text(shared.get("caracterizacao_tecnica"))
+    if subtopico_texts or legacy_caracterizacao:
+        add_heading_paragraph(document, "CARACTERIZAÇÃO TÉCNICA", ilvl=0)
+        if subtopico_texts:
+            for label, text in subtopico_texts:
+                add_heading_paragraph(document, label, ilvl=1)
+                for paragraph_text in text.split("\n\n"):
+                    stripped = normalize_text(paragraph_text)
+                    if stripped:
+                        document.add_paragraph(stripped, style='NormalWeb')
+        elif legacy_caracterizacao:
+            for paragraph_text in legacy_caracterizacao.split("\n\n"):
+                stripped = normalize_text(paragraph_text)
+                if stripped:
+                    document.add_paragraph(stripped, style='NormalWeb')
+
+    descricao_text = normalize_text(shared.get("descricao_atividades"))
+    if descricao_text:
+        add_numbered_text_section(document, "DESCRIÇÃO DAS ATIVIDADES", descricao_text)
 
     all_photos = []
     for bundle in workspaces:
