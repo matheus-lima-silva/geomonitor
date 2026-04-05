@@ -31,6 +31,7 @@ function createCompoundResponse(req, compound) {
             collectionPath: 'report-compounds',
             extraLinks: {
                 addWorkspace: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/add-workspace`, method: 'POST' },
+                removeWorkspace: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/remove-workspace`, method: 'POST' },
                 reorder: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/reorder`, method: 'POST' },
                 preflight: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/preflight`, method: 'POST' },
                 generate: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/generate`, method: 'POST' },
@@ -147,6 +148,30 @@ router.post('/:id/add-workspace', verifyToken, requireEditor, async (req, res) =
     } catch (error) {
         console.error('[report-compounds API] Error POST /:id/add-workspace:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao adicionar workspace ao relatorio composto' });
+    }
+});
+
+router.post('/:id/remove-workspace', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const data = body.data && typeof body.data === 'object' ? body.data : {};
+        const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
+        const current = await reportCompoundRepository.getById(req.params.id);
+        if (!current) {
+            return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
+        }
+        const workspaceIdToRemove = normalizeText(data.workspaceId);
+        const nextWorkspaceIds = normalizeWorkspaceIds((current.workspaceIds || []).filter((id) => id !== workspaceIdToRemove));
+        const payload = normalizeCompoundPayload(
+            { ...current, workspaceIds: nextWorkspaceIds, id: req.params.id },
+            { ...meta, updatedBy: meta.updatedBy || req.user?.email || 'API' },
+            current,
+        );
+        const saved = await reportCompoundRepository.save(payload, { merge: true });
+        return res.status(200).json({ status: 'success', data: createCompoundResponse(req, saved || payload) });
+    } catch (error) {
+        console.error('[report-compounds API] Error POST /:id/remove-workspace:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao remover workspace do relatorio composto' });
     }
 });
 

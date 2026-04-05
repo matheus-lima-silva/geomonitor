@@ -35,6 +35,7 @@ export default function CompoundsTab({
   busy,
   handleCreateCompound,
   handleCompoundAddWorkspace,
+  handleCompoundRemoveWorkspace,
   handleCompoundReorder,
   handleCompoundPreflight,
   handleCompoundGenerate,
@@ -289,6 +290,15 @@ export default function CompoundsTab({
                             disabled={index === orderedIds.length - 1 || busy === `compound-reorder:${compound.id}:${workspaceId}`}
                           >
                             <AppIcon name="chevron-right" size={14} className="rotate-90" />
+                          </button>
+                          <button
+                            type="button"
+                            className="flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-red-400 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label={`Remover ${workspaceLabelsById.get(workspaceId) || workspaceId}`}
+                            onClick={() => handleCompoundRemoveWorkspace(compound, workspaceId)}
+                            disabled={busy === `compound-remove:${compound.id}:${workspaceId}`}
+                          >
+                            <AppIcon name="x" size={14} />
                           </button>
                         </div>
                       </div>

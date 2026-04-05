@@ -13,6 +13,7 @@ import {
   createReportCompound,
   generateReportCompound,
   listReportCompounds,
+  removeWorkspaceFromReportCompound,
   reorderReportCompound,
   runReportCompoundPreflight,
   subscribeReportCompounds,
@@ -965,6 +966,18 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
+  async function handleCompoundRemoveWorkspace(compound, workspaceId) {
+    if (!compound?.id || !workspaceId) return;
+    try {
+      setBusy(`compound-remove:${compound.id}:${workspaceId}`);
+      await removeWorkspaceFromReportCompound(compound.id, workspaceId, { updatedBy: userEmail || 'web' });
+    } catch (error) {
+      showToast(error?.message || 'Erro ao remover workspace do relatorio composto.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function handlePhotoExport() {
     if (!selectedProjectId) { showToast('Selecione um empreendimento para exportar as fotos.', 'error'); return; }
     try {
@@ -1151,6 +1164,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             busy={busy}
             handleCreateCompound={handleCreateCompound}
             handleCompoundAddWorkspace={handleCompoundAddWorkspace}
+            handleCompoundRemoveWorkspace={handleCompoundRemoveWorkspace}
             handleCompoundReorder={handleCompoundReorder}
             handleCompoundPreflight={handleCompoundPreflight}
             handleCompoundGenerate={handleCompoundGenerate}
