@@ -1,6 +1,9 @@
 app = "geomonitor-worker"
 primary_region = "gru"
 
+[build]
+  dockerfile = "../../../worker/Dockerfile"
+
 [deploy]
   strategy = "rolling"
 
