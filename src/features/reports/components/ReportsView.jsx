@@ -3,34 +3,43 @@ import AppIcon from '../../../components/AppIcon';
 import { subscribeProjects } from '../../../services/projectService';
 import {
   createProjectDossier,
+  deleteProjectDossier,
   generateProjectDossier,
   listProjectDossiers,
+  restoreProjectDossier,
   runProjectDossierPreflight,
+  trashProjectDossier,
 } from '../../../services/projectDossierService';
 import { downloadProjectPhotoExport, listProjectPhotos, requestProjectPhotoExport } from '../../../services/projectPhotoLibraryService';
 import {
   addWorkspaceToReportCompound,
   createReportCompound,
+  deleteReportCompound,
   generateReportCompound,
   listReportCompounds,
   removeWorkspaceFromReportCompound,
   reorderReportCompound,
+  restoreReportCompound,
   runReportCompoundPreflight,
   subscribeReportCompounds,
+  trashReportCompound,
 } from '../../../services/reportCompoundService';
 import { completeMediaUpload, createMediaUpload, downloadMediaAsset, uploadMediaBinary } from '../../../services/mediaService';
 import { getProjectTowerList } from '../../../utils/getProjectTowerList';
 import {
   createReportWorkspace,
+  deleteReportWorkspace,
+  deleteReportWorkspacePhoto,
   getWorkspaceKmzRequest,
   importReportWorkspace,
   listReportWorkspacePhotos,
   processWorkspaceKmz,
   requestWorkspaceKmz,
+  restoreReportWorkspace,
   saveReportWorkspacePhoto,
   subscribeReportWorkspaces,
+  trashReportWorkspace,
   updateReportWorkspace,
-  deleteReportWorkspacePhoto,
 } from '../../../services/reportWorkspaceService';
 import { listProfissoes, listSignatarios } from '../../../services/userService';
 import {
@@ -981,6 +990,123 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
+  async function handleTrashCompound(compound) {
+    if (!compound?.id) return;
+    try {
+      setBusy(`compound-trash:${compound.id}`);
+      await trashReportCompound(compound.id);
+      showToast('Relatorio composto movido para lixeira.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao mover relatorio composto para lixeira.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleRestoreCompound(compound) {
+    if (!compound?.id) return;
+    try {
+      setBusy(`compound-restore:${compound.id}`);
+      await restoreReportCompound(compound.id);
+      showToast('Relatorio composto restaurado.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao restaurar relatorio composto.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleHardDeleteCompound(compound) {
+    if (!compound?.id) return;
+    try {
+      setBusy(`compound-delete:${compound.id}`);
+      await deleteReportCompound(compound.id);
+      showToast('Relatorio composto removido permanentemente.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao remover relatorio composto.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleTrashDossier(dossier) {
+    if (!selectedProjectId || !dossier?.id) return;
+    try {
+      setBusy(`dossier-trash:${dossier.id}`);
+      await trashProjectDossier(selectedProjectId, dossier.id);
+      showToast('Dossie movido para lixeira.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao mover dossie para lixeira.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleRestoreDossier(dossier) {
+    if (!selectedProjectId || !dossier?.id) return;
+    try {
+      setBusy(`dossier-restore:${dossier.id}`);
+      await restoreProjectDossier(selectedProjectId, dossier.id);
+      showToast('Dossie restaurado.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao restaurar dossie.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleHardDeleteDossier(dossier) {
+    if (!selectedProjectId || !dossier?.id) return;
+    try {
+      setBusy(`dossier-delete:${dossier.id}`);
+      await deleteProjectDossier(selectedProjectId, dossier.id);
+      showToast('Dossie removido permanentemente.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao remover dossie.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleTrashWorkspace(workspace) {
+    if (!workspace?.id) return;
+    try {
+      setBusy(`workspace-trash:${workspace.id}`);
+      await trashReportWorkspace(workspace.id);
+      showToast('Workspace movido para lixeira.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao mover workspace para lixeira.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleRestoreWorkspace(workspace) {
+    if (!workspace?.id) return;
+    try {
+      setBusy(`workspace-restore:${workspace.id}`);
+      await restoreReportWorkspace(workspace.id);
+      showToast('Workspace restaurado.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao restaurar workspace.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleHardDeleteWorkspace(workspace) {
+    if (!workspace?.id) return;
+    try {
+      setBusy(`workspace-delete:${workspace.id}`);
+      await deleteReportWorkspace(workspace.id);
+      showToast('Workspace removido permanentemente.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao remover workspace.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function handlePhotoExport() {
     if (!selectedProjectId) { showToast('Selecione um empreendimento para exportar as fotos.', 'error'); return; }
     try {
@@ -1114,6 +1240,9 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleRequestWorkspaceKmz={handleRequestWorkspaceKmz}
             handleDownloadWorkspaceKmz={handleDownloadWorkspaceKmz}
             handleExportCaptions={handleExportCaptions}
+            handleTrashWorkspace={handleTrashWorkspace}
+            handleRestoreWorkspace={handleRestoreWorkspace}
+            handleHardDeleteWorkspace={handleHardDeleteWorkspace}
           />
         ) : null}
 
@@ -1147,6 +1276,9 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleCreateDossier={handleCreateDossier}
             handleDossierPreflight={handleDossierPreflight}
             handleDossierGenerate={handleDossierGenerate}
+            handleTrashDossier={handleTrashDossier}
+            handleRestoreDossier={handleRestoreDossier}
+            handleHardDeleteDossier={handleHardDeleteDossier}
             handleDownloadReportOutput={handleDownloadReportOutput}
             buildDossierDownloadFileName={buildDossierDownloadFileName}
           />
@@ -1171,6 +1303,9 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleCompoundReorder={handleCompoundReorder}
             handleCompoundPreflight={handleCompoundPreflight}
             handleCompoundGenerate={handleCompoundGenerate}
+            handleTrashCompound={handleTrashCompound}
+            handleRestoreCompound={handleRestoreCompound}
+            handleHardDeleteCompound={handleHardDeleteCompound}
             handleDownloadReportOutput={handleDownloadReportOutput}
             buildCompoundDownloadFileName={buildCompoundDownloadFileName}
           />

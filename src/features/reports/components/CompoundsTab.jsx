@@ -47,12 +47,17 @@ export default function CompoundsTab({
   handleCompoundReorder,
   handleCompoundPreflight,
   handleCompoundGenerate,
+  handleTrashCompound,
+  handleRestoreCompound,
+  handleHardDeleteCompound,
   handleDownloadReportOutput,
   buildCompoundDownloadFileName,
 }) {
   const [openSections, setOpenSections] = useState({});
   const [openPreflights, setOpenPreflights] = useState({});
   const [confirmGenerate, setConfirmGenerate] = useState(null);
+  const [confirmHardDelete, setConfirmHardDelete] = useState(null);
+  const [showTrash, setShowTrash] = useState(false);
 
   function toggleSection(key) {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -300,7 +305,7 @@ export default function CompoundsTab({
           </div>
         ) : null}
 
-        {compounds.map((compound) => {
+        {compounds.filter((c) => !c.deletedAt).map((compound) => {
           const orderedIds = buildCompoundWorkspaceOrder(compound);
           const unlinkedWorkspaces = workspaces.filter((ws) => !(compound.workspaceIds || []).includes(ws.id));
 
@@ -313,9 +318,20 @@ export default function CompoundsTab({
                     {Array.isArray(compound.workspaceIds) ? compound.workspaceIds.length : 0} workspace(s) • Atualizado: {fmt(compound.updatedAt)}
                   </p>
                 </div>
-                <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${tone(compound.status)}`}>
-                  {getTranslatedStatus(compound.status)}
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`rounded-full px-2 py-1 text-xs font-medium ${tone(compound.status)}`}>
+                    {getTranslatedStatus(compound.status)}
+                  </span>
+                  <button
+                    type="button"
+                    className="flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-red-400 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    aria-label="Mover para lixeira"
+                    onClick={() => handleTrashCompound(compound)}
+                    disabled={busy === `compound-trash:${compound.id}`}
+                  >
+                    <AppIcon name="trash-2" size={14} />
+                  </button>
+                </div>
               </div>
 
               {/* Workspace tags */}
@@ -506,6 +522,54 @@ export default function CompoundsTab({
         })}
       </Card>
 
+      {/* Lixeira de compostos */}
+      {compounds.some((c) => c.deletedAt) ? (
+        <div className="mt-2">
+          <button
+            type="button"
+            className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700"
+            onClick={() => setShowTrash((v) => !v)}
+          >
+            <AppIcon name="trash-2" size={12} />
+            Lixeira ({compounds.filter((c) => c.deletedAt).length})
+            <AppIcon name="chevron-right" size={12} className={`transition-transform ${showTrash ? 'rotate-90' : ''}`} />
+          </button>
+          {showTrash ? (
+            <div className="mt-2 flex flex-col gap-2">
+              {compounds.filter((c) => c.deletedAt).map((compound) => (
+                <div key={compound.id} className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                  <div>
+                    <span className="text-sm font-medium text-slate-700">{compound.nome || compound.id}</span>
+                    <p className="mt-0.5 mb-0 text-xs text-red-400">Na lixeira • {fmt(compound.deletedAt)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRestoreCompound(compound)}
+                      disabled={busy === `compound-restore:${compound.id}`}
+                    >
+                      <AppIcon name="undo" size={14} />
+                      Restaurar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-red-300 text-red-500 hover:bg-red-50"
+                      onClick={() => setConfirmHardDelete(compound)}
+                      disabled={busy === `compound-delete:${compound.id}`}
+                    >
+                      <AppIcon name="trash-2" size={14} />
+                      Excluir
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Modal confirmacao geracao */}
       <Modal
         open={Boolean(confirmGenerate)}
@@ -534,6 +598,37 @@ export default function CompoundsTab({
           Deseja enfileirar a geracao do relatorio composto{' '}
           <strong>{confirmGenerate?.nome || confirmGenerate?.id}</strong>?
           O documento sera processado em segundo plano.
+        </p>
+      </Modal>
+      {/* Modal confirmacao exclusao definitiva */}
+      <Modal
+        open={Boolean(confirmHardDelete)}
+        onClose={() => setConfirmHardDelete(null)}
+        title="Excluir definitivamente"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfirmHardDelete(null)}>
+              <AppIcon name="close" /> Cancelar
+            </Button>
+            <Button
+              className="bg-red-500 hover:bg-red-600 text-white border-red-500"
+              onClick={() => {
+                handleHardDeleteCompound(confirmHardDelete);
+                setConfirmHardDelete(null);
+              }}
+              disabled={busy === `compound-delete:${confirmHardDelete?.id}`}
+            >
+              <AppIcon name="trash-2" />
+              Excluir definitivamente
+            </Button>
+          </>
+        }
+      >
+        <p className="m-0 text-sm text-slate-700">
+          Deseja excluir permanentemente o relatorio composto{' '}
+          <strong>{confirmHardDelete?.nome || confirmHardDelete?.id}</strong>?
+          Essa acao nao pode ser desfeita.
         </p>
       </Modal>
     </>

@@ -44,3 +44,23 @@ export async function generateProjectDossier(projectId, dossierId) {
     method: 'POST',
   });
 }
+
+export async function trashProjectDossier(projectId, dossierId) {
+  return requestProject(`${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/dossiers/${encodeURIComponent(dossierId)}/trash`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function restoreProjectDossier(projectId, dossierId) {
+  return requestProject(`${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/dossiers/${encodeURIComponent(dossierId)}/restore`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function deleteProjectDossier(projectId, dossierId) {
+  return requestProject(`${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/dossiers/${encodeURIComponent(dossierId)}`, {
+    method: 'DELETE',
+  });
+}

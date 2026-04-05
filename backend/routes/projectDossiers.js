@@ -28,6 +28,8 @@ function createDossierResponse(req, projectId, dossier) {
                 project: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}`, method: 'GET' },
                 preflight: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/dossiers/${dossierId}/preflight`, method: 'POST' },
                 generate: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/dossiers/${dossierId}/generate`, method: 'POST' },
+                trash: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/dossiers/${dossierId}/trash`, method: 'POST' },
+                restore: { href: `${resolveApiBaseUrl(req)}/projects/${projectId}/dossiers/${dossierId}/restore`, method: 'POST' },
             },
         },
     );
@@ -237,6 +239,55 @@ router.post('/:id/dossiers/:dossierId/generate', verifyToken, requireEditor, asy
     } catch (error) {
         console.error('[project-dossiers API] Error POST /:id/dossiers/:dossierId/generate:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao enfileirar geracao do dossie' });
+    }
+});
+
+router.post('/:id/dossiers/:dossierId/trash', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const projectId = normalizeText(req.params.id).toUpperCase();
+        const dossierId = normalizeText(req.params.dossierId);
+        const current = await projectDossierRepository.getByProjectAndId(projectId, dossierId);
+        if (!current) return res.status(404).json({ status: 'error', message: 'Dossie nao encontrado' });
+        const saved = await projectDossierRepository.save(
+            { ...current, deletedAt: new Date().toISOString(), updatedBy: req.user?.email || 'API' },
+            { merge: true },
+        );
+        return res.status(200).json({ status: 'success', data: createDossierResponse(req, projectId, saved || current) });
+    } catch (error) {
+        console.error('[project-dossiers API] Error POST /:id/dossiers/:dossierId/trash:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao mover dossie para lixeira' });
+    }
+});
+
+router.post('/:id/dossiers/:dossierId/restore', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const projectId = normalizeText(req.params.id).toUpperCase();
+        const dossierId = normalizeText(req.params.dossierId);
+        const current = await projectDossierRepository.getByProjectAndId(projectId, dossierId);
+        if (!current) return res.status(404).json({ status: 'error', message: 'Dossie nao encontrado' });
+        const { deletedAt, ...rest } = current;
+        const saved = await projectDossierRepository.save(
+            { ...rest, deletedAt: null, updatedBy: req.user?.email || 'API' },
+            { merge: true },
+        );
+        return res.status(200).json({ status: 'success', data: createDossierResponse(req, projectId, saved || rest) });
+    } catch (error) {
+        console.error('[project-dossiers API] Error POST /:id/dossiers/:dossierId/restore:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao restaurar dossie da lixeira' });
+    }
+});
+
+router.delete('/:id/dossiers/:dossierId', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const projectId = normalizeText(req.params.id).toUpperCase();
+        const dossierId = normalizeText(req.params.dossierId);
+        const current = await projectDossierRepository.getByProjectAndId(projectId, dossierId);
+        if (!current) return res.status(404).json({ status: 'error', message: 'Dossie nao encontrado' });
+        await projectDossierRepository.remove(dossierId);
+        return res.status(200).json({ status: 'success', message: 'Dossie removido permanentemente' });
+    } catch (error) {
+        console.error('[project-dossiers API] Error DELETE /:id/dossiers/:dossierId:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao remover dossie' });
     }
 });
 

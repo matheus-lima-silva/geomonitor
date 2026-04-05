@@ -45,6 +45,26 @@ export async function addWorkspaceToReportCompound(compoundId, workspaceId, meta
   });
 }
 
+export async function trashReportCompound(compoundId) {
+  return requestCompound(`${API_BASE_URL}/report-compounds/${encodeURIComponent(compoundId)}/trash`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function restoreReportCompound(compoundId) {
+  return requestCompound(`${API_BASE_URL}/report-compounds/${encodeURIComponent(compoundId)}/restore`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function deleteReportCompound(compoundId) {
+  return requestCompound(`${API_BASE_URL}/report-compounds/${encodeURIComponent(compoundId)}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function removeWorkspaceFromReportCompound(compoundId, workspaceId, meta = {}) {
   return requestCompound(`${API_BASE_URL}/report-compounds/${encodeURIComponent(compoundId)}/remove-workspace`, {
     method: 'POST',

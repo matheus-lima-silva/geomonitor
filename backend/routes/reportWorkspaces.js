@@ -198,6 +198,37 @@ router.put('/:id', verifyToken, requireEditor, async (req, res) => {
     }
 });
 
+router.post('/:id/trash', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const current = await reportWorkspaceRepository.getById(req.params.id);
+        if (!current) return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
+        const saved = await reportWorkspaceRepository.save(
+            { ...current, deletedAt: new Date().toISOString(), updatedBy: req.user?.email || 'API' },
+            { merge: true },
+        );
+        return res.status(200).json({ status: 'success', data: createHateoasResponse(req, saved || current, 'report-workspaces', req.params.id) });
+    } catch (error) {
+        console.error('[report-workspaces API] Error POST /:id/trash:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao mover workspace para lixeira' });
+    }
+});
+
+router.post('/:id/restore', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const current = await reportWorkspaceRepository.getById(req.params.id);
+        if (!current) return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
+        const { deletedAt, ...rest } = current;
+        const saved = await reportWorkspaceRepository.save(
+            { ...rest, deletedAt: null, updatedBy: req.user?.email || 'API' },
+            { merge: true },
+        );
+        return res.status(200).json({ status: 'success', data: createHateoasResponse(req, saved || rest, 'report-workspaces', req.params.id) });
+    } catch (error) {
+        console.error('[report-workspaces API] Error POST /:id/restore:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao restaurar workspace da lixeira' });
+    }
+});
+
 router.delete('/:id', verifyToken, requireEditor, async (req, res) => {
     try {
         await reportWorkspaceRepository.remove(req.params.id);

@@ -38,6 +38,26 @@ async function requestWorkspace(url, options = {}) {
   return response.json();
 }
 
+export async function trashReportWorkspace(workspaceId) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/trash`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function restoreReportWorkspace(workspaceId) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/restore`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function deleteReportWorkspace(workspaceId) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function importReportWorkspace(workspaceId, payload, meta = {}) {
   return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/import`, {
     method: 'POST',

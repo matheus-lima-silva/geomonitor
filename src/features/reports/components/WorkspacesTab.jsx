@@ -88,11 +88,16 @@ export default function WorkspacesTab({
   handleRequestWorkspaceKmz,
   handleDownloadWorkspaceKmz,
   handleExportCaptions,
+  handleTrashWorkspace,
+  handleRestoreWorkspace,
+  handleHardDeleteWorkspace,
 }) {
   const [sidebarTextsOpen, setSidebarTextsOpen] = useState(false);
   const [sidebarKmzOpen, setSidebarKmzOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
+  const [confirmHardDeleteWorkspace, setConfirmHardDeleteWorkspace] = useState(null);
+  const [showWorkspaceTrash, setShowWorkspaceTrash] = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(filteredWorkspacePhotos.length / PAGE_SIZE));
   const pagedPhotos = filteredWorkspacePhotos.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -727,16 +732,27 @@ export default function WorkspacesTab({
           </div>
         ) : null}
 
-        {filteredWorkspaceList.map((workspace) => (
+        {filteredWorkspaceList.filter((w) => !w.deletedAt).map((workspace) => (
           <article key={workspace.id} className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <strong className="text-slate-800">{workspace.nome || workspace.id}</strong>
                 <p className="mt-1 mb-0 text-xs text-slate-500 truncate">{workspace.descricao || 'Sem descricao'}</p>
               </div>
-              <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${tone(workspace.status)}`}>
-                {getTranslatedStatus(workspace.status)}
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`rounded-full px-2 py-1 text-xs font-medium ${tone(workspace.status)}`}>
+                  {getTranslatedStatus(workspace.status)}
+                </span>
+                <button
+                  type="button"
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-red-400 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label="Mover para lixeira"
+                  onClick={() => handleTrashWorkspace(workspace)}
+                  disabled={busy === `workspace-trash:${workspace.id}`}
+                >
+                  <AppIcon name="trash-2" size={14} />
+                </button>
+              </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
               <span>Empreendimento: {projectNamesById.get(workspace.projectId) || workspace.projectId || '-'}</span>
@@ -755,6 +771,86 @@ export default function WorkspacesTab({
           </article>
         ))}
       </Card>
+
+      {/* Lixeira de workspaces */}
+      {workspaces.some((w) => w.deletedAt) ? (
+        <div className="mt-2">
+          <button
+            type="button"
+            className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700"
+            onClick={() => setShowWorkspaceTrash((v) => !v)}
+          >
+            <AppIcon name="trash-2" size={12} />
+            Lixeira de workspaces ({workspaces.filter((w) => w.deletedAt).length})
+            <AppIcon name="chevron-right" size={12} className={`transition-transform ${showWorkspaceTrash ? 'rotate-90' : ''}`} />
+          </button>
+          {showWorkspaceTrash ? (
+            <div className="mt-2 flex flex-col gap-2">
+              {workspaces.filter((w) => w.deletedAt).map((workspace) => (
+                <div key={workspace.id} className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                  <div>
+                    <span className="text-sm font-medium text-slate-700">{workspace.nome || workspace.id}</span>
+                    <p className="mt-0.5 mb-0 text-xs text-red-400">Na lixeira • {projectNamesById.get(workspace.projectId) || '-'}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRestoreWorkspace(workspace)}
+                      disabled={busy === `workspace-restore:${workspace.id}`}
+                    >
+                      <AppIcon name="undo" size={14} />
+                      Restaurar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-red-300 text-red-500 hover:bg-red-50"
+                      onClick={() => setConfirmHardDeleteWorkspace(workspace)}
+                      disabled={busy === `workspace-delete:${workspace.id}`}
+                    >
+                      <AppIcon name="trash-2" size={14} />
+                      Excluir
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Modal confirmacao exclusao definitiva de workspace */}
+      <Modal
+        open={Boolean(confirmHardDeleteWorkspace)}
+        onClose={() => setConfirmHardDeleteWorkspace(null)}
+        title="Excluir workspace definitivamente"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfirmHardDeleteWorkspace(null)}>
+              <AppIcon name="close" /> Cancelar
+            </Button>
+            <Button
+              className="bg-red-500 hover:bg-red-600 text-white border-red-500"
+              onClick={() => {
+                handleHardDeleteWorkspace(confirmHardDeleteWorkspace);
+                setConfirmHardDeleteWorkspace(null);
+              }}
+              disabled={busy === `workspace-delete:${confirmHardDeleteWorkspace?.id}`}
+            >
+              <AppIcon name="trash-2" />
+              Excluir definitivamente
+            </Button>
+          </>
+        }
+      >
+        <p className="m-0 text-sm text-slate-700">
+          Deseja excluir permanentemente o workspace{' '}
+          <strong>{confirmHardDeleteWorkspace?.nome || confirmHardDeleteWorkspace?.id}</strong>?
+          Essa acao nao pode ser desfeita.
+        </p>
+      </Modal>
 
       {/* Modal de confirmacao de esvaziamento da lixeira */}
       <Modal

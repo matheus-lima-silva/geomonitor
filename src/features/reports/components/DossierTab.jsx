@@ -25,10 +25,15 @@ export default function DossierTab({
   handleCreateDossier,
   handleDossierPreflight,
   handleDossierGenerate,
+  handleTrashDossier,
+  handleRestoreDossier,
+  handleHardDeleteDossier,
   handleDownloadReportOutput,
   buildDossierDownloadFileName,
 }) {
   const [confirmGenerate, setConfirmGenerate] = useState(null); // dossier objeto
+  const [confirmHardDelete, setConfirmHardDelete] = useState(null);
+  const [showTrash, setShowTrash] = useState(false);
   const [openPreflights, setOpenPreflights] = useState({}); // id -> bool
 
   function togglePreflight(id) {
@@ -126,7 +131,7 @@ export default function DossierTab({
           </div>
         ) : null}
 
-        {projectDossiers.map((dossier) => (
+        {projectDossiers.filter((d) => !d.deletedAt).map((dossier) => (
           <article key={dossier.id} className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -135,9 +140,20 @@ export default function DossierTab({
                   <p className="mt-1 mb-0 text-xs text-slate-500">{dossier.observacoes}</p>
                 ) : null}
               </div>
-              <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${tone(dossier.status)}`}>
-                {getTranslatedStatus(dossier.status)}
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`rounded-full px-2 py-1 text-xs font-medium ${tone(dossier.status)}`}>
+                  {getTranslatedStatus(dossier.status)}
+                </span>
+                <button
+                  type="button"
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-red-400 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label="Mover para lixeira"
+                  onClick={() => handleTrashDossier(dossier)}
+                  disabled={busy === `dossier-trash:${dossier.id}`}
+                >
+                  <AppIcon name="trash-2" size={14} />
+                </button>
+              </div>
             </div>
 
             {/* Escopo */}
@@ -245,6 +261,54 @@ export default function DossierTab({
         ))}
       </Card>
 
+      {/* Lixeira de dossies */}
+      {projectDossiers.some((d) => d.deletedAt) ? (
+        <div className="mt-2">
+          <button
+            type="button"
+            className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700"
+            onClick={() => setShowTrash((v) => !v)}
+          >
+            <AppIcon name="trash-2" size={12} />
+            Lixeira ({projectDossiers.filter((d) => d.deletedAt).length})
+            <AppIcon name="chevron-right" size={12} className={`transition-transform ${showTrash ? 'rotate-90' : ''}`} />
+          </button>
+          {showTrash ? (
+            <div className="mt-2 flex flex-col gap-2">
+              {projectDossiers.filter((d) => d.deletedAt).map((dossier) => (
+                <div key={dossier.id} className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                  <div>
+                    <span className="text-sm font-medium text-slate-700">{dossier.nome || dossier.id}</span>
+                    <p className="mt-0.5 mb-0 text-xs text-red-400">Na lixeira</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRestoreDossier(dossier)}
+                      disabled={busy === `dossier-restore:${dossier.id}`}
+                    >
+                      <AppIcon name="undo" size={14} />
+                      Restaurar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-red-300 text-red-500 hover:bg-red-50"
+                      onClick={() => setConfirmHardDelete(dossier)}
+                      disabled={busy === `dossier-delete:${dossier.id}`}
+                    >
+                      <AppIcon name="trash-2" size={14} />
+                      Excluir
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Modal de confirmacao de geracao */}
       <Modal
         open={Boolean(confirmGenerate)}
@@ -273,6 +337,37 @@ export default function DossierTab({
           Deseja enfileirar a geracao do dossie{' '}
           <strong>{confirmGenerate?.nome || confirmGenerate?.id}</strong>?
           O documento sera processado em segundo plano.
+        </p>
+      </Modal>
+      {/* Modal confirmacao exclusao definitiva */}
+      <Modal
+        open={Boolean(confirmHardDelete)}
+        onClose={() => setConfirmHardDelete(null)}
+        title="Excluir definitivamente"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfirmHardDelete(null)}>
+              <AppIcon name="close" /> Cancelar
+            </Button>
+            <Button
+              className="bg-red-500 hover:bg-red-600 text-white border-red-500"
+              onClick={() => {
+                handleHardDeleteDossier(confirmHardDelete);
+                setConfirmHardDelete(null);
+              }}
+              disabled={busy === `dossier-delete:${confirmHardDelete?.id}`}
+            >
+              <AppIcon name="trash-2" />
+              Excluir definitivamente
+            </Button>
+          </>
+        }
+      >
+        <p className="m-0 text-sm text-slate-700">
+          Deseja excluir permanentemente o dossie{' '}
+          <strong>{confirmHardDelete?.nome || confirmHardDelete?.id}</strong>?
+          Essa acao nao pode ser desfeita.
         </p>
       </Modal>
     </>

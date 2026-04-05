@@ -32,6 +32,8 @@ function createCompoundResponse(req, compound) {
             extraLinks: {
                 addWorkspace: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/add-workspace`, method: 'POST' },
                 removeWorkspace: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/remove-workspace`, method: 'POST' },
+                trash: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/trash`, method: 'POST' },
+                restore: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/restore`, method: 'POST' },
                 reorder: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/reorder`, method: 'POST' },
                 preflight: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/preflight`, method: 'POST' },
                 generate: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/generate`, method: 'POST' },
@@ -271,6 +273,49 @@ router.post('/:id/generate', verifyToken, requireEditor, async (req, res) => {
     } catch (error) {
         console.error('[report-compounds API] Error POST /:id/generate:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao enfileirar geracao do relatorio composto' });
+    }
+});
+
+router.post('/:id/trash', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const current = await reportCompoundRepository.getById(req.params.id);
+        if (!current) return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
+        const saved = await reportCompoundRepository.save(
+            { ...current, deletedAt: new Date().toISOString(), updatedBy: req.user?.email || 'API' },
+            { merge: true },
+        );
+        return res.status(200).json({ status: 'success', data: createCompoundResponse(req, saved || current) });
+    } catch (error) {
+        console.error('[report-compounds API] Error POST /:id/trash:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao mover relatorio composto para lixeira' });
+    }
+});
+
+router.post('/:id/restore', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const current = await reportCompoundRepository.getById(req.params.id);
+        if (!current) return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
+        const { deletedAt, ...rest } = current;
+        const saved = await reportCompoundRepository.save(
+            { ...rest, deletedAt: null, updatedBy: req.user?.email || 'API' },
+            { merge: true },
+        );
+        return res.status(200).json({ status: 'success', data: createCompoundResponse(req, saved || rest) });
+    } catch (error) {
+        console.error('[report-compounds API] Error POST /:id/restore:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao restaurar relatorio composto da lixeira' });
+    }
+});
+
+router.delete('/:id', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const current = await reportCompoundRepository.getById(req.params.id);
+        if (!current) return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
+        await reportCompoundRepository.remove(req.params.id);
+        return res.status(200).json({ status: 'success', message: 'Relatorio composto removido permanentemente' });
+    } catch (error) {
+        console.error('[report-compounds API] Error DELETE /:id:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao remover relatorio composto' });
     }
 });
 
