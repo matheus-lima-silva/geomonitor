@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from './AppIcon';
+import { Button, Modal } from './ui';
 import { useAutoSaveInspection } from '../hooks/useAutoSaveInspection';
 import { createEmptyInspection } from '../models/inspectionModel';
 import { saveErosion } from '../services/erosionService';
@@ -195,6 +196,7 @@ function InspectionManager({
   const [expandedTowerKey, setExpandedTowerKey] = useState('');
   const [selectedHotelHistoryKey, setSelectedHotelHistoryKey] = useState('');
   const [suggestedTowerInput, setSuggestedTowerInput] = useState('');
+  const [warningModal, setWarningModal] = useState(null);
   const autoPendingCheckRef = useRef('');
   const { ensureSaved, saving } = useAutoSaveInspection();
   const { show } = useToast();
@@ -557,6 +559,16 @@ function InspectionManager({
     setSelectedHotelHistoryKey('');
   }, [diaSelecionado, inspection.projetoId]);
 
+  function showConfirm(message) {
+    return new Promise((resolve) => {
+      setWarningModal({
+        message,
+        onConfirm: () => { setWarningModal(null); resolve(true); },
+        onCancel: () => { setWarningModal(null); resolve(false); },
+      });
+    });
+  }
+
   async function handleSaveInspection() {
     try {
       if (!inspection.projetoId || !inspection.dataInicio) {
@@ -571,7 +583,7 @@ function InspectionManager({
           .map((item) => `- Torre ${item.tower}: ${item.days.join(', ')}`)
           .join('\n');
         const overflow = duplicateTowers.length > 8 ? `\n... e mais ${duplicateTowers.length - 8} torre(s).` : '';
-        const confirmed = window.confirm(
+        const confirmed = await showConfirm(
           `Há torres registradas em mais de um dia nesta vistoria:\n${sample}${overflow}\n\nIsso pode estar correto em caso de revisita.\nClique em OK para continuar ou Cancelar para revisar.`,
         );
         if (!confirmed) {
@@ -916,6 +928,27 @@ function InspectionManager({
             </div>
           </form>
         </div>
+      )}
+
+      {warningModal && (
+        <Modal
+          open={true}
+          onClose={warningModal.onCancel}
+          title="Confirmar"
+          size="sm"
+          footer={
+            <>
+              <Button variant="outline" onClick={warningModal.onCancel}>
+                <AppIcon name="close" /> Cancelar
+              </Button>
+              <Button onClick={warningModal.onConfirm}>
+                <AppIcon name="check" /> Confirmar
+              </Button>
+            </>
+          }
+        >
+          <p className="m-0 text-sm text-slate-700 whitespace-pre-wrap">{warningModal.message}</p>
+        </Modal>
       )}
     </section>
   );

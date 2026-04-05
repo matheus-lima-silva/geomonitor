@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Input, Modal, Select, Textarea } from '../../../components/ui';
+import { Button, Card, ConfirmDeleteModal, Input, Modal, Select, Textarea } from '../../../components/ui';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { deleteUser, saveUser, sendUserResetEmail } from '../../../services/userService';
@@ -28,6 +28,7 @@ function AdminView({
   ));
 
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [isEditingUser, setIsEditingUser] = useState(false);
   const [userForm, setUserForm] = useState({
     id: '',
@@ -68,9 +69,13 @@ function AdminView({
     show(`Utilizador definido como ${status}.`, 'success');
   }
 
-  async function handleDeleteUser(uid) {
-    if (!window.confirm(`Excluir utilizador ${uid}?`)) return;
-    await deleteUser(uid);
+  function handleDeleteUser(uid) {
+    setDeleteConfirm(uid);
+  }
+
+  async function handleConfirmDeleteUser() {
+    await deleteUser(deleteConfirm);
+    setDeleteConfirm(null);
     show('Utilizador excluido.', 'success');
   }
 
@@ -153,7 +158,7 @@ function AdminView({
   }
 
   return (
-    <section className="bg-white rounded-2xl shadow-[0_4px_18px_rgba(15,23,42,0.08)] p-5 mb-4">
+    <section className="bg-white rounded-xl shadow-[0_4px_18px_rgba(15,23,42,0.08)] p-5 mb-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div>
           <h2 className="text-xl font-bold text-slate-800 m-0">Administracao</h2>
@@ -175,7 +180,7 @@ function AdminView({
             </Button>
           </div>
 
-          <div className="overflow-x-auto w-full bg-white rounded-xl border border-slate-200">
+          <Card variant="flat" className="overflow-x-auto w-full !p-0">
             <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr>
@@ -234,13 +239,13 @@ function AdminView({
                 )}
               </tbody>
             </table>
-          </div>
+          </Card>
         </div>
       )}
 
       {section === 'rules' && (
         <div className="flex flex-col gap-5">
-          <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200">
+          <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
             <h3 className="text-base font-bold text-slate-800 m-0 mb-1">Configuracao de criticidade (JSON)</h3>
             <p className="text-sm text-slate-500 mb-4">
               A metodologia V3 continua a mesma; aqui ajustamos apenas a configuracao canonica usada pelo motor.
@@ -273,6 +278,14 @@ function AdminView({
           </div>
         </div>
       )}
+
+      <ConfirmDeleteModal
+        open={Boolean(deleteConfirm)}
+        itemName="o utilizador"
+        itemId={deleteConfirm}
+        onConfirm={handleConfirmDeleteUser}
+        onCancel={() => setDeleteConfirm(null)}
+      />
 
       <Modal
         open={isUserFormOpen}

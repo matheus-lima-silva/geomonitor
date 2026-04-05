@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Input, Modal, RangeSlider, SearchableSelect, Select } from '../../../components/ui';
+import { Button, ConfirmDeleteModal, EmptyState, Input, ListItemSkeleton, Modal, RangeSlider, SearchableSelect, Select } from '../../../components/ui';
 import {
   BRAZIL_UF_OPTIONS,
   LICENSE_SPHERE_OPTIONS,
@@ -465,10 +465,11 @@ function LicenseFormModal({
   );
 }
 
-function LicensesView({ licenses, projects, erosions, userEmail, showToast, searchTerm }) {
+function LicensesView({ licenses, projects, erosions, userEmail, showToast, searchTerm, loading = false }) {
   const [open, setOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(createEmptyOperatingLicense());
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const agencyOptions = useMemo(
     () => getAgencyOptions({ licenses, erosions }),
@@ -512,9 +513,13 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
     showToast?.('LO salva com sucesso.', 'success');
   }
 
-  async function handleDelete(id) {
-    if (!window.confirm(`Excluir LO ${id}?`)) return;
-    await deleteOperatingLicense(id);
+  function handleDelete(id) {
+    setDeleteConfirm(id);
+  }
+
+  async function handleConfirmDelete() {
+    await deleteOperatingLicense(deleteConfirm);
+    setDeleteConfirm(null);
     showToast?.('LO excluída.', 'success');
   }
 
@@ -538,7 +543,7 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
   }
 
   return (
-    <section className="p-4 md:p-6 flex flex-col gap-5">
+    <section className="flex flex-col gap-6 p-4 md:p-8 max-w-screen-2xl w-full">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-800 m-0">Licenças de Operação (LO)</h2>
@@ -551,8 +556,10 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
       </div>
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-        {filteredLicenses.map((item) => (
-          <article key={item.id} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => <ListItemSkeleton key={i} />)
+        ) : filteredLicenses.map((item) => (
+          <article key={item.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <header className="flex items-start justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
               <div>
                 <h3 className="text-base font-bold text-slate-800 m-0">{item.numero || item.id}</h3>
@@ -591,14 +598,23 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
             </div>
           </article>
         ))}
-        {filteredLicenses.length === 0 && (
-          <article className="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
-            <p className="text-sm text-slate-500 italic text-center">
-              {(licenses || []).length === 0 ? 'Nenhuma LO cadastrada.' : 'Nenhuma LO encontrada para a busca.'}
-            </p>
-          </article>
+        {!loading && filteredLicenses.length === 0 && (
+          <div className="col-span-full">
+            <EmptyState
+              icon="file-text"
+              title={(licenses || []).length === 0 ? 'Nenhuma LO cadastrada.' : 'Nenhuma LO encontrada para a busca.'}
+            />
+          </div>
         )}
       </div>
+
+      <ConfirmDeleteModal
+        open={Boolean(deleteConfirm)}
+        itemName="a LO"
+        itemId={deleteConfirm}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteConfirm(null)}
+      />
 
       <LicenseFormModal
         open={open}

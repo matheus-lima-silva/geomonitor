@@ -679,6 +679,7 @@ function DashboardView() {
   const [operatingLicenses, setOperatingLicenses] = useState([]);
   const [inspections, setInspections] = useState([]);
   const [erosions, setErosions] = useState([]);
+  const [primaryDataLoaded, setPrimaryDataLoaded] = useState(false);
   const [deliveryTracking, setDeliveryTracking] = useState([]);
   const [users, setUsers] = useState([]);
   const [rulesConfig, setRulesConfig] = useState(() => normalizeRulesConfig({}));
@@ -746,8 +747,8 @@ function DashboardView() {
 
   useEffect(() => {
     const unsubProjects = subscribeProjects(
-      (data) => setProjects(data),
-      () => show('Erro ao carregar empreendimentos.', 'error'),
+      (data) => { setProjects(data); setPrimaryDataLoaded(true); },
+      () => { show('Erro ao carregar empreendimentos.', 'error'); setPrimaryDataLoaded(true); },
     );
 
     const unsubInspections = subscribeInspections(
@@ -862,6 +863,7 @@ function DashboardView() {
           searchTerm={searchTerm}
           editProjectId={editProjectId}
           onEditProjectHandled={() => setEditProjectId(null)}
+          loading={!primaryDataLoaded}
         />
       );
     }
@@ -875,6 +877,7 @@ function DashboardView() {
           userEmail={user?.email}
           showToast={show}
           searchTerm={searchTerm}
+          loading={!primaryDataLoaded}
         />
       );
     }
@@ -894,6 +897,7 @@ function DashboardView() {
             setPendingErosionDraft(draft);
             setActiveTab('erosions');
           }}
+          loading={!primaryDataLoaded}
         />
       );
     }

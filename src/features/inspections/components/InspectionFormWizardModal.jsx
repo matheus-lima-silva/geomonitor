@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import AppIcon from '../../../components/AppIcon';
-import { Button, IconButton, Input, Select, Textarea } from '../../../components/ui';
+import { Button, IconButton, Input, Modal, Select, Textarea } from '../../../components/ui';
 import { saveInspection } from '../../../services/inspectionService';
 import { postCalculoErosao, saveErosion } from '../../../services/erosionService';
 import { useLocalStorageDraft } from '../../../hooks/useLocalStorageDraft';
@@ -295,6 +295,7 @@ function InspectionFormWizardModal({
   const [inlineCoordinatesExpanded, setInlineCoordinatesExpanded] = useState(false);
   const [inlineUtmErrorToken, setInlineUtmErrorToken] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [warningModal, setWarningModal] = useState(null);
   const autoPendingCheckRef = useRef('');
   const hotelPickerRef = useRef(null);
   const hotelPickerSearchRef = useRef(null);
@@ -814,6 +815,16 @@ function InspectionFormWizardModal({
     setInlineUtmErrorToken(0);
   }
 
+  function showConfirm(message) {
+    return new Promise((resolve) => {
+      setWarningModal({
+        message,
+        onConfirm: () => { setWarningModal(null); resolve(true); },
+        onCancel: () => { setWarningModal(null); resolve(false); },
+      });
+    });
+  }
+
   async function markPendingErosionVisit(dayIndex, towerNumber) {
     try {
       const dayDate = String(formData.detalhesDias?.[dayIndex]?.data || '').trim();
@@ -833,7 +844,7 @@ function InspectionFormWizardModal({
 
       if (targetErosions.length > 1) {
         const ids = targetErosions.map((e) => String(e?.id || '').trim()).filter(Boolean);
-        const confirmed = window.confirm(
+        const confirmed = await showConfirm(
           `Esta torre possui ${targetErosions.length} erosoes cadastradas (${ids.join(', ')}).\n\nConfirmar visita em todas?`,
         );
         if (!confirmed) return;
@@ -937,7 +948,7 @@ function InspectionFormWizardModal({
           : [];
 
         if (alertasValidacao.length > 0) {
-          const shouldContinue = window.confirm(
+          const shouldContinue = await showConfirm(
             `Foram encontrados alertas tecnicos:\n\n- ${alertasValidacao.join('\n- ')}\n\nDeseja salvar mesmo assim?`,
           );
           if (!shouldContinue) return;
@@ -1155,7 +1166,7 @@ function InspectionFormWizardModal({
           .filter((e) => !currentId || e.id !== currentId);
         if (existingForDate.length > 0) {
           const ids = existingForDate.map((e) => e.id).join(', ');
-          const confirmed = window.confirm(
+          const confirmed = await showConfirm(
             `Ja existe vistoria para este empreendimento nesta data: ${ids}.\nDeseja criar uma nova mesmo assim?`,
           );
           if (!confirmed) {
@@ -1172,7 +1183,7 @@ function InspectionFormWizardModal({
           .map((item) => `- Torre ${item.tower}: ${item.days.join(', ')}`)
           .join('\n');
         const overflow = duplicates.length > 8 ? `\n... e mais ${duplicates.length - 8} torre(s).` : '';
-        const confirmed = window.confirm(
+        const confirmed = await showConfirm(
           `Ha torres registadas em mais de um dia nesta vistoria:\n${sample}${overflow}\n\nIsso pode estar correto em caso de revisita.\nClique em OK para continuar ou Cancelar para revisar.`,
         );
         if (!confirmed) {
@@ -1345,7 +1356,7 @@ function InspectionFormWizardModal({
                     });
                   });
                   return (
-                    <article key={day.data || dayIndex} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition-shadow hover:shadow-md">
+                    <article key={day.data || dayIndex} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm transition-shadow hover:shadow-md">
                       <div className="flex items-center justify-between p-4 bg-white cursor-pointer select-none" onClick={() => setExpandedDay((prev) => (prev === day.data ? '' : day.data))}>
                         <div>
                           <strong className="text-slate-800 text-lg">{day.data ? new Date(`${day.data}T00:00:00`).toLocaleDateString('pt-BR') : `Dia ${dayIndex + 1}`}</strong>
@@ -1626,7 +1637,7 @@ function InspectionFormWizardModal({
                                             </button>
                                             <button
                                               type="button"
-                                              className={`p-1.5 rounded-lg transition-colors ${hasErosion ? 'text-red-600 bg-red-100 hover:bg-red-200' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                                              className={`p-1.5 rounded-lg transition-colors ${hasErosion ? 'text-danger bg-danger-light hover:bg-danger-border' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
                                               onClick={() => openErosionFromTower(dayIndex, towerKey)}
                                               aria-label={hasErosion ? 'Editar erosao vinculada' : 'Cadastrar erosao nesta torre'}
                                               title={hasErosion ? 'Editar erosao vinculada' : 'Cadastrar erosao nesta torre'}
@@ -1669,7 +1680,7 @@ function InspectionFormWizardModal({
 
           {step === 3 ? (
             <div className="flex flex-col gap-6 animate-fade-in p-6 pt-0">
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <h4 className="text-lg font-bold text-slate-800 m-0 mb-3">Resumo da vistoria</h4>
                 <div className="text-sm text-slate-600 flex flex-col gap-1.5">
                   <div><strong className="text-slate-700">ID:</strong> {formData.id || '(sera gerado no salvar)'}</div>
@@ -1771,7 +1782,7 @@ function InspectionFormWizardModal({
                   <option value="Estabilizado">Estabilizado (histórico)</option>
                 </Select>
               </div>
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 flex flex-col gap-3">
+              <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 flex flex-col gap-3">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1968,6 +1979,27 @@ function InspectionFormWizardModal({
           </form>
         </div>
       ) : null}
+
+      {warningModal && (
+        <Modal
+          open={true}
+          onClose={warningModal.onCancel}
+          title="Confirmar"
+          size="sm"
+          footer={
+            <>
+              <Button variant="outline" onClick={warningModal.onCancel}>
+                <AppIcon name="close" /> Cancelar
+              </Button>
+              <Button onClick={warningModal.onConfirm}>
+                <AppIcon name="check" /> Confirmar
+              </Button>
+            </>
+          }
+        >
+          <p className="m-0 text-sm text-slate-700 whitespace-pre-wrap">{warningModal.message}</p>
+        </Modal>
+      )}
     </div>,
     portalTarget,
   );

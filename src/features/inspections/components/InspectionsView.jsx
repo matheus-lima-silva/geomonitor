@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Modal } from '../../../components/ui';
+import { Button, EmptyState, ListItemSkeleton, Modal } from '../../../components/ui';
 import { deleteInspection } from '../../../services/inspectionService';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
@@ -28,6 +28,7 @@ function InspectionsView({
   planningDraft,
   onPlanningDraftConsumed,
   onOpenErosionDraft,
+  loading = false,
 }) {
   const { user } = useAuth();
   const { show } = useToast();
@@ -124,7 +125,7 @@ function InspectionsView({
   }
 
   return (
-    <section className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto w-full">
+    <section className="flex flex-col gap-6 p-4 md:p-8 max-w-screen-2xl w-full">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
         <div className="flex flex-col gap-1">
           <h2 className="text-2xl font-bold text-slate-800 m-0">Vistorias</h2>
@@ -149,7 +150,9 @@ function InspectionsView({
       ) : null}
 
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((inspection) => {
+        {loading ? (
+          Array.from({ length: 6 }).map((_, i) => <ListItemSkeleton key={i} />)
+        ) : filtered.map((inspection) => {
           const project = projects.find((item) => item.id === inspection.projetoId);
           const pendingSummary = pendingSummaryByInspection.get(inspection.id) || { count: 0, towers: [] };
           const pendingCount = Number(pendingSummary.count || 0);
@@ -202,10 +205,8 @@ function InspectionsView({
         })}
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="col-span-full py-12 text-center text-slate-500 italic bg-white rounded-xl border border-slate-200 border-dashed">
-          Nenhuma vistoria encontrada.
-        </div>
+      {!loading && filtered.length === 0 ? (
+        <EmptyState icon="details" title="Nenhuma vistoria encontrada." />
       ) : null}
 
       {isFormOpen ? (

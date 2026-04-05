@@ -200,7 +200,7 @@ function ProfileModal({ onClose }) {
       footer={footer}
     >
       <section className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">
-        <div className="flex-shrink-0 w-14 h-14 bg-blue-100 text-brand-700 rounded-full flex items-center justify-center text-xl font-bold">
+        <div className="flex-shrink-0 w-14 h-14 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center text-xl font-bold">
           {String(formData.nome || user?.email || 'U').trim().charAt(0).toUpperCase() || 'U'}
         </div>
         <div className="flex flex-col">
@@ -301,7 +301,7 @@ function ProfileModal({ onClose }) {
                       {sig.profissao_nome || ''}{sig.profissao_nome && formatRegistroPreview(sig.registro_conselho, sig.registro_estado, sig.registro_numero, sig.registro_sufixo) ? ' \u2013 ' : ''}{formatRegistroPreview(sig.registro_conselho, sig.registro_estado, sig.registro_numero, sig.registro_sufixo)}
                     </span>
                   </div>
-                  <button type="button" className="text-slate-400 hover:text-blue-600" onClick={() => startEdit(sig)} title="Editar">
+                  <button type="button" className="text-slate-400 hover:text-brand-600" onClick={() => startEdit(sig)} title="Editar">
                     <AppIcon name="edit" size={14} />
                   </button>
                   <button type="button" className="text-slate-400 hover:text-red-600" onClick={() => handleDeleteSignatario(sig.id)} disabled={sigBusy === `del:${sig.id}`} title="Remover">

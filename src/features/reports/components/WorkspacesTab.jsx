@@ -331,9 +331,9 @@ export default function WorkspacesTab({
                     <strong className="text-amber-700">{workspaceCurationSummary.pending}</strong>
                     <p className="mt-1 mb-0 text-amber-700">Pendentes</p>
                   </div>
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-2">
-                    <strong className="text-blue-700">{workspaceMetrics.included}</strong>
-                    <p className="mt-1 mb-0 text-blue-700">No relatorio</p>
+                  <div className="rounded-lg border border-brand-200 bg-brand-50 px-2 py-2">
+                    <strong className="text-brand-700">{workspaceMetrics.included}</strong>
+                    <p className="mt-1 mb-0 text-brand-700">No relatorio</p>
                   </div>
                 </div>
                 {(workspaceMetrics.missingCaption > 0 || workspaceMetrics.missingTower > 0) ? (
@@ -461,7 +461,7 @@ export default function WorkspacesTab({
                   <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">{workspaceCurationSummary.reviewed} revisadas</span>
                   <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">{workspaceCurationSummary.curated} aptas</span>
                   <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">{workspaceCurationSummary.pending} pendentes</span>
-                  <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-700">{workspaceMetrics.included} no DOCX</span>
+                  <span className="rounded-full bg-brand-100 px-2 py-1 text-brand-700">{workspaceMetrics.included} no DOCX</span>
                   {towerFilter && (
                     <button
                       type="button"

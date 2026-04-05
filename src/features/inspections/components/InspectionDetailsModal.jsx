@@ -237,7 +237,7 @@ function InspectionDetailsModal({
     >
       <div className="flex flex-col gap-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col gap-3">
+          <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex flex-col gap-3">
             <h4 className="text-base font-bold text-slate-800 flex items-center gap-2 m-0 border-b border-slate-100 pb-2"><AppIcon name="map" /> Empreendimento</h4>
             {project ? (
               <div className="flex flex-col gap-1.5 text-sm text-slate-700">
@@ -250,7 +250,7 @@ function InspectionDetailsModal({
               <p className="text-sm text-slate-500 m-0">Projeto nao encontrado.</p>
             )}
           </div>
-          <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col gap-3">
+          <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex flex-col gap-3">
             <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2">Informacoes da Vistoria</h4>
             <div className="flex flex-col gap-1.5 text-sm text-slate-700">
               <div><strong>ID:</strong> {inspection?.id || '-'}</div>
@@ -262,14 +262,14 @@ function InspectionDetailsModal({
         </div>
 
         {inspection?.obs ? (
-          <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col gap-3">
+          <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex flex-col gap-3">
             <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2">Observacoes</h4>
             <p className="text-sm text-slate-600 m-0 whitespace-pre-wrap">{inspection.obs}</p>
           </div>
         ) : null}
 
         {Array.isArray(inspection?.detalhesDias) && inspection.detalhesDias.length > 0 ? (
-          <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col gap-4">
+          <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex flex-col gap-4">
             <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2">Diario de Campo Detalhado</h4>
             <div className="flex flex-col gap-3">
               {inspection.detalhesDias.map((day, idx) => (
@@ -284,7 +284,7 @@ function InspectionDetailsModal({
                   {Array.isArray(day?.torresDetalhadas) && day.torresDetalhadas.length > 0 ? (
                     <div className="grid sm:grid-cols-2 gap-2">
                       {day.torresDetalhadas.map((tower) => (
-                        <div key={`${day?.data || idx}-${tower?.numero || 'x'}`} className={`bg-white border p-2 text-sm rounded-lg flex items-center gap-1 ${tower?.temErosao ? 'border-red-200 bg-red-50 text-red-800' : 'border-slate-200 text-slate-700'}`}>
+                        <div key={`${day?.data || idx}-${tower?.numero || 'x'}`} className={`bg-white border p-2 text-sm rounded-lg flex items-center gap-1 ${tower?.temErosao ? 'border-danger-border bg-danger-light text-danger-dark' : 'border-slate-200 text-slate-700'}`}>
                           <strong>{formatTowerLabel(tower?.numero)}</strong>
                           {tower?.obs ? ` - ${tower.obs}` : ' - sem observacoes'}
                         </div>
@@ -311,7 +311,7 @@ function InspectionDetailsModal({
           </div>
         ) : null}
 
-        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col gap-3">
+        <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex flex-col gap-3">
           <h4 className="text-base font-bold text-slate-800 flex items-center gap-2 m-0 border-b border-slate-100 pb-2"><AppIcon name="alert" /> Erosoes Identificadas ({relatedErosions.length})</h4>
           {relatedErosions.length > 0 ? (
             <div className="flex flex-col gap-2">

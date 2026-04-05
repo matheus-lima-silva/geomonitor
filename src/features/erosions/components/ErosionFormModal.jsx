@@ -437,7 +437,7 @@ function ErosionFormModal({
           </Select>
         </div>
 
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 flex flex-col gap-3">
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 flex flex-col gap-3">
           <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"

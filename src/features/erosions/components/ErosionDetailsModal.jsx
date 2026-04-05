@@ -357,7 +357,7 @@ function ErosionDetailsModal({
       footer={footer}
     >
       <div className="flex flex-col gap-5">
-        <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+        <section className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm">
           <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2 mb-4">Resumo</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-700">
             <div><strong className="text-slate-900">ID:</strong> {erosion.id || '-'}</div>
@@ -380,7 +380,7 @@ function ErosionDetailsModal({
           </div>
         </section>
 
-        <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+        <section className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm">
           <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2 mb-4">Classificacao e caracterizacao consolidada</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-700">
             {isHistoricalRecord ? (
@@ -467,10 +467,10 @@ function ErosionDetailsModal({
           <div className="mt-5 pt-4 border-t border-slate-100 text-sm">
             <strong className="text-slate-900 block mb-2">Fotos (links):</strong>
             {Array.isArray(erosion.fotosLinks) && erosion.fotosLinks.length > 0 ? (
-              <ul className="list-disc pl-5 m-0 space-y-1 text-blue-600">
+              <ul className="list-disc pl-5 m-0 space-y-1 text-brand-600">
                 {erosion.fotosLinks.map((link) => (
                   <li key={link}>
-                    <a href={link} target="_blank" rel="noreferrer" className="hover:underline hover:text-blue-800 break-all">{link}</a>
+                    <a href={link} target="_blank" rel="noreferrer" className="hover:underline hover:text-brand-800 break-all">{link}</a>
                   </li>
                 ))}
               </ul>
@@ -480,7 +480,7 @@ function ErosionDetailsModal({
           </div>
         </section>
 
-        <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+        <section className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm">
           <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2 mb-4">Localizacao geografica</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-slate-700">
             <div><strong className="text-slate-900">Latitude:</strong> {locationCoordinates.latitude || '-'}</div>
@@ -560,7 +560,7 @@ function ErosionDetailsModal({
         </section>
 
         {relatedInspections.length > 0 ? (
-          <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+          <section className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm">
             <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2 mb-4">Vistorias que abordaram esta erosao</h4>
             <div className="flex flex-col gap-2">
               {relatedInspections.map((row) => (
@@ -575,7 +575,7 @@ function ErosionDetailsModal({
           </section>
         ) : null}
 
-        <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+        <section className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm">
           <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2 mb-4">Historico tecnico de criticidade</h4>
           <div className="pl-4 py-2 border-l-2 border-slate-100 flex flex-col gap-4">
             {criticalityHistory.map((item, index) => (
@@ -598,7 +598,7 @@ function ErosionDetailsModal({
           </div>
         </section>
 
-        <section className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+        <section className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm">
           <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3 mb-6">
             <h4 className="text-base font-bold text-slate-800 m-0">Historico de acompanhamento</h4>
             <Button
@@ -615,7 +615,7 @@ function ErosionDetailsModal({
           </div>
 
           {showAddEventForm ? (
-            <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl mb-6 flex flex-col gap-4">
+            <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-xl mb-6 flex flex-col gap-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select
                   id="event-tipo"

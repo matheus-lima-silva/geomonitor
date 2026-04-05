@@ -48,7 +48,7 @@ function MandatoryProfileUpdateView() {
   const inputCls = "w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors disabled:opacity-60";
 
   return (
-    <section className="w-full max-w-lg mx-auto mt-12 bg-white rounded-2xl shadow-panel border border-slate-200 p-8 flex flex-col gap-5">
+    <section className="w-full max-w-lg mx-auto mt-12 bg-white rounded-xl shadow-panel border border-slate-200 p-8 flex flex-col gap-5">
       <h2 className="text-xl font-bold text-slate-800 m-0">Complete seu perfil</h2>
       <p className="text-sm text-slate-500">Antes de acessar o sistema, atualize seus dados obrigatórios.</p>
       <form onSubmit={handleSave} className="flex flex-col gap-4">

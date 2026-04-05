@@ -49,7 +49,7 @@ import ErosionReportPanel from './ErosionReportPanel';
 import ErosionCardGrid from './ErosionCardGrid';
 import ErosionFormModal from './ErosionFormModal';
 import ErosionDetailsModal from './ErosionDetailsModal';
-import { ConfirmDeleteModal } from '../../../components/ui';
+import { Button, ConfirmDeleteModal, Modal } from '../../../components/ui';
 
 const BASE_FORM = {
   id: '',
@@ -332,6 +332,7 @@ function ErosionsView({
   const [editingId, setEditingId] = useState('');
   const [detailsModal, setDetailsModal] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null);
+  const [warningModal, setWarningModal] = useState(null);
   const [utmErrorToken, setUtmErrorToken] = useState(0);
   const [isCardsVisible, setIsCardsVisible] = useState(false);
   const [isReportPanelCollapsed, setIsReportPanelCollapsed] = useState(true);
@@ -571,6 +572,16 @@ function ErosionsView({
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
+  function showConfirm(message) {
+    return new Promise((resolve) => {
+      setWarningModal({
+        message,
+        onConfirm: () => { setWarningModal(null); resolve(true); },
+        onCancel: () => { setWarningModal(null); resolve(false); },
+      });
+    });
+  }
+
   async function handleSave() {
     try {
       const requiredValidation = validateErosionRequiredFields(formData);
@@ -643,7 +654,8 @@ function ErosionsView({
           : [];
 
         if (alertasValidacao.length > 0) {
-          const shouldContinue = window.confirm(
+          // eslint-disable-next-line no-await-in-loop
+          const shouldContinue = await showConfirm(
             `Foram encontrados alertas tecnicos:\n\n- ${alertasValidacao.join('\n- ')}\n\nDeseja salvar mesmo assim?`,
           );
           if (!shouldContinue) return;
@@ -923,7 +935,7 @@ function ErosionsView({
   }, [formData, rulesConfig]);
 
   return (
-    <section className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto w-full">
+    <section className="flex flex-col gap-6 p-4 md:p-8 max-w-screen-2xl w-full">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
         <div className="flex flex-col gap-1">
           <h2 className="text-2xl font-bold text-slate-800 m-0">Erosoes</h2>
@@ -1034,13 +1046,13 @@ function ErosionsView({
         </div>
 
         {criticalityFilter ? (
-          <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
-            <span className="text-sm font-semibold text-blue-800">
+          <div className="flex items-center gap-3 bg-brand-50 border border-brand-200 rounded-lg px-4 py-2">
+            <span className="text-sm font-semibold text-brand-800">
               Filtro ativo: {CRITICALITY_FILTER_LABELS[criticalityFilter] || criticalityFilter}
             </span>
             <button
               type="button"
-              className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-md bg-blue-100 text-blue-700 text-xs font-semibold hover:bg-blue-200 transition-colors"
+              className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-md bg-brand-100 text-brand-700 text-xs font-semibold hover:bg-brand-200 transition-colors"
               onClick={() => { if (onClearCriticalityFilter) onClearCriticalityFilter(); }}
             >
               <AppIcon name="close" size={12} />
@@ -1122,6 +1134,25 @@ function ErosionsView({
         onExportPdf={handleExportDetailsPdf}
         onExportSimplificadaPdf={handleExportDetailsSimplificadaPdf}
       />
+
+      <Modal
+        open={Boolean(warningModal)}
+        onClose={warningModal?.onCancel}
+        title="Alertas Tecnicos"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={warningModal?.onCancel}>
+              <AppIcon name="close" /> Cancelar
+            </Button>
+            <Button onClick={warningModal?.onConfirm}>
+              <AppIcon name="save" /> Salvar mesmo assim
+            </Button>
+          </>
+        }
+      >
+        <p className="m-0 text-sm text-slate-700 whitespace-pre-wrap">{warningModal?.message}</p>
+      </Modal>
 
       {deleteModal && (
         <ConfirmDeleteModal

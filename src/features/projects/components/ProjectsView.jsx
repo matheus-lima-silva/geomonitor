@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, IconButton, Input, Select } from '../../../components/ui';
+import { Button, EmptyState, IconButton, Input, ListItemSkeleton, Select } from '../../../components/ui';
 import { useProjectsFeatureState } from '../hooks/useProjectsFeatureState';
 import { formatReportMonths, getProjectReportConfig } from '../utils/reportSchedule';
 import { validateTowerCoordinatesAsString } from '../utils/kmlUtils';
@@ -12,7 +12,7 @@ import KmlLinePickerModal from './KmlLinePickerModal';
 import RoutePlannerModal from './RoutePlannerModal';
 import { ConfirmDeleteModal } from '../../../components/ui';
 
-function ProjectsView({ projects, inspections, operatingLicenses, userEmail, showToast, reloadProjects, onOpenProjectInspections, searchTerm, editProjectId, onEditProjectHandled }) {
+function ProjectsView({ projects, inspections, operatingLicenses, userEmail, showToast, reloadProjects, onOpenProjectInspections, searchTerm, editProjectId, onEditProjectHandled, loading = false }) {
   const mergeInputRef = useRef(null);
   const createInputRef = useRef(null);
   const mergeTargetProjectRef = useRef(null);
@@ -87,7 +87,7 @@ function ProjectsView({ projects, inspections, operatingLicenses, userEmail, sho
   }
 
   return (
-    <section className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto w-full">
+    <section className="flex flex-col gap-6 p-4 md:p-8 max-w-screen-2xl w-full">
       <input
         ref={mergeInputRef}
         type="file"
@@ -145,7 +145,9 @@ function ProjectsView({ projects, inspections, operatingLicenses, userEmail, sho
       </div>
 
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((p) => {
+        {loading ? (
+          Array.from({ length: 6 }).map((_, i) => <ListItemSkeleton key={i} />)
+        ) : filtered.map((p) => {
           const stats = getProjectInspectionStats(p.id, inspections);
           const reportConfig = getProjectReportConfig(p);
           const gpsCount = validateTowerCoordinatesAsString(p.torresCoordenadas || []).rows.filter((r) => !r.error).length;
@@ -286,8 +288,10 @@ function ProjectsView({ projects, inspections, operatingLicenses, userEmail, sho
           );
         })}
 
-        {filtered.length === 0 && (
-          <div className="col-span-full py-12 text-center text-slate-500 italic bg-white rounded-xl border border-slate-200 border-dashed">Nenhum empreendimento encontrado.</div>
+        {!loading && filtered.length === 0 && (
+          <div className="col-span-full">
+            <EmptyState icon="map" title="Nenhum empreendimento encontrado." />
+          </div>
         )}
       </div>
 

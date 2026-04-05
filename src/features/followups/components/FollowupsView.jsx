@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Input, Select, Textarea } from '../../../components/ui';
+import { Button, EmptyState, Input, Select, Textarea } from '../../../components/ui';
 import { saveErosionManualFollowupEvent } from '../../../services/erosionService';
 import { saveReportDeliveryTracking } from '../../../services/reportDeliveryTrackingService';
 import {
@@ -170,7 +170,7 @@ function FollowupsView({
   }
 
   return (
-    <section className="bg-white rounded-2xl shadow-[0_4px_18px_rgba(15,23,42,0.08)] p-5 mb-4">
+    <section className="bg-white rounded-xl shadow-[0_4px_18px_rgba(15,23,42,0.08)] p-5 mb-4">
       <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-6">
         <div>
           <h2 className="text-xl font-bold text-slate-800 m-0">Acompanhamentos</h2>
@@ -178,7 +178,7 @@ function FollowupsView({
         </div>
       </div>
 
-      <article className="bg-slate-50 rounded-2xl p-5 mb-6 border border-slate-200">
+      <article className="bg-slate-50 rounded-xl p-5 mb-6 border border-slate-200">
         <h3 className="text-lg font-bold text-slate-800 m-0 mb-4">Acompanhamento de Entregas de Relatorio</h3>
 
         <div className="flex flex-wrap items-end gap-3 mb-5">
@@ -309,7 +309,7 @@ function FollowupsView({
               })}
               {filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">Nenhum item de acompanhamento encontrado.</td>
+                  <td colSpan={8}><EmptyState icon="file-text" title="Nenhum item de acompanhamento encontrado." /></td>
                 </tr>
               ) : null}
             </tbody>
@@ -327,7 +327,7 @@ function FollowupsView({
         ) : null}
       </article>
 
-      <article className="bg-slate-50 rounded-2xl p-5 mb-6 border border-slate-200">
+      <article className="bg-slate-50 rounded-xl p-5 mb-6 border border-slate-200">
         <h3 className="text-lg font-bold text-slate-800 m-0 mb-4">Acompanhamento de Obras em Erosoes</h3>
         <div className="overflow-x-auto w-full bg-white rounded-xl border border-slate-200">
           <table className="w-full text-left border-collapse whitespace-nowrap">
@@ -371,7 +371,7 @@ function FollowupsView({
               ))}
               {filteredWorkRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">Sem obras ativas para acompanhar.</td>
+                  <td colSpan={7}><EmptyState icon="tool" title="Sem obras ativas para acompanhar." /></td>
                 </tr>
               ) : null}
             </tbody>

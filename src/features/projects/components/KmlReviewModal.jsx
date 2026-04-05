@@ -70,7 +70,7 @@ function KmlReviewModal({
     >
       <div className="flex flex-col gap-5">
         {importErrors.length > 0 && (
-          <div className="bg-red-50 text-red-800 p-4 rounded-xl border border-red-200 text-sm" role="alert">
+          <div className="bg-danger-light text-danger-dark p-4 rounded-xl border border-danger-border text-sm" role="alert">
             <strong className="block mb-2">Observacoes da importacao</strong>
             <ul className="list-disc pl-5 m-0 space-y-1">
               {importErrors.map((err) => (
@@ -238,7 +238,7 @@ function KmlReviewModal({
                     <input className="w-full min-w-[120px] px-2 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-brand-500 outline-none" value={row.longitude} onChange={(e) => updateKmlRow(index, { longitude: e.target.value })} />
                   </td>
                   <td className="px-3 py-2 text-slate-700">{row.sourceName || '-'}</td>
-                  <td className="px-3 py-2 text-red-600 font-medium max-w-[200px] truncate" title={row.error || ''}>{row.error || '-'}</td>
+                  <td className="px-3 py-2 text-danger font-medium max-w-[200px] truncate" title={row.error || ''}>{row.error || '-'}</td>
                   <td className="px-3 py-2">
                     <Button variant="danger" size="sm" aria-label={`Remover linha ${index + 1}`} onClick={() => removeKmlRow(index)}>
                       <AppIcon name="trash" />
