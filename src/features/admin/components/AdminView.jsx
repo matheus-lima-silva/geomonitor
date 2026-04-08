@@ -167,8 +167,8 @@ function AdminView({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-6">
-        <Button variant={section === 'users' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('users')}>Utilizadores</Button>
-        <Button variant={section === 'rules' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('rules')}>Criticidade</Button>
+        <Button variant={section === 'users' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('users')}><AppIcon name="user" />Utilizadores</Button>
+        <Button variant={section === 'rules' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('rules')}><AppIcon name="shield" />Criticidade</Button>
       </div>
 
       {section === 'users' && (

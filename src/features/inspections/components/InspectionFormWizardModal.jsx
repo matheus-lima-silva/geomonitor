@@ -1252,9 +1252,9 @@ function InspectionFormWizardModal({
         </div>
 
         <div className="flex bg-slate-50 border-b border-slate-200 px-6 py-2 overflow-x-auto gap-2 shrink-0">
-          <Button type="button" size="md" variant={step === 1 ? 'primary' : 'ghost'} className="px-4 rounded-full whitespace-nowrap" onClick={() => setStep(1)}>1. Dados gerais</Button>
-          <Button type="button" size="md" variant={step === 2 ? 'primary' : 'ghost'} className="px-4 rounded-full whitespace-nowrap" onClick={() => setStep(2)}>2. Diario</Button>
-          <Button type="button" size="md" variant={step === 3 ? 'primary' : 'ghost'} className="px-4 rounded-full whitespace-nowrap" onClick={() => setStep(3)}>3. Revisao</Button>
+          <Button type="button" size="md" variant={step === 1 ? 'primary' : 'ghost'} className="px-4 rounded-full whitespace-nowrap" onClick={() => setStep(1)}><AppIcon name="info" size={15} />1. Dados gerais</Button>
+          <Button type="button" size="md" variant={step === 2 ? 'primary' : 'ghost'} className="px-4 rounded-full whitespace-nowrap" onClick={() => setStep(2)}><AppIcon name="clipboard" size={15} />2. Diario</Button>
+          <Button type="button" size="md" variant={step === 3 ? 'primary' : 'ghost'} className="px-4 rounded-full whitespace-nowrap" onClick={() => setStep(3)}><AppIcon name="check" size={15} />3. Revisao</Button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">

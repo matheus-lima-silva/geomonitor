@@ -54,7 +54,7 @@ function RoutePlannerModal({ project, routeSelection, setRouteSelection, onClose
     <>
       <div className="text-sm text-slate-500 font-medium">{selectedRoutePoints.length} torre(s) selecionada(s)</div>
       <div className="flex items-center gap-2">
-        <Button variant="outline" onClick={onClose}>Fechar</Button>
+        <Button variant="outline" onClick={onClose}><AppIcon name="close" />Fechar</Button>
         <Button variant="primary" onClick={handleOpenRoute}>
           <AppIcon name="route" />
           Abrir rota

@@ -287,8 +287,9 @@ function ProfileModal({ onClose }) {
                 <div className="flex-1 flex flex-col gap-2">
                   {renderSigFields(editingSig, setEditingSig, `edit-sig-${sig.id}`)}
                   <div className="flex gap-2 justify-end">
-                    <Button variant="outline" size="sm" onClick={() => setEditingSigId(null)}>Cancelar</Button>
+                    <Button variant="outline" size="sm" onClick={() => setEditingSigId(null)}><AppIcon name="close" />Cancelar</Button>
                     <Button size="sm" onClick={() => handleUpdateSignatario(sig.id)} disabled={sigBusy === `edit:${sig.id}`}>
+                      <AppIcon name="save" />
                       {sigBusy === `edit:${sig.id}` ? 'Salvando...' : 'Salvar'}
                     </Button>
                   </div>

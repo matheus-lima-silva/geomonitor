@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import AppIcon from '../../../components/AppIcon';
 import { Button, Modal } from '../../../components/ui';
 
 function KmlLinePickerModal({ open, lines, existingProjectIds, onSelect, onBatchCreate, onCancel, batchCreating }) {
@@ -65,13 +66,14 @@ function KmlLinePickerModal({ open, lines, existingProjectIds, onSelect, onBatch
         {selected.size > 0 && <span><strong>{selected.size}</strong> selecionada(s)</span>}
       </div>
       <div className="flex items-center gap-2">
-        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+        <Button variant="outline" onClick={onCancel}><AppIcon name="close" />Cancelar</Button>
         {onBatchCreate && (
           <Button
             variant="primary"
             disabled={!canBatch}
             onClick={() => onBatchCreate(selectedLines)}
           >
+            <AppIcon name="plus" />
             {batchCreating ? 'Criando...' : `Criar ${selected.size > 0 ? selected.size : ''} em lote`}
           </Button>
         )}
@@ -158,6 +160,7 @@ function KmlLinePickerModal({ open, lines, existingProjectIds, onSelect, onBatch
                     </td>
                     <td className="px-3 py-2">
                       <Button variant="primary" size="sm" onClick={() => onSelect(line)}>
+                        <AppIcon name="check" />
                         Selecionar
                       </Button>
                     </td>

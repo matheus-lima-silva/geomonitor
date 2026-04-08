@@ -1,339 +1,103 @@
-const ICON_PATHS = {
-  plus: (
-    <>
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </>
-  ),
-  save: (
-    <>
-      <path d="M5 4h11l3 3v13H5z" />
-      <path d="M8 4v6h8V4" />
-      <path d="M9 20v-5h6v5" />
-    </>
-  ),
-  edit: (
-    <>
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z" />
-    </>
-  ),
-  trash: (
-    <>
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="M6 6l1 14h10l1-14" />
-      <path d="M10 10v7" />
-      <path d="M14 10v7" />
-    </>
-  ),
-  details: (
-    <>
-      <rect x="4" y="4" width="16" height="16" rx="2" />
-      <path d="M8 9h8" />
-      <path d="M8 12h8" />
-      <path d="M8 15h5" />
-    </>
-  ),
-  close: (
-    <>
-      <path d="M18 6 6 18" />
-      <path d="m6 6 12 12" />
-    </>
-  ),
-  csv: (
-    <>
-      <path d="M6 3h9l3 3v15H6z" />
-      <path d="M15 3v4h4" />
-      <path d="M8 13h8" />
-      <path d="M8 17h8" />
-      <path d="M8 9h4" />
-    </>
-  ),
-  pdf: (
-    <>
-      <path d="M6 3h9l3 3v15H6z" />
-      <path d="M15 3v4h4" />
-      <path d="M8 13h8" />
-      <path d="M8 17h8" />
-      <path d="M8 9h5" />
-    </>
-  ),
-  'file-text': (
-    <>
-      <path d="M6 3h9l3 3v15H6z" />
-      <path d="M15 3v4h4" />
-      <path d="M9 9h5" />
-      <path d="M9 13h6" />
-      <path d="M9 17h6" />
-    </>
-  ),
-  map: (
-    <>
-      <path d="m3 7 6-3 6 3 6-3v13l-6 3-6-3-6 3z" />
-      <path d="M9 4v13" />
-      <path d="M15 7v13" />
-    </>
-  ),
-  route: (
-    <>
-      <circle cx="6" cy="6" r="2" />
-      <circle cx="18" cy="18" r="2" />
-      <path d="M8 6h3l2 3h3l2 3" />
-      <path d="M6 8v3l3 2v3" />
-    </>
-  ),
-  reset: (
-    <>
-      <path d="M3 3v6h6" />
-      <path d="M21 21v-6h-6" />
-      <path d="M20 9a8 8 0 0 0-14-3L3 9" />
-      <path d="M4 15a8 8 0 0 0 14 3l3-3" />
-    </>
-  ),
-  check: (
-    <>
-      <path d="m20 6-11 11-5-5" />
-    </>
-  ),
-  pause: (
-    <>
-      <rect x="6" y="5" width="4" height="14" rx="1" />
-      <rect x="14" y="5" width="4" height="14" rx="1" />
-    </>
-  ),
-  user: (
-    <>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 20a8 8 0 0 1 16 0" />
-    </>
-  ),
-  logout: (
-    <>
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <path d="M16 17l5-5-5-5" />
-      <path d="M21 12H9" />
-    </>
-  ),
-  clipboard: (
-    <>
-      <rect x="6" y="4" width="12" height="17" rx="2" />
-      <path d="M9 4.5h6v3H9z" />
-      <path d="M9 11h6" />
-      <path d="M9 15h6" />
-    </>
-  ),
-  alert: (
-    <>
-      <path d="M12 3 2 20h20L12 3z" />
-      <path d="M12 9v5" />
-      <path d="M12 17h.01" />
-    </>
-  ),
-  bell: (
-    <>
-      <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V10a6 6 0 1 0-12 0v4.2a2 2 0 0 1-.6 1.4L4 17h5" />
-      <path d="M9.5 19a2.5 2.5 0 0 0 5 0" />
-    </>
-  ),
-  planning: (
-    <>
-      <path d="M4 6h16" />
-      <path d="M4 12h10" />
-      <path d="M4 18h8" />
-      <circle cx="17" cy="12" r="3" />
-      <path d="m18.5 14.5 2.5 2.5" />
-    </>
-  ),
-  'route-plan': (
-    <>
-      <path d="M5 6h4" />
-      <path d="M15 18h4" />
-      <path d="M9 6c3 0 3 4 6 4s3 4 6 4" />
-      <circle cx="5" cy="6" r="2" />
-      <circle cx="15" cy="18" r="2" />
-    </>
-  ),
-  shield: (
-    <>
-      <path d="M12 3 5 6v6c0 5 3.5 8 7 9 3.5-1 7-4 7-9V6z" />
-      <path d="m9 12 2 2 4-4" />
-    </>
-  ),
-  'dashboard-nav': (
-    <>
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M7 8h4" />
-      <path d="M13 8h4" />
-      <path d="M7 12h4" />
-      <path d="M13 12h4" />
-      <path d="M13 16h4" />
-    </>
-  ),
-  'projects-nav': (
-    <>
-      <path d="M3 10a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <path d="M3 11h18" />
-    </>
-  ),
-  'licenses-nav': (
-    <>
-      <rect x="4" y="5" width="16" height="14" rx="2" />
-      <path d="M8 9h8" />
-      <path d="M8 13h5" />
-      <circle cx="16.5" cy="13.5" r="1.5" />
-    </>
-  ),
-  'inspections-nav': (
-    <>
-      <rect x="6" y="4" width="12" height="17" rx="2" />
-      <path d="M9 4.5h6v3H9z" />
-      <path d="M9 12h6" />
-      <path d="m9 16 1.8 1.8L15 13.6" />
-    </>
-  ),
-  'erosions-nav': (
-    <>
-      <path d="M12 3 2.5 20h19L12 3z" />
-      <path d="M12 9v5" />
-      <path d="M12 17h.01" />
-    </>
-  ),
-  'visit-nav': (
-    <>
-      <circle cx="6" cy="6" r="2" />
-      <circle cx="18" cy="18" r="2" />
-      <path d="M8 6h3l2 3h3l2 3" />
-      <path d="M6 8v3l3 2v3" />
-    </>
-  ),
-  'followups-nav': (
-    <>
-      <rect x="4" y="4" width="16" height="16" rx="2" />
-      <path d="M8 8h8" />
-      <path d="M8 12h5" />
-      <path d="m14 14 2 2 4-4" />
-    </>
-  ),
-  'admin-nav': (
-    <>
-      <path d="M12 3 5 6v6c0 5 3.5 8 7 9 3.5-1 7-4 7-9V6z" />
-      <path d="m9.5 12.5 2 2 3.5-3.5" />
-    </>
-  ),
-  monitor: (
-    <>
-      <rect x="3" y="4" width="18" height="12" rx="2" />
-      <path d="M8 20h8" />
-      <path d="M12 16v4" />
-      <path d="m7 12 3-3 2 2 3-3" />
-    </>
-  ),
-  search: (
-    <>
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-4-4" />
-    </>
-  ),
-  'chevron-left': (
-    <>
-      <path d="m15 18-6-6 6-6" />
-    </>
-  ),
-  'chevron-right': (
-    <>
-      <path d="m9 18 6-6-6-6" />
-    </>
-  ),
-  menu: (
-    <>
-      <path d="M4 7h16" />
-      <path d="M4 12h16" />
-      <path d="M4 17h16" />
-    </>
-  ),
-  building: (
-    <>
-      <rect x="4" y="3" width="16" height="18" rx="1" />
-      <path d="M8 7h2" />
-      <path d="M14 7h2" />
-      <path d="M8 11h2" />
-      <path d="M14 11h2" />
-      <path d="M8 15h2" />
-      <path d="M14 15h2" />
-      <path d="M11 21v-4h2v4" />
-    </>
-  ),
-  upload: (
-    <>
-      <path d="M12 16V5" />
-      <path d="m7 10 5-5 5 5" />
-      <path d="M4 19h16" />
-    </>
-  ),
-  download: (
-    <>
-      <path d="M12 5v11" />
-      <path d="m7 12 5 5 5-5" />
-      <path d="M4 19h16" />
-    </>
-  ),
-  login: (
-    <>
-      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-      <path d="m10 17 5-5-5-5" />
-      <path d="M15 12H3" />
-    </>
-  ),
-  lock: (
-    <>
-      <rect x="5" y="11" width="14" height="10" rx="2" />
-      <path d="M8 11V8a4 4 0 1 1 8 0v3" />
-    </>
-  ),
-  license: (
-    <>
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <path d="M7 9h10" />
-      <path d="M7 13h6" />
-      <path d="M7 17h4" />
-    </>
-  ),
-  info: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 10v6" />
-      <path d="M12 7h.01" />
-    </>
-  ),
-  copy: (
-    <>
-      <rect x="9" y="9" width="11" height="11" rx="2" />
-      <rect x="4" y="4" width="11" height="11" rx="2" />
-    </>
-  ),
-  eye: (
-    <>
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
-      <circle cx="12" cy="12" r="3" />
-    </>
-  ),
-  'eye-off': (
-    <>
-      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
-      <path d="M1 1l22 22" />
-    </>
-  ),
-  loader: (
-    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-  ),
-  default: (
-    <>
-      <circle cx="12" cy="12" r="1.5" />
-    </>
-  ),
+import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
+import Bell from 'lucide-react/dist/esm/icons/bell';
+import Building2 from 'lucide-react/dist/esm/icons/building-2';
+import Check from 'lucide-react/dist/esm/icons/check';
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
+import ChevronLeft from 'lucide-react/dist/esm/icons/chevron-left';
+import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
+import ChevronUp from 'lucide-react/dist/esm/icons/chevron-up';
+import ClipboardCheck from 'lucide-react/dist/esm/icons/clipboard-check';
+import ClipboardList from 'lucide-react/dist/esm/icons/clipboard-list';
+import Copy from 'lucide-react/dist/esm/icons/copy';
+import Download from 'lucide-react/dist/esm/icons/download';
+import Eye from 'lucide-react/dist/esm/icons/eye';
+import EyeOff from 'lucide-react/dist/esm/icons/eye-off';
+import FileCheck from 'lucide-react/dist/esm/icons/file-check';
+import FileCheck2 from 'lucide-react/dist/esm/icons/file-check-2';
+import FileDown from 'lucide-react/dist/esm/icons/file-down';
+import FileSpreadsheet from 'lucide-react/dist/esm/icons/file-spreadsheet';
+import FileText from 'lucide-react/dist/esm/icons/file-text';
+import FolderOpen from 'lucide-react/dist/esm/icons/folder-open';
+import Info from 'lucide-react/dist/esm/icons/info';
+import LayoutDashboard from 'lucide-react/dist/esm/icons/layout-dashboard';
+import ListChecks from 'lucide-react/dist/esm/icons/list-checks';
+import ListFilter from 'lucide-react/dist/esm/icons/list-filter';
+import Loader2 from 'lucide-react/dist/esm/icons/loader-2';
+import Lock from 'lucide-react/dist/esm/icons/lock';
+import LogIn from 'lucide-react/dist/esm/icons/log-in';
+import LogOut from 'lucide-react/dist/esm/icons/log-out';
+import Mail from 'lucide-react/dist/esm/icons/mail';
+import MapIcon from 'lucide-react/dist/esm/icons/map';
+import Menu from 'lucide-react/dist/esm/icons/menu';
+import Monitor from 'lucide-react/dist/esm/icons/monitor';
+import Pause from 'lucide-react/dist/esm/icons/pause';
+import PenLine from 'lucide-react/dist/esm/icons/pen-line';
+import Plus from 'lucide-react/dist/esm/icons/plus';
+import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw';
+import Route from 'lucide-react/dist/esm/icons/route';
+import Save from 'lucide-react/dist/esm/icons/save';
+import Search from 'lucide-react/dist/esm/icons/search';
+import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check';
+import Trash2 from 'lucide-react/dist/esm/icons/trash-2';
+import Undo2 from 'lucide-react/dist/esm/icons/undo-2';
+import Upload from 'lucide-react/dist/esm/icons/upload';
+import User from 'lucide-react/dist/esm/icons/user';
+import Waypoints from 'lucide-react/dist/esm/icons/waypoints';
+import X from 'lucide-react/dist/esm/icons/x';
+
+const ICON_MAP = {
+  plus: Plus,
+  save: Save,
+  edit: PenLine,
+  trash: Trash2,
+  'trash-2': Trash2,
+  details: FileText,
+  close: X,
+  x: X,
+  csv: FileSpreadsheet,
+  pdf: FileDown,
+  'file-text': FileText,
+  map: MapIcon,
+  route: Route,
+  reset: RefreshCw,
+  check: Check,
+  pause: Pause,
+  user: User,
+  logout: LogOut,
+  clipboard: ClipboardList,
+  alert: AlertTriangle,
+  bell: Bell,
+  planning: ListFilter,
+  'route-plan': Waypoints,
+  shield: ShieldCheck,
+  'dashboard-nav': LayoutDashboard,
+  'projects-nav': FolderOpen,
+  'licenses-nav': FileCheck,
+  'inspections-nav': ClipboardCheck,
+  'erosions-nav': AlertTriangle,
+  'visit-nav': Route,
+  'followups-nav': ListChecks,
+  'admin-nav': ShieldCheck,
+  monitor: Monitor,
+  search: Search,
+  'chevron-left': ChevronLeft,
+  'chevron-right': ChevronRight,
+  'chevron-down': ChevronDown,
+  'chevron-up': ChevronUp,
+  menu: Menu,
+  building: Building2,
+  upload: Upload,
+  download: Download,
+  login: LogIn,
+  lock: Lock,
+  license: FileCheck2,
+  info: Info,
+  copy: Copy,
+  eye: Eye,
+  'eye-off': EyeOff,
+  loader: Loader2,
+  mail: Mail,
+  undo: Undo2,
 };
 
 function AppIcon({
@@ -343,24 +107,36 @@ function AppIcon({
   className = '',
   title = '',
 }) {
-  const path = ICON_PATHS[name] || ICON_PATHS.default;
+  const IconComponent = ICON_MAP[name];
+  if (!IconComponent) {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        width={size}
+        height={size}
+        className={`inline-block shrink-0 ${className}`.trim()}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        role="presentation"
+      >
+        <circle cx="12" cy="12" r="1.5" />
+      </svg>
+    );
+  }
+
   return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      className={`inline-block shrink-0 ${className}`.trim()}
-      fill="none"
-      stroke="currentColor"
+    <IconComponent
+      size={size}
       strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden={title ? undefined : 'true'}
+      className={`inline-block shrink-0 ${className}`.trim()}
+      aria-hidden={title ? undefined : true}
       role={title ? 'img' : 'presentation'}
-    >
-      {title ? <title>{title}</title> : null}
-      {path}
-    </svg>
+      aria-label={title || undefined}
+    />
   );
 }
 

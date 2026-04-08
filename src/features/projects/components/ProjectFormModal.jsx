@@ -25,7 +25,7 @@ function ProjectFormModal({ open, isEditing, formData, setFormData, onSave, onCa
 
   const footer = (
     <>
-      <Button variant="outline" size="md" onClick={onCancel}>Cancelar</Button>
+      <Button variant="outline" size="md" onClick={onCancel}><AppIcon name="close" />Cancelar</Button>
       <Button variant="primary" size="md" onClick={onSave}>
         <AppIcon name="save" />
         Salvar

@@ -52,8 +52,9 @@ function KmlReviewModal({
         Válidas: <strong>{validCount}</strong> | Com erro: <strong>{invalidCount}</strong>
       </div>
       <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+        <Button variant="outline" onClick={onCancel}><AppIcon name="close" />Cancelar</Button>
         <Button variant="primary" onClick={onApply}>
+          <AppIcon name="check" />
           {mode === 'create' ? 'Criar empreendimento' : 'Aplicar importação'}
         </Button>
       </div>
