@@ -14,6 +14,7 @@ const {
 const { processKmzImport } = require('../utils/kmzProcessor');
 const { removeStoredMedia } = require('../utils/mediaStorage');
 const { triggerWorkerRun } = require('../utils/workerTrigger');
+const { sortPhotosByMode } = require('../utils/reportJobContext');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -410,50 +411,6 @@ router.post('/:id/photos/organize', verifyToken, requireEditor, async (req, res)
 });
 
 const PHOTO_SORT_MODES = ['tower_asc', 'tower_desc', 'capture_date_asc', 'capture_date_desc', 'sort_order_asc', 'caption_asc'];
-
-function sortPhotosByMode(photos, mode) {
-    const sorted = [...photos];
-    switch (mode) {
-        case 'tower_desc':
-            sorted.sort((a, b) => {
-                const tA = normalizeText(b.towerId);
-                const tB = normalizeText(a.towerId);
-                if (tA !== tB) return tA.localeCompare(tB, undefined, { numeric: true });
-                return (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0);
-            });
-            break;
-        case 'tower_asc':
-            sorted.sort((a, b) => {
-                const tA = normalizeText(a.towerId);
-                const tB = normalizeText(b.towerId);
-                if (tA !== tB) return tA.localeCompare(tB, undefined, { numeric: true });
-                return (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0);
-            });
-            break;
-        case 'capture_date_asc':
-            sorted.sort((a, b) => {
-                const dA = new Date(a.captureAt || a.createdAt || 0).getTime();
-                const dB = new Date(b.captureAt || b.createdAt || 0).getTime();
-                return dA - dB;
-            });
-            break;
-        case 'capture_date_desc':
-            sorted.sort((a, b) => {
-                const dA = new Date(a.captureAt || a.createdAt || 0).getTime();
-                const dB = new Date(b.captureAt || b.createdAt || 0).getTime();
-                return dB - dA;
-            });
-            break;
-        case 'caption_asc':
-            sorted.sort((a, b) => normalizeText(a.caption).localeCompare(normalizeText(b.caption), undefined, { numeric: true }));
-            break;
-        case 'sort_order_asc':
-        default:
-            sorted.sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
-            break;
-    }
-    return sorted;
-}
 
 router.post('/:id/photos/reorder', verifyToken, requireEditor, async (req, res) => {
     try {

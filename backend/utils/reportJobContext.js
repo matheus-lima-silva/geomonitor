@@ -17,6 +17,50 @@ function normalizeText(value) {
     return String(value || '').trim();
 }
 
+function sortPhotosByMode(photos, mode) {
+    const sorted = [...photos];
+    switch (mode) {
+        case 'tower_desc':
+            sorted.sort((a, b) => {
+                const tA = normalizeText(b.towerId);
+                const tB = normalizeText(a.towerId);
+                if (tA !== tB) return tA.localeCompare(tB, undefined, { numeric: true });
+                return (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0);
+            });
+            break;
+        case 'tower_asc':
+            sorted.sort((a, b) => {
+                const tA = normalizeText(a.towerId);
+                const tB = normalizeText(b.towerId);
+                if (tA !== tB) return tA.localeCompare(tB, undefined, { numeric: true });
+                return (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0);
+            });
+            break;
+        case 'capture_date_asc':
+            sorted.sort((a, b) => {
+                const dA = new Date(a.captureAt || a.createdAt || 0).getTime();
+                const dB = new Date(b.captureAt || b.createdAt || 0).getTime();
+                return dA - dB;
+            });
+            break;
+        case 'capture_date_desc':
+            sorted.sort((a, b) => {
+                const dA = new Date(a.captureAt || a.createdAt || 0).getTime();
+                const dB = new Date(b.captureAt || b.createdAt || 0).getTime();
+                return dB - dA;
+            });
+            break;
+        case 'caption_asc':
+            sorted.sort((a, b) => normalizeText(a.caption).localeCompare(normalizeText(b.caption), undefined, { numeric: true }));
+            break;
+        case 'sort_order_asc':
+        default:
+            sorted.sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+            break;
+    }
+    return sorted;
+}
+
 async function flushWorkspaceDraftsToPhotos(workspaceId) {
     const workspace = await reportWorkspaceRepository.getById(workspaceId);
     if (!workspace) return 0;
@@ -175,11 +219,13 @@ async function buildReportCompoundContext(job) {
             reportPhotoRepository.listByWorkspace(workspaceId),
         ]);
 
+        const mode = normalizeText(workspace.photoSortMode) || 'tower_asc';
+        const included = photos.filter((photo) => photo.includeInReport === true);
         workspaces.push({
             workspace,
             project: project || null,
-            photos: photos.filter((photo) => photo.includeInReport === true),
-            photoSortMode: normalizeText(workspace.photoSortMode) || 'tower_asc',
+            photos: sortPhotosByMode(included, mode),
+            photoSortMode: mode,
         });
     }
 
@@ -269,4 +315,5 @@ module.exports = {
     buildDefaultReportDefaults,
     buildReportJobContext,
     flushWorkspaceDraftsToPhotos,
+    sortPhotosByMode,
 };
