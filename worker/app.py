@@ -1,5 +1,6 @@
 import json
 import os
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -114,9 +115,13 @@ def main():
         flush=True,
     )
     start_background_poll(RUNTIME)
-    server = ThreadingHTTPServer(("0.0.0.0", port), WorkerHandler)
+
+    class DualStackHTTPServer(ThreadingHTTPServer):
+        address_family = socket.AF_INET6
+
+    server = DualStackHTTPServer(("::", port), WorkerHandler)
     print(
-        f"[geomonitor-worker] worker listening on 0.0.0.0:{port}",
+        f"[geomonitor-worker] worker listening on [::]:{port}",
         flush=True,
     )
     server.serve_forever()
