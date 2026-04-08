@@ -40,6 +40,7 @@ function normalizeWorkspacePayload(data = {}, fallback = {}) {
         slots: Array.isArray(data.slots) ? data.slots.map((slot) => normalizeSlot(slot)) : (fallback.slots || []),
         draftState: data.draftState && typeof data.draftState === 'object' ? data.draftState : (fallback.draftState || {}),
         texts: data.texts && typeof data.texts === 'object' ? data.texts : (fallback.texts || {}),
+        photoSortMode: normalizeText(data.photoSortMode) || normalizeText(fallback.photoSortMode) || '',
         importedAt: normalizeText(data.importedAt) || normalizeText(fallback.importedAt),
         lastGeneratedAt: normalizeText(data.lastGeneratedAt) || normalizeText(fallback.lastGeneratedAt),
     };
@@ -405,6 +406,99 @@ router.post('/:id/photos/organize', verifyToken, requireEditor, async (req, res)
     } catch (error) {
         console.error('[report-workspaces API] Error POST /:id/photos/organize:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao organizar fotos do workspace' });
+    }
+});
+
+const PHOTO_SORT_MODES = ['tower_asc', 'tower_desc', 'capture_date_asc', 'capture_date_desc', 'sort_order_asc', 'caption_asc'];
+
+function sortPhotosByMode(photos, mode) {
+    const sorted = [...photos];
+    switch (mode) {
+        case 'tower_desc':
+            sorted.sort((a, b) => {
+                const tA = normalizeText(b.towerId);
+                const tB = normalizeText(a.towerId);
+                if (tA !== tB) return tA.localeCompare(tB, undefined, { numeric: true });
+                return (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0);
+            });
+            break;
+        case 'tower_asc':
+            sorted.sort((a, b) => {
+                const tA = normalizeText(a.towerId);
+                const tB = normalizeText(b.towerId);
+                if (tA !== tB) return tA.localeCompare(tB, undefined, { numeric: true });
+                return (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0);
+            });
+            break;
+        case 'capture_date_asc':
+            sorted.sort((a, b) => {
+                const dA = new Date(a.captureAt || a.createdAt || 0).getTime();
+                const dB = new Date(b.captureAt || b.createdAt || 0).getTime();
+                return dA - dB;
+            });
+            break;
+        case 'capture_date_desc':
+            sorted.sort((a, b) => {
+                const dA = new Date(a.captureAt || a.createdAt || 0).getTime();
+                const dB = new Date(b.captureAt || b.createdAt || 0).getTime();
+                return dB - dA;
+            });
+            break;
+        case 'caption_asc':
+            sorted.sort((a, b) => normalizeText(a.caption).localeCompare(normalizeText(b.caption), undefined, { numeric: true }));
+            break;
+        case 'sort_order_asc':
+        default:
+            sorted.sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+            break;
+    }
+    return sorted;
+}
+
+router.post('/:id/photos/reorder', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const data = body.data && typeof body.data === 'object' ? body.data : {};
+        const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
+        const photoSortMode = normalizeText(data.photoSortMode);
+
+        if (!PHOTO_SORT_MODES.includes(photoSortMode)) {
+            return res.status(400).json({ status: 'error', message: `Modo de ordenacao invalido. Use: ${PHOTO_SORT_MODES.join(', ')}` });
+        }
+
+        const workspace = await reportWorkspaceRepository.getById(workspaceId);
+        if (!workspace) {
+            return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
+        }
+
+        const photos = await reportPhotoRepository.listByWorkspace(workspaceId);
+        const sorted = sortPhotosByMode(photos, photoSortMode);
+        const updates = sorted.map((photo, index) => ({ id: photo.id, sortOrder: index + 1 }));
+
+        await reportPhotoRepository.batchUpdateSortOrder(updates);
+
+        await reportWorkspaceRepository.save({
+            ...workspace,
+            photoSortMode,
+            updatedAt: new Date().toISOString(),
+            updatedBy: meta.updatedBy || req.user?.email || 'API',
+        }, { merge: true });
+
+        const updatedPhotos = await reportPhotoRepository.listByWorkspace(workspaceId);
+
+        return res.status(200).json({
+            status: 'success',
+            data: {
+                workspaceId,
+                photoSortMode,
+                photoCount: updatedPhotos.length,
+                photos: updatedPhotos.map((photo) => createWorkspacePhotoResponse(req, workspaceId, photo)),
+            },
+        });
+    } catch (error) {
+        console.error('[report-workspaces API] Error POST /:id/photos/reorder:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao reordenar fotos do workspace' });
     }
 });
 

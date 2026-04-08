@@ -6,6 +6,7 @@ const { createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/h
 const { normalizeText } = require('../utils/projectScope');
 const { reportCompoundRepository, reportWorkspaceRepository, reportJobRepository } = require('../repositories');
 const { triggerWorkerRun } = require('../utils/workerTrigger');
+const { flushWorkspaceDraftsToPhotos } = require('../utils/reportJobContext');
 
 function normalizeWorkspaceIds(value) {
     if (!Array.isArray(value)) return [];
@@ -241,6 +242,12 @@ router.post('/:id/generate', verifyToken, requireEditor, async (req, res) => {
         const compound = await reportCompoundRepository.getById(req.params.id);
         if (!compound) {
             return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
+        }
+
+        // Flush curation drafts to report_photos before generating
+        const workspaceIds = normalizeWorkspaceIds(compound.workspaceIds);
+        for (const workspaceId of workspaceIds) {
+            await flushWorkspaceDraftsToPhotos(workspaceId);
         }
 
         const now = new Date().toISOString();

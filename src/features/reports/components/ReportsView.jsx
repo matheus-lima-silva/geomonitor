@@ -34,6 +34,7 @@ import {
   importReportWorkspace,
   listReportWorkspacePhotos,
   processWorkspaceKmz,
+  reorderWorkspacePhotos,
   requestWorkspaceKmz,
   restoreReportWorkspace,
   saveReportWorkspacePhoto,
@@ -117,6 +118,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [photoPreviewLoading, setPhotoPreviewLoading] = useState({});
   const [photoPreviewFailed, setPhotoPreviewFailed] = useState({});
   const [towerFilter, setTowerFilter] = useState('');
+  const [photoSortMode, setPhotoSortMode] = useState('tower_asc');
   const [busy, setBusy] = useState('');
 
   // ── Subscricoes ────────────────────────────────────────────────────────────
@@ -198,6 +200,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       setWorkspacePhotoDrafts({});
       setLastPersistedWorkspaceDraftSignature('');
       setTowerFilter('');
+      setPhotoSortMode('tower_asc');
       setWorkspaceTextsDraft({ introducao: '', observacoes: '' });
       setWorkspaceAutosave({ status: 'idle', savedAt: '', error: '' });
       return;
@@ -211,6 +214,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         setWorkspacePhotos(nextPhotos);
         setWorkspacePhotoDrafts(nextDrafts);
         setLastPersistedWorkspaceDraftSignature(JSON.stringify(nextDrafts));
+        setPhotoSortMode(String(selectedWorkspace?.photoSortMode || 'tower_asc').trim() || 'tower_asc');
         setWorkspaceAutosave({
           status: selectedWorkspace?.draftState?.autosave?.savedAt ? 'saved' : 'idle',
           savedAt: String(selectedWorkspace?.draftState?.autosave?.savedAt || ''),
@@ -737,6 +741,21 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
+  async function handlePhotoSortModeChange(mode) {
+    setPhotoSortMode(mode);
+    if (!selectedWorkspace) return;
+    try {
+      setBusy('reorder');
+      await reorderWorkspacePhotos(selectedWorkspace.id, mode, { updatedBy: userEmail || 'web' });
+      await refreshWorkspacePhotos(selectedWorkspace.id);
+      showToast('Ordenacao aplicada.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao reordenar fotos.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function handleRequestWorkspaceKmz() {
     if (!selectedWorkspace?.id) { showToast('Selecione um workspace para gerar o KMZ.', 'error'); return; }
     try {
@@ -1239,6 +1258,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleSaveWorkspaceTexts={handleSaveWorkspaceTexts}
             handleRequestWorkspaceKmz={handleRequestWorkspaceKmz}
             handleDownloadWorkspaceKmz={handleDownloadWorkspaceKmz}
+            photoSortMode={photoSortMode}
+            handlePhotoSortModeChange={handlePhotoSortModeChange}
             handleExportCaptions={handleExportCaptions}
             handleTrashWorkspace={handleTrashWorkspace}
             handleRestoreWorkspace={handleRestoreWorkspace}

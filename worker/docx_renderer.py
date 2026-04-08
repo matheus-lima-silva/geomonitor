@@ -388,7 +388,7 @@ def add_photo_entry(document, photo, image_loader, photo_index):
     document.add_paragraph(label, style='Legenda')
 
 
-def add_photos_section(document, photos, image_loader, section_title="ILUSTRAÇÃO FOTOGRÁFICA"):
+def add_photos_section(document, photos, image_loader, section_title="ILUSTRAÇÃO FOTOGRÁFICA", group_by_tower=True):
     rows = [photo for photo in safe_list(photos) if photo.get("includeInReport") is True]
 
     add_heading_paragraph(document, section_title, ilvl=0)
@@ -397,23 +397,29 @@ def add_photos_section(document, photos, image_loader, section_title="ILUSTRAÇ�
         document.add_paragraph("Nenhuma foto marcada para inclusao no relatorio.", style='NormalWeb')
         return
 
-    grouped = []
-    lookup = {}
-    for photo in rows:
-        tower_id = normalize_text(photo.get("towerId"))
-        if tower_id:
-            group_key = f"Região da Torre {tower_id}"
-        else:
-            group_key = "Fotos sem agrupamento"
-        if group_key not in lookup:
-            lookup[group_key] = []
-            grouped.append((group_key, lookup[group_key]))
-        lookup[group_key].append(photo)
+    if group_by_tower:
+        grouped = []
+        lookup = {}
+        for photo in rows:
+            tower_id = normalize_text(photo.get("towerId"))
+            if tower_id:
+                group_key = f"Região da Torre {tower_id}"
+            else:
+                group_key = "Fotos sem agrupamento"
+            if group_key not in lookup:
+                lookup[group_key] = []
+                grouped.append((group_key, lookup[group_key]))
+            lookup[group_key].append(photo)
 
-    photo_index = 1
-    for group_label, items in grouped:
-        add_heading_paragraph(document, group_label, ilvl=1)
-        for photo in items:
+        photo_index = 1
+        for group_label, items in grouped:
+            add_heading_paragraph(document, group_label, ilvl=1)
+            for photo in items:
+                add_photo_entry(document, photo, image_loader, photo_index)
+                photo_index += 1
+    else:
+        photo_index = 1
+        for photo in rows:
             add_photo_entry(document, photo, image_loader, photo_index)
             photo_index += 1
 
@@ -675,12 +681,18 @@ def render_report_compound_docx(context, output_path, image_loader):
     if descricao_text:
         add_numbered_text_section(document, "DESCRIÇÃO DAS ATIVIDADES", descricao_text)
 
-    all_photos = []
     for bundle in workspaces:
-        photos = safe_list(bundle.get("photos") if isinstance(bundle, dict) else [])
-        all_photos.extend(photos)
-
-    add_photos_section(document, all_photos, image_loader)
+        if not isinstance(bundle, dict):
+            continue
+        photos = safe_list(bundle.get("photos"))
+        if not photos:
+            continue
+        sort_mode = normalize_text(bundle.get("photoSortMode")) or "tower_asc"
+        use_tower_grouping = sort_mode.startswith("tower")
+        ws = ensure_dict(bundle.get("workspace"))
+        ws_name = normalize_text(ws.get("nome")) or normalize_text(ws.get("id"))
+        section_title = f"ILUSTRAÇÃO FOTOGRÁFICA - {ws_name}" if len(workspaces) > 1 and ws_name else "ILUSTRAÇÃO FOTOGRÁFICA"
+        add_photos_section(document, photos, image_loader, section_title=section_title, group_by_tower=use_tower_grouping)
 
     post_photo_sections = [
         ("CONCLUSÕES E RECOMENDAÇÕES", "conclusoes"),

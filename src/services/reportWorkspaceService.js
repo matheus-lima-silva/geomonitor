@@ -85,6 +85,13 @@ export async function deleteReportWorkspacePhoto(workspaceId, photoId) {
   });
 }
 
+export async function reorderWorkspacePhotos(workspaceId, photoSortMode, meta = {}) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/reorder`, {
+    method: 'POST',
+    body: JSON.stringify({ data: { photoSortMode }, meta }),
+  });
+}
+
 export async function processWorkspaceKmz(workspaceId, data, meta = {}) {
   return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/kmz/process`, {
     method: 'POST',

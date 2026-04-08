@@ -352,10 +352,41 @@ async function countByProject(projectId) {
     return result.rows[0]?.count || 0;
 }
 
+async function batchUpdateSortOrder(updates = []) {
+    const valid = updates.filter((u) => normalizeText(u.id) && Number.isFinite(Number(u.sortOrder)));
+    if (valid.length === 0) return 0;
+
+    if (!isPostgresBackend()) {
+        let updated = 0;
+        for (const { id, sortOrder } of valid) {
+            const current = await getById(id);
+            if (!current) continue;
+            await saveFirestoreDoc('reportPhotos', id, { ...current, sortOrder: Number(sortOrder) });
+            updated++;
+        }
+        return updated;
+    }
+
+    const values = valid.map((u, i) => `($${i * 2 + 1}::text, $${i * 2 + 2}::integer)`).join(', ');
+    const params = valid.flatMap((u) => [normalizeText(u.id), Number(u.sortOrder)]);
+
+    const result = await postgresStore.query(
+        `
+            UPDATE report_photos AS rp
+            SET sort_order = v.new_order, updated_at = NOW()
+            FROM (VALUES ${values}) AS v(id, new_order)
+            WHERE rp.id = v.id
+        `,
+        params,
+    );
+    return result.rowCount || 0;
+}
+
 module.exports = {
     listByWorkspace,
     getById,
     listByProject,
     save,
     countByProject,
+    batchUpdateSortOrder,
 };

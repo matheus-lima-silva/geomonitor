@@ -17,6 +17,50 @@ function normalizeText(value) {
     return String(value || '').trim();
 }
 
+async function flushWorkspaceDraftsToPhotos(workspaceId) {
+    const workspace = await reportWorkspaceRepository.getById(workspaceId);
+    if (!workspace) return 0;
+
+    const curationDrafts = workspace.draftState?.curationDrafts;
+    if (!curationDrafts || typeof curationDrafts !== 'object') return 0;
+
+    const photoIds = Object.keys(curationDrafts).filter(Boolean);
+    if (photoIds.length === 0) return 0;
+
+    let flushed = 0;
+    for (const photoId of photoIds) {
+        const draft = curationDrafts[photoId];
+        if (!draft || typeof draft !== 'object') continue;
+
+        const current = await reportPhotoRepository.getById(photoId);
+        if (!current) continue;
+
+        const caption = normalizeText(draft.caption);
+        const towerId = normalizeText(draft.towerId);
+        const includeInReport = Boolean(draft.includeInReport);
+
+        const changed = caption !== normalizeText(current.caption)
+            || towerId !== normalizeText(current.towerId)
+            || includeInReport !== Boolean(current.includeInReport);
+
+        if (!changed) continue;
+
+        await reportPhotoRepository.save({
+            ...current,
+            caption,
+            towerId: towerId || null,
+            towerSource: towerId ? (current.towerSource || 'manual') : 'pending',
+            includeInReport,
+            curationStatus: (includeInReport && caption && towerId) ? 'curated'
+                : (caption || towerId || includeInReport) ? 'reviewed'
+                : (current.curationStatus || 'uploaded'),
+            manualOverride: Boolean(towerId) || Boolean(current.manualOverride),
+        }, { merge: true });
+        flushed++;
+    }
+    return flushed;
+}
+
 function buildDefaultReportDefaults(projectId, data = {}) {
     return {
         projectId,
@@ -135,6 +179,7 @@ async function buildReportCompoundContext(job) {
             workspace,
             project: project || null,
             photos: photos.filter((photo) => photo.includeInReport === true),
+            photoSortMode: normalizeText(workspace.photoSortMode) || 'tower_asc',
         });
     }
 
@@ -223,4 +268,5 @@ async function buildReportJobContext(jobId) {
 module.exports = {
     buildDefaultReportDefaults,
     buildReportJobContext,
+    flushWorkspaceDraftsToPhotos,
 };

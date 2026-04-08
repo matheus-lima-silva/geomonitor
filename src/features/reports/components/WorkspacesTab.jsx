@@ -87,6 +87,8 @@ export default function WorkspacesTab({
   handleSaveWorkspaceTexts,
   handleRequestWorkspaceKmz,
   handleDownloadWorkspaceKmz,
+  photoSortMode,
+  handlePhotoSortModeChange,
   handleExportCaptions,
   handleTrashWorkspace,
   handleRestoreWorkspace,
@@ -462,20 +464,39 @@ export default function WorkspacesTab({
             <div className="flex min-w-0 flex-col gap-3">
               {/* Status bar */}
               <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-3">
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">{workspaceCurationSummary.reviewed} revisadas</span>
-                  <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">{workspaceCurationSummary.curated} aptas</span>
-                  <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">{workspaceCurationSummary.pending} pendentes</span>
-                  <span className="rounded-full bg-brand-100 px-2 py-1 text-brand-700">{workspaceMetrics.included} no DOCX</span>
-                  {towerFilter && (
-                    <button
-                      type="button"
-                      className="rounded-full bg-brand-100 px-2 py-1 text-brand-700 hover:bg-brand-200 transition-colors"
-                      onClick={() => handleTowerFilterChange('')}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">{workspaceCurationSummary.reviewed} revisadas</span>
+                    <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">{workspaceCurationSummary.curated} aptas</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">{workspaceCurationSummary.pending} pendentes</span>
+                    <span className="rounded-full bg-brand-100 px-2 py-1 text-brand-700">{workspaceMetrics.included} no DOCX</span>
+                    {towerFilter && (
+                      <button
+                        type="button"
+                        className="rounded-full bg-brand-100 px-2 py-1 text-brand-700 hover:bg-brand-200 transition-colors"
+                        onClick={() => handleTowerFilterChange('')}
+                      >
+                        {towerFilter === '__none__' ? 'Sem torre' : `Torre ${towerFilter}`} ({filteredWorkspacePhotos.length}) ✕
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <label htmlFor="workspace-photo-sort" className="text-2xs font-medium text-slate-500 whitespace-nowrap">Ordenar:</label>
+                    <select
+                      id="workspace-photo-sort"
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                      value={photoSortMode || 'tower_asc'}
+                      onChange={(e) => handlePhotoSortModeChange(e.target.value)}
+                      disabled={busy === 'reorder'}
                     >
-                      {towerFilter === '__none__' ? 'Sem torre' : `Torre ${towerFilter}`} ({filteredWorkspacePhotos.length}) ✕
-                    </button>
-                  )}
+                      <option value="tower_asc">Torre (A-Z)</option>
+                      <option value="tower_desc">Torre (Z-A)</option>
+                      <option value="capture_date_asc">Data (antiga primeiro)</option>
+                      <option value="capture_date_desc">Data (recente primeiro)</option>
+                      <option value="sort_order_asc">Ordem de importacao</option>
+                      <option value="caption_asc">Legenda (A-Z)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
