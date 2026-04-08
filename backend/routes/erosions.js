@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
+const crypto = require('crypto');
 const { createHateoasResponse, generateHateoasLinks } = require('../utils/hateoas');
-const { erosionRepository } = require('../repositories');
+const { erosionRepository, reportJobRepository } = require('../repositories');
+const { triggerWorkerRun } = require('../utils/workerTrigger');
 
 const {
     calculateCriticality,
@@ -307,6 +309,49 @@ router.post('/simulate', verifyToken, requireActiveUser, async (req, res) => {
             ? 'Erro interno ao executar simulação.'
             : 'Error running simulation: ' + error.message;
         res.status(500).json({ message: safeMessage });
+    }
+});
+
+// --- Ficha de Cadastro de Erosao (DOCX) ---
+
+function normalizeTextLocal(value) {
+    return String(value || '').trim();
+}
+
+router.post('/fichas-cadastro/generate', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const projectId = normalizeTextLocal(body.projectId).toUpperCase();
+        if (!projectId) {
+            return res.status(400).json({ status: 'error', message: 'projectId e obrigatorio' });
+        }
+
+        const erosionIds = Array.isArray(body.erosionIds)
+            ? body.erosionIds.map((id) => normalizeTextLocal(id)).filter(Boolean)
+            : [];
+
+        const now = new Date().toISOString();
+        const jobId = `JOB-${crypto.randomUUID()}`;
+        await reportJobRepository.save({
+            id: jobId,
+            kind: 'ficha_cadastro',
+            projectId,
+            erosionIds,
+            statusExecucao: 'queued',
+            createdAt: now,
+            updatedAt: now,
+            updatedBy: req.user?.email || 'API',
+        }, { merge: true });
+
+        triggerWorkerRun();
+
+        return res.status(202).json({
+            status: 'success',
+            data: { jobId, kind: 'ficha_cadastro', projectId, statusExecucao: 'queued' },
+        });
+    } catch (error) {
+        console.error('[erosions API] Error POST /fichas-cadastro/generate:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao enfileirar geracao de fichas de cadastro' });
     }
 });
 

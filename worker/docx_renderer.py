@@ -761,4 +761,7 @@ def render_context_to_docx(context, output_path, image_loader):
         return render_project_dossier_docx(context, output_path, image_loader)
     if kind == "report_compound":
         return render_report_compound_docx(context, output_path, image_loader)
+    if kind == "ficha_cadastro":
+        from worker.ficha_cadastro_renderer import render_ficha_cadastro_docx
+        return render_ficha_cadastro_docx(context, output_path, image_loader)
     raise ValueError(f"Tipo de job sem renderizador DOCX: {kind or 'desconhecido'}")

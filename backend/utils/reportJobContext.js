@@ -13,6 +13,8 @@ const {
     workspaceKmzRequestRepository,
 } = require('../repositories');
 
+const { convertDecimalToUtm, normalizeLocationCoordinates } = require('./erosionCoordinates_dist');
+
 function normalizeText(value) {
     return String(value || '').trim();
 }
@@ -242,6 +244,66 @@ async function buildWorkspaceKmzContext(job) {
     };
 }
 
+function enrichErosionWithUtm(erosion) {
+    const coords = normalizeLocationCoordinates(erosion);
+    // If UTM is already present, use it; otherwise compute from decimal
+    if (coords.utmEasting && coords.utmNorthing) {
+        return {
+            ...erosion,
+            locationCoordinates: coords,
+        };
+    }
+    const lat = Number(coords.latitude);
+    const lon = Number(coords.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return {
+            ...erosion,
+            locationCoordinates: coords,
+        };
+    }
+    const utm = convertDecimalToUtm(lat, lon);
+    return {
+        ...erosion,
+        locationCoordinates: {
+            ...coords,
+            utmEasting: utm.easting ? String(Math.round(utm.easting)) : '',
+            utmNorthing: utm.northing ? String(Math.round(utm.northing)) : '',
+            utmZone: utm.zone ? String(utm.zone) : '',
+            utmHemisphere: utm.hemisphere || '',
+        },
+    };
+}
+
+async function buildFichaCadastroContext(job) {
+    const projectId = normalizeText(job.projectId).toUpperCase();
+    const project = await projectRepository.getById(projectId);
+    if (!project) {
+        throw createMissingResourceError(`Empreendimento '${projectId}' nao encontrado para o job.`);
+    }
+
+    let erosions;
+    const erosionIds = Array.isArray(job.erosionIds) ? job.erosionIds.filter(Boolean) : [];
+    if (erosionIds.length > 0) {
+        const all = await Promise.all(erosionIds.map((id) => erosionRepository.getById(id)));
+        erosions = all.filter(Boolean);
+    } else {
+        erosions = await erosionRepository.listByProject(projectId);
+    }
+
+    const enrichedErosions = erosions.map((erosion) => enrichErosionWithUtm(erosion));
+
+    return {
+        job,
+        project,
+        defaults: await resolveProjectDefaults(projectId),
+        renderModel: {
+            fichaCadastro: {
+                erosions: enrichedErosions,
+            },
+        },
+    };
+}
+
 async function buildReportJobContext(jobId) {
     const job = await reportJobRepository.getById(jobId);
     if (!job) {
@@ -258,6 +320,10 @@ async function buildReportJobContext(jobId) {
 
     if (job.kind === 'workspace_kmz') {
         return buildWorkspaceKmzContext(job);
+    }
+
+    if (job.kind === 'ficha_cadastro') {
+        return buildFichaCadastroContext(job);
     }
 
     const error = new Error(`Nao existe contexto de renderizacao para jobs do tipo '${job.kind}'.`);
