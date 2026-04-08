@@ -384,8 +384,37 @@ def add_photo_entry(document, photo, image_loader, photo_index):
             document.add_paragraph(f"[Imagem indisponível: {exc}]")
 
     caption = normalize_text(photo.get("caption"))
-    label = f"Foto {photo_index} - {caption}" if caption else f"Foto {photo_index}"
-    document.add_paragraph(label, style='Legenda')
+    paragraph = document.add_paragraph(style='Legenda')
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    run_prefix = paragraph.add_run("Foto ")
+    run_prefix.bold = False
+
+    fld_char_begin = OxmlElement('w:fldChar')
+    fld_char_begin.set(qn('w:fldCharType'), 'begin')
+    run_field_begin = paragraph.add_run()
+    run_field_begin._r.append(fld_char_begin)
+
+    instr_text = OxmlElement('w:instrText')
+    instr_text.set(qn('xml:space'), 'preserve')
+    instr_text.text = ' SEQ Foto \\* ARABIC '
+    run_instr = paragraph.add_run()
+    run_instr._r.append(instr_text)
+
+    fld_char_separate = OxmlElement('w:fldChar')
+    fld_char_separate.set(qn('w:fldCharType'), 'separate')
+    run_field_sep = paragraph.add_run()
+    run_field_sep._r.append(fld_char_separate)
+
+    paragraph.add_run(str(photo_index))
+
+    fld_char_end = OxmlElement('w:fldChar')
+    fld_char_end.set(qn('w:fldCharType'), 'end')
+    run_field_end = paragraph.add_run()
+    run_field_end._r.append(fld_char_end)
+
+    if caption:
+        paragraph.add_run(f" - {caption}")
 
 
 def add_photos_section(document, photos, image_loader, section_title="ILUSTRAÇÃO FOTOGRÁFICA", group_by_tower=True):
@@ -403,7 +432,7 @@ def add_photos_section(document, photos, image_loader, section_title="ILUSTRAÇ�
         for photo in rows:
             tower_id = normalize_text(photo.get("towerId"))
             if tower_id:
-                group_key = f"Região da Torre {tower_id}"
+                group_key = f"Torre {tower_id}"
             else:
                 group_key = "Fotos sem agrupamento"
             if group_key not in lookup:

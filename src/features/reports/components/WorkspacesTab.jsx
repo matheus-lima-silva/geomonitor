@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, Card, HintText, Input, Select, Textarea } from '../../../components/ui';
 import IconButton from '../../../components/ui/IconButton';
@@ -100,6 +100,51 @@ export default function WorkspacesTab({
   const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
   const [confirmHardDeleteWorkspace, setConfirmHardDeleteWorkspace] = useState(null);
   const [showWorkspaceTrash, setShowWorkspaceTrash] = useState(false);
+  const [showNumberingPreview, setShowNumberingPreview] = useState(false);
+
+  const numberingPreview = useMemo(() => {
+    const included = visibleWorkspacePhotos.filter((photo) => {
+      const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
+      return Boolean(draft.includeInReport);
+    });
+    if (included.length === 0) return { entries: [], count: 0 };
+
+    const groupByTower = (photoSortMode || 'tower_asc').startsWith('tower');
+    const entries = [];
+    let photoIndex = 1;
+
+    if (groupByTower) {
+      const grouped = [];
+      const lookup = {};
+      for (const photo of included) {
+        const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
+        const towerId = String(draft.towerId || photo.towerId || '').trim();
+        const groupKey = towerId ? `Torre ${towerId}` : 'Fotos sem agrupamento';
+        if (!lookup[groupKey]) {
+          lookup[groupKey] = [];
+          grouped.push({ label: groupKey, items: lookup[groupKey] });
+        }
+        lookup[groupKey].push({ photo, draft });
+      }
+      for (const group of grouped) {
+        entries.push({ type: 'header', label: group.label });
+        for (const { draft } of group.items) {
+          const caption = String(draft.caption || '').trim();
+          entries.push({ type: 'photo', label: caption ? `Foto ${photoIndex} - ${caption}` : `Foto ${photoIndex}`, index: photoIndex });
+          photoIndex++;
+        }
+      }
+    } else {
+      for (const photo of included) {
+        const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
+        const caption = String(draft.caption || '').trim();
+        entries.push({ type: 'photo', label: caption ? `Foto ${photoIndex} - ${caption}` : `Foto ${photoIndex}`, index: photoIndex });
+        photoIndex++;
+      }
+    }
+
+    return { entries, count: included.length };
+  }, [visibleWorkspacePhotos, workspacePhotoDrafts, photoSortMode]);
 
   const totalPages = Math.max(1, Math.ceil(filteredWorkspacePhotos.length / PAGE_SIZE));
   const pagedPhotos = filteredWorkspacePhotos.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -499,6 +544,33 @@ export default function WorkspacesTab({
                   </div>
                 </div>
               </div>
+
+              {/* Preview de numeracao */}
+              {numberingPreview.count > 0 ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between px-3 py-2.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                    onClick={() => setShowNumberingPreview((prev) => !prev)}
+                  >
+                    <span>Preview da numeracao no DOCX ({numberingPreview.count} foto{numberingPreview.count !== 1 ? 's' : ''})</span>
+                    <AppIcon name={showNumberingPreview ? 'chevron-up' : 'chevron-down'} size={14} />
+                  </button>
+                  {showNumberingPreview ? (
+                    <div className="border-t border-slate-200 px-3 py-2 max-h-64 overflow-y-auto">
+                      <ol className="m-0 p-0 list-none flex flex-col gap-0.5">
+                        {numberingPreview.entries.map((entry, i) => (
+                          entry.type === 'header' ? (
+                            <li key={`h-${i}`} className="text-2xs font-bold uppercase tracking-wide text-slate-500 mt-2 first:mt-0">{entry.label}</li>
+                          ) : (
+                            <li key={`p-${entry.index}`} className="text-xs text-slate-600 pl-2">{entry.label}</li>
+                          )
+                        ))}
+                      </ol>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               {/* Lixeira */}
               {deletedPhotoIds.length > 0 ? (
