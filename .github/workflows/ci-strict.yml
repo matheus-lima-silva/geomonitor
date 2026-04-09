@@ -50,3 +50,22 @@ jobs:
 
       - name: Run strict backend tests
         run: npm test
+
+  worker-strict:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: worker/requirements.txt
+
+      - name: Install worker dependencies
+        run: pip install -r worker/requirements.txt
+
+      - name: Run worker tests
+        run: python -m pytest worker/tests/ -v
