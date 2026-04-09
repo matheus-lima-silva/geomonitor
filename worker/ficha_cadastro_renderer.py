@@ -435,17 +435,26 @@ def _clone_table(table):
     return deepcopy(table._tbl)
 
 
-def _add_page_break(document):
-    """Insert a page break paragraph into the document body."""
-    p = OxmlElement("w:p")
-    pPr = OxmlElement("w:pPr")
-    p.append(pPr)
-    r = OxmlElement("w:r")
-    br = OxmlElement("w:br")
-    br.set(qn("w:type"), "page")
-    r.append(br)
-    p.append(r)
-    document._element.body.append(p)
+def _set_page_break_before(table):
+    """Set pageBreakBefore on the first paragraph of the first cell in the table.
+
+    This ensures the table always starts on a new page without inserting an
+    extra empty paragraph before it.
+    """
+    first_row = table.rows[0]
+    unique = _get_unique_cells(first_row)
+    if not unique:
+        return
+    cell = unique[0][1]
+    if not cell.paragraphs:
+        return
+    p = cell.paragraphs[0]._p
+    pPr = p.find(qn("w:pPr"))
+    if pPr is None:
+        pPr = OxmlElement("w:pPr")
+        p.insert(0, pPr)
+    pb = OxmlElement("w:pageBreakBefore")
+    pPr.append(pb)
 
 
 def render_ficha_cadastro_docx(context, output_path, image_loader):
@@ -485,10 +494,9 @@ def render_ficha_cadastro_docx(context, output_path, image_loader):
         body.remove(p)
 
     # For each erosion, clone the template table, fill it, and append
-    for idx, erosion in enumerate(erosions):
-        if idx > 0:
-            _add_page_break(output_doc)
+    from docx.table import Table
 
+    for idx, erosion in enumerate(erosions):
         # Clone template table
         cloned_tbl = _clone_table(template_table)
 
@@ -500,8 +508,11 @@ def render_ficha_cadastro_docx(context, output_path, image_loader):
             body.append(cloned_tbl)
 
         # Access the cloned table via python-docx Table wrapper
-        from docx.table import Table
         cloned_table = Table(cloned_tbl, output_doc)
+
+        # Force page break before every ficha except the first
+        if idx > 0:
+            _set_page_break_before(cloned_table)
 
         # Fill the cloned table
         _fill_ficha_table(cloned_table, erosion, project_name)
