@@ -43,6 +43,11 @@ def build_output_file_name(context):
         token = normalize_text(workspace_kmz.get("token")) or normalize_text(job.get("workspaceKmzToken")) or "kmz"
         return f"workspace-{workspace_id}-{token}.kmz"
 
+    if kind == "ficha_cadastro":
+        project = context.get("project") if isinstance(context, dict) else {}
+        project_id = normalize_text(project.get("id")) or normalize_text(job.get("projectId")) or "projeto"
+        return f"fichas-cadastro-erosao-{project_id}.docx"
+
     return f"relatorio-{normalize_text(job.get('id')) or 'job'}.docx"
 
 
@@ -155,7 +160,7 @@ def process_claimed_job(client, job):
         output_path = os.path.join(staging_dir, build_output_file_name(context))
         kind = normalize_text(context.get("job", {}).get("kind"))
 
-        if kind in {"project_dossier", "report_compound"}:
+        if kind in {"project_dossier", "report_compound", "ficha_cadastro"}:
             return process_docx_job(client, job_id, context, staging_dir)
 
         if kind == "workspace_kmz":

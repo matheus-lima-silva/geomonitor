@@ -10,6 +10,8 @@ function ErosionReportPanel({
   onExportPdf,
   onPrintBatchFichasPdf = () => { },
   onPrintBatchFichasSimplificadas = () => { },
+  onGenerateFichaDocx = () => { },
+  fichaDocxLoading = false,
   projetoId = '',
   collapsed = true,
   onToggleCollapsed = () => { },
@@ -132,6 +134,10 @@ function ErosionReportPanel({
               <Button variant="outline" size="md" onClick={onPrintBatchFichasSimplificadas}>
                 <AppIcon name="pdf" />
                 Ficha Simplificada (lote)
+              </Button>
+              <Button variant="outline" size="md" onClick={onGenerateFichaDocx} disabled={!projetoId || fichaDocxLoading}>
+                <AppIcon name="file-text" />
+                {fichaDocxLoading ? 'Gerando DOCX...' : 'Ficha Cadastro (DOCX)'}
               </Button>
             </div>
           </div>
