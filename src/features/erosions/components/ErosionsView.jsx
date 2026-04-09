@@ -5,10 +5,14 @@ import { useToast } from '../../../context/ToastContext';
 import { normalizeErosionStatus } from '../../shared/statusUtils';
 import {
   deleteErosion,
+  generateFichaCadastroDocx,
+  getReportJobStatus,
   postCalculoErosao,
   saveErosion,
   saveErosionManualFollowupEvent,
 } from '../../../services/erosionService';
+import { downloadMediaAsset } from '../../../services/mediaService';
+import { triggerBlobDownload } from '../../reports/utils/reportUtils';
 import {
   getCriticalityCode,
   getInspectionDateScore,
@@ -911,6 +915,49 @@ function ErosionsView({
     }
   }
 
+  const [fichaDocxLoading, setFichaDocxLoading] = useState(false);
+
+  async function handleGenerateFichaDocx() {
+    if (!reportFilters.projetoId) {
+      show('Selecione um empreendimento para gerar fichas DOCX.', 'error');
+      return;
+    }
+    setFichaDocxLoading(true);
+    try {
+      const jobData = await generateFichaCadastroDocx({ projectId: reportFilters.projetoId });
+      const jobId = jobData?.jobId;
+      if (!jobId) throw new Error('Job nao criado.');
+
+      show('Geracao de fichas DOCX iniciada. Aguarde...', 'success');
+
+      // Poll for job completion (max 120s)
+      const maxAttempts = 24;
+      let mediaId = null;
+      for (let i = 0; i < maxAttempts; i++) {
+        await new Promise((r) => setTimeout(r, 5000));
+        const status = await getReportJobStatus(jobId);
+        const execStatus = String(status?.statusExecucao || '').toLowerCase();
+        if (execStatus === 'completed' || execStatus === 'complete') {
+          mediaId = status?.outputDocxMediaId;
+          break;
+        }
+        if (execStatus === 'failed' || execStatus === 'error') {
+          throw new Error(status?.errorLog || 'Erro na geracao das fichas.');
+        }
+      }
+
+      if (!mediaId) throw new Error('Timeout: geracao das fichas demorou demais.');
+
+      const { blob } = await downloadMediaAsset(mediaId);
+      triggerBlobDownload(`fichas-cadastro-erosao-${reportFilters.projetoId}.docx`, blob);
+      show('Fichas DOCX geradas com sucesso!', 'success');
+    } catch (err) {
+      show(err.message || 'Erro ao gerar fichas DOCX.', 'error');
+    } finally {
+      setFichaDocxLoading(false);
+    }
+  }
+
   const criticality = useMemo(() => {
     if (isHistoricalErosionRecord(formData || {})) {
       return {
@@ -1095,6 +1142,8 @@ function ErosionsView({
         onExportPdf={handleExportPdf}
         onPrintBatchFichasPdf={handlePrintBatchFichasPdf}
         onPrintBatchFichasSimplificadas={handlePrintBatchFichasSimplificadas}
+        onGenerateFichaDocx={handleGenerateFichaDocx}
+        fichaDocxLoading={fichaDocxLoading}
         projetoId={reportFilters.projetoId}
         collapsed={isReportPanelCollapsed}
         onToggleCollapsed={() => setIsReportPanelCollapsed((prev) => !prev)}

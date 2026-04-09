@@ -207,3 +207,77 @@ export async function saveErosionManualFollowupEvent(erosion, eventData, meta = 
 export function deleteErosion(erosionOrId) {
   return erosionCrudService.remove(erosionOrId);
 }
+
+// ── Ficha de Cadastro (DOCX) ──────────────────────────────────
+
+export async function generateFichaCadastroDocx({ projectId, erosionIds } = {}) {
+  const token = await getAuthToken();
+  const body = { projectId };
+  if (Array.isArray(erosionIds) && erosionIds.length > 0) {
+    body.erosionIds = erosionIds;
+  }
+
+  let result = null;
+  let lastNetworkError = null;
+
+  for (const apiBase of getApiBaseCandidates()) {
+    try {
+      const response = await fetch(`${apiBase}/erosions/fichas-cadastro/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const message = await extractApiErrorMessage(response, 'Erro ao gerar fichas de cadastro.');
+        throw new Error(message);
+      }
+      result = await response.json();
+      lastNetworkError = null;
+      break;
+    } catch (error) {
+      if (!isNetworkFailureError(error)) throw error;
+      lastNetworkError = error;
+    }
+  }
+
+  if (!result) {
+    throw lastNetworkError || new Error('Erro ao gerar fichas de cadastro.');
+  }
+
+  return result?.data || result;
+}
+
+export async function getReportJobStatus(jobId) {
+  const token = await getAuthToken();
+
+  let result = null;
+  let lastNetworkError = null;
+
+  for (const apiBase of getApiBaseCandidates()) {
+    try {
+      const response = await fetch(`${apiBase}/report-jobs/${encodeURIComponent(jobId)}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const message = await extractApiErrorMessage(response, 'Erro ao buscar status do job.');
+        throw new Error(message);
+      }
+      result = await response.json();
+      lastNetworkError = null;
+      break;
+    } catch (error) {
+      if (!isNetworkFailureError(error)) throw error;
+      lastNetworkError = error;
+    }
+  }
+
+  if (!result) {
+    throw lastNetworkError || new Error('Erro ao buscar status do job.');
+  }
+
+  return result?.data || result;
+}
