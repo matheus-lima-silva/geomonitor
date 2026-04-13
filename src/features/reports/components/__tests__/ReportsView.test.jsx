@@ -115,7 +115,7 @@ vi.mock('../../../../services/mediaService', () => ({
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-async function flush(n = 4) { for (let i = 0; i < n; i++) await act(async () => { await Promise.resolve(); }); }
+async function flush(n = 6) { for (let i = 0; i < n; i++) await act(async () => { await Promise.resolve(); }); }
 
 function resetMockData() {
   mockData.workspaces = [
@@ -176,6 +176,7 @@ describe('ReportsView', () => {
     await act(async () => {
       libraryButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    await flush();
 
     expect(container.textContent).toContain('Baixar Tudo Filtrado');
     expect(container.textContent).toContain('Foto 1 fundacao');
@@ -192,6 +193,7 @@ describe('ReportsView', () => {
     await act(async () => {
       libraryButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    await flush();
 
     const workspaceSelect = container.querySelector('#library-workspace');
     const towerSelect = container.querySelector('#library-tower');
@@ -306,6 +308,7 @@ describe('ReportsView', () => {
     await act(async () => {
       dossierButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    await flush();
 
     const nameInput = container.querySelector('#dossier-name');
     const notesInput = container.querySelector('#dossier-notes');
@@ -358,6 +361,7 @@ describe('ReportsView', () => {
     await act(async () => {
       compoundsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    await flush();
 
     const workspaceSelect = container.querySelector('#compound-workspace-RC-1');
     const addButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Adicionar Workspace'));
