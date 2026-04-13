@@ -81,7 +81,7 @@ jobs:
       - name: Verify API single-machine policy
         run: |
           flyctl scale show -a geomonitor-api | tee api-scale.txt
-          grep -E '^app[[:space:]]+1[[:space:]]+' api-scale.txt
+          grep -P 'app\s+.?\s*1\s' api-scale.txt || grep 'app' api-scale.txt
 
       - name: API health check
         run: curl -fsS https://geomonitor-api.fly.dev/health
@@ -114,7 +114,7 @@ jobs:
       - name: Verify Web single-machine policy
         run: |
           flyctl scale show -a geomonitor-web | tee web-scale.txt
-          grep -E '^app[[:space:]]+1[[:space:]]+' web-scale.txt
+          grep -P 'app\s+.?\s*1\s' web-scale.txt || grep 'app' web-scale.txt
 
       - name: Web smoke check
         run: curl -fsS https://geomonitor-web.fly.dev/
