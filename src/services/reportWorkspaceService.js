@@ -85,6 +85,33 @@ export async function deleteReportWorkspacePhoto(workspaceId, photoId) {
   });
 }
 
+export async function trashWorkspacePhoto(workspaceId, photoId) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/${encodeURIComponent(photoId)}/trash`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function restoreWorkspacePhoto(workspaceId, photoId) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/${encodeURIComponent(photoId)}/restore`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function listTrashedWorkspacePhotos(workspaceId) {
+  const result = await requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/trash`, {
+    method: 'GET',
+  });
+  return Array.isArray(result?.data) ? result.data : [];
+}
+
+export async function emptyWorkspacePhotoTrash(workspaceId) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/trash`, {
+    method: 'DELETE',
+  });
+}
+
 export async function reorderWorkspacePhotos(workspaceId, photoSortMode, meta = {}) {
   return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/reorder`, {
     method: 'POST',

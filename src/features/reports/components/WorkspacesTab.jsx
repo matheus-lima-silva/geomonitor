@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Card, HintText, Input, Select, Textarea } from '../../../components/ui';
+import { Button, Card, EmptyState, HintText, Input, Select, Textarea } from '../../../components/ui';
 import IconButton from '../../../components/ui/IconButton';
 import Modal from '../../../components/ui/Modal';
 import { PhotoCardSkeleton } from '../../../components/ui/Skeleton';
@@ -71,7 +71,7 @@ export default function WorkspacesTab({
   photoPreviewLoading,
   // Lixeira
   deletedPhotoIds,
-  lastDeletedPhotoId,
+  trashedPhotos,
   // KMZ
   selectedWorkspaceKmzRequest,
   // Busy
@@ -81,9 +81,9 @@ export default function WorkspacesTab({
   handleImportWorkspace,
   handleSaveWorkspacePhoto,
   handleMovePhotoToTrash,
-  handleUndoLastDeletedPhoto,
-  handleRestoreAllDeletedPhotos,
-  handleEmptyTrash,
+  handleRestorePhoto,
+  handleRestoreAllTrashedPhotos,
+  handleEmptyPhotoTrash,
   handleSaveWorkspaceTexts,
   handleRequestWorkspaceKmz,
   handleDownloadWorkspaceKmz,
@@ -100,6 +100,7 @@ export default function WorkspacesTab({
   const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
   const [confirmHardDeleteWorkspace, setConfirmHardDeleteWorkspace] = useState(null);
   const [showWorkspaceTrash, setShowWorkspaceTrash] = useState(false);
+  const [photoTrashOpen, setPhotoTrashOpen] = useState(false);
   const [showNumberingPreview, setShowNumberingPreview] = useState(false);
 
   const numberingPreview = useMemo(() => {
@@ -572,31 +573,101 @@ export default function WorkspacesTab({
                 </div>
               ) : null}
 
-              {/* Lixeira */}
-              {deletedPhotoIds.length > 0 ? (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-rose-800">
-                    <span className="font-semibold">{deletedPhotoIds.length} foto(s) na lixeira.</span>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={handleUndoLastDeletedPhoto} disabled={!lastDeletedPhotoId || busy === 'empty-trash'}>
-                        <AppIcon name="chevron-left" />Desfazer ultima
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleRestoreAllDeletedPhotos} disabled={busy === 'empty-trash'}>
-                        <AppIcon name="reset" />Restaurar todas
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => setConfirmEmptyTrash(true)}
-                        disabled={busy === 'empty-trash'}
-                        className="bg-rose-600 hover:bg-rose-700 text-white border-0"
-                      >
-                        <AppIcon name="trash" className="text-white" />
-                        {busy === 'empty-trash' ? 'Esvaziando...' : 'Esvaziar'}
-                      </Button>
+              {/* Lixeira de fotos — sempre visivel */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden transition-all duration-200">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-100 transition-colors"
+                  onClick={() => setPhotoTrashOpen((v) => !v)}
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <AppIcon name="trash-2" size={14} className="text-slate-500" />
+                    Lixeira
+                    {trashedPhotos.length > 0 && (
+                      <span className="bg-rose-100 text-rose-700 rounded-full px-2 py-0.5 text-xs font-medium">
+                        {trashedPhotos.length}
+                      </span>
+                    )}
+                  </span>
+                  <AppIcon
+                    name="chevron-right"
+                    size={14}
+                    className={`text-slate-400 transition-transform duration-200 ${photoTrashOpen ? 'rotate-90' : ''}`}
+                  />
+                </button>
+
+                {photoTrashOpen ? (
+                  trashedPhotos.length === 0 ? (
+                    <div className="pb-4">
+                      <EmptyState
+                        icon="trash-2"
+                        title="Lixeira vazia"
+                        description="Fotos removidas aparecerao aqui."
+                        className="py-6"
+                      />
                     </div>
-                  </div>
-                </div>
-              ) : null}
+                  ) : (
+                    <div className="px-4 pb-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-2 mt-2">
+                        {trashedPhotos.map((photo) => {
+                          const previewUrl = photoPreviewUrls[photo.id];
+                          const deletedDate = photo.deletedAt ? new Date(photo.deletedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                          return (
+                            <div key={photo.id} className="relative rounded-lg border border-rose-200 bg-rose-50 overflow-hidden group">
+                              <div className="relative aspect-[4/3] bg-slate-200">
+                                {previewUrl ? (
+                                  <img src={previewUrl} alt={photo.caption || photo.id} className="w-full h-full object-cover opacity-60" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <AppIcon name="image" size={24} className="text-slate-300" />
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-rose-900/10" />
+                                <div className="absolute top-1.5 right-1.5">
+                                  <IconButton
+                                    variant="outline"
+                                    size="sm"
+                                    aria-label="Restaurar foto"
+                                    onClick={() => handleRestorePhoto(photo)}
+                                    disabled={busy === `photo-restore:${photo.id}`}
+                                    className="bg-white/90 backdrop-blur-sm shadow-sm"
+                                  >
+                                    <AppIcon name="undo" size={12} />
+                                  </IconButton>
+                                </div>
+                              </div>
+                              <div className="px-2 py-1.5">
+                                <p className="text-xs text-slate-600 truncate m-0">{photo.caption || photo.relativePath || photo.id}</p>
+                                {deletedDate && <p className="text-2xs text-rose-400 m-0 mt-0.5">Excluida em {deletedDate}</p>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex flex-wrap justify-end gap-2 mt-3 pt-3 border-t border-slate-200">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleRestoreAllTrashedPhotos}
+                          disabled={busy === 'restore-all-photos'}
+                        >
+                          <AppIcon name="reset" size={14} />
+                          {busy === 'restore-all-photos' ? 'Restaurando...' : 'Restaurar todas'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-rose-600 hover:bg-rose-700 text-white border-0"
+                          onClick={() => setConfirmEmptyTrash(true)}
+                          disabled={busy === 'empty-trash'}
+                        >
+                          <AppIcon name="trash" size={14} className="text-white" />
+                          {busy === 'empty-trash' ? 'Esvaziando...' : `Esvaziar lixeira (${trashedPhotos.length})`}
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                ) : null}
+              </div>
 
               {/* Grid de fotos */}
               {busy === 'workspace-import' && visibleWorkspacePhotos.length === 0 ? (
@@ -958,7 +1029,7 @@ export default function WorkspacesTab({
             </Button>
             <Button
               className="bg-rose-600 hover:bg-rose-700 text-white border-0"
-              onClick={() => { setConfirmEmptyTrash(false); handleEmptyTrash(); }}
+              onClick={() => { setConfirmEmptyTrash(false); handleEmptyPhotoTrash(); }}
               disabled={busy === 'empty-trash'}
             >
               <AppIcon name="trash" className="text-white" />
@@ -968,7 +1039,7 @@ export default function WorkspacesTab({
         }
       >
         <p className="m-0 text-sm text-slate-700">
-          Tem certeza que deseja apagar <strong>{deletedPhotoIds.length} foto(s)</strong> permanentemente?
+          Tem certeza que deseja apagar <strong>{trashedPhotos.length} foto(s)</strong> permanentemente?
           Essa acao nao pode ser desfeita.
         </p>
       </Modal>

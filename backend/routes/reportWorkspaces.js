@@ -300,6 +300,101 @@ router.get('/:id/photos', verifyToken, requireActiveUser, async (req, res) => {
     }
 });
 
+router.get('/:id/photos/trash', verifyToken, requireActiveUser, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const photos = await reportPhotoRepository.listTrashedByWorkspace(workspaceId);
+
+        return res.status(200).json({
+            status: 'success',
+            data: photos.map((photo) => createWorkspacePhotoResponse(req, workspaceId, photo)),
+        });
+    } catch (error) {
+        console.error('[report-workspaces API] Error GET /:id/photos/trash:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao listar fotos na lixeira' });
+    }
+});
+
+router.post('/:id/photos/:photoId/trash', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const photoId = normalizeText(req.params.photoId);
+
+        const photo = await reportPhotoRepository.getById(photoId);
+        if (!photo || photo.workspaceId !== workspaceId) {
+            return res.status(404).json({ status: 'error', message: 'Foto nao vinculada a este workspace ou nao encontrada' });
+        }
+
+        await reportPhotoRepository.softDelete(photoId);
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Foto movida para lixeira',
+        });
+    } catch (error) {
+        console.error('[report-workspaces API] Error POST /:id/photos/:photoId/trash:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao mover foto para lixeira' });
+    }
+});
+
+router.post('/:id/photos/:photoId/restore', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const photoId = normalizeText(req.params.photoId);
+
+        const photo = await reportPhotoRepository.getById(photoId);
+        if (!photo || photo.workspaceId !== workspaceId) {
+            return res.status(404).json({ status: 'error', message: 'Foto nao vinculada a este workspace ou nao encontrada' });
+        }
+
+        await reportPhotoRepository.restore(photoId);
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Foto restaurada da lixeira',
+        });
+    } catch (error) {
+        console.error('[report-workspaces API] Error POST /:id/photos/:photoId/restore:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao restaurar foto da lixeira' });
+    }
+});
+
+router.delete('/:id/photos/trash', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+
+        const workspace = await reportWorkspaceRepository.getById(workspaceId);
+        if (!workspace) {
+            return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
+        }
+
+        const removed = await reportPhotoRepository.removeAllTrashed(workspaceId);
+
+        for (const item of removed) {
+            if (item.mediaAssetId) {
+                try {
+                    const asset = await mediaAssetRepository.getById(item.mediaAssetId);
+                    if (asset) {
+                        await removeStoredMedia(asset);
+                        await mediaAssetRepository.remove(item.mediaAssetId);
+                    }
+                } catch (cleanupError) {
+                    console.error('[report-workspaces API] Falha ao limpar media asset', item.mediaAssetId, cleanupError);
+                }
+            }
+        }
+
+        return res.status(200).json({
+            status: 'success',
+            message: `${removed.length} foto(s) removida(s) permanentemente`,
+            data: { count: removed.length },
+        });
+    } catch (error) {
+        console.error('[report-workspaces API] Error DELETE /:id/photos/trash:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao esvaziar lixeira de fotos' });
+    }
+});
+
 router.delete('/:id/photos/:photoId', verifyToken, requireEditor, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);

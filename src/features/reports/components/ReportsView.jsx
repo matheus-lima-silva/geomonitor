@@ -30,16 +30,20 @@ import {
   createReportWorkspace,
   deleteReportWorkspace,
   deleteReportWorkspacePhoto,
+  emptyWorkspacePhotoTrash,
   getWorkspaceKmzRequest,
   importReportWorkspace,
   listReportWorkspacePhotos,
+  listTrashedWorkspacePhotos,
   processWorkspaceKmz,
   reorderWorkspacePhotos,
   requestWorkspaceKmz,
   restoreReportWorkspace,
+  restoreWorkspacePhoto,
   saveReportWorkspacePhoto,
   subscribeReportWorkspaces,
   trashReportWorkspace,
+  trashWorkspacePhoto,
   updateReportWorkspace,
 } from '../../../services/reportWorkspaceService';
 import { listProfissoes, listSignatarios } from '../../../services/userService';
@@ -111,8 +115,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [lastPersistedWorkspaceDraftSignature, setLastPersistedWorkspaceDraftSignature] = useState('');
   const [pendingFiles, setPendingFiles] = useState([]);
   const [uploadProgress, setUploadProgress] = useState({ total: 0, completed: 0, currentFileName: '' });
-  const [deletedPhotoIds, setDeletedPhotoIds] = useState([]);
-  const [lastDeletedPhotoId, setLastDeletedPhotoId] = useState('');
+  const [trashedPhotos, setTrashedPhotos] = useState([]);
   const [activePreviewPhotoId, setActivePreviewPhotoId] = useState('');
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState({});
   const [photoPreviewLoading, setPhotoPreviewLoading] = useState({});
@@ -120,6 +123,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [towerFilter, setTowerFilter] = useState('');
   const [photoSortMode, setPhotoSortMode] = useState('tower_asc');
   const [busy, setBusy] = useState('');
+
+  const deletedPhotoIds = useMemo(() => trashedPhotos.map((p) => p.id), [trashedPhotos]);
 
   // ── Subscricoes ────────────────────────────────────────────────────────────
 
@@ -222,12 +227,14 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         });
       })
       .catch((error) => !cancelled && showToast(error?.message || 'Erro ao carregar fotos do workspace.', 'error'));
+    listTrashedWorkspacePhotos(workspaceImportTargetId)
+      .then((photos) => { if (!cancelled) setTrashedPhotos(Array.isArray(photos) ? photos : []); })
+      .catch(() => { if (!cancelled) setTrashedPhotos([]); });
     return () => { cancelled = true; };
   }, [workspaceImportTargetId, selectedWorkspace, showToast]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setDeletedPhotoIds([]);
-    setLastDeletedPhotoId('');
+    setTrashedPhotos([]);
     setActivePreviewPhotoId('');
     setPhotoPreviewLoading({});
     setPhotoPreviewFailed({});
@@ -505,6 +512,16 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     return nextPhotos;
   }
 
+  async function refreshTrashedPhotos(workspaceId) {
+    if (!workspaceId) { setTrashedPhotos([]); return; }
+    try {
+      const photos = await listTrashedWorkspacePhotos(workspaceId);
+      setTrashedPhotos(Array.isArray(photos) ? photos : []);
+    } catch {
+      setTrashedPhotos([]);
+    }
+  }
+
   async function refreshProjectPhotos(projectId) {
     if (!projectId) { setProjectPhotos([]); return []; }
     const photos = await listProjectPhotos(projectId, libraryQueryFilters);
@@ -684,47 +701,73 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
-  function handleMovePhotoToTrash(photoId) {
+  async function handleMovePhotoToTrash(photoId) {
     const normalizedPhotoId = String(photoId || '').trim();
-    if (!normalizedPhotoId) return;
-    setDeletedPhotoIds((prev) => (prev.includes(normalizedPhotoId) ? prev : [...prev, normalizedPhotoId]));
-    setLastDeletedPhotoId(normalizedPhotoId);
+    if (!normalizedPhotoId || !selectedWorkspace) return;
     if (activePreviewPhotoId === normalizedPhotoId) setActivePreviewPhotoId('');
+    try {
+      setBusy(`photo-trash:${normalizedPhotoId}`);
+      await trashWorkspacePhoto(selectedWorkspace.id, normalizedPhotoId);
+      const trashedPhoto = workspacePhotos.find((p) => p.id === normalizedPhotoId);
+      if (trashedPhoto) {
+        setTrashedPhotos((prev) => [{ ...trashedPhoto, deletedAt: new Date().toISOString() }, ...prev]);
+      }
+      setWorkspacePhotos((prev) => prev.filter((p) => p.id !== normalizedPhotoId));
+      showToast('Foto movida para lixeira.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao mover foto para lixeira.', 'error');
+    } finally {
+      setBusy('');
+    }
   }
 
-  function handleUndoLastDeletedPhoto() {
-    const targetId = String(lastDeletedPhotoId || '').trim();
-    if (!targetId) return;
-    setDeletedPhotoIds((prev) => prev.filter((photoId) => photoId !== targetId));
-    setLastDeletedPhotoId('');
+  async function handleRestorePhoto(photo) {
+    if (!photo?.id || !selectedWorkspace) return;
+    try {
+      setBusy(`photo-restore:${photo.id}`);
+      await restoreWorkspacePhoto(selectedWorkspace.id, photo.id);
+      setTrashedPhotos((prev) => prev.filter((p) => p.id !== photo.id));
+      await refreshWorkspacePhotos(selectedWorkspace.id);
+      showToast('Foto restaurada.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao restaurar foto.', 'error');
+    } finally {
+      setBusy('');
+    }
   }
 
-  function handleRestoreAllDeletedPhotos() {
-    setDeletedPhotoIds([]);
-    setLastDeletedPhotoId('');
-  }
-
-  async function handleEmptyTrash() {
-    if (!selectedWorkspace || deletedPhotoIds.length === 0) return;
-    setBusy('empty-trash');
+  async function handleRestoreAllTrashedPhotos() {
+    if (!selectedWorkspace || trashedPhotos.length === 0) return;
+    setBusy('restore-all-photos');
     let successCount = 0;
-    for (const photoId of deletedPhotoIds) {
-      if (!photoId) continue;
+    for (const photo of trashedPhotos) {
       try {
-        await deleteReportWorkspacePhoto(selectedWorkspace.id, photoId);
+        await restoreWorkspacePhoto(selectedWorkspace.id, photo.id);
         successCount++;
       } catch (error) {
-        console.error('Falha ao deletar foto permanentemente', photoId, error);
+        console.error('Falha ao restaurar foto', photo.id, error);
       }
     }
     setBusy('');
     if (successCount > 0) {
-      showToast(`${successCount} foto(s) apagada(s) do workspace definitivamente.`, 'success');
+      showToast(`${successCount} foto(s) restaurada(s).`, 'success');
+      setTrashedPhotos([]);
       await refreshWorkspacePhotos(selectedWorkspace.id);
-      setDeletedPhotoIds([]);
-      setLastDeletedPhotoId('');
-    } else {
-      showToast('Nenhuma foto pode ser apagada do servidor.', 'error');
+    }
+  }
+
+  async function handleEmptyPhotoTrash() {
+    if (!selectedWorkspace || trashedPhotos.length === 0) return;
+    setBusy('empty-trash');
+    try {
+      const result = await emptyWorkspacePhotoTrash(selectedWorkspace.id);
+      const count = result?.data?.count || trashedPhotos.length;
+      showToast(`${count} foto(s) removida(s) permanentemente.`, 'success');
+      setTrashedPhotos([]);
+    } catch (error) {
+      showToast(error?.message || 'Erro ao esvaziar lixeira.', 'error');
+    } finally {
+      setBusy('');
     }
   }
 
@@ -1245,16 +1288,16 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             photoPreviewUrls={photoPreviewUrls}
             photoPreviewLoading={photoPreviewLoading}
             deletedPhotoIds={deletedPhotoIds}
-            lastDeletedPhotoId={lastDeletedPhotoId}
+            trashedPhotos={trashedPhotos}
             selectedWorkspaceKmzRequest={selectedWorkspaceKmzRequest}
             busy={busy}
             handleCreateWorkspace={handleCreateWorkspace}
             handleImportWorkspace={handleImportWorkspace}
             handleSaveWorkspacePhoto={handleSaveWorkspacePhoto}
             handleMovePhotoToTrash={handleMovePhotoToTrash}
-            handleUndoLastDeletedPhoto={handleUndoLastDeletedPhoto}
-            handleRestoreAllDeletedPhotos={handleRestoreAllDeletedPhotos}
-            handleEmptyTrash={handleEmptyTrash}
+            handleRestorePhoto={handleRestorePhoto}
+            handleRestoreAllTrashedPhotos={handleRestoreAllTrashedPhotos}
+            handleEmptyPhotoTrash={handleEmptyPhotoTrash}
             handleSaveWorkspaceTexts={handleSaveWorkspaceTexts}
             handleRequestWorkspaceKmz={handleRequestWorkspaceKmz}
             handleDownloadWorkspaceKmz={handleDownloadWorkspaceKmz}

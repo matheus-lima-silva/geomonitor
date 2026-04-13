@@ -42,7 +42,7 @@ async function listByWorkspace(workspaceId) {
     const normalizedWorkspaceId = normalizeText(workspaceId);
     if (!isPostgresBackend()) {
         const rows = await listFirestoreDocs('reportPhotos');
-        return rows.filter((row) => normalizeText(row.workspaceId) === normalizedWorkspaceId);
+        return rows.filter((row) => normalizeText(row.workspaceId) === normalizedWorkspaceId && !row.deletedAt);
     }
 
     const result = await postgresStore.query(
@@ -53,7 +53,7 @@ async function listByWorkspace(workspaceId) {
                    distance_to_tower_m, curation_status, manual_override,
                    sort_order, import_source, payload, created_at, updated_at, updated_by
             FROM report_photos
-            WHERE workspace_id = $1
+            WHERE workspace_id = $1 AND deleted_at IS NULL
             ORDER BY sort_order ASC, updated_at DESC, id ASC
         `,
         [normalizedWorkspaceId],
@@ -146,6 +146,7 @@ async function listByProject(projectId, filters = {}) {
     if (!isPostgresBackend()) {
         const rows = await listFirestoreDocs('reportPhotos');
         return rows
+            .filter((row) => !row.deletedAt)
             .filter((row) => normalizeKey(row.projectId) === normalizedProjectId)
             .filter((row) => !workspaceId || normalizeText(row.workspaceId) === workspaceId)
             .filter((row) => !towerId || normalizeText(row.towerId) === towerId)
@@ -172,7 +173,7 @@ async function listByProject(projectId, filters = {}) {
             });
     }
 
-    const clauses = ['project_id = $1'];
+    const clauses = ['project_id = $1', 'deleted_at IS NULL'];
     const params = [normalizedProjectId];
     let index = 2;
 
@@ -346,7 +347,7 @@ async function countByProject(projectId) {
     }
 
     const result = await postgresStore.query(
-        'SELECT COUNT(*)::int AS count FROM report_photos WHERE project_id = $1',
+        'SELECT COUNT(*)::int AS count FROM report_photos WHERE project_id = $1 AND deleted_at IS NULL',
         [normalizedProjectId],
     );
     return result.rows[0]?.count || 0;
@@ -382,11 +383,124 @@ async function batchUpdateSortOrder(updates = []) {
     return result.rowCount || 0;
 }
 
+function hydratePhotoRowFromPg(row) {
+    return hydratePhotoRow({
+        ...row,
+        payload: {
+            ...(row.payload || {}),
+            workspaceId: row.workspace_id,
+            projectId: row.project_id,
+            mediaAssetId: row.media_asset_id,
+            towerId: row.tower_id,
+            towerSource: row.tower_source,
+            includeInReport: row.include_in_report,
+            caption: row.caption,
+            captureAt: row.capture_at instanceof Date ? row.capture_at.toISOString() : row.capture_at,
+            gpsLat: row.gps_lat,
+            gpsLon: row.gps_lon,
+            insideRightOfWay: row.inside_right_of_way,
+            insideTowerRadius: row.inside_tower_radius,
+            distanceToAxisM: row.distance_to_axis_m,
+            distanceToTowerM: row.distance_to_tower_m,
+            curationStatus: row.curation_status,
+            manualOverride: row.manual_override,
+            sortOrder: row.sort_order,
+            importSource: row.import_source,
+            deletedAt: row.deleted_at instanceof Date ? row.deleted_at.toISOString() : (row.deleted_at || null),
+        },
+    });
+}
+
+async function listTrashedByWorkspace(workspaceId) {
+    const normalizedWorkspaceId = normalizeText(workspaceId);
+    if (!isPostgresBackend()) {
+        const rows = await listFirestoreDocs('reportPhotos');
+        return rows
+            .filter((row) => normalizeText(row.workspaceId) === normalizedWorkspaceId && row.deletedAt)
+            .sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+    }
+
+    const result = await postgresStore.query(
+        `
+            SELECT id, workspace_id, project_id, media_asset_id, tower_id, tower_source,
+                   include_in_report, caption, capture_at, gps_lat, gps_lon,
+                   inside_right_of_way, inside_tower_radius, distance_to_axis_m,
+                   distance_to_tower_m, curation_status, manual_override,
+                   sort_order, import_source, deleted_at, payload, created_at, updated_at, updated_by
+            FROM report_photos
+            WHERE workspace_id = $1 AND deleted_at IS NOT NULL
+            ORDER BY deleted_at DESC, id ASC
+        `,
+        [normalizedWorkspaceId],
+    );
+
+    return result.rows.map(hydratePhotoRowFromPg);
+}
+
+async function softDelete(photoId) {
+    const normalizedId = normalizeText(photoId);
+    if (!isPostgresBackend()) {
+        const current = await getFirestoreDoc('reportPhotos', normalizedId);
+        if (!current) return null;
+        return saveFirestoreDoc('reportPhotos', normalizedId, { ...current, deletedAt: new Date().toISOString() });
+    }
+
+    await postgresStore.query(
+        'UPDATE report_photos SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1',
+        [normalizedId],
+    );
+    return getById(normalizedId);
+}
+
+async function restore(photoId) {
+    const normalizedId = normalizeText(photoId);
+    if (!isPostgresBackend()) {
+        const current = await getFirestoreDoc('reportPhotos', normalizedId);
+        if (!current) return null;
+        const { deletedAt, ...rest } = current;
+        return saveFirestoreDoc('reportPhotos', normalizedId, { ...rest, deletedAt: null });
+    }
+
+    await postgresStore.query(
+        'UPDATE report_photos SET deleted_at = NULL, updated_at = NOW() WHERE id = $1',
+        [normalizedId],
+    );
+    return getById(normalizedId);
+}
+
+async function removeAllTrashed(workspaceId) {
+    const normalizedWorkspaceId = normalizeText(workspaceId);
+    if (!isPostgresBackend()) {
+        const trashed = await listTrashedByWorkspace(normalizedWorkspaceId);
+        for (const photo of trashed) {
+            await saveFirestoreDoc('reportPhotos', photo.id, null);
+        }
+        return trashed;
+    }
+
+    const result = await postgresStore.query(
+        `
+            DELETE FROM report_photos
+            WHERE workspace_id = $1 AND deleted_at IS NOT NULL
+            RETURNING id, media_asset_id, payload
+        `,
+        [normalizedWorkspaceId],
+    );
+    return result.rows.map((row) => ({
+        id: row.id,
+        mediaAssetId: row.media_asset_id || (row.payload && row.payload.mediaAssetId) || null,
+    }));
+}
+
 module.exports = {
     listByWorkspace,
+    listTrashedByWorkspace,
     getById,
     listByProject,
     save,
+    softDelete,
+    restore,
+    removeAllTrashed,
     countByProject,
     batchUpdateSortOrder,
 };
