@@ -115,7 +115,7 @@ vi.mock('../../../../services/mediaService', () => ({
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-async function flush(n = 6) { for (let i = 0; i < n; i++) await act(async () => { await Promise.resolve(); }); }
+async function flush(n = 12) { for (let i = 0; i < n; i++) await act(async () => { await Promise.resolve(); await Promise.resolve(); }); }
 
 function resetMockData() {
   mockData.workspaces = [
