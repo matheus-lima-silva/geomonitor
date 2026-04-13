@@ -28,11 +28,14 @@ vi.mock('../../../../services/reportWorkspaceService', () => ({
   createReportWorkspace: vi.fn().mockResolvedValue({ data: { id: 'RW-2' } }),
   importReportWorkspace: vi.fn().mockResolvedValue({ data: { id: 'RW-1' } }),
   listReportWorkspacePhotos: vi.fn().mockResolvedValue(mockData.workspacePhotos),
+  listTrashedWorkspacePhotos: vi.fn().mockResolvedValue([]),
+  trashWorkspacePhoto: vi.fn().mockResolvedValue({ status: 'success' }),
+  restoreWorkspacePhoto: vi.fn().mockResolvedValue({ status: 'success' }),
+  emptyWorkspacePhotoTrash: vi.fn().mockResolvedValue({ data: { count: 0 } }),
   requestWorkspaceKmz: vi.fn().mockResolvedValue({ data: { token: 'kmz-1', statusExecucao: 'completed', outputKmzMediaId: 'MED-KMZ-1' } }),
   getWorkspaceKmzRequest: vi.fn().mockResolvedValue({ data: { token: 'kmz-1', statusExecucao: 'completed', outputKmzMediaId: 'MED-KMZ-1' } }),
   saveReportWorkspacePhoto: vi.fn().mockResolvedValue({ data: { id: 'RPH-2' } }),
   updateReportWorkspace: vi.fn().mockResolvedValue({ data: { id: 'RW-1' } }),
-  deleteReportWorkspacePhoto: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('../../../../services/projectService', () => ({
@@ -110,11 +113,6 @@ vi.mock('../../../../services/mediaService', () => ({
   downloadMediaAsset: vi.fn().mockResolvedValue({ blob: new Blob(['docx']) }),
 }));
 
-vi.mock('../../../../services/userService', () => ({
-  listProfissoes: vi.fn().mockResolvedValue([]),
-  listSignatarios: vi.fn().mockResolvedValue([]),
-}));
-
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 function resetMockData() {
@@ -130,19 +128,6 @@ function resetMockData() {
     { id: 'RPH-2', caption: 'Vista geral', towerId: 'T-02', workspaceId: 'RW-2', importSource: 'loose_photos', includeInReport: false, captureAt: '2026-03-18T10:00:00.000Z' },
   ];
   mockData.dossiers = [{ id: 'DOS-1', nome: 'Dossie 1', status: 'draft' }];
-}
-
-// Helper: interact with a SearchableSelect — focus to open, then mousedown on the matching option.
-async function selectSearchableOption(container, inputId, labelSubstring) {
-  const input = container.querySelector(`#${inputId}`);
-  await act(async () => {
-    input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-  });
-  const option = [...container.querySelectorAll('li')].find((li) => li.textContent.includes(labelSubstring));
-  await act(async () => {
-    option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    await Promise.resolve();
-  });
 }
 
 describe('ReportsView', () => {
@@ -188,9 +173,6 @@ describe('ReportsView', () => {
       libraryButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    // Seleciona o empreendimento via SearchableSelect
-    await selectSearchableOption(container, 'library-project', 'Linha Norte');
-
     expect(container.textContent).toContain('Baixar Tudo Filtrado');
     expect(container.textContent).toContain('Foto 1 fundacao');
     expect(container.textContent).toContain('Vista geral');
@@ -205,9 +187,6 @@ describe('ReportsView', () => {
     await act(async () => {
       libraryButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-
-    // Seleciona o empreendimento via SearchableSelect
-    await selectSearchableOption(container, 'library-project', 'Linha Norte');
 
     const workspaceSelect = container.querySelector('#library-workspace');
     const towerSelect = container.querySelector('#library-tower');
@@ -269,9 +248,7 @@ describe('ReportsView', () => {
     expect(downloadProjectPhotoExport).toHaveBeenCalled();
   });
 
-  it('exibe a curadoria do workspace e autosalva alteracoes da foto', async () => {
-    vi.useFakeTimers();
-
+  it('exibe a curadoria do workspace e salva alteracoes da foto', async () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
     });
@@ -282,6 +259,7 @@ describe('ReportsView', () => {
     const captionInput = container.querySelector('#rw-photo-caption-RPH-1');
     const towerSelect = container.querySelector('#rw-photo-tower-RPH-1');
     const includeCheckbox = container.querySelector('#rw-photo-include-RPH-1');
+    const saveButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Salvar Curadoria'));
 
     await act(async () => {
       const captionSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
@@ -292,22 +270,20 @@ describe('ReportsView', () => {
       towerSetter.call(towerSelect, '2');
       towerSelect.dispatchEvent(new Event('change', { bubbles: true }));
       includeCheckbox.click();
-      vi.advanceTimersByTime(1300);
-      await Promise.resolve();
     });
 
-    expect(updateReportWorkspace).toHaveBeenCalledWith(
+    await act(async () => {
+      saveButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(saveReportWorkspacePhoto).toHaveBeenCalledWith(
       'RW-1',
+      'RPH-1',
       expect.objectContaining({
-        draftState: expect.objectContaining({
-          curationDrafts: expect.objectContaining({
-            'RPH-1': expect.objectContaining({
-              caption: 'Foto revisada',
-              towerId: '2',
-              includeInReport: false,
-            }),
-          }),
-        }),
+        caption: 'Foto revisada',
+        towerId: '2',
+        includeInReport: false,
+        towerSource: 'manual',
       }),
       expect.objectContaining({ updatedBy: 'teste@exemplo.com' }),
     );
@@ -324,9 +300,6 @@ describe('ReportsView', () => {
     await act(async () => {
       dossierButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-
-    // Seleciona o empreendimento para habilitar a criacao
-    await selectSearchableOption(container, 'dossier-project', 'Linha Norte');
 
     const nameInput = container.querySelector('#dossier-name');
     const notesInput = container.querySelector('#dossier-notes');
@@ -379,12 +352,16 @@ describe('ReportsView', () => {
       compoundsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    // SearchableSelect: seleciona RW-2 para adicionar ao composto RC-1
-    await selectSearchableOption(container, 'compound-workspace-RC-1', 'Workspace 2');
-
-    const addButton = [...container.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Adicionar');
+    const workspaceSelect = container.querySelector('#compound-workspace-RC-1');
+    const addButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Adicionar Workspace'));
     const preflightButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Rodar Preflight'));
     const generateButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Enfileirar Geracao'));
+
+    await act(async () => {
+      const selectSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+      selectSetter.call(workspaceSelect, 'RW-2');
+      workspaceSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
 
     await act(async () => {
       addButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -417,30 +394,16 @@ describe('ReportsView', () => {
     });
 
     expect(runReportCompoundPreflight).toHaveBeenCalledWith('RC-1');
-
-    // Os resultados do preflight ficam colapsados — expandir antes de checar
-    const preflightToggle = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Ver resultado do preflight'));
-    await act(async () => {
-      preflightToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
     expect(container.textContent).toContain('Pronto para gerar');
     expect(container.textContent).toContain('Declarados: 2');
     expect(container.textContent).toContain('Encontrados: 2');
 
-    // Clicar em Enfileirar abre modal de confirmacao
     await act(async () => {
       generateButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    const confirmButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Confirmar Geracao'));
-    await act(async () => {
-      confirmButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
     expect(generateReportCompound).toHaveBeenCalledWith('RC-1');
-    // Status e traduzido para portugues
-    expect(container.textContent).toContain('Na fila');
+    expect(container.textContent).toContain('queued');
   });
 
   it('exibe download do DOCX final para dossie concluido', async () => {
@@ -459,12 +422,6 @@ describe('ReportsView', () => {
     const dossierButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Dossie do Empreendimento'));
     await act(async () => {
       dossierButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    // Seleciona o empreendimento para carregar os dossies
-    await selectSearchableOption(container, 'dossier-project', 'Linha Norte');
-
-    await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -489,8 +446,7 @@ describe('ReportsView', () => {
       await Promise.resolve();
     });
 
-    // selectedProjectId nao e auto-populado — listProjectDossiers nao e chamado na carga inicial
-    expect(listProjectDossiers).toHaveBeenCalledTimes(0);
+    expect(listProjectDossiers).toHaveBeenCalledTimes(1);
     expect(listReportCompounds).toHaveBeenCalledTimes(0);
 
     await act(async () => {
@@ -499,9 +455,7 @@ describe('ReportsView', () => {
       await Promise.resolve();
     });
 
-    // O compound em 'processing' dispara o polling — listReportCompounds e chamado
-    // listProjectDossiers continua sem ser chamado pois selectedProjectId esta vazio
-    expect(listProjectDossiers).toHaveBeenCalledTimes(0);
+    expect(listProjectDossiers).toHaveBeenCalledTimes(2);
     expect(listReportCompounds).toHaveBeenCalledTimes(1);
   });
 
@@ -548,12 +502,6 @@ describe('ReportsView', () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
       await Promise.resolve();
-    });
-
-    // O botao Gerar KMZ fica dentro da secao colapsavel "Textos e KMZ" — expandir primeiro
-    const textsKmzToggle = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Textos e KMZ'));
-    await act(async () => {
-      textsKmzToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
     const requestButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Gerar KMZ com Fotos'));
