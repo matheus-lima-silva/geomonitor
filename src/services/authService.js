@@ -19,6 +19,11 @@ function toProfile(profile) {
     status: profile?.status || 'Pendente',
     perfilAtualizadoPrimeiroLogin: profile?.perfilAtualizadoPrimeiroLogin === true,
     role: mapRoleFromPerfil(profile?.perfil),
+    profissao_id: profile?.profissao_id || '',
+    registro_conselho: profile?.registro_conselho || '',
+    registro_estado: profile?.registro_estado || '',
+    registro_numero: profile?.registro_numero || '',
+    registro_sufixo: profile?.registro_sufixo || '',
   };
 }
 

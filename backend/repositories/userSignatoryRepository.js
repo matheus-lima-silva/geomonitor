@@ -5,11 +5,11 @@ async function listByUser(userId) {
         `SELECT s.*, p.nome AS profissao_nome
          FROM user_signatories s
          LEFT JOIN profissoes p ON p.id = s.profissao_id
+         WHERE s.user_id = $1
          ORDER BY s.created_at`,
-        [],
+        [userId],
     );
-    const filtered = result.rows.filter((r) => r.user_id === userId);
-    return filtered;
+    return result.rows;
 }
 
 async function getById(id) {
