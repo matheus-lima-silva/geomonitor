@@ -157,6 +157,7 @@ describe('ReportsView', () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
     });
+    await flush();
 
     expect(container.textContent).toContain('Workspaces');
     expect(container.textContent).toContain('Biblioteca do Empreendimento');
@@ -169,6 +170,7 @@ describe('ReportsView', () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
     });
+    await flush();
 
     const libraryButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Biblioteca do Empreendimento'));
     await act(async () => {
@@ -184,6 +186,7 @@ describe('ReportsView', () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
     });
+    await flush();
 
     const libraryButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Biblioteca do Empreendimento'));
     await act(async () => {
@@ -254,6 +257,7 @@ describe('ReportsView', () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
     });
+    await flush();
 
     expect(listReportWorkspacePhotos).toHaveBeenCalledWith('RW-1');
     expect(container.textContent).toContain('Curadoria do Workspace');
@@ -348,6 +352,7 @@ describe('ReportsView', () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
     });
+    await flush();
 
     const compoundsButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Relatorios Compostos'));
     await act(async () => {
@@ -448,6 +453,7 @@ describe('ReportsView', () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
     });
+    await flush();
     for (let i = 0; i < 4; i++) await act(async () => { await vi.advanceTimersByTimeAsync(0); });
 
     expect(listProjectDossiers).toHaveBeenCalledTimes(1);
@@ -468,6 +474,7 @@ describe('ReportsView', () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
     });
+    await flush();
     for (let i = 0; i < 4; i++) await act(async () => { await vi.advanceTimersByTimeAsync(0); });
 
     const captionInput = container.querySelector('#rw-photo-caption-RPH-1');
