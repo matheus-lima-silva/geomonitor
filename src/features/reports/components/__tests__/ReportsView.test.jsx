@@ -115,6 +115,8 @@ vi.mock('../../../../services/mediaService', () => ({
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+async function flush(n = 4) { for (let i = 0; i < n; i++) await act(async () => { await Promise.resolve(); }); }
+
 function resetMockData() {
   mockData.workspaces = [
     { id: 'RW-1', nome: 'Workspace 1', projectId: 'PRJ-01', status: 'draft', updatedAt: '2026-03-22T10:00:00.000Z' },
@@ -418,6 +420,7 @@ describe('ReportsView', () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
     });
+    await flush();
 
     const dossierButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Dossie do Empreendimento'));
     await act(async () => {
@@ -425,6 +428,7 @@ describe('ReportsView', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+    await flush();
 
     const downloadButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Baixar DOCX'));
     expect(downloadButton).toBeTruthy();
@@ -443,17 +447,16 @@ describe('ReportsView', () => {
 
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
-      await Promise.resolve();
     });
+    for (let i = 0; i < 4; i++) await act(async () => { await vi.advanceTimersByTimeAsync(0); });
 
     expect(listProjectDossiers).toHaveBeenCalledTimes(1);
     expect(listReportCompounds).toHaveBeenCalledTimes(0);
 
     await act(async () => {
-      vi.advanceTimersByTime(5000);
-      await Promise.resolve();
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(5000);
     });
+    for (let i = 0; i < 4; i++) await act(async () => { await vi.advanceTimersByTimeAsync(0); });
 
     expect(listProjectDossiers).toHaveBeenCalledTimes(2);
     expect(listReportCompounds).toHaveBeenCalledTimes(1);
@@ -465,6 +468,7 @@ describe('ReportsView', () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
     });
+    for (let i = 0; i < 4; i++) await act(async () => { await vi.advanceTimersByTimeAsync(0); });
 
     const captionInput = container.querySelector('#rw-photo-caption-RPH-1');
 
@@ -473,8 +477,7 @@ describe('ReportsView', () => {
       captionSetter.call(captionInput, 'Legenda em rascunho');
       captionInput.dispatchEvent(new Event('input', { bubbles: true }));
       captionInput.dispatchEvent(new Event('change', { bubbles: true }));
-      vi.advanceTimersByTime(1300);
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(1300);
     });
 
     expect(updateReportWorkspace).toHaveBeenCalledWith(
@@ -501,8 +504,8 @@ describe('ReportsView', () => {
   it('solicita o KMZ do workspace atual e libera o download do artefato final', async () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
-      await Promise.resolve();
     });
+    await flush();
 
     const requestButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Gerar KMZ com Fotos'));
     expect(requestButton).toBeTruthy();
