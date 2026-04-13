@@ -102,6 +102,10 @@ export default function WorkspacesTab({
   const [showWorkspaceTrash, setShowWorkspaceTrash] = useState(false);
   const [photoTrashOpen, setPhotoTrashOpen] = useState(false);
   const [showNumberingPreview, setShowNumberingPreview] = useState(false);
+  const [showWorkflowGuide, setShowWorkflowGuide] = useState(false);
+  const [setupCreateOpen, setSetupCreateOpen] = useState(!selectedWorkspace);
+  const [setupImportOpen, setSetupImportOpen] = useState(false);
+  const [showWorkspaceList, setShowWorkspaceList] = useState(!selectedWorkspace);
 
   const numberingPreview = useMemo(() => {
     const included = visibleWorkspacePhotos.filter((photo) => {
@@ -170,78 +174,40 @@ export default function WorkspacesTab({
 
   return (
     <>
-      {/* Guia de etapas */}
-      <Card variant="nested">
-        <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-800">
-          <span>Fluxo do Workspace</span>
-          <HintText label="Fluxo do workspace">O fluxo guiado substitui a logica dispersa e prepara curadoria, textos, preflight e geracao.</HintText>
-        </div>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-          {STEPS.map(([label, hint], index) => (
-            <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-              <div className="mb-1 flex items-center gap-2 text-2xs font-bold uppercase tracking-wide text-slate-500">
-                <span>Etapa {index + 1}</span>
-                <HintText label={label}>{hint}</HintText>
+      {/* Guia de etapas — colapsavel */}
+      <Card variant="nested" className="overflow-hidden">
+        <button
+          type="button"
+          className="w-full flex items-center justify-between text-sm font-bold text-slate-800 hover:text-slate-900 transition-colors"
+          onClick={() => setShowWorkflowGuide((v) => !v)}
+        >
+          <span className="flex items-center gap-2">
+            <AppIcon name="info" size={14} className="text-slate-400" />
+            Fluxo do Workspace
+            <HintText label="Fluxo do workspace">O fluxo guiado substitui a logica dispersa e prepara curadoria, textos, preflight e geracao.</HintText>
+          </span>
+          <AppIcon name="chevron-right" size={14} className={`text-slate-400 transition-transform duration-200 ${showWorkflowGuide ? 'rotate-90' : ''}`} />
+        </button>
+        {showWorkflowGuide ? (
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6 mt-3">
+            {STEPS.map(([label, hint], index) => (
+              <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                <div className="mb-1 flex items-center gap-2 text-2xs font-bold uppercase tracking-wide text-slate-500">
+                  <span>Etapa {index + 1}</span>
+                  <HintText label={label}>{hint}</HintText>
+                </div>
+                <strong>{label}</strong>
               </div>
-              <strong>{label}</strong>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* Criar workspace */}
-      <Card variant="nested" className="flex flex-col gap-4">
-        <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-          <AppIcon name="plus" />
-          <span>Criar Workspace</span>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <SearchableSelect
-            id="rw-project"
-            label="Empreendimento"
-            hint="Toda inferencia espacial acontece dentro do empreendimento selecionado."
-            value={workspaceDraft.projectId}
-            onChange={(val) => setWorkspaceDraft((prev) => ({ ...prev, projectId: val }))}
-            options={projectOptions}
-            placeholder="Buscar empreendimento..."
-          />
-          <Input
-            id="rw-name"
-            label="Nome"
-            value={workspaceDraft.nome}
-            onChange={(event) => setWorkspaceDraft((prev) => ({ ...prev, nome: event.target.value }))}
-            placeholder="Ex: RT LT Norte - Abril"
-          />
-          <Input
-            id="rw-desc"
-            label="Descricao"
-            hint="Os textos-base do empreendimento serao copiados para um rascunho editavel."
-            value={workspaceDraft.descricao}
-            onChange={(event) => setWorkspaceDraft((prev) => ({ ...prev, descricao: event.target.value }))}
-            placeholder="Escopo, periodo ou observacoes"
-          />
-          <div className="md:col-span-3 flex justify-end">
-            <Button
-              onClick={handleCreateWorkspace}
-              disabled={busy === 'workspace'}
-            >
-              <AppIcon name="plus" />
-              {busy === 'workspace' ? 'Criando...' : 'Criar Workspace'}
-            </Button>
+            ))}
           </div>
-        </div>
+        ) : null}
       </Card>
 
-      {/* Importar fotos */}
-      <Card variant="nested" className="flex flex-col gap-4">
-        <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-          <AppIcon name="upload" />
-          <span>Importar Fotos</span>
-        </div>
-
-        {/* Banner de progresso */}
+      {/* Gerenciamento — Criar + Importar colapsaveis */}
+      <Card variant="nested" className="flex flex-col gap-0 overflow-hidden">
+        {/* Banner de progresso — sempre visivel quando importando */}
         {busy === 'workspace-import' ? (
-          <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3">
+          <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 mb-3">
             <div className="flex items-center justify-between gap-3 text-sm font-medium text-brand-700">
               <span>Enviando arquivos... {uploadProgress.completed}/{uploadProgress.total} ({uploadPercent}%)</span>
             </div>
@@ -259,59 +225,236 @@ export default function WorkspacesTab({
           </div>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Select
-            id="rw-import-target"
-            label="Workspace Alvo"
-            hint="A importacao e a curadoria sempre acontecem dentro do workspace selecionado."
-            value={workspaceImportTargetId}
-            onChange={(event) => setWorkspaceImportTargetId(event.target.value)}
+        {/* Criar Workspace — colapsavel */}
+        <div className="border-b border-slate-100">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between py-2.5 text-sm font-bold text-slate-800 hover:text-slate-900 transition-colors"
+            onClick={() => setSetupCreateOpen((v) => !v)}
           >
-            <option value="">Selecione...</option>
-            {workspaceCandidates.map((workspace) => (
-              <option key={workspace.id} value={workspace.id}>{workspace.nome || workspace.id}</option>
-            ))}
-          </Select>
-          <Select
-            id="rw-import-mode"
-            label="Modo de Importacao"
-            hint="Os contratos do backend ja aceitam fotos soltas, subpastas por torre e KMZ organizado."
-            value={workspaceImportMode}
-            onChange={(event) => { setWorkspaceImportMode(event.target.value); setPendingFiles([]); }}
-          >
-            {Object.entries(IMPORT_MODES).map(([mode, config]) => (
-              <option key={mode} value={mode}>{config.label}</option>
-            ))}
-          </Select>
-          <Input
-            key={workspaceImportMode}
-            id="rw-import-files"
-            label={activeImportMode.inputLabel}
-            hint={activeImportMode.hint}
-            type="file"
-            accept={activeImportMode.accept}
-            multiple={activeImportMode.multiple}
-            webkitdirectory={workspaceImportMode === 'tower_subfolders' ? '' : undefined}
-            directory={workspaceImportMode === 'tower_subfolders' ? '' : undefined}
-            onChange={(event) => setPendingFiles(Array.from(event.target.files || []))}
-          />
+            <span className="flex items-center gap-2">
+              <AppIcon name="plus" size={14} className="text-slate-500" />
+              Criar Workspace
+            </span>
+            <AppIcon name="chevron-right" size={14} className={`text-slate-400 transition-transform duration-200 ${setupCreateOpen ? 'rotate-90' : ''}`} />
+          </button>
+          {setupCreateOpen ? (
+            <div className="pb-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <SearchableSelect
+                  id="rw-project"
+                  label="Empreendimento"
+                  hint="Toda inferencia espacial acontece dentro do empreendimento selecionado."
+                  value={workspaceDraft.projectId}
+                  onChange={(val) => setWorkspaceDraft((prev) => ({ ...prev, projectId: val }))}
+                  options={projectOptions}
+                  placeholder="Buscar empreendimento..."
+                />
+                <Input
+                  id="rw-name"
+                  label="Nome"
+                  value={workspaceDraft.nome}
+                  onChange={(event) => setWorkspaceDraft((prev) => ({ ...prev, nome: event.target.value }))}
+                  placeholder="Ex: RT LT Norte - Abril"
+                />
+                <Input
+                  id="rw-desc"
+                  label="Descricao"
+                  hint="Os textos-base do empreendimento serao copiados para um rascunho editavel."
+                  value={workspaceDraft.descricao}
+                  onChange={(event) => setWorkspaceDraft((prev) => ({ ...prev, descricao: event.target.value }))}
+                  placeholder="Escopo, periodo ou observacoes"
+                />
+                <div className="md:col-span-3 flex justify-end">
+                  <Button onClick={handleCreateWorkspace} disabled={busy === 'workspace'}>
+                    <AppIcon name="plus" />
+                    {busy === 'workspace' ? 'Criando...' : 'Criar Workspace'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-slate-500">
-            {pendingFiles.length > 0
-              ? `${pendingFiles.length} arquivo(s) pronto(s) para envio.`
-              : 'Nenhum arquivo selecionado.'}
-          </span>
-          <Button
-            onClick={handleImportWorkspace}
-            disabled={busy === 'workspace-import' || !workspaceImportTargetId || pendingFiles.length === 0}
+
+        {/* Importar Fotos — colapsavel */}
+        <div>
+          <button
+            type="button"
+            className="w-full flex items-center justify-between py-2.5 text-sm font-bold text-slate-800 hover:text-slate-900 transition-colors"
+            onClick={() => setSetupImportOpen((v) => !v)}
           >
-            <AppIcon name={workspaceImportMode === 'organized_kmz' ? 'file-text' : 'upload'} />
-            {busy === 'workspace-import'
-              ? (workspaceImportMode === 'organized_kmz' ? 'Registrando...' : 'Enviando...')
-              : activeImportMode.buttonLabel}
-          </Button>
+            <span className="flex items-center gap-2">
+              <AppIcon name="upload" size={14} className="text-slate-500" />
+              Importar Fotos
+              {pendingFiles.length > 0 && (
+                <span className="bg-brand-100 text-brand-700 rounded-full px-2 py-0.5 text-xs font-medium">
+                  {pendingFiles.length}
+                </span>
+              )}
+            </span>
+            <AppIcon name="chevron-right" size={14} className={`text-slate-400 transition-transform duration-200 ${setupImportOpen ? 'rotate-90' : ''}`} />
+          </button>
+          {setupImportOpen ? (
+            <div className="pb-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <Select
+                  id="rw-import-target"
+                  label="Workspace Alvo"
+                  hint="A importacao e a curadoria sempre acontecem dentro do workspace selecionado."
+                  value={workspaceImportTargetId}
+                  onChange={(event) => setWorkspaceImportTargetId(event.target.value)}
+                >
+                  <option value="">Selecione...</option>
+                  {workspaceCandidates.map((workspace) => (
+                    <option key={workspace.id} value={workspace.id}>{workspace.nome || workspace.id}</option>
+                  ))}
+                </Select>
+                <Select
+                  id="rw-import-mode"
+                  label="Modo de Importacao"
+                  hint="Os contratos do backend ja aceitam fotos soltas, subpastas por torre e KMZ organizado."
+                  value={workspaceImportMode}
+                  onChange={(event) => { setWorkspaceImportMode(event.target.value); setPendingFiles([]); }}
+                >
+                  {Object.entries(IMPORT_MODES).map(([mode, config]) => (
+                    <option key={mode} value={mode}>{config.label}</option>
+                  ))}
+                </Select>
+                <Input
+                  key={workspaceImportMode}
+                  id="rw-import-files"
+                  label={activeImportMode.inputLabel}
+                  hint={activeImportMode.hint}
+                  type="file"
+                  accept={activeImportMode.accept}
+                  multiple={activeImportMode.multiple}
+                  webkitdirectory={workspaceImportMode === 'tower_subfolders' ? '' : undefined}
+                  directory={workspaceImportMode === 'tower_subfolders' ? '' : undefined}
+                  onChange={(event) => setPendingFiles(Array.from(event.target.files || []))}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3 mt-4">
+                <span className="text-xs text-slate-500">
+                  {pendingFiles.length > 0
+                    ? `${pendingFiles.length} arquivo(s) pronto(s) para envio.`
+                    : 'Nenhum arquivo selecionado.'}
+                </span>
+                <Button
+                  onClick={handleImportWorkspace}
+                  disabled={busy === 'workspace-import' || !workspaceImportTargetId || pendingFiles.length === 0}
+                >
+                  <AppIcon name={workspaceImportMode === 'organized_kmz' ? 'file-text' : 'upload'} />
+                  {busy === 'workspace-import'
+                    ? (workspaceImportMode === 'organized_kmz' ? 'Registrando...' : 'Enviando...')
+                    : activeImportMode.buttonLabel}
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
+      </Card>
+
+      {/* Seletor de workspace — compacto quando selecionado, expandivel */}
+      <Card variant="nested" className="flex flex-col gap-3">
+        {selectedWorkspace && !showWorkspaceList ? (
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <AppIcon name="file-text" size={16} className="text-brand-600 shrink-0" />
+              <div className="min-w-0">
+                <span className="text-sm font-bold text-slate-800">{selectedWorkspace.nome || selectedWorkspace.id}</span>
+                <span className="ml-2 text-xs text-slate-500">{projectNamesById.get(selectedWorkspace.projectId) || ''}</span>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setShowWorkspaceList(true)}>
+              <AppIcon name="chevron-right" size={14} />
+              Trocar
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-48">
+                <SearchableSelect
+                  id="ws-list-project"
+                  label="Filtrar por Empreendimento"
+                  value={selectedProjectId}
+                  onChange={(val) => setSelectedProjectId(val)}
+                  options={[{ value: '', label: 'Todos' }, ...projectOptions]}
+                  placeholder="Buscar empreendimento..."
+                />
+              </div>
+              <div className="flex-1 min-w-48">
+                <Input
+                  id="ws-list-search"
+                  label="Buscar Workspace"
+                  placeholder="Nome, descricao ou empreendimento..."
+                  value={workspaceSearchQuery}
+                  onChange={(event) => setWorkspaceSearchQuery(event.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                {(selectedProjectId || workspaceSearchQuery) ? (
+                  <Button variant="outline" onClick={() => { setSelectedProjectId(''); setWorkspaceSearchQuery(''); }}>
+                    <AppIcon name="close" />
+                    Limpar
+                  </Button>
+                ) : null}
+                <span className="text-xs text-slate-500">{filteredWorkspaceList.length} de {workspaces.length}</span>
+                {selectedWorkspace ? (
+                  <Button variant="outline" size="sm" onClick={() => setShowWorkspaceList(false)}>
+                    <AppIcon name="close" size={12} />
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+
+            {workspaces.length === 0 ? (
+              <EmptyState icon="file-text" title="Nenhum workspace criado" description="Crie um workspace usando o formulario acima." />
+            ) : filteredWorkspaceList.filter((w) => !w.deletedAt).length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500 text-center">
+                Nenhum workspace encontrado com o filtro atual.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {filteredWorkspaceList.filter((w) => !w.deletedAt).map((workspace) => (
+                  <article key={workspace.id} className={`rounded-xl border p-3 transition-colors ${workspace.id === workspaceImportTargetId ? 'border-brand-300 bg-brand-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <strong className="text-sm text-slate-800">{workspace.nome || workspace.id}</strong>
+                          <span className={`rounded-full px-2 py-0.5 text-2xs font-medium ${tone(workspace.status)}`}>
+                            {getTranslatedStatus(workspace.status)}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 mb-0 text-xs text-slate-500 truncate">
+                          {projectNamesById.get(workspace.projectId) || workspace.projectId || '-'} • {fmt(workspace.updatedAt)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant={workspace.id === workspaceImportTargetId ? 'primary' : 'outline'}
+                          size="sm"
+                          onClick={() => { handleWorkspaceSelect(workspace.id); setShowWorkspaceList(false); }}
+                        >
+                          {workspace.id === workspaceImportTargetId ? 'Selecionado' : 'Selecionar'}
+                        </Button>
+                        <button
+                          type="button"
+                          className="flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-red-400 hover:bg-red-50 disabled:opacity-40"
+                          aria-label="Mover para lixeira"
+                          onClick={() => handleTrashWorkspace(workspace)}
+                          disabled={busy === `workspace-trash:${workspace.id}`}
+                        >
+                          <AppIcon name="trash-2" size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </Card>
 
       {/* Curadoria */}
@@ -504,6 +647,95 @@ export default function WorkspacesTab({
                   </div>
                 </div>
               </div>
+              {/* Lixeira de fotos — no sidebar */}
+              <div className="border-t border-slate-200 pt-3 mt-1">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden transition-all duration-200">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-slate-100 transition-colors"
+                    onClick={() => setPhotoTrashOpen((v) => !v)}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <AppIcon name="trash-2" size={14} className="text-slate-500" />
+                      Lixeira
+                      {trashedPhotos.length > 0 && (
+                        <span className="bg-rose-100 text-rose-700 rounded-full px-2 py-0.5 text-xs font-medium">
+                          {trashedPhotos.length}
+                        </span>
+                      )}
+                    </span>
+                    <AppIcon
+                      name="chevron-right"
+                      size={14}
+                      className={`text-slate-400 transition-transform duration-200 ${photoTrashOpen ? 'rotate-90' : ''}`}
+                    />
+                  </button>
+                  {photoTrashOpen ? (
+                    trashedPhotos.length === 0 ? (
+                      <div className="pb-3">
+                        <EmptyState icon="trash-2" title="Lixeira vazia" description="Fotos removidas aparecerao aqui." className="py-4" />
+                      </div>
+                    ) : (
+                      <div className="px-3 pb-3">
+                        <div className="flex flex-col gap-1.5 mt-2">
+                          {trashedPhotos.map((photo) => {
+                            const previewUrl = photoPreviewUrls[photo.id];
+                            const deletedDate = photo.deletedAt ? new Date(photo.deletedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                            return (
+                              <div key={photo.id} className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-1.5">
+                                <div className="h-10 w-10 shrink-0 rounded bg-slate-200 overflow-hidden">
+                                  {previewUrl ? (
+                                    <img src={previewUrl} alt="" className="h-full w-full object-cover opacity-60" />
+                                  ) : (
+                                    <div className="h-full w-full flex items-center justify-center">
+                                      <AppIcon name="image" size={14} className="text-slate-300" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs text-slate-600 truncate m-0">{photo.caption || photo.relativePath || photo.id}</p>
+                                  {deletedDate && <p className="text-2xs text-rose-400 m-0">{deletedDate}</p>}
+                                </div>
+                                <IconButton
+                                  variant="outline"
+                                  size="sm"
+                                  aria-label="Restaurar foto"
+                                  onClick={() => handleRestorePhoto(photo)}
+                                  disabled={busy === `photo-restore:${photo.id}`}
+                                  className="shrink-0"
+                                >
+                                  <AppIcon name="undo" size={12} />
+                                </IconButton>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-slate-200">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full justify-center"
+                            onClick={handleRestoreAllTrashedPhotos}
+                            disabled={busy === 'restore-all-photos'}
+                          >
+                            <AppIcon name="reset" size={14} />
+                            {busy === 'restore-all-photos' ? 'Restaurando...' : 'Restaurar todas'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="w-full justify-center bg-rose-600 hover:bg-rose-700 text-white border-0"
+                            onClick={() => setConfirmEmptyTrash(true)}
+                            disabled={busy === 'empty-trash'}
+                          >
+                            <AppIcon name="trash" size={14} className="text-white" />
+                            {busy === 'empty-trash' ? 'Esvaziando...' : `Esvaziar (${trashedPhotos.length})`}
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  ) : null}
+                </div>
+              </div>
             </aside>
 
             {/* Area principal de fotos */}
@@ -573,101 +805,6 @@ export default function WorkspacesTab({
                 </div>
               ) : null}
 
-              {/* Lixeira de fotos — sempre visivel */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden transition-all duration-200">
-                <button
-                  type="button"
-                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-100 transition-colors"
-                  onClick={() => setPhotoTrashOpen((v) => !v)}
-                >
-                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <AppIcon name="trash-2" size={14} className="text-slate-500" />
-                    Lixeira
-                    {trashedPhotos.length > 0 && (
-                      <span className="bg-rose-100 text-rose-700 rounded-full px-2 py-0.5 text-xs font-medium">
-                        {trashedPhotos.length}
-                      </span>
-                    )}
-                  </span>
-                  <AppIcon
-                    name="chevron-right"
-                    size={14}
-                    className={`text-slate-400 transition-transform duration-200 ${photoTrashOpen ? 'rotate-90' : ''}`}
-                  />
-                </button>
-
-                {photoTrashOpen ? (
-                  trashedPhotos.length === 0 ? (
-                    <div className="pb-4">
-                      <EmptyState
-                        icon="trash-2"
-                        title="Lixeira vazia"
-                        description="Fotos removidas aparecerao aqui."
-                        className="py-6"
-                      />
-                    </div>
-                  ) : (
-                    <div className="px-4 pb-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-2 mt-2">
-                        {trashedPhotos.map((photo) => {
-                          const previewUrl = photoPreviewUrls[photo.id];
-                          const deletedDate = photo.deletedAt ? new Date(photo.deletedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-                          return (
-                            <div key={photo.id} className="relative rounded-lg border border-rose-200 bg-rose-50 overflow-hidden group">
-                              <div className="relative aspect-[4/3] bg-slate-200">
-                                {previewUrl ? (
-                                  <img src={previewUrl} alt={photo.caption || photo.id} className="w-full h-full object-cover opacity-60" />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center">
-                                    <AppIcon name="image" size={24} className="text-slate-300" />
-                                  </div>
-                                )}
-                                <div className="absolute inset-0 bg-rose-900/10" />
-                                <div className="absolute top-1.5 right-1.5">
-                                  <IconButton
-                                    variant="outline"
-                                    size="sm"
-                                    aria-label="Restaurar foto"
-                                    onClick={() => handleRestorePhoto(photo)}
-                                    disabled={busy === `photo-restore:${photo.id}`}
-                                    className="bg-white/90 backdrop-blur-sm shadow-sm"
-                                  >
-                                    <AppIcon name="undo" size={12} />
-                                  </IconButton>
-                                </div>
-                              </div>
-                              <div className="px-2 py-1.5">
-                                <p className="text-xs text-slate-600 truncate m-0">{photo.caption || photo.relativePath || photo.id}</p>
-                                {deletedDate && <p className="text-2xs text-rose-400 m-0 mt-0.5">Excluida em {deletedDate}</p>}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="flex flex-wrap justify-end gap-2 mt-3 pt-3 border-t border-slate-200">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleRestoreAllTrashedPhotos}
-                          disabled={busy === 'restore-all-photos'}
-                        >
-                          <AppIcon name="reset" size={14} />
-                          {busy === 'restore-all-photos' ? 'Restaurando...' : 'Restaurar todas'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="bg-rose-600 hover:bg-rose-700 text-white border-0"
-                          onClick={() => setConfirmEmptyTrash(true)}
-                          disabled={busy === 'empty-trash'}
-                        >
-                          <AppIcon name="trash" size={14} className="text-white" />
-                          {busy === 'empty-trash' ? 'Esvaziando...' : `Esvaziar lixeira (${trashedPhotos.length})`}
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                ) : null}
-              </div>
 
               {/* Grid de fotos */}
               {busy === 'workspace-import' && visibleWorkspacePhotos.length === 0 ? (
@@ -845,100 +982,22 @@ export default function WorkspacesTab({
             </div>
           </div>
         ) : (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-            <AppIcon name="file-text" size={28} className="mx-auto text-slate-300 mb-3" />
-            <p className="m-0 text-sm text-slate-600">Nenhum workspace selecionado.</p>
-            <p className="mt-1 m-0 text-xs text-slate-400">Selecione um workspace abaixo ou crie um novo acima.</p>
-          </div>
+          <EmptyState
+            icon="file-text"
+            title="Nenhum workspace selecionado"
+            description="Selecione um workspace na lista acima ou crie um novo."
+            action={
+              <Button variant="outline" size="sm" onClick={() => setShowWorkspaceList(true)}>
+                <AppIcon name="details" /> Ver workspaces
+              </Button>
+            }
+          />
         )}
-      </Card>
-
-      {/* Lista de workspaces */}
-      <Card variant="nested" className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-48">
-            <SearchableSelect
-              id="ws-list-project"
-              label="Filtrar por Empreendimento"
-              value={selectedProjectId}
-              onChange={(val) => setSelectedProjectId(val)}
-              options={[{ value: '', label: 'Todos' }, ...projectOptions]}
-              placeholder="Buscar empreendimento..."
-            />
-          </div>
-          <div className="flex-1 min-w-48">
-            <Input
-              id="ws-list-search"
-              label="Buscar Workspace"
-              placeholder="Nome, descricao ou empreendimento..."
-              value={workspaceSearchQuery}
-              onChange={(event) => setWorkspaceSearchQuery(event.target.value)}
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            {(selectedProjectId || workspaceSearchQuery) ? (
-              <Button variant="outline" onClick={() => { setSelectedProjectId(''); setWorkspaceSearchQuery(''); }}>
-                <AppIcon name="close" />
-                Limpar
-              </Button>
-            ) : null}
-            <span className="text-xs text-slate-500">{filteredWorkspaceList.length} de {workspaces.length}</span>
-          </div>
-        </div>
-
-        {workspaces.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
-            Nenhum workspace criado ainda.
-          </div>
-        ) : filteredWorkspaceList.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
-            Nenhum workspace encontrado com o filtro atual.
-          </div>
-        ) : null}
-
-        {filteredWorkspaceList.filter((w) => !w.deletedAt).map((workspace) => (
-          <article key={workspace.id} className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <strong className="text-slate-800">{workspace.nome || workspace.id}</strong>
-                <p className="mt-1 mb-0 text-xs text-slate-500 truncate">{workspace.descricao || 'Sem descricao'}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className={`rounded-full px-2 py-1 text-xs font-medium ${tone(workspace.status)}`}>
-                  {getTranslatedStatus(workspace.status)}
-                </span>
-                <button
-                  type="button"
-                  className="flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-red-400 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                  aria-label="Mover para lixeira"
-                  onClick={() => handleTrashWorkspace(workspace)}
-                  disabled={busy === `workspace-trash:${workspace.id}`}
-                >
-                  <AppIcon name="trash-2" size={14} />
-                </button>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
-              <span>Empreendimento: {projectNamesById.get(workspace.projectId) || workspace.projectId || '-'}</span>
-              <span>Atualizado: {fmt(workspace.updatedAt)}</span>
-            </div>
-            <div className="mt-3 flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleWorkspaceSelect(workspace.id)}
-              >
-                <AppIcon name="details" />
-                Selecionar para curadoria
-              </Button>
-            </div>
-          </article>
-        ))}
       </Card>
 
       {/* Lixeira de workspaces */}
       {workspaces.some((w) => w.deletedAt) ? (
-        <div className="mt-2">
+        <Card variant="flat" className="bg-slate-50 mt-1">
           <button
             type="button"
             className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700"
@@ -981,7 +1040,7 @@ export default function WorkspacesTab({
               ))}
             </div>
           ) : null}
-        </div>
+        </Card>
       ) : null}
 
       {/* Modal confirmacao exclusao definitiva de workspace */}

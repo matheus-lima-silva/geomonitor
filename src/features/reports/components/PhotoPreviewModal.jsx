@@ -21,16 +21,16 @@ export default function PhotoPreviewModal({
       open={Boolean(photo)}
       onClose={onClose}
       title={`Preview da Foto — ${photo.id}`}
-      size="xl"
+      size="2xl"
     >
       <div className="flex min-h-0 flex-col gap-4 lg:flex-row">
         {/* Imagem */}
-        <div className="flex min-h-[240px] flex-1 items-center justify-center rounded-xl bg-slate-950 lg:min-h-[400px]">
+        <div className="flex min-h-[240px] flex-1 items-center justify-center rounded-xl bg-slate-950 lg:min-h-[520px]">
           {previewUrl ? (
             <img
               src={previewUrl}
               alt={draft?.caption || photo.id}
-              className="max-h-[60vh] w-full rounded-lg object-contain"
+              className="max-h-[80vh] w-full rounded-lg object-contain"
             />
           ) : (
             <div className="flex aspect-video w-full items-center justify-center text-sm text-slate-400">
