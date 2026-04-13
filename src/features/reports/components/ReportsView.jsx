@@ -23,6 +23,7 @@ import {
   runReportCompoundPreflight,
   subscribeReportCompounds,
   trashReportCompound,
+  updateReportCompound,
 } from '../../../services/reportCompoundService';
 import { completeMediaUpload, createMediaUpload, downloadMediaAsset, uploadMediaBinary } from '../../../services/mediaService';
 import { getProjectTowerList } from '../../../utils/getProjectTowerList';
@@ -55,6 +56,7 @@ import {
   buildDefaultDossierScope,
   buildDossierDownloadFileName,
   buildProjectPhotoFilters,
+  buildSignatarySnapshot,
   buildWorkspaceKmzDownloadFileName,
   buildWorkspacePhotoDraft,
   buildWorkspacePhotoDrafts,
@@ -133,8 +135,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   useEffect(() => subscribeReportCompounds((rows) => setCompounds(rows || []), () => showToast('Erro ao carregar compostos.', 'error')), [showToast]);
 
   useEffect(() => {
-    listProfissoes().then(setProfissoes).catch(() => {});
-    listSignatarios().then(setSignatariosCandidatos).catch(() => {});
+    listProfissoes().then(setProfissoes).catch(() => showToast('Erro ao carregar profissoes.', 'error'));
+    listSignatarios().then(setSignatariosCandidatos).catch(() => showToast('Erro ao carregar signatarios.', 'error'));
   }, []);
 
   // ── Defaults ao carregar projetos/workspaces ───────────────────────────────
@@ -931,17 +933,14 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       setBusy('compound');
       const trimField = (key) => String(compoundDraft[key] || '').trim();
       const profLookup = Object.fromEntries(profissoes.map((p) => [p.id, p.nome]));
-      const buildSignatarySnapshot = (sigId) => {
-        const sig = signatariosCandidatos.find((s) => s.id === sigId);
-        if (!sig) return null;
-        const registro = [
-          sig.registro_conselho && sig.registro_estado ? `${sig.registro_conselho}-${sig.registro_estado}` : sig.registro_conselho || '',
-          sig.registro_numero ? (sig.registro_sufixo ? `${sig.registro_numero}/${sig.registro_sufixo}` : sig.registro_numero) : '',
-        ].filter(Boolean).join(' ');
-        return { nome: sig.nome || '', profissao: profLookup[sig.profissao_id] || sig.profissao_nome || '', registro };
-      };
-      const elaboradoresArr = Object.entries(compoundDraft.elaboradores || {}).filter(([, v]) => v).map(([id]) => buildSignatarySnapshot(id)).filter(Boolean);
-      const revisoresArr = Object.entries(compoundDraft.revisores || {}).filter(([, v]) => v).map(([id]) => buildSignatarySnapshot(id)).filter(Boolean);
+      const elaboradoresArr = Object.entries(compoundDraft.elaboradores || {}).filter(([, v]) => v).map(([id]) => {
+        const sig = signatariosCandidatos.find((s) => s.id === id);
+        return buildSignatarySnapshot(sig, profLookup);
+      }).filter(Boolean);
+      const revisoresArr = Object.entries(compoundDraft.revisores || {}).filter(([, v]) => v).map(([id]) => {
+        const sig = signatariosCandidatos.find((s) => s.id === id);
+        return buildSignatarySnapshot(sig, profLookup);
+      }).filter(Boolean);
       await createReportCompound({
         id: `RC-${Date.now()}`,
         nome: compoundDraft.nome.trim(),
@@ -1013,6 +1012,28 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       showToast('Geracao do relatorio composto enfileirada.', 'success');
     } catch (error) {
       showToast(error?.message || 'Erro ao enfileirar geracao do relatorio composto.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleUpdateCompoundSignatures(compound, elaboradoresArr, revisoresArr) {
+    if (!compound?.id) return;
+    try {
+      setBusy(`compound-update-sig:${compound.id}`);
+      const result = await updateReportCompound(compound.id, {
+        sharedTextsJson: {
+          ...(compound.sharedTextsJson || {}),
+          elaboradores: elaboradoresArr,
+          revisores: revisoresArr,
+        },
+      }, { updatedBy: userEmail || 'web' });
+      const savedCompound = result?.data;
+      if (savedCompound?.id) setCompounds((prev) => prev.map((item) => (item.id === savedCompound.id ? savedCompound : item)));
+      else await refreshCompounds();
+      showToast('Assinaturas atualizadas.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao atualizar assinaturas.', 'error');
     } finally {
       setBusy('');
     }
@@ -1367,6 +1388,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleCompoundReorder={handleCompoundReorder}
             handleCompoundPreflight={handleCompoundPreflight}
             handleCompoundGenerate={handleCompoundGenerate}
+            handleUpdateCompoundSignatures={handleUpdateCompoundSignatures}
             handleTrashCompound={handleTrashCompound}
             handleRestoreCompound={handleRestoreCompound}
             handleHardDeleteCompound={handleHardDeleteCompound}

@@ -85,6 +85,13 @@ export async function runReportCompoundPreflight(compoundId) {
   });
 }
 
+export async function updateReportCompound(compoundId, data, meta = {}) {
+  return requestCompound(`${API_BASE_URL}/report-compounds/${encodeURIComponent(compoundId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ data, meta }),
+  });
+}
+
 export async function generateReportCompound(compoundId) {
   return requestCompound(`${API_BASE_URL}/report-compounds/${encodeURIComponent(compoundId)}/generate`, {
     method: 'POST',

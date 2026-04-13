@@ -6,6 +6,8 @@ import SearchableSelect from '../../../components/ui/SearchableSelect';
 import {
   buildCompoundWorkspaceOrder,
   fmt,
+  formatSignatarioRegistro,
+  buildSignatarySnapshot,
   getTranslatedStatus,
   isPendingExecutionStatus,
   getStatusLabel,
@@ -52,12 +54,15 @@ export default function CompoundsTab({
   handleHardDeleteCompound,
   handleDownloadReportOutput,
   buildCompoundDownloadFileName,
+  handleUpdateCompoundSignatures,
 }) {
   const [openSections, setOpenSections] = useState({});
   const [openPreflights, setOpenPreflights] = useState({});
   const [confirmGenerate, setConfirmGenerate] = useState(null);
   const [confirmHardDelete, setConfirmHardDelete] = useState(null);
   const [showTrash, setShowTrash] = useState(false);
+  const [editingSignaturesFor, setEditingSignaturesFor] = useState(null);
+  const [editSignatures, setEditSignatures] = useState({ elaboradores: {}, revisores: {} });
 
   function toggleSection(key) {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -65,6 +70,38 @@ export default function CompoundsTab({
 
   function togglePreflight(id) {
     setOpenPreflights((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function startEditingSignatures(compound) {
+    const shared = compound.sharedTextsJson || {};
+    const existingElab = Array.isArray(shared.elaboradores) ? shared.elaboradores : [];
+    const existingRev = Array.isArray(shared.revisores) ? shared.revisores : [];
+    const elabMap = {};
+    const revMap = {};
+    for (const snap of existingElab) {
+      const match = signatariosCandidatos.find((s) => s.nome === snap.nome);
+      if (match) elabMap[match.id] = true;
+    }
+    for (const snap of existingRev) {
+      const match = signatariosCandidatos.find((s) => s.nome === snap.nome);
+      if (match) revMap[match.id] = true;
+    }
+    setEditSignatures({ elaboradores: elabMap, revisores: revMap });
+    setEditingSignaturesFor(compound.id);
+  }
+
+  async function saveEditedSignatures(compound) {
+    const profLookup = Object.fromEntries(profissoes.map((p) => [p.id, p.nome]));
+    const elaboradoresArr = Object.entries(editSignatures.elaboradores).filter(([, v]) => v).map(([id]) => {
+      const sig = signatariosCandidatos.find((s) => s.id === id);
+      return buildSignatarySnapshot(sig, profLookup);
+    }).filter(Boolean);
+    const revisoresArr = Object.entries(editSignatures.revisores).filter(([, v]) => v).map(([id]) => {
+      const sig = signatariosCandidatos.find((s) => s.id === id);
+      return buildSignatarySnapshot(sig, profLookup);
+    }).filter(Boolean);
+    await handleUpdateCompoundSignatures(compound, elaboradoresArr, revisoresArr);
+    setEditingSignaturesFor(null);
   }
 
   return (
@@ -245,10 +282,7 @@ export default function CompoundsTab({
           {signatariosCandidatos.length > 0 ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col gap-2">
               {signatariosCandidatos.map((sig) => {
-                const registro = [
-                  sig.registro_conselho && sig.registro_estado ? `${sig.registro_conselho}-${sig.registro_estado}` : sig.registro_conselho || '',
-                  sig.registro_numero ? (sig.registro_sufixo ? `${sig.registro_numero}/${sig.registro_sufixo}` : sig.registro_numero) : '',
-                ].filter(Boolean).join(' ');
+                const registro = formatSignatarioRegistro(sig);
                 const profNome = profissoes.find((p) => p.id === sig.profissao_id)?.nome || sig.profissao_nome || '';
                 const isElab = !!compoundDraft.elaboradores?.[sig.id];
                 const isRev = !!compoundDraft.revisores?.[sig.id];
@@ -348,6 +382,116 @@ export default function CompoundsTab({
                   ))}
                 </div>
               )}
+
+              {/* Assinaturas do composto */}
+              {(() => {
+                const shared = compound.sharedTextsJson || {};
+                const elab = Array.isArray(shared.elaboradores) ? shared.elaboradores : [];
+                const rev = Array.isArray(shared.revisores) ? shared.revisores : [];
+                const isEditing = editingSignaturesFor === compound.id;
+
+                return (
+                  <div className="mt-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Assinaturas</span>
+                      {!isEditing ? (
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                          onClick={() => startEditingSignatures(compound)}
+                        >
+                          Editar
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {isEditing ? (
+                      <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 flex flex-col gap-2">
+                        {signatariosCandidatos.length > 0 ? (
+                          signatariosCandidatos.map((sig) => {
+                            const registro = formatSignatarioRegistro(sig);
+                            const profNome = profissoes.find((p) => p.id === sig.profissao_id)?.nome || sig.profissao_nome || '';
+                            const isElab = !!editSignatures.elaboradores?.[sig.id];
+                            const isRev = !!editSignatures.revisores?.[sig.id];
+                            return (
+                              <div
+                                key={sig.id}
+                                className={`flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${isElab || isRev ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-600">
+                                    <input
+                                      type="checkbox"
+                                      className="h-3.5 w-3.5 accent-brand-600"
+                                      checked={isElab}
+                                      onChange={(e) => setEditSignatures((prev) => ({ ...prev, elaboradores: { ...prev.elaboradores, [sig.id]: e.target.checked } }))}
+                                    />
+                                    Elaborador
+                                  </label>
+                                  <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-600">
+                                    <input
+                                      type="checkbox"
+                                      className="h-3.5 w-3.5 accent-brand-600"
+                                      checked={isRev}
+                                      onChange={(e) => setEditSignatures((prev) => ({ ...prev, revisores: { ...prev.revisores, [sig.id]: e.target.checked } }))}
+                                    />
+                                    Revisor
+                                  </label>
+                                </div>
+                                <span className="flex-1 font-medium text-slate-800">{sig.nome}</span>
+                                <span className="text-xs text-slate-500">{[profNome, registro].filter(Boolean).join(' – ')}</span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <p className="text-xs text-slate-500">Nenhum signatario cadastrado. Adicione no seu perfil.</p>
+                        )}
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                          <Button variant="outline" size="sm" onClick={() => setEditingSignaturesFor(null)}>
+                            Cancelar
+                          </Button>
+                          <Button size="sm" onClick={() => saveEditedSignatures(compound)} disabled={busy === `compound-update-sig:${compound.id}`}>
+                            {busy === `compound-update-sig:${compound.id}` ? 'Salvando...' : 'Salvar Assinaturas'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : elab.length === 0 && rev.length === 0 ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-700">Nenhuma assinatura definida</span>
+                    ) : (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col gap-2">
+                        {elab.length > 0 ? (
+                          <div>
+                            <span className="text-2xs font-semibold uppercase tracking-wide text-slate-400">Elaboradores</span>
+                            <div className="mt-1 flex flex-col gap-1">
+                              {elab.map((snap, i) => (
+                                <div key={`elab-${i}`} className="flex items-center gap-2 text-sm text-slate-700">
+                                  <span className="font-medium">{snap.nome}</span>
+                                  {snap.profissao ? <span className="text-xs text-slate-500">{snap.profissao}</span> : null}
+                                  {snap.registro ? <span className="text-xs text-slate-400">{snap.registro}</span> : null}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                        {rev.length > 0 ? (
+                          <div>
+                            <span className="text-2xs font-semibold uppercase tracking-wide text-slate-400">Revisores</span>
+                            <div className="mt-1 flex flex-col gap-1">
+                              {rev.map((snap, i) => (
+                                <div key={`rev-${i}`} className="flex items-center gap-2 text-sm text-slate-700">
+                                  <span className="font-medium">{snap.nome}</span>
+                                  {snap.profissao ? <span className="text-xs text-slate-500">{snap.profissao}</span> : null}
+                                  {snap.registro ? <span className="text-xs text-slate-400">{snap.registro}</span> : null}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Ordenacao dos blocos */}
               {orderedIds.length > 0 ? (

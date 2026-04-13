@@ -273,3 +273,24 @@ export function buildCompoundWorkspaceOrder(compound = {}) {
   const missingWorkspaceIds = workspaceIds.filter((workspaceId) => !orderedWorkspaceIds.includes(workspaceId));
   return [...orderedWorkspaceIds, ...missingWorkspaceIds];
 }
+
+export function formatSignatarioRegistro(sig) {
+  if (!sig || typeof sig !== 'object') return '';
+  const conselho = String(sig.registro_conselho || '').trim();
+  const estado = String(sig.registro_estado || '').trim();
+  const numero = String(sig.registro_numero || '').trim();
+  const sufixo = String(sig.registro_sufixo || '').trim();
+  return [
+    conselho && estado ? `${conselho}-${estado}` : conselho || '',
+    numero ? (sufixo ? `${numero}/${sufixo}` : numero) : '',
+  ].filter(Boolean).join(' ');
+}
+
+export function buildSignatarySnapshot(sig, profLookup = {}) {
+  if (!sig) return null;
+  return {
+    nome: String(sig.nome || '').trim(),
+    profissao: profLookup[sig.profissao_id] || String(sig.profissao_nome || '').trim(),
+    registro: formatSignatarioRegistro(sig),
+  };
+}
