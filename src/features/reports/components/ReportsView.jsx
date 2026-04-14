@@ -112,7 +112,6 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   });
   const [profissoes, setProfissoes] = useState([]);
   const [signatariosCandidatos, setSignatariosCandidatos] = useState([]);
-  const [workspaceTextsDraft, setWorkspaceTextsDraft] = useState({ introducao: '', observacoes: '' });
   const [workspaceImportTargetId, setWorkspaceImportTargetId] = useState('');
   const [workspaceImportMode, setWorkspaceImportMode] = useState('loose_photos');
   const [workspacePhotos, setWorkspacePhotos] = useState([]);
@@ -216,7 +215,6 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       setLastPersistedWorkspaceDraftSignature('');
       setTowerFilter('');
       setPhotoSortMode('tower_asc');
-      setWorkspaceTextsDraft({ introducao: '', observacoes: '' });
       setWorkspaceAutosave({ status: 'idle', savedAt: '', error: '' });
       return;
     }
@@ -257,13 +255,6 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       return {};
     });
   }, [workspaceImportTargetId]);
-
-  useEffect(() => {
-    setWorkspaceTextsDraft({
-      introducao: selectedWorkspace?.texts?.introducao || '',
-      observacoes: selectedWorkspace?.texts?.observacoes || '',
-    });
-  }, [selectedWorkspace?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Metricas ───────────────────────────────────────────────────────────────
 
@@ -901,19 +892,6 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
-  async function handleSaveWorkspaceTexts() {
-    if (!selectedWorkspace?.id) return;
-    try {
-      setBusy('workspace-texts');
-      await updateReportWorkspace(selectedWorkspace.id, { texts: workspaceTextsDraft }, { updatedBy: userEmail || 'web' });
-      showToast('Textos do workspace salvos.', 'success');
-    } catch (error) {
-      showToast(error?.message || 'Erro ao salvar textos do workspace.', 'error');
-    } finally {
-      setBusy('');
-    }
-  }
-
   async function handlePhotoSortModeChange(mode) {
     setPhotoSortMode(mode);
     if (!selectedWorkspace) return;
@@ -1539,8 +1517,6 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             setPendingFiles={setPendingFiles}
             uploadProgress={uploadProgress}
             uploadPercent={uploadPercent}
-            workspaceTextsDraft={workspaceTextsDraft}
-            setWorkspaceTextsDraft={setWorkspaceTextsDraft}
             workspacePhotos={workspacePhotos}
             workspacePhotoDrafts={workspacePhotoDrafts}
             setWorkspacePhotoDrafts={setWorkspacePhotoDrafts}
@@ -1568,7 +1544,6 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleRestorePhoto={handleRestorePhoto}
             handleRestoreAllTrashedPhotos={handleRestoreAllTrashedPhotos}
             handleEmptyPhotoTrash={handleEmptyPhotoTrash}
-            handleSaveWorkspaceTexts={handleSaveWorkspaceTexts}
             handleRequestWorkspaceKmz={handleRequestWorkspaceKmz}
             handleDownloadWorkspaceKmz={handleDownloadWorkspaceKmz}
             photoSortMode={photoSortMode}

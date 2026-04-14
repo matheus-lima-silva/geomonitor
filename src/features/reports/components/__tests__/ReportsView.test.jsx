@@ -554,12 +554,6 @@ describe('ReportsView', () => {
       await Promise.resolve();
     });
 
-    // O botao Gerar KMZ fica dentro da secao colapsavel "Textos e KMZ" — expandir primeiro
-    const textsKmzToggle = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Textos e KMZ'));
-    await act(async () => {
-      textsKmzToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
     const requestButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Gerar KMZ com Fotos'));
     expect(requestButton).toBeTruthy();
 

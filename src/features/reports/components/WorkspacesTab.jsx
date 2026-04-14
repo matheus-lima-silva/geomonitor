@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Card, EmptyState, HintText, Input, Select, Textarea } from '../../../components/ui';
+import { Button, Card, EmptyState, HintText, Input, Select } from '../../../components/ui';
 import IconButton from '../../../components/ui/IconButton';
 import Modal from '../../../components/ui/Modal';
 import { PhotoCardSkeleton } from '../../../components/ui/Skeleton';
@@ -49,9 +49,6 @@ export default function WorkspacesTab({
   setPendingFiles,
   uploadProgress,
   uploadPercent,
-  // Textos
-  workspaceTextsDraft,
-  setWorkspaceTextsDraft,
   // Curadoria
   workspacePhotos,
   workspacePhotoDrafts,
@@ -86,7 +83,6 @@ export default function WorkspacesTab({
   handleRestorePhoto,
   handleRestoreAllTrashedPhotos,
   handleEmptyPhotoTrash,
-  handleSaveWorkspaceTexts,
   handleRequestWorkspaceKmz,
   handleDownloadWorkspaceKmz,
   photoSortMode,
@@ -100,7 +96,6 @@ export default function WorkspacesTab({
   handleRestoreWorkspace,
   handleHardDeleteWorkspace,
 }) {
-  const [sidebarTextsOpen, setSidebarTextsOpen] = useState(false);
   const [sidebarKmzOpen, setSidebarKmzOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [draggingPhotoId, setDraggingPhotoId] = useState(null);
@@ -618,62 +613,29 @@ export default function WorkspacesTab({
                 ) : null}
               </div>
 
-              {/* Textos + KMZ (colapsavel) */}
-              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
-                  onClick={() => setSidebarTextsOpen((v) => !v)}
-                >
-                  <span className="text-2xs font-bold uppercase tracking-[0.18em] text-slate-500">Textos e KMZ</span>
-                  <AppIcon name="chevron-right" size={14} className={`text-slate-400 transition-transform duration-200 ${sidebarTextsOpen ? 'rotate-90' : ''}`} />
-                </button>
-                {sidebarTextsOpen ? (
-                  <div className="border-t border-slate-100 px-4 pb-4 pt-3 flex flex-col gap-3">
-                    <Textarea
-                      id="ws-texto-intro"
-                      label="Introducao"
-                      hint="Texto de introducao do workspace no DOCX."
-                      rows={3}
-                      value={workspaceTextsDraft.introducao}
-                      onChange={(event) => setWorkspaceTextsDraft((prev) => ({ ...prev, introducao: event.target.value }))}
-                      placeholder="Descreva o contexto desta campanha..."
-                    />
-                    <Textarea
-                      id="ws-texto-obs"
-                      label="Observacoes"
-                      hint="Texto de observacoes ao final do workspace no DOCX."
-                      rows={2}
-                      value={workspaceTextsDraft.observacoes}
-                      onChange={(event) => setWorkspaceTextsDraft((prev) => ({ ...prev, observacoes: event.target.value }))}
-                      placeholder="Observacoes gerais ou pendencias..."
-                    />
-                    <Button variant="outline" onClick={handleSaveWorkspaceTexts} disabled={busy === 'workspace-texts'}>
-                      <AppIcon name="save" />
-                      {busy === 'workspace-texts' ? 'Salvando...' : 'Salvar Textos'}
+              {/* KMZ */}
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="m-0 mb-2 text-2xs font-bold uppercase tracking-[0.18em] text-slate-500">KMZ</p>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleRequestWorkspaceKmz}
+                    disabled={busy === 'workspace-kmz' || !selectedWorkspace}
+                  >
+                    <AppIcon name="file-text" />
+                    {busy === 'workspace-kmz' ? 'Enfileirando KMZ...' : 'Gerar KMZ com Fotos'}
+                  </Button>
+                  {selectedWorkspaceKmzRequest?.outputKmzMediaId ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => handleDownloadWorkspaceKmz(selectedWorkspaceKmzRequest)}
+                      disabled={busy === `download:${selectedWorkspaceKmzRequest.outputKmzMediaId}`}
+                    >
+                      <AppIcon name="download" />
+                      {busy === `download:${selectedWorkspaceKmzRequest.outputKmzMediaId}` ? 'Baixando...' : 'Baixar KMZ'}
                     </Button>
-                    <div className="border-t border-slate-100 pt-3 flex flex-col gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={handleRequestWorkspaceKmz}
-                        disabled={busy === 'workspace-kmz' || !selectedWorkspace}
-                      >
-                        <AppIcon name="file-text" />
-                        {busy === 'workspace-kmz' ? 'Enfileirando KMZ...' : 'Gerar KMZ com Fotos'}
-                      </Button>
-                      {selectedWorkspaceKmzRequest?.outputKmzMediaId ? (
-                        <Button
-                          variant="outline"
-                          onClick={() => handleDownloadWorkspaceKmz(selectedWorkspaceKmzRequest)}
-                          disabled={busy === `download:${selectedWorkspaceKmzRequest.outputKmzMediaId}`}
-                        >
-                          <AppIcon name="download" />
-                          {busy === `download:${selectedWorkspaceKmzRequest.outputKmzMediaId}` ? 'Baixando...' : 'Baixar KMZ'}
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
               </div>
 
               {/* Torres */}

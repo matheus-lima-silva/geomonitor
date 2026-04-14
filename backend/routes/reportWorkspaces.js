@@ -40,7 +40,6 @@ function normalizeWorkspacePayload(data = {}, fallback = {}) {
         status: normalizeText(data.status) || normalizeText(fallback.status) || 'draft',
         slots: Array.isArray(data.slots) ? data.slots.map((slot) => normalizeSlot(slot)) : (fallback.slots || []),
         draftState: data.draftState && typeof data.draftState === 'object' ? data.draftState : (fallback.draftState || {}),
-        texts: data.texts && typeof data.texts === 'object' ? data.texts : (fallback.texts || {}),
         photoSortMode: normalizeText(data.photoSortMode) || normalizeText(fallback.photoSortMode) || '',
         importedAt: normalizeText(data.importedAt) || normalizeText(fallback.importedAt),
         lastGeneratedAt: normalizeText(data.lastGeneratedAt) || normalizeText(fallback.lastGeneratedAt),
