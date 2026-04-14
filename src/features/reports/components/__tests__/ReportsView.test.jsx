@@ -631,4 +631,153 @@ describe('ReportsView', () => {
     expect(downloadMediaAsset).toHaveBeenCalledTimes(1);
     expect(downloadMediaAsset).toHaveBeenCalledWith('MED-PREVIEW-ERR');
   });
+
+  // ── handleImportCaptions ─────────────────────────────────────────────────
+  describe('Importar legendas em lote', () => {
+    function makeCsvFile(text, name = 'legendas.csv') {
+      const file = new File([text], name, { type: 'text/csv' });
+      // jsdom pode nao ter File.text() em versoes antigas — garantimos
+      if (typeof file.text !== 'function') {
+        Object.defineProperty(file, 'text', { value: () => Promise.resolve(text) });
+      }
+      return file;
+    }
+
+    async function openCaptionsSection() {
+      const toggle = [...container.querySelectorAll('button')].find((btn) => btn.textContent.includes('Legendas em lote'));
+      await act(async () => {
+        toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+    }
+
+    async function fireImport(csv) {
+      await openCaptionsSection();
+      const input = container.querySelector('input[aria-label="Importar legendas"]');
+      const file = makeCsvFile(csv);
+      Object.defineProperty(input, 'files', { value: [file], configurable: true });
+      await act(async () => {
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    }
+
+    it('atualiza apenas legendas que mudaram e chama saveReportWorkspacePhoto por foto alterada', async () => {
+      mockData.workspacePhotos.push(
+        { id: 'RPH-2', caption: 'Original 2', towerId: 'T-02', workspaceId: 'RW-1', importSource: 'loose_photos', includeInReport: false },
+        { id: 'RPH-3', caption: 'Original 3', towerId: 'T-03', workspaceId: 'RW-1', importSource: 'loose_photos', includeInReport: true },
+      );
+      listReportWorkspacePhotos.mockResolvedValue(mockData.workspacePhotos);
+      saveReportWorkspacePhoto.mockImplementation((_ws, photoId, nextData) =>
+        Promise.resolve({ data: { id: photoId, ...nextData } }),
+      );
+      const showToast = vi.fn();
+
+      await act(async () => {
+        root.render(<ReportsView userEmail="teste@exemplo.com" showToast={showToast} />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // 3 linhas: RPH-1 alterada, RPH-2 identica (inalterada), RPH-3 alterada
+      const csv = [
+        'ID,Torre,Legenda,No Relatorio',
+        '"RPH-1","T-01","Nova legenda 1",true',
+        '"RPH-2","T-02","Original 2",false',
+        '"RPH-3","T-03","Nova legenda 3",true',
+      ].join('\n');
+
+      await fireImport(csv);
+
+      // 2 chamadas de save — RPH-1 e RPH-3
+      const callIds = saveReportWorkspacePhoto.mock.calls.map(([, id]) => id);
+      expect(callIds).toContain('RPH-1');
+      expect(callIds).toContain('RPH-3');
+      expect(callIds).not.toContain('RPH-2');
+      expect(saveReportWorkspacePhoto.mock.calls.length).toBe(2);
+
+      // caption enviado deve ser a nova legenda, trimada
+      const rph1Call = saveReportWorkspacePhoto.mock.calls.find(([, id]) => id === 'RPH-1');
+      expect(rph1Call[2].caption).toBe('Nova legenda 1');
+      expect(rph1Call[2].towerId).toBe('T-01'); // tower preservada do draft
+      expect(rph1Call[2].includeInReport).toBe(true); // include preservado
+
+      // Toast de sucesso com resumo
+      expect(showToast).toHaveBeenCalledWith(
+        expect.stringMatching(/2 atualizadas.*1 inalteradas.*0 ignoradas.*0 com erro/),
+        'success',
+      );
+      // Card de resumo aparece
+      expect(container.textContent).toContain('2 atualizadas');
+    });
+
+    it('linhas com ID inexistente viram ignoradas e nao geram chamada de save', async () => {
+      listReportWorkspacePhotos.mockResolvedValue(mockData.workspacePhotos);
+      const showToast = vi.fn();
+
+      await act(async () => {
+        root.render(<ReportsView userEmail="teste@exemplo.com" showToast={showToast} />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const csv = [
+        'ID,Torre,Legenda,No Relatorio',
+        '"RPH-9000","","Fantasma",true',
+      ].join('\n');
+
+      await fireImport(csv);
+
+      expect(saveReportWorkspacePhoto).not.toHaveBeenCalled();
+      expect(container.textContent).toMatch(/1 ignorada/);
+    });
+
+    it('falha parcial: uma linha erra, outras sucedem, resumo mostra erros e IDs', async () => {
+      mockData.workspacePhotos.push(
+        { id: 'RPH-2', caption: 'Original 2', towerId: 'T-02', workspaceId: 'RW-1', importSource: 'loose_photos', includeInReport: false },
+      );
+      listReportWorkspacePhotos.mockResolvedValue(mockData.workspacePhotos);
+      saveReportWorkspacePhoto.mockImplementation((_ws, photoId, nextData) => {
+        if (photoId === 'RPH-2') return Promise.reject(new Error('erro de backend'));
+        return Promise.resolve({ data: { id: photoId, ...nextData } });
+      });
+      const showToast = vi.fn();
+
+      await act(async () => {
+        root.render(<ReportsView userEmail="teste@exemplo.com" showToast={showToast} />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const csv = [
+        'ID,Torre,Legenda,No Relatorio',
+        '"RPH-1","T-01","Nova 1",true',
+        '"RPH-2","T-02","Nova 2",false',
+      ].join('\n');
+
+      await fireImport(csv);
+
+      expect(saveReportWorkspacePhoto).toHaveBeenCalledTimes(2);
+      expect(showToast).toHaveBeenCalledWith(
+        expect.stringMatching(/1 atualizadas.*1 com erro/),
+        'error',
+      );
+      expect(container.textContent).toContain('1 com erro');
+    });
+
+    it('reseta o valor do input apos a importacao para permitir reimportar o mesmo arquivo', async () => {
+      listReportWorkspacePhotos.mockResolvedValue(mockData.workspacePhotos);
+      await act(async () => {
+        root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const csv = 'ID,Torre,Legenda,No Relatorio\n"RPH-1","T-01","Nova",true';
+      await fireImport(csv);
+
+      const input = container.querySelector('input[aria-label="Importar legendas"]');
+      expect(input.value).toBe('');
+    });
+  });
 });

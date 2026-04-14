@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, Card, EmptyState, HintText, Input, Select, Textarea } from '../../../components/ui';
 import IconButton from '../../../components/ui/IconButton';
@@ -93,6 +93,9 @@ export default function WorkspacesTab({
   handlePhotoSortModeChange,
   handleManualPhotoReorder,
   handleExportCaptions,
+  handleImportCaptions,
+  captionsImportSummary,
+  onDismissCaptionsImportSummary,
   handleTrashWorkspace,
   handleRestoreWorkspace,
   handleHardDeleteWorkspace,
@@ -106,6 +109,13 @@ export default function WorkspacesTab({
   const [confirmHardDeleteWorkspace, setConfirmHardDeleteWorkspace] = useState(null);
   const [showWorkspaceTrash, setShowWorkspaceTrash] = useState(false);
   const [photoTrashOpen, setPhotoTrashOpen] = useState(false);
+  const [captionsSectionOpen, setCaptionsSectionOpen] = useState(false);
+  const captionsFileInputRef = useRef(null);
+
+  // Abre o card automaticamente quando ha um novo resumo de importacao para revisar
+  useEffect(() => {
+    if (captionsImportSummary) setCaptionsSectionOpen(true);
+  }, [captionsImportSummary]);
   const [showNumberingPreview, setShowNumberingPreview] = useState(false);
   const [showWorkflowGuide, setShowWorkflowGuide] = useState(false);
   const [setupCreateOpen, setSetupCreateOpen] = useState(!selectedWorkspace);
@@ -666,7 +676,7 @@ export default function WorkspacesTab({
                 ) : null}
               </div>
 
-              {/* Torres + Exportar Legendas (unificados) */}
+              {/* Torres */}
               <div className="rounded-xl border border-slate-200 bg-white p-3">
                 <p className="m-0 mb-2 text-2xs font-bold uppercase tracking-[0.18em] text-slate-500">Torres</p>
                 <div className="flex flex-col gap-1 max-h-52 overflow-y-auto">
@@ -700,19 +710,166 @@ export default function WorkspacesTab({
                     </button>
                   ))}
                 </div>
-                <div className="border-t border-slate-100 mt-3 pt-3">
-                  <p className="m-0 mb-2 text-2xs font-bold uppercase tracking-[0.18em] text-slate-500">Exportar Legendas</p>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleExportCaptions('csv')} disabled={visibleWorkspacePhotos.length === 0}>
-                      <AppIcon name="download" />
-                      CSV
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleExportCaptions('md')} disabled={visibleWorkspacePhotos.length === 0}>
-                      <AppIcon name="download" />
-                      Markdown
-                    </Button>
+              </div>
+
+              {/* Legendas em lote — card colapsavel */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden transition-all duration-200">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-slate-100 transition-colors"
+                  onClick={() => setCaptionsSectionOpen((v) => !v)}
+                  aria-expanded={captionsSectionOpen}
+                  aria-controls="captions-batch-body"
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <AppIcon name="file-text" size={14} className="text-slate-500" />
+                    Legendas em lote
+                    {visibleWorkspacePhotos.length > 0 && (
+                      <span className="bg-slate-200 text-slate-700 rounded-full px-2 py-0.5 text-xs font-medium">
+                        {visibleWorkspacePhotos.length}
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    {captionsImportSummary?.erros?.length > 0 && (
+                      <span className="bg-rose-500 w-1.5 h-1.5 rounded-full" aria-label="erros de importacao" />
+                    )}
+                    <AppIcon
+                      name="chevron-right"
+                      size={14}
+                      className={`text-slate-400 transition-transform duration-200 ${captionsSectionOpen ? 'rotate-90' : ''}`}
+                    />
+                  </span>
+                </button>
+                {captionsSectionOpen ? (
+                  <div id="captions-batch-body" className="px-3 pb-3">
+                    <p className="m-0 pt-2 text-2xs text-slate-500">
+                      Edite o arquivo exportado e reimporte para aplicar legendas em lote. Apenas a coluna <b>Legenda</b> e aplicada.
+                    </p>
+
+                    <div className="mt-3">
+                      <p className="m-0 mb-1.5 text-2xs font-bold uppercase tracking-wide text-slate-400">Exportar</p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExportCaptions('csv')}
+                          disabled={visibleWorkspacePhotos.length === 0 || busy === 'import-captions'}
+                        >
+                          <AppIcon name="download" />
+                          CSV
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExportCaptions('md')}
+                          disabled={visibleWorkspacePhotos.length === 0 || busy === 'import-captions'}
+                          title="Tabela Markdown — formato ideal para revisar legendas em uma LLM"
+                        >
+                          <AppIcon name="download" />
+                          Markdown
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <p className="m-0 mb-1.5 text-2xs font-bold uppercase tracking-wide text-slate-400">Importar</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => captionsFileInputRef.current?.click()}
+                        disabled={busy === 'import-captions'}
+                        aria-busy={busy === 'import-captions'}
+                      >
+                        <AppIcon name={busy === 'import-captions' ? 'refresh-cw' : 'upload'} />
+                        {busy === 'import-captions' ? 'Importando...' : 'Escolher arquivo .csv ou .md'}
+                      </Button>
+                      <input
+                        ref={captionsFileInputRef}
+                        type="file"
+                        accept=".csv,.md,.markdown,.txt,text/csv,text/markdown,text/plain"
+                        hidden
+                        aria-label="Importar legendas"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file && typeof handleImportCaptions === 'function') {
+                            handleImportCaptions(file);
+                          }
+                          e.target.value = '';
+                        }}
+                      />
+                    </div>
+
+                    {captionsImportSummary ? (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className={`mt-3 relative rounded-lg border p-2.5 text-xs ${
+                          captionsImportSummary.erros?.length > 0
+                            ? 'border-rose-200 bg-rose-50 text-rose-900'
+                            : captionsImportSummary.atualizadas > 0
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                              : 'border-amber-200 bg-amber-50 text-amber-900'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          className="absolute top-1 right-1 text-slate-400 hover:text-slate-600 text-base leading-none px-1"
+                          onClick={() => onDismissCaptionsImportSummary?.()}
+                          aria-label="Fechar resumo da importacao"
+                        >
+                          ×
+                        </button>
+                        <p className="m-0 mb-0.5 text-2xs font-bold uppercase tracking-wide opacity-70">Ultima importacao</p>
+                        <p className="m-0 font-semibold flex items-center gap-1.5">
+                          <AppIcon
+                            name={
+                              captionsImportSummary.erros?.length > 0
+                                ? 'alert-triangle'
+                                : captionsImportSummary.atualizadas > 0
+                                  ? 'check-circle'
+                                  : 'info'
+                            }
+                            size={14}
+                          />
+                          {captionsImportSummary.atualizadas} atualizada{captionsImportSummary.atualizadas === 1 ? '' : 's'}
+                        </p>
+                        <p className="m-0 mt-0.5 text-2xs opacity-80">
+                          {captionsImportSummary.inalteradas} inalterada{captionsImportSummary.inalteradas === 1 ? '' : 's'}
+                          {' · '}
+                          {captionsImportSummary.ignoradas?.length || 0} ignorada{(captionsImportSummary.ignoradas?.length || 0) === 1 ? '' : 's'}
+                          {' · '}
+                          {captionsImportSummary.erros?.length || 0} com erro
+                        </p>
+                        {captionsImportSummary.erros?.length > 0 ? (
+                          <details className="mt-1.5">
+                            <summary className="cursor-pointer text-2xs font-semibold">Ver erros</summary>
+                            <ul className="mt-1 list-disc pl-4 text-2xs space-y-0.5">
+                              {captionsImportSummary.erros.slice(0, 10).map((err) => (
+                                <li key={err.id}>
+                                  <code className="font-mono">{err.id}</code>: {String(err.message || '').slice(0, 80)}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        ) : null}
+                        {captionsImportSummary.ignoradas?.length > 0 ? (
+                          <details className="mt-1.5">
+                            <summary className="cursor-pointer text-2xs font-semibold">Ver IDs ignorados</summary>
+                            <ul className="mt-1 list-disc pl-4 text-2xs space-y-0.5 max-h-24 overflow-auto">
+                              {captionsImportSummary.ignoradas.slice(0, 10).map((id) => (
+                                <li key={id}><code className="font-mono">{id}</code></li>
+                              ))}
+                              {captionsImportSummary.ignoradas.length > 10 ? (
+                                <li className="opacity-70">... +{captionsImportSummary.ignoradas.length - 10}</li>
+                              ) : null}
+                            </ul>
+                          </details>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
-                </div>
+                ) : null}
               </div>
               {/* Lixeira de fotos — no sidebar */}
               <div className="border-t border-slate-200 pt-3 mt-1">

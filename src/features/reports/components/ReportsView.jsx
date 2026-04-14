@@ -71,6 +71,7 @@ import {
   sanitizeDownloadName,
   triggerBlobDownload,
 } from '../utils/reportUtils';
+import { parseCaptionsFile } from '../utils/captionsIO';
 import BibliotecaTab from './BibliotecaTab';
 import CompoundsTab from './CompoundsTab';
 import DossierTab from './DossierTab';
@@ -116,6 +117,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [workspaceImportMode, setWorkspaceImportMode] = useState('loose_photos');
   const [workspacePhotos, setWorkspacePhotos] = useState([]);
   const [workspacePhotoDrafts, setWorkspacePhotoDrafts] = useState({});
+  const [captionsImportSummary, setCaptionsImportSummary] = useState(null);
   const [workspaceKmzRequests, setWorkspaceKmzRequests] = useState({});
   const [workspaceAutosave, setWorkspaceAutosave] = useState({ status: 'idle', savedAt: '', error: '' });
   const [lastPersistedWorkspaceDraftSignature, setLastPersistedWorkspaceDraftSignature] = useState('');
@@ -210,6 +212,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     if (!workspaceImportTargetId) {
       setWorkspacePhotos([]);
       setWorkspacePhotoDrafts({});
+      setCaptionsImportSummary(null);
       setLastPersistedWorkspaceDraftSignature('');
       setTowerFilter('');
       setPhotoSortMode('tower_asc');
@@ -217,6 +220,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       setWorkspaceAutosave({ status: 'idle', savedAt: '', error: '' });
       return;
     }
+    setCaptionsImportSummary(null);
     let cancelled = false;
     listReportWorkspacePhotos(workspaceImportTargetId)
       .then((photos) => {
@@ -1009,6 +1013,96 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     triggerBlobDownload(`${name}-legendas.${ext}`, blob);
   }
 
+  async function handleImportCaptions(file) {
+    if (!file) return;
+    const workspace = selectedWorkspace;
+    if (!workspace) {
+      showToast('Selecione um workspace valido para importar legendas.', 'error');
+      return;
+    }
+    let text;
+    try {
+      text = await file.text();
+    } catch (error) {
+      showToast(error?.message || 'Erro ao ler o arquivo de legendas.', 'error');
+      return;
+    }
+    const { rows, warnings } = parseCaptionsFile(text, file.name || '');
+    if (rows.length === 0) {
+      const msg = warnings[0] || 'Nenhuma linha valida encontrada no arquivo.';
+      showToast(`Importacao de legendas: ${msg}`, 'error');
+      setCaptionsImportSummary({ atualizadas: 0, inalteradas: 0, ignoradas: [], erros: [], warnings });
+      return;
+    }
+
+    const photosById = new Map(workspacePhotos.map((photo) => [photo.id, photo]));
+    const summary = { atualizadas: 0, inalteradas: 0, ignoradas: [], erros: [], warnings };
+    const toUpdate = [];
+    for (const row of rows) {
+      const photo = photosById.get(row.id);
+      if (!photo) {
+        summary.ignoradas.push(row.id);
+        continue;
+      }
+      const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
+      const currentCaption = String(draft.caption ?? photo.caption ?? '');
+      const nextCaption = String(row.caption ?? '');
+      if (currentCaption === nextCaption) {
+        summary.inalteradas += 1;
+        continue;
+      }
+      toUpdate.push({ photo, draft, nextCaption });
+    }
+
+    if (toUpdate.length === 0) {
+      setCaptionsImportSummary(summary);
+      const msg = summary.ignoradas.length > 0
+        ? `Nenhuma legenda alterada. ${summary.ignoradas.length} ignorada(s).`
+        : 'Nenhuma legenda alterada.';
+      showToast(msg, summary.ignoradas.length > 0 ? 'error' : 'success');
+      return;
+    }
+
+    setBusy('import-captions');
+    try {
+      const CONCURRENCY = 4;
+      let cursor = 0;
+      async function worker() {
+        while (cursor < toUpdate.length) {
+          const idx = cursor;
+          cursor += 1;
+          const item = toUpdate[idx];
+          const { photo, draft, nextCaption } = item;
+          const nextTowerId = String(draft.towerId || '').trim();
+          const nextData = {
+            caption: nextCaption.trim(),
+            towerId: nextTowerId || null,
+            towerSource: nextTowerId ? 'manual' : 'pending',
+            includeInReport: Boolean(draft.includeInReport),
+            curationStatus: getWorkspacePhotoStatus(photo, { ...draft, caption: nextCaption }),
+            manualOverride: Boolean(nextTowerId),
+          };
+          try {
+            const result = await saveReportWorkspacePhoto(workspace.id, photo.id, nextData, { updatedBy: userEmail || 'web' });
+            const savedPhoto = result?.data || { ...photo, ...nextData };
+            setWorkspacePhotos((prev) => prev.map((p) => (p.id === photo.id ? savedPhoto : p)));
+            setWorkspacePhotoDrafts((prev) => ({ ...prev, [photo.id]: buildWorkspacePhotoDraft(savedPhoto) }));
+            setProjectPhotos((prev) => prev.map((p) => (p.id === photo.id ? savedPhoto : p)));
+            summary.atualizadas += 1;
+          } catch (error) {
+            summary.erros.push({ id: photo.id, message: String(error?.message || error || 'erro desconhecido').slice(0, 200) });
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, toUpdate.length) }, worker));
+      setCaptionsImportSummary(summary);
+      const toastMsg = `Legendas importadas: ${summary.atualizadas} atualizadas, ${summary.inalteradas} inalteradas, ${summary.ignoradas.length} ignoradas, ${summary.erros.length} com erro.`;
+      showToast(toastMsg, summary.erros.length === 0 ? 'success' : 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function handleCreateDossier() {
     if (!selectedProjectId || !String(dossierDraft.nome || '').trim()) {
       showToast('Selecione um empreendimento e informe um nome para o dossie.', 'error');
@@ -1481,6 +1575,9 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handlePhotoSortModeChange={handlePhotoSortModeChange}
             handleManualPhotoReorder={handleManualPhotoReorder}
             handleExportCaptions={handleExportCaptions}
+            handleImportCaptions={handleImportCaptions}
+            captionsImportSummary={captionsImportSummary}
+            onDismissCaptionsImportSummary={() => setCaptionsImportSummary(null)}
             handleTrashWorkspace={handleTrashWorkspace}
             handleRestoreWorkspace={handleRestoreWorkspace}
             handleHardDeleteWorkspace={handleHardDeleteWorkspace}
