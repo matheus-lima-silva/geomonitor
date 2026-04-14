@@ -40,6 +40,7 @@ import {
   listTrashedWorkspacePhotos,
   processWorkspaceKmz,
   reorderWorkspacePhotos,
+  reorderWorkspacePhotosManual,
   requestWorkspaceKmz,
   restoreReportWorkspace,
   restoreWorkspacePhoto,
@@ -66,6 +67,7 @@ import {
   getWorkspacePhotoStatus,
   inferTowerIdFromRelativePath,
   isPendingExecutionStatus,
+  sortPhotosByMode,
   sanitizeDownloadName,
   triggerBlobDownload,
 } from '../utils/reportUtils';
@@ -349,14 +351,16 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   }, [visibleWorkspacePhotos, workspacePhotoDrafts]);
 
   const filteredWorkspacePhotos = useMemo(() => {
-    if (!towerFilter) return visibleWorkspacePhotos;
-    return visibleWorkspacePhotos.filter((photo) => {
-      const draft = workspacePhotoDrafts[photo.id];
-      const tower = (draft?.towerId || photo.towerId || '').trim();
-      if (towerFilter === '__none__') return !tower;
-      return tower === towerFilter;
-    });
-  }, [visibleWorkspacePhotos, workspacePhotoDrafts, towerFilter]);
+    const filtered = !towerFilter
+      ? visibleWorkspacePhotos
+      : visibleWorkspacePhotos.filter((photo) => {
+        const draft = workspacePhotoDrafts[photo.id];
+        const tower = (draft?.towerId || photo.towerId || '').trim();
+        if (towerFilter === '__none__') return !tower;
+        return tower === towerFilter;
+      });
+    return sortPhotosByMode(filtered, workspacePhotoDrafts, photoSortMode || 'tower_asc');
+  }, [visibleWorkspacePhotos, workspacePhotoDrafts, towerFilter, photoSortMode]);
 
   const workspaceCurationSummary = useMemo(() => {
     const rows = workspacePhotos.map((photo) => ({
@@ -916,6 +920,36 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
+  async function handleManualPhotoReorder(newPhotoIds) {
+    if (!selectedWorkspace) return;
+    if (!Array.isArray(newPhotoIds) || newPhotoIds.length === 0) return;
+
+    // Otimista: reordena o estado local imediatamente atribuindo sort_order
+    // 1..N conforme a nova sequencia e entra em modo manual.
+    const orderIndex = new Map(newPhotoIds.map((id, index) => [id, index + 1]));
+    setWorkspacePhotos((prev) => {
+      const updated = prev.map((photo) => {
+        const nextOrder = orderIndex.get(photo.id);
+        return nextOrder ? { ...photo, sortOrder: nextOrder } : photo;
+      });
+      updated.sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+      return updated;
+    });
+    setPhotoSortMode('sort_order_asc');
+
+    try {
+      setBusy('reorder');
+      await reorderWorkspacePhotosManual(selectedWorkspace.id, newPhotoIds, { updatedBy: userEmail || 'web' });
+      await refreshWorkspacePhotos(selectedWorkspace.id);
+    } catch (error) {
+      showToast(error?.message || 'Erro ao salvar ordem manual.', 'error');
+      // Reverte recarregando do backend
+      try { await refreshWorkspacePhotos(selectedWorkspace.id); } catch (_) {}
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function handleRequestWorkspaceKmz() {
     if (!selectedWorkspace?.id) { showToast('Selecione um workspace para gerar o KMZ.', 'error'); return; }
     try {
@@ -1439,6 +1473,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleDownloadWorkspaceKmz={handleDownloadWorkspaceKmz}
             photoSortMode={photoSortMode}
             handlePhotoSortModeChange={handlePhotoSortModeChange}
+            handleManualPhotoReorder={handleManualPhotoReorder}
             handleExportCaptions={handleExportCaptions}
             handleTrashWorkspace={handleTrashWorkspace}
             handleRestoreWorkspace={handleRestoreWorkspace}

@@ -554,6 +554,73 @@ router.post('/:id/photos/reorder', verifyToken, requireEditor, async (req, res) 
     }
 });
 
+router.post('/:id/photos/manual-order', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const data = body.data && typeof body.data === 'object' ? body.data : {};
+        const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
+
+        const rawIds = Array.isArray(data.photoIds) ? data.photoIds : null;
+        if (!rawIds) {
+            return res.status(400).json({ status: 'error', message: 'photoIds deve ser um array.' });
+        }
+        const photoIds = rawIds.map((id) => normalizeText(id)).filter(Boolean);
+        if (photoIds.length === 0) {
+            return res.status(400).json({ status: 'error', message: 'photoIds vazio.' });
+        }
+
+        const workspace = await reportWorkspaceRepository.getById(workspaceId);
+        if (!workspace) {
+            return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
+        }
+
+        const existing = await reportPhotoRepository.listByWorkspace(workspaceId);
+        const existingIds = new Set(existing.map((p) => normalizeText(p.id)));
+        const seen = new Set();
+        for (const id of photoIds) {
+            if (!existingIds.has(id)) {
+                return res.status(400).json({ status: 'error', message: `Foto ${id} nao pertence ao workspace.` });
+            }
+            if (seen.has(id)) {
+                return res.status(400).json({ status: 'error', message: `Foto ${id} duplicada em photoIds.` });
+            }
+            seen.add(id);
+        }
+
+        // Fotos ausentes em photoIds (ex.: filtro de torre no cliente) mantem posicao relativa no final.
+        const missing = existing
+            .map((p) => normalizeText(p.id))
+            .filter((id) => !seen.has(id));
+        const fullOrder = [...photoIds, ...missing];
+        const updates = fullOrder.map((id, index) => ({ id, sortOrder: index + 1 }));
+
+        await reportPhotoRepository.batchUpdateSortOrder(updates);
+
+        await reportWorkspaceRepository.save({
+            ...workspace,
+            photoSortMode: 'sort_order_asc',
+            updatedAt: new Date().toISOString(),
+            updatedBy: meta.updatedBy || req.user?.email || 'API',
+        }, { merge: true });
+
+        const updatedPhotos = await reportPhotoRepository.listByWorkspace(workspaceId);
+
+        return res.status(200).json({
+            status: 'success',
+            data: {
+                workspaceId,
+                photoSortMode: 'sort_order_asc',
+                photoCount: updatedPhotos.length,
+                photos: updatedPhotos.map((photo) => createWorkspacePhotoResponse(req, workspaceId, photo)),
+            },
+        });
+    } catch (error) {
+        console.error('[report-workspaces API] Error POST /:id/photos/manual-order:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao aplicar ordem manual das fotos' });
+    }
+});
+
 router.post('/:id/kmz/process', verifyToken, requireEditor, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);

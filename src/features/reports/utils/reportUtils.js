@@ -185,6 +185,74 @@ export function getWorkspacePhotoStatus(photo = {}, draft = {}) {
   return String(photo.curationStatus || 'uploaded').trim() || 'uploaded';
 }
 
+// ── Ordenacao e agrupamento de fotos ─────────────────────────────────────────
+
+function getEffectiveDraft(photo, drafts) {
+  const draft = drafts && drafts[photo.id];
+  return {
+    towerId: String((draft && draft.towerId != null ? draft.towerId : photo.towerId) || '').trim(),
+    caption: String((draft && draft.caption != null ? draft.caption : photo.caption) || '').trim(),
+    captureAt: photo.captureAt || photo.createdAt || 0,
+    sortOrder: Number(photo.sortOrder) || 0,
+  };
+}
+
+// Espelha backend/utils/reportJobContext.js::sortPhotosByMode, mas usando os
+// valores efetivos dos rascunhos do cliente (torre/legenda editadas).
+export function sortPhotosByMode(photos = [], drafts = {}, mode = 'sort_order_asc') {
+  const list = Array.isArray(photos) ? [...photos] : [];
+  const getEff = (photo) => getEffectiveDraft(photo, drafts);
+  switch (mode) {
+    case 'tower_desc':
+      list.sort((a, b) => {
+        const ea = getEff(a);
+        const eb = getEff(b);
+        if (ea.towerId !== eb.towerId) return eb.towerId.localeCompare(ea.towerId, undefined, { numeric: true });
+        return ea.sortOrder - eb.sortOrder;
+      });
+      break;
+    case 'tower_asc':
+      list.sort((a, b) => {
+        const ea = getEff(a);
+        const eb = getEff(b);
+        if (ea.towerId !== eb.towerId) return ea.towerId.localeCompare(eb.towerId, undefined, { numeric: true });
+        return ea.sortOrder - eb.sortOrder;
+      });
+      break;
+    case 'capture_date_asc':
+      list.sort((a, b) => new Date(getEff(a).captureAt || 0).getTime() - new Date(getEff(b).captureAt || 0).getTime());
+      break;
+    case 'capture_date_desc':
+      list.sort((a, b) => new Date(getEff(b).captureAt || 0).getTime() - new Date(getEff(a).captureAt || 0).getTime());
+      break;
+    case 'caption_asc':
+      list.sort((a, b) => getEff(a).caption.localeCompare(getEff(b).caption, undefined, { numeric: true }));
+      break;
+    case 'sort_order_asc':
+    default:
+      list.sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+      break;
+  }
+  return list;
+}
+
+// Agrupa fotos ja ordenadas por torre, preservando a ordem de entrada. Usado
+// tanto pelo grid quanto pelo preview de numeracao do DOCX.
+export function groupPhotosByTower(photos = [], drafts = {}) {
+  const groups = [];
+  const lookup = {};
+  for (const photo of photos) {
+    const eff = getEffectiveDraft(photo, drafts);
+    const label = eff.towerId ? `Torre ${eff.towerId}` : 'Sem torre';
+    if (!lookup[label]) {
+      lookup[label] = { label, items: [] };
+      groups.push(lookup[label]);
+    }
+    lookup[label].items.push(photo);
+  }
+  return groups;
+}
+
 // ── Filtros ──────────────────────────────────────────────────────────────────
 
 export function buildProjectPhotoFilters(filters = {}) {

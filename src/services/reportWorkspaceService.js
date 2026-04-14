@@ -121,6 +121,13 @@ export async function reorderWorkspacePhotos(workspaceId, photoSortMode, meta = 
   });
 }
 
+export async function reorderWorkspacePhotosManual(workspaceId, photoIds, meta = {}) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/manual-order`, {
+    method: 'POST',
+    body: JSON.stringify({ data: { photoIds }, meta }),
+  });
+}
+
 export async function processWorkspaceKmz(workspaceId, data, meta = {}) {
   return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/kmz/process`, {
     method: 'POST',

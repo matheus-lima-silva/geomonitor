@@ -12,6 +12,7 @@ import {
   fmt,
   getTranslatedStatus,
   getWorkspacePhotoStatus,
+  groupPhotosByTower,
   isWorkspacePhotoDirty,
   tone,
 } from '../utils/reportUtils';
@@ -89,6 +90,7 @@ export default function WorkspacesTab({
   handleDownloadWorkspaceKmz,
   photoSortMode,
   handlePhotoSortModeChange,
+  handleManualPhotoReorder,
   handleExportCaptions,
   handleTrashWorkspace,
   handleRestoreWorkspace,
@@ -97,6 +99,8 @@ export default function WorkspacesTab({
   const [sidebarTextsOpen, setSidebarTextsOpen] = useState(false);
   const [sidebarKmzOpen, setSidebarKmzOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [draggingPhotoId, setDraggingPhotoId] = useState(null);
+  const [dragOverPhotoId, setDragOverPhotoId] = useState(null);
   const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
   const [confirmHardDeleteWorkspace, setConfirmHardDeleteWorkspace] = useState(null);
   const [showWorkspaceTrash, setShowWorkspaceTrash] = useState(false);
@@ -115,32 +119,28 @@ export default function WorkspacesTab({
     if (included.length === 0) return { entries: [], count: 0 };
 
     const groupByTower = (photoSortMode || 'tower_asc').startsWith('tower');
+    // Usa a mesma ordem/agrupamento ja aplicados no grid (filteredWorkspacePhotos
+    // vem ordenado pelo ReportsView) para garantir 1-para-1 com o DOCX.
+    const orderedIncluded = filteredWorkspacePhotos.filter((photo) => {
+      const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
+      return Boolean(draft.includeInReport);
+    });
     const entries = [];
     let photoIndex = 1;
 
     if (groupByTower) {
-      const grouped = [];
-      const lookup = {};
-      for (const photo of included) {
-        const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
-        const towerId = String(draft.towerId || photo.towerId || '').trim();
-        const groupKey = towerId ? `Torre ${towerId}` : 'Fotos sem agrupamento';
-        if (!lookup[groupKey]) {
-          lookup[groupKey] = [];
-          grouped.push({ label: groupKey, items: lookup[groupKey] });
-        }
-        lookup[groupKey].push({ photo, draft });
-      }
+      const grouped = groupPhotosByTower(orderedIncluded, workspacePhotoDrafts);
       for (const group of grouped) {
         entries.push({ type: 'header', label: group.label });
-        for (const { draft } of group.items) {
+        for (const photo of group.items) {
+          const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
           const caption = String(draft.caption || '').trim();
           entries.push({ type: 'photo', label: caption ? `Foto ${photoIndex} - ${caption}` : `Foto ${photoIndex}`, index: photoIndex });
           photoIndex++;
         }
       }
     } else {
-      for (const photo of included) {
+      for (const photo of orderedIncluded) {
         const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
         const caption = String(draft.caption || '').trim();
         entries.push({ type: 'photo', label: caption ? `Foto ${photoIndex} - ${caption}` : `Foto ${photoIndex}`, index: photoIndex });
@@ -148,8 +148,8 @@ export default function WorkspacesTab({
       }
     }
 
-    return { entries, count: included.length };
-  }, [visibleWorkspacePhotos, workspacePhotoDrafts, photoSortMode]);
+    return { entries, count: orderedIncluded.length };
+  }, [filteredWorkspacePhotos, visibleWorkspacePhotos, workspacePhotoDrafts, photoSortMode]);
 
   const totalPages = Math.max(1, Math.ceil(filteredWorkspacePhotos.length / PAGE_SIZE));
   const pagedPhotos = filteredWorkspacePhotos.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -170,6 +170,64 @@ export default function WorkspacesTab({
     setTimeout(() => {
       document.getElementById('curadoria-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
+  }
+
+  function handlePhotoDragStart(photoId) {
+    setDraggingPhotoId(photoId);
+  }
+
+  function handlePhotoDragOver(event, photoId) {
+    if (!draggingPhotoId) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    if (dragOverPhotoId !== photoId) setDragOverPhotoId(photoId);
+  }
+
+  function handlePhotoDragEnd() {
+    setDraggingPhotoId(null);
+    setDragOverPhotoId(null);
+  }
+
+  function handlePhotoDrop(event, targetPhotoId) {
+    event.preventDefault();
+    const sourceId = draggingPhotoId;
+    setDraggingPhotoId(null);
+    setDragOverPhotoId(null);
+    if (!sourceId || !handleManualPhotoReorder) return;
+    if (sourceId === targetPhotoId) return;
+
+    // Ordem atual (filtrada + ordenada no cliente).
+    const filteredIds = filteredWorkspacePhotos.map((p) => p.id);
+    if (!filteredIds.includes(sourceId)) return;
+
+    // Remove a origem e insere antes do alvo (ou no final se alvo null).
+    const withoutSource = filteredIds.filter((id) => id !== sourceId);
+    let targetIndex = withoutSource.length;
+    if (targetPhotoId) {
+      const idx = withoutSource.indexOf(targetPhotoId);
+      if (idx >= 0) targetIndex = idx;
+    }
+    const reorderedFiltered = [
+      ...withoutSource.slice(0, targetIndex),
+      sourceId,
+      ...withoutSource.slice(targetIndex),
+    ];
+
+    // Reconstroi a sequencia completa do workspace: fotos fora do filtro
+    // mantem posicao relativa; as fotos filtradas assumem a nova ordem.
+    const filteredSet = new Set(filteredIds);
+    const newFullOrder = [];
+    let cursor = 0;
+    for (const photo of visibleWorkspacePhotos) {
+      if (filteredSet.has(photo.id)) {
+        newFullOrder.push(reorderedFiltered[cursor]);
+        cursor += 1;
+      } else {
+        newFullOrder.push(photo.id);
+      }
+    }
+
+    handleManualPhotoReorder(newFullOrder);
   }
 
   return (
@@ -771,7 +829,7 @@ export default function WorkspacesTab({
                       <option value="tower_desc">Torre (Z-A)</option>
                       <option value="capture_date_asc">Data (antiga primeiro)</option>
                       <option value="capture_date_desc">Data (recente primeiro)</option>
-                      <option value="sort_order_asc">Ordem de importacao</option>
+                      <option value="sort_order_asc">Manual (arrastar)</option>
                       <option value="caption_asc">Legenda (A-Z)</option>
                     </select>
                   </div>
@@ -829,8 +887,9 @@ export default function WorkspacesTab({
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                    {pagedPhotos.map((photo) => {
+                  {(() => {
+                    const groupByTower = (photoSortMode || 'tower_asc').startsWith('tower');
+                    const renderPhotoCard = (photo) => {
                       const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
                       const dirty = isWorkspacePhotoDirty(photo, draft);
                       const currentStatus = getWorkspacePhotoStatus(photo, draft);
@@ -839,9 +898,21 @@ export default function WorkspacesTab({
                         : workspaceTowerOptions;
                       const previewUrl = photoPreviewUrls[photo.id];
                       const previewLoading = Boolean(photoPreviewLoading[photo.id]);
+                      const isDragging = draggingPhotoId === photo.id;
+                      const isDragTarget = dragOverPhotoId === photo.id && draggingPhotoId && draggingPhotoId !== photo.id;
 
                       return (
-                        <article key={photo.id} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                        <article
+                          key={photo.id}
+                          draggable
+                          onDragStart={() => handlePhotoDragStart(photo.id)}
+                          onDragOver={(event) => handlePhotoDragOver(event, photo.id)}
+                          onDrop={(event) => handlePhotoDrop(event, photo.id)}
+                          onDragEnd={handlePhotoDragEnd}
+                          className={`rounded-xl border bg-white shadow-sm overflow-hidden transition ${
+                            isDragging ? 'opacity-50' : ''
+                          } ${isDragTarget ? 'border-brand-500 ring-2 ring-brand-300' : 'border-slate-200'}`}
+                        >
                           {/* Thumbnail com acoes sobrepostas */}
                           <div className="relative bg-slate-100">
                             {previewUrl ? (
@@ -950,8 +1021,32 @@ export default function WorkspacesTab({
                           </div>
                         </article>
                       );
-                    })}
-                  </div>
+                    };
+
+                    if (groupByTower) {
+                      const groups = groupPhotosByTower(pagedPhotos, workspacePhotoDrafts);
+                      return (
+                        <div className="flex flex-col gap-4">
+                          {groups.map((group) => (
+                            <div key={group.label} className="flex flex-col gap-2">
+                              <div className="text-2xs font-bold uppercase tracking-wide text-slate-500">
+                                {group.label} ({group.items.length})
+                              </div>
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                                {group.items.map(renderPhotoCard)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                        {pagedPhotos.map(renderPhotoCard)}
+                      </div>
+                    );
+                  })()}
 
                   {/* Paginacao */}
                   {totalPages > 1 ? (
