@@ -1023,27 +1023,32 @@ export default function WorkspacesTab({
                       );
                     };
 
+                    // Um unico container grid estavel: os headers de torre
+                    // ocupam a linha inteira via col-span-full, e os articles
+                    // ficam como filhos diretos. Assim a reconciliacao por
+                    // photo.id preserva o DOM do card mesmo quando a torre da
+                    // foto muda e ela migra de grupo.
+                    const items = [];
                     if (groupByTower) {
                       const groups = groupPhotosByTower(pagedPhotos, workspacePhotoDrafts);
-                      return (
-                        <div className="flex flex-col gap-4">
-                          {groups.map((group) => (
-                            <div key={group.label} className="flex flex-col gap-2">
-                              <div className="text-2xs font-bold uppercase tracking-wide text-slate-500">
-                                {group.label} ({group.items.length})
-                              </div>
-                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                                {group.items.map(renderPhotoCard)}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
+                      for (const group of groups) {
+                        items.push(
+                          <div
+                            key={`h:${group.label}`}
+                            className="col-span-full text-2xs font-bold uppercase tracking-wide text-slate-500 pt-1"
+                          >
+                            {group.label} ({group.items.length})
+                          </div>,
+                        );
+                        for (const photo of group.items) items.push(renderPhotoCard(photo));
+                      }
+                    } else {
+                      for (const photo of pagedPhotos) items.push(renderPhotoCard(photo));
                     }
 
                     return (
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                        {pagedPhotos.map(renderPhotoCard)}
+                        {items}
                       </div>
                     );
                   })()}
