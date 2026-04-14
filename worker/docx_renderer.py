@@ -1,4 +1,5 @@
 import io
+import logging
 import os
 import re
 import zipfile
@@ -6,22 +7,30 @@ from datetime import datetime, timezone
 
 from copy import deepcopy
 
+logger = logging.getLogger(__name__)
+
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Cm, Inches
+from docx.shared import Cm, Pt
 
 
 MAX_IMAGE_WIDTH_CM = 15
 HEADING_NUM_ID = "12"
 SIGNATURE_LINE = "_________________________________________"
-MAX_IMAGE_WIDTH_INCHES = MAX_IMAGE_WIDTH_CM / 2.54
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "assets", "template_relatorio.docx")
 
 
 def normalize_text(value):
-    return str(value or "").strip()
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (int, float, bool)):
+        return str(value).strip()
+    # Dicts/lists/other — don't emit their repr into the DOCX.
+    return ""
 
 
 def ensure_dict(value):
@@ -59,7 +68,9 @@ def format_emission_date(value=None):
 
     try:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-        return parsed.strftime("%d/%m/%Y")
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc).strftime("%d/%m/%Y")
     except ValueError:
         parts = text.split("-")
         if len(parts) == 3:
@@ -72,49 +83,9 @@ def normalize_lt_name(value, fallback="Relatorio"):
     return text if text.upper().startswith("LT ") else f"LT {text}"
 
 
-def replace_paragraph_text(paragraph, text):
-    runs = list(paragraph.runs)
-    if not runs:
-        paragraph.text = text
-        return
-    runs[0].text = text
-    for run in runs[1:]:
-        run.text = ""
-
-
-def iter_header_paragraphs(document):
-    for section in document.sections:
-        for header in (section.header, section.first_page_header, section.even_page_header):
-            for paragraph in header.paragraphs:
-                yield paragraph
-            for table in header.tables:
-                for row in table.rows:
-                    for cell in row.cells:
-                        for paragraph in cell.paragraphs:
-                            yield paragraph
-
-
-def update_template_headers(document, title, document_code="", emission_date="", revision="00"):
-    normalized_title = normalize_lt_name(title)
-    normalized_code = normalize_text(document_code)
-    normalized_date = format_emission_date(emission_date)
-    normalized_revision = normalize_text(revision) or "00"
-
-    for paragraph in iter_header_paragraphs(document):
-        text = normalize_text(paragraph.text)
-        if not text:
-            continue
-        if text.startswith("LT "):
-            replace_paragraph_text(paragraph, normalized_title)
-            continue
-        if "N° do Documento:" in text:
-            replace_paragraph_text(paragraph, f"N° do Documento: {normalized_code}")
-            continue
-        if "Emissão Inicial:" in text:
-            replace_paragraph_text(paragraph, f"Emissão Inicial: {normalized_date}")
-            continue
-        if "Rev.:" in text:
-            replace_paragraph_text(paragraph, f"Rev.: {normalized_revision}")
+# NOTE: header metadata is injected by `rewrite_template_header_metadata`
+# after the document is saved, because python-docx cannot traverse headers
+# that are linked to the previous section (they return empty proxies).
 
 
 def clear_template_body(document):
@@ -125,6 +96,8 @@ def clear_template_body(document):
 
     # Save the content section properties (inline sectPr with footerReference)
     # and remove it from the original paragraph so it doesn't create an extra section break.
+    # Must scan ALL paragraphs — the first <w:p> with pPr isn't necessarily the one
+    # carrying the inline sectPr.
     for child in children:
         if child.tag != qn("w:p"):
             continue
@@ -132,10 +105,13 @@ def clear_template_body(document):
         if ppr is None:
             continue
         sectpr = ppr.find(qn("w:sectPr"))
-        if sectpr is not None and sectpr.find(qn("w:footerReference")) is not None:
-            content_sectpr = deepcopy(sectpr)
-            ppr.remove(sectpr)
-            break
+        if sectpr is None:
+            continue
+        if sectpr.find(qn("w:footerReference")) is None:
+            continue
+        content_sectpr = deepcopy(sectpr)
+        ppr.remove(sectpr)
+        break
 
     for index, child in enumerate(children):
         if child.tag not in {qn("w:p"), qn("w:tbl")}:
@@ -177,24 +153,76 @@ def insert_content_section_break(document, content_sectpr):
 
 
 def create_document_from_template(title, document_code="", emission_date="", revision="00"):
+    # title/document_code/emission_date/revision are accepted for API
+    # compatibility and consumed later by `rewrite_template_header_metadata`.
+    del title, document_code, emission_date, revision
     if os.path.exists(TEMPLATE_PATH):
         document = Document(TEMPLATE_PATH)
         content_sectpr = clear_template_body(document)
-        update_template_headers(document, title, document_code, emission_date, revision)
         return document, True, content_sectpr
 
     return Document(), False, None
 
 
-def replace_header_xml_value(xml, marker, placeholder, value):
+_WT_TEXT_RE = re.compile(r"<w:t(?P<attrs>(?:\s[^>]*)?)>(?P<text>[^<]*)</w:t>")
+
+
+def replace_header_xml_value_after_marker(xml, marker, value):
+    """Replace the value portion of a labelled field in header XML.
+
+    The institutional template stores each metadata field as a label run
+    ("N° do Documento:", "Emissão Inicial:", "Rev.:") followed by one or
+    more sibling runs inside the same `<w:p>` that carry the current value
+    (sometimes split across several `<w:t>` elements for date separators,
+    etc.).
+
+    We locate the label by literal substring, then:
+      1. Find every `<w:t>` that follows the label within the same paragraph.
+      2. Write `value` into the FIRST such `<w:t>` that isn't whitespace-only
+         (so we overwrite the first real value token rather than a space).
+      3. Blank out every subsequent `<w:t>` in the same paragraph, so stale
+         fragments from the template (e.g. "26/01/2026") don't leak through.
+    """
+    if not marker:
+        return xml
     marker_index = xml.find(marker)
     if marker_index < 0:
         return xml
-    pattern = f">{placeholder}</w:t>"
-    target_index = xml.find(pattern, marker_index)
-    if target_index < 0:
-        return xml
-    return xml[:target_index] + f">{value}</w:t>" + xml[target_index + len(pattern):]
+
+    # Find the `<w:t>` containing the marker to anchor our scan.
+    search_from = marker_index
+    for match in _WT_TEXT_RE.finditer(xml, marker_index):
+        if marker in match.group("text"):
+            search_from = match.end()
+            break
+
+    # Find the paragraph boundary so we never bleed into the next field.
+    para_end = xml.find("</w:p>", search_from)
+    if para_end < 0:
+        para_end = len(xml)
+
+    result_parts = [xml[:search_from]]
+    cursor = search_from
+    written = False
+    for match in _WT_TEXT_RE.finditer(xml, search_from, para_end):
+        result_parts.append(xml[cursor:match.start()])
+        attrs = match.group("attrs") or ""
+        current_text = match.group("text")
+        if not written and current_text.strip():
+            # First real value run: replace it with the new value.
+            if "xml:space" not in attrs:
+                attrs = f'{attrs} xml:space="preserve"'
+            result_parts.append(f"<w:t{attrs}>{value}</w:t>")
+            written = True
+        elif written:
+            # Blank out trailing value fragments from the template.
+            result_parts.append(f"<w:t{attrs}></w:t>")
+        else:
+            # Whitespace-only run preceding the value — keep it intact.
+            result_parts.append(match.group(0))
+        cursor = match.end()
+    result_parts.append(xml[cursor:])
+    return "".join(result_parts)
 
 
 def replace_header_lt_title(xml, title):
@@ -224,11 +252,22 @@ def replace_header_lt_title(xml, title):
 
 
 def rewrite_template_header_metadata(docx_path, title, document_code="", emission_date="", revision="00"):
+    """Inject runtime metadata into every header XML in the DOCX zip.
+
+    We rewrite the zip in-place because python-docx cannot traverse headers
+    that are linked to the previous section — `document.sections[i].header`
+    returns an empty proxy. Instead of the previous placeholder-based
+    approach (which hard-coded strings like `OOSEMB.RT.023.2026` and broke
+    silently on template updates), we locate each field by its label and
+    rewrite the value run(s) that follow it.
+    """
     if not os.path.exists(docx_path):
         return
 
+    normalized_title = normalize_lt_name(title)
+    normalized_code = normalize_text(document_code)
     normalized_date = format_emission_date(emission_date)
-    day, month, year = (normalized_date.split("/") + ["", "", ""])[:3]
+    normalized_revision = normalize_text(revision) or "00"
     temp_path = f"{docx_path}.tmp"
 
     with zipfile.ZipFile(docx_path, "r") as source_zip, zipfile.ZipFile(temp_path, "w", compression=zipfile.ZIP_DEFLATED) as target_zip:
@@ -236,60 +275,134 @@ def rewrite_template_header_metadata(docx_path, title, document_code="", emissio
             data = source_zip.read(info.filename)
             if info.filename.startswith("word/header") and info.filename.endswith(".xml"):
                 xml = data.decode("utf-8")
-                if "N° do Documento:" in xml and "Emissão Inicial:" in xml and "Rev.:" in xml:
-                    xml = replace_header_lt_title(xml, title)
-                    xml = replace_header_xml_value(xml, "N° do Documento:", "OOSEMB.RT.023.2026", normalize_text(document_code))
-                    xml = replace_header_xml_value(xml, "Emissão Inicial:", "26", day)
-                    xml = replace_header_xml_value(xml, "Emissão Inicial:", "01", month)
-                    xml = replace_header_xml_value(xml, "Emissão Inicial:", "2026", year)
-                    xml = replace_header_xml_value(xml, "Rev.:", "00", normalize_text(revision) or "00")
+                if "N\u00b0 do Documento:" in xml:
+                    xml = replace_header_lt_title(xml, normalized_title)
+                    xml = replace_header_xml_value_after_marker(
+                        xml, "N\u00b0 do Documento:", normalized_code
+                    )
+                    xml = replace_header_xml_value_after_marker(
+                        xml, "Emiss\u00e3o Inicial:", normalized_date
+                    )
+                    xml = replace_header_xml_value_after_marker(
+                        xml, "Rev.:", normalized_revision
+                    )
                     data = xml.encode("utf-8")
             target_zip.writestr(info, data)
 
     os.replace(temp_path, docx_path)
 
 
+TEMPLATE_HEADING_STYLE = "Ttulo1"
+FALLBACK_HEADING_STYLE = "Heading 1"
+BODY_STYLE_NAME = "NormalWeb"
+
+
+def _has_style(document, style_name):
+    styles = getattr(document, "styles", None)
+    if styles is None:
+        return False
+    try:
+        styles[style_name]
+        return True
+    except KeyError:
+        return False
+
+
+def _add_body_paragraph(document, text):
+    """Add a body paragraph using the template's NormalWeb style when available."""
+    style = BODY_STYLE_NAME if _has_style(document, BODY_STYLE_NAME) else None
+    if style:
+        return document.add_paragraph(text, style=style)
+    return document.add_paragraph(text)
+
+
+def _resolve_heading_style(document):
+    """Pick the template's custom heading style if available, else a built-in.
+
+    The institutional template ships a style named 'Ttulo1'. Documents
+    created via Document() (fallback path) only have the default 'Heading 1'
+    style, so attempting to use 'Ttulo1' raises KeyError.
+    """
+    if _has_style(document, TEMPLATE_HEADING_STYLE):
+        return TEMPLATE_HEADING_STYLE
+    return FALLBACK_HEADING_STYLE
+
+
 def add_heading_paragraph(document, text, ilvl=0):
-    p = document.add_paragraph(text, style='Ttulo1')
-    pPr = p._p.get_or_add_pPr()
-    numPr = OxmlElement('w:numPr')
-    ilvl_el = OxmlElement('w:ilvl')
-    ilvl_el.set(qn('w:val'), str(ilvl))
-    numId_el = OxmlElement('w:numId')
-    numId_el.set(qn('w:val'), HEADING_NUM_ID)
-    numPr.append(ilvl_el)
-    numPr.append(numId_el)
-    pPr.append(numPr)
+    style_name = _resolve_heading_style(document)
+    p = document.add_paragraph(text, style=style_name)
+    # The numPr numbering definition only exists in the template. Skip it
+    # for the fallback path so the build doesn't reference an unknown numId.
+    if style_name == TEMPLATE_HEADING_STYLE:
+        pPr = p._p.get_or_add_pPr()
+        numPr = OxmlElement('w:numPr')
+        ilvl_el = OxmlElement('w:ilvl')
+        ilvl_el.set(qn('w:val'), str(ilvl))
+        numId_el = OxmlElement('w:numId')
+        numId_el.set(qn('w:val'), HEADING_NUM_ID)
+        numPr.append(ilvl_el)
+        numPr.append(numId_el)
+        pPr.append(numPr)
     return p
 
 
+def _set_paragraph_runs_text(runs, new_text):
+    """Write new_text into the first <w:t> of the first run and clear the rest.
+
+    Defensive against runs without a <w:t> child (e.g. fldChar/br/drawing),
+    which would otherwise raise AttributeError.
+    """
+    first_t = None
+    for r in runs:
+        t = r.find(qn("w:t"))
+        if t is not None:
+            first_t = t
+            break
+    if first_t is None:
+        return False
+    first_t.text = new_text
+    # Clear every other w:t in the paragraph so stale fragments don't leak through.
+    cleared_first = False
+    for r in runs:
+        for t in r.findall(qn("w:t")):
+            if not cleared_first and t is first_t:
+                cleared_first = True
+                continue
+            t.text = ""
+    return True
+
+
 def update_cover_page_body(document, lt_name, titulo_programa):
+    """Replace cover textbox paragraphs via deterministic anchors.
+
+    The institutional template has three lines per cover textbox:
+      p0: "LT <...>"                                    -> lt_name
+      p1: "Programa de monitoramento..."                -> titulo_programa
+      p2: "Inspeção Técnica do Programa..."             -> left untouched
+
+    We match by explicit prefixes instead of loose substring heuristics to
+    avoid clobbering legitimate subtitles on customized templates.
+    """
     body = document._element.body
+    normalized_lt = normalize_lt_name(lt_name) if lt_name else None
     for txbx_content in body.iter(qn("w:txbxContent")):
         for p in txbx_content.findall(qn("w:p")):
             runs = p.findall(qn("w:r"))
+            if not runs:
+                continue
             text = "".join(
                 (t.text or "") for r in runs for t in r.findall(qn("w:t"))
             ).strip()
-            if lt_name and text.startswith("LT "):
-                normalized = normalize_lt_name(lt_name)
-                if runs:
-                    runs[0].find(qn("w:t")).text = normalized
-                    for r in runs[1:]:
-                        t = r.find(qn("w:t"))
-                        if t is not None:
-                            t.text = ""
-            elif titulo_programa and (
-                text.startswith("Programa")
-                or "monitoramento" in text.lower()
-                or text.startswith("Inspe")
-            ):
-                if runs:
-                    runs[0].find(qn("w:t")).text = titulo_programa
-                    for r in runs[1:]:
-                        t = r.find(qn("w:t"))
-                        if t is not None:
-                            t.text = ""
+            if not text:
+                continue
+            if normalized_lt and text.startswith("LT "):
+                _set_paragraph_runs_text(runs, normalized_lt)
+                continue
+            if titulo_programa and text.startswith("Programa") and not text.startswith("Programa de"):
+                # Custom program title already exists — don't overwrite.
+                continue
+            if titulo_programa and text.startswith("Programa de"):
+                _set_paragraph_runs_text(runs, titulo_programa)
 
 
 def add_cover(document, title, subtitle_lines):
@@ -334,6 +447,7 @@ def add_record_table(document, title, records, columns):
         table.rows[0].cells[index].text = column["label"]
 
     for record in rows:
+        record = ensure_dict(record)
         values = []
         for column in columns:
             value = column["getter"](record)
@@ -380,11 +494,13 @@ def add_photo_entry(document, photo, image_loader, photo_index):
                 raise ValueError("conteudo vazio")
             document.add_picture(io.BytesIO(buffer), width=Cm(MAX_IMAGE_WIDTH_CM))
             document.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        except Exception as exc:  # pragma: no cover - defensive fallback
-            document.add_paragraph(f"[Imagem indisponível: {exc}]")
+        except Exception:  # pragma: no cover - defensive fallback
+            logger.exception("falha ao carregar mídia %s", media_asset_id)
+            document.add_paragraph("[Imagem indisponível]")
 
     caption = normalize_text(photo.get("caption"))
-    paragraph = document.add_paragraph(style='Legenda')
+    caption_style = "Legenda" if _has_style(document, "Legenda") else None
+    paragraph = document.add_paragraph(style=caption_style) if caption_style else document.add_paragraph()
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     run_prefix = paragraph.add_run("Foto ")
@@ -423,7 +539,7 @@ def add_photos_section(document, photos, image_loader, section_title="ILUSTRAÇ�
     add_heading_paragraph(document, section_title, ilvl=0)
 
     if not rows:
-        document.add_paragraph("Nenhuma foto marcada para inclusao no relatorio.", style='NormalWeb')
+        _add_body_paragraph(document, "Nenhuma foto marcada para inclusao no relatorio.")
         return
 
     if group_by_tower:
@@ -500,7 +616,7 @@ def add_numbered_text_section(document, title, text):
     for paragraph_text in text.split("\n\n"):
         stripped = normalize_text(paragraph_text)
         if stripped:
-            document.add_paragraph(stripped, style='NormalWeb')
+            _add_body_paragraph(document, stripped)
 
 
 def format_registro(person):
@@ -519,26 +635,56 @@ def format_registro(person):
 
 
 def add_signature_block(document, elaboradores, revisores):
+    # Only start a new page if there is signature content AND there is
+    # already content on the current page; otherwise we risk emitting a
+    # blank page (e.g. when the previous section ended with its own break).
+    if safe_list(elaboradores) or safe_list(revisores):
+        has_preceding_content = any(
+            (p.text or "").strip() for p in document.paragraphs
+        )
+        if has_preceding_content:
+            document.add_page_break()
+
+    def _add_centered(text, bold=False, font_size=None):
+        p = document.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(text)
+        if bold:
+            run.bold = True
+        if font_size:
+            run.font.size = font_size
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(0)
+        return p
+
     def _render_group(label, people):
         if not people:
             return
-        document.add_paragraph(label)
+        label_p = document.add_paragraph()
+        label_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        label_run = label_p.add_run(label)
+        label_run.bold = True
+        label_p.paragraph_format.space_before = Pt(12)
+        label_p.paragraph_format.space_after = Pt(6)
         for person in people:
             nome = normalize_text(person.get("nome", "")) if isinstance(person, dict) else normalize_text(person)
             profissao = normalize_text(person.get("profissao", "")) if isinstance(person, dict) else ""
             registro = normalize_text(person.get("registro", "")) if isinstance(person, dict) else ""
-            document.add_paragraph("")
-            document.add_paragraph("")
-            document.add_paragraph(SIGNATURE_LINE)
-            document.add_paragraph(nome)
+            spacer = document.add_paragraph()
+            spacer.paragraph_format.space_before = Pt(24)
+            spacer.paragraph_format.space_after = Pt(0)
+            _add_centered(SIGNATURE_LINE)
+            _add_centered(nome, bold=True)
             if profissao:
-                document.add_paragraph(profissao)
+                _add_centered(profissao)
             if registro:
-                document.add_paragraph(registro)
+                _add_centered(registro)
 
     _render_group("Elaborado por:", safe_list(elaboradores))
     if elaboradores and revisores:
-        document.add_paragraph("")
+        spacer = document.add_paragraph()
+        spacer.paragraph_format.space_before = Pt(12)
+        spacer.paragraph_format.space_after = Pt(0)
     _render_group("Revisto por:", safe_list(revisores))
 
 
@@ -699,12 +845,12 @@ def render_report_compound_docx(context, output_path, image_loader):
                 for paragraph_text in text.split("\n\n"):
                     stripped = normalize_text(paragraph_text)
                     if stripped:
-                        document.add_paragraph(stripped, style='NormalWeb')
+                        _add_body_paragraph(document, stripped)
         elif legacy_caracterizacao:
             for paragraph_text in legacy_caracterizacao.split("\n\n"):
                 stripped = normalize_text(paragraph_text)
                 if stripped:
-                    document.add_paragraph(stripped, style='NormalWeb')
+                    _add_body_paragraph(document, stripped)
 
     descricao_text = normalize_text(shared.get("descricao_atividades"))
     if descricao_text:

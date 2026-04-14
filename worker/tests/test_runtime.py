@@ -1,6 +1,7 @@
 import base64
 import io
 import json
+import re
 import unittest
 import zipfile
 
@@ -15,6 +16,17 @@ SAMPLE_PNG_BYTES = base64.b64decode(
 def read_docx_entry(docx_bytes, entry_name):
     with zipfile.ZipFile(io.BytesIO(docx_bytes)) as docx_zip:
         return docx_zip.read(entry_name).decode("utf-8")
+
+
+def read_docx_plain_text(docx_bytes):
+    """Return concatenated text from every <w:t> element in word/document.xml.
+
+    Useful for assertions on content that spans multiple runs separated by
+    field codes or formatting boundaries (e.g. SEQ Foto fields).
+    """
+    xml = read_docx_entry(docx_bytes, "word/document.xml")
+    texts = re.findall(r"<w:t(?:\s[^>]*)?>([^<]*)</w:t>", xml)
+    return "".join(texts)
 
 
 def read_kmz_entry(kmz_bytes, entry_name):
@@ -241,11 +253,11 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertEqual(runtime.describe()["completedCount"], 1)
 
         uploaded_docx = client.uploaded_media[0][1]
-        document_xml = read_docx_entry(uploaded_docx, "word/document.xml")
+        document_text = read_docx_plain_text(uploaded_docx)
         header_xml = read_metadata_header(uploaded_docx)
 
-        self.assertIn("Foto 1", document_xml)
-        self.assertIn("Regi\u00e3o da Torre T-01", document_xml)
+        self.assertIn("Foto 1", document_text)
+        self.assertIn("Torre T-01", document_text)
         self.assertIn("LT Projeto 1", header_xml)
 
     def test_run_once_completes_report_compound_job(self):
@@ -264,11 +276,11 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertEqual(client.completed[0][1], "MED-JOB-2")
 
         uploaded_docx = client.uploaded_media[0][1]
-        document_xml = read_docx_entry(uploaded_docx, "word/document.xml")
-        self.assertIn("Introducao global", document_xml)
-        self.assertIn("ILUSTRA\u00c7\u00c3O FOTOGR\u00c1FICA", document_xml)
-        self.assertIn("Foto 1", document_xml)
-        self.assertIn("Foto 2", document_xml)
+        document_text = read_docx_plain_text(uploaded_docx)
+        self.assertIn("Introducao global", document_text)
+        self.assertIn("ILUSTRA\u00c7\u00c3O FOTOGR\u00c1FICA", document_text)
+        self.assertIn("Foto 1", document_text)
+        self.assertIn("Foto 2", document_text)
 
     def test_run_once_completes_workspace_kmz_job(self):
         job = {"id": "JOB-KMZ-1", "kind": "workspace_kmz"}
@@ -332,6 +344,189 @@ class WorkerRuntimeTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "completed")
         self.assertEqual(client.completed[0][0], "JOB-PHOTO-FAIL")
+
+    # ------------------------------------------------------------------
+    # Regression tests for docx_renderer findings (plan: precious-churning-lecun)
+    # ------------------------------------------------------------------
+
+    def _run_dossier(self, context, job_id="JOB-RENDER"):
+        job = {"id": job_id, "kind": "project_dossier"}
+        client = StubClient(configured=True, job=job, contexts={job_id: context})
+        runtime = WorkerRuntime(client=client)
+        result = runtime.run_once()
+        self.assertEqual(result["status"], "completed")
+        return client.uploaded_media[0][1]
+
+    def _run_compound(self, context, job_id="JOB-COMP"):
+        job = {"id": job_id, "kind": "report_compound"}
+        client = StubClient(configured=True, job=job, contexts={job_id: context})
+        runtime = WorkerRuntime(client=client)
+        result = runtime.run_once()
+        self.assertEqual(result["status"], "completed")
+        return client.uploaded_media[0][1]
+
+    def test_project_dossier_preserves_content_section_break(self):
+        """T1 — clear_template_body must hand back a content sectPr.
+
+        When the inline section break is preserved, the body ends up with
+        at least two <w:sectPr> elements (main content + quarta capa).
+        """
+        docx = self._run_dossier(build_dossier_context(), job_id="JOB-T1")
+        body_xml = read_docx_entry(docx, "word/document.xml")
+        sectpr_count = body_xml.count("<w:sectPr")
+        self.assertGreaterEqual(
+            sectpr_count,
+            2,
+            msg=f"expected >=2 sectPr (content + quarta capa), got {sectpr_count}",
+        )
+
+    def test_report_compound_cover_only_replaces_program_subtitle(self):
+        """T2 — titulo_programa only overwrites the 'Programa de ...' line.
+
+        The template cover has three textbox lines: LT, Programa subtitle,
+        and 'Inspeção Técnica ...'. The deterministic matcher must only
+        touch the middle line; the third line must remain intact.
+        """
+        context = build_compound_context()
+        context["renderModel"]["compound"]["sharedTextsJson"] = {
+            "introducao": "Introducao global",
+            "nome_lt": "Projeto Alfa",
+            "titulo_programa": "Programa Personalizado",
+        }
+        docx = self._run_compound(context, job_id="JOB-T2")
+        plain = read_docx_plain_text(docx)
+        self.assertIn("Programa Personalizado", plain)
+        # The inspection subtitle from the template must still be present.
+        self.assertIn("Inspe", plain)
+
+    def test_project_dossier_header_has_custom_document_code(self):
+        """T3 — document_code flows from context, hard-coded placeholder gone."""
+        context = build_dossier_context()
+        context["renderModel"]["dossier"]["codigo_documento"] = "TESTE.RT.999.2030"
+        context["renderModel"]["dossier"]["revisao"] = "07"
+        context["job"]["updatedAt"] = "2030-06-15T12:00:00Z"
+        docx = self._run_dossier(context, job_id="JOB-T3")
+        header_xml = read_metadata_header(docx)
+        self.assertIn("TESTE.RT.999.2030", header_xml)
+        self.assertNotIn("OOSEMB.RT.023.2026", header_xml)
+        self.assertIn("15/06/2030", header_xml)
+        # The revision cell is a separate run; check inside <w:t> to avoid
+        # matching the font size attribute "07".
+        self.assertTrue(
+            re.search(r"<w:t[^>]*>07</w:t>", header_xml),
+            msg="expected revision '07' inside a <w:t> element of the header",
+        )
+
+    def test_format_emission_date_normalizes_to_utc(self):
+        """T4 — format_emission_date must normalize timezones to UTC."""
+        from worker.docx_renderer import format_emission_date
+        self.assertEqual(
+            format_emission_date("2026-01-01T02:30:00+00:00"),
+            "01/01/2026",
+        )
+        # 23:30 in -05:00 == 04:30 UTC next day
+        self.assertEqual(
+            format_emission_date("2025-12-31T23:30:00-05:00"),
+            "01/01/2026",
+        )
+
+    def test_project_dossier_renders_without_template(self):
+        """T5 — fallback path must work when the template file is absent."""
+        import unittest.mock as mock
+        import worker.docx_renderer as renderer
+
+        real_exists = renderer.os.path.exists
+
+        def fake_exists(path):
+            if path == renderer.TEMPLATE_PATH:
+                return False
+            return real_exists(path)
+
+        with mock.patch.object(renderer.os.path, "exists", side_effect=fake_exists):
+            docx = self._run_dossier(build_dossier_context(), job_id="JOB-T5")
+        plain = read_docx_plain_text(docx)
+        self.assertIn("Resumo do Empreendimento", plain)
+        # Photos section still rendered even without the Legenda style.
+        self.assertIn("Foto 1", plain)
+
+    def test_project_dossier_header_with_non_lt_project_name(self):
+        """T6 — non-LT project names are prefixed and propagated."""
+        context = build_dossier_context()
+        context["project"]["nome"] = "SE Substacao Norte"
+        docx = self._run_dossier(context, job_id="JOB-T6")
+        header_xml = read_metadata_header(docx)
+        self.assertIn("LT SE Substacao Norte", header_xml)
+
+    def test_report_compound_signature_block_no_blank_page(self):
+        """T7 — the signature block adds at most one page break (no blank page).
+
+        The institutional template carries pre-existing page breaks inside
+        its quarta-capa textboxes, so we compare the delta between a run
+        WITH signatures and a run WITHOUT, instead of an absolute count.
+        """
+        def _page_break_count(context):
+            docx = self._run_compound(context, job_id="JOB-T7")
+            xml = read_docx_entry(docx, "word/document.xml")
+            return len(re.findall(r'<w:br[^>]*w:type="page"', xml))
+
+        baseline_ctx = build_compound_context()
+        baseline_ctx["renderModel"]["compound"]["sharedTextsJson"] = {
+            "introducao": "Introducao global",
+        }
+        baseline = _page_break_count(baseline_ctx)
+
+        signed_ctx = build_compound_context()
+        signed_ctx["renderModel"]["compound"]["sharedTextsJson"] = {
+            "introducao": "Introducao global",
+            "elaboradores": [{"nome": "Fulano"}],
+            "revisores": [],
+        }
+        with_signatures = _page_break_count(signed_ctx)
+
+        delta = with_signatures - baseline
+        self.assertLessEqual(
+            delta,
+            1,
+            msg=(
+                f"signature block added {delta} page breaks "
+                f"(baseline={baseline}, with_signatures={with_signatures})"
+            ),
+        )
+
+    def test_project_dossier_photo_numbering_sequential(self):
+        """T8 — multiple photos produce sequential 'Foto N' captions."""
+        context = build_dossier_context()
+        context["renderModel"]["sections"]["photos"] = [
+            {
+                "id": "RPH-A",
+                "caption": "A",
+                "towerId": "T-01",
+                "includeInReport": True,
+                "mediaAssetId": "MED-A",
+            },
+            {
+                "id": "RPH-B",
+                "caption": "B",
+                "towerId": "T-01",
+                "includeInReport": True,
+                "mediaAssetId": "MED-B",
+            },
+            {
+                "id": "RPH-C",
+                "caption": "C",
+                "towerId": "T-02",
+                "includeInReport": True,
+                "mediaAssetId": "MED-C",
+            },
+        ]
+        docx = self._run_dossier(context, job_id="JOB-T8")
+        plain = read_docx_plain_text(docx)
+        idx1 = plain.find("Foto 1")
+        idx2 = plain.find("Foto 2")
+        idx3 = plain.find("Foto 3")
+        self.assertGreaterEqual(idx1, 0, "Foto 1 missing")
+        self.assertGreater(idx2, idx1, "Foto 2 should follow Foto 1")
+        self.assertGreater(idx3, idx2, "Foto 3 should follow Foto 2")
 
 
 class WorkerClientTests(unittest.TestCase):
