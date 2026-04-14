@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, Card, EmptyState, HintText, Input, Select, Textarea } from '../../../components/ui';
 import IconButton from '../../../components/ui/IconButton';
@@ -70,6 +70,7 @@ export default function WorkspacesTab({
   setActivePreviewPhotoId,
   photoPreviewUrls,
   photoPreviewLoading,
+  ensurePhotoPreview,
   // Lixeira
   deletedPhotoIds,
   trashedPhotos,
@@ -153,6 +154,14 @@ export default function WorkspacesTab({
 
   const totalPages = Math.max(1, Math.ceil(filteredWorkspacePhotos.length / PAGE_SIZE));
   const pagedPhotos = filteredWorkspacePhotos.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // Dispara downloads apenas das fotos efetivamente visiveis na pagina atual.
+  useEffect(() => {
+    if (typeof ensurePhotoPreview !== 'function') return;
+    for (const photo of pagedPhotos) {
+      ensurePhotoPreview(photo);
+    }
+  }, [pagedPhotos, ensurePhotoPreview]);
 
   const activeImportMode = IMPORT_MODES[workspaceImportMode] || IMPORT_MODES.loose_photos;
 

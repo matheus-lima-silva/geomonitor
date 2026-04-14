@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { subscribeProjects } from '../../../services/projectService';
 import {
@@ -126,6 +126,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState({});
   const [photoPreviewLoading, setPhotoPreviewLoading] = useState({});
   const [photoPreviewFailed, setPhotoPreviewFailed] = useState({});
+  const photoPreviewInflight = useRef(new Set());
   const [towerFilter, setTowerFilter] = useState('');
   const [photoSortMode, setPhotoSortMode] = useState('tower_asc');
   const [busy, setBusy] = useState('');
@@ -244,6 +245,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     setActivePreviewPhotoId('');
     setPhotoPreviewLoading({});
     setPhotoPreviewFailed({});
+    photoPreviewInflight.current = new Set();
     setPhotoPreviewUrls((prev) => {
       if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
         Object.values(prev).forEach((url) => { if (url) URL.revokeObjectURL(url); });
@@ -382,49 +384,52 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     ? Math.min(100, Math.round((uploadProgress.completed / uploadProgress.total) * 100))
     : 0;
 
-  // ── Preview de fotos ───────────────────────────────────────────────────────
+  // ── Preview de fotos sob demanda ───────────────────────────────────────────
+  // O grid (WorkspacesTab) chama ensurePhotoPreview para cada card renderizado
+  // via pagedPhotos. Fotos fora da pagina atual nao sao baixadas ate o usuario
+  // navegar ate elas. Mantem a concorrencia do browser (~6/host) sem pool.
 
-  useEffect(() => {
-    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return undefined;
-    const pendingPreviews = visibleWorkspacePhotos.filter((photo) => {
-      const mediaAssetId = String(photo.mediaAssetId || '').trim();
-      return mediaAssetId && !photoPreviewUrls[photo.id] && !photoPreviewLoading[photo.id] && !photoPreviewFailed[photo.id];
-    });
-    if (pendingPreviews.length === 0) return undefined;
-    let cancelled = false;
-    (async () => {
-      for (const photo of pendingPreviews) {
-        if (cancelled) break;
-        const mediaAssetId = String(photo.mediaAssetId || '').trim();
-        if (!mediaAssetId) continue;
-        setPhotoPreviewLoading((prev) => ({ ...prev, [photo.id]: true }));
-        try {
-          const result = await downloadMediaAsset(mediaAssetId);
-          if (cancelled) break;
-          const blob = result?.blob;
-          const previewUrl = URL.createObjectURL(blob);
-          setPhotoPreviewUrls((prev) => {
-            const previousUrl = prev[photo.id];
-            if (previousUrl && previousUrl !== previewUrl && typeof URL.revokeObjectURL === 'function') {
-              URL.revokeObjectURL(previousUrl);
-            }
-            return { ...prev, [photo.id]: previewUrl };
-          });
-          setPhotoPreviewFailed((prev) => {
-            if (!prev[photo.id]) return prev;
-            const next = { ...prev };
-            delete next[photo.id];
-            return next;
-          });
-        } catch {
-          setPhotoPreviewFailed((prev) => ({ ...prev, [photo.id]: true }));
-        } finally {
-          if (!cancelled) setPhotoPreviewLoading((prev) => ({ ...prev, [photo.id]: false }));
+  const ensurePhotoPreview = useCallback(async (photo) => {
+    if (!photo) return;
+    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return;
+    const id = photo.id;
+    const mediaAssetId = String(photo.mediaAssetId || '').trim();
+    if (!id || !mediaAssetId) return;
+    if (photoPreviewUrls[id]) return;
+    if (photoPreviewFailed[id]) return;
+    if (photoPreviewInflight.current.has(id)) return;
+
+    photoPreviewInflight.current.add(id);
+    setPhotoPreviewLoading((prev) => (prev[id] ? prev : { ...prev, [id]: true }));
+    try {
+      const result = await downloadMediaAsset(mediaAssetId);
+      const blob = result?.blob;
+      const previewUrl = URL.createObjectURL(blob);
+      setPhotoPreviewUrls((prev) => {
+        const previousUrl = prev[id];
+        if (previousUrl && previousUrl !== previewUrl && typeof URL.revokeObjectURL === 'function') {
+          URL.revokeObjectURL(previousUrl);
         }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [photoPreviewFailed, visibleWorkspacePhotos]); // eslint-disable-line react-hooks/exhaustive-deps
+        return { ...prev, [id]: previewUrl };
+      });
+      setPhotoPreviewFailed((prev) => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    } catch {
+      setPhotoPreviewFailed((prev) => ({ ...prev, [id]: true }));
+    } finally {
+      photoPreviewInflight.current.delete(id);
+      setPhotoPreviewLoading((prev) => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  }, [photoPreviewUrls, photoPreviewFailed]);
 
   // ── Autosave ───────────────────────────────────────────────────────────────
 
@@ -1457,6 +1462,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             setActivePreviewPhotoId={setActivePreviewPhotoId}
             photoPreviewUrls={photoPreviewUrls}
             photoPreviewLoading={photoPreviewLoading}
+            ensurePhotoPreview={ensurePhotoPreview}
             deletedPhotoIds={deletedPhotoIds}
             trashedPhotos={trashedPhotos}
             selectedWorkspaceKmzRequest={selectedWorkspaceKmzRequest}
