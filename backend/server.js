@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const morgan = require('morgan');
 
 // In future steps, we will configure Firebase Admin properly
 const { initFirebase } = require('./utils/firebaseSetup');
@@ -39,11 +40,24 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 
+// Request logger — essencial pra diagnosticar uploads em lote em produção.
+// Formato 'tiny' para manter os logs do Fly leves.
+app.use(morgan(isProd ? 'tiny' : 'dev'));
+
+// Rotas que participam de importações em lote (775+ fotos num único clique).
+// Essas rotas recebem rajadas legítimas que estouram o rate limit padrão de 600/15min,
+// então ficam fora do limiter global. Elas continuam protegidas por auth + RBAC.
+const BULK_UPLOAD_SKIP_PATTERNS = [
+  /^\/api\/media(\/|$)/,
+  /^\/api\/report-workspaces\/[^/]+\/photos(\/|$)/,
+];
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 600, // Limite de requisições por IP
+  max: 600, // Limite de requisições por IP para rotas "normais"
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => BULK_UPLOAD_SKIP_PATTERNS.some((pattern) => pattern.test(req.originalUrl || req.url || '')),
 });
 
 // Aplicar rate limiter apenas em rotas da API

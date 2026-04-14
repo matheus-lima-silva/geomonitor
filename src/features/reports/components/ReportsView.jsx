@@ -26,6 +26,8 @@ import {
   updateReportCompound,
 } from '../../../services/reportCompoundService';
 import { completeMediaUpload, createMediaUpload, downloadMediaAsset, uploadMediaBinary } from '../../../services/mediaService';
+import { getAuthToken } from '../../../utils/serviceFactory';
+import { clearImportState, fingerprintFile, readImportState, writeImportState } from '../utils/workspaceImportState';
 import { getProjectTowerList } from '../../../utils/getProjectTowerList';
 import {
   createReportWorkspace,
@@ -613,7 +615,6 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
 
     try {
       setBusy('workspace-import');
-      setUploadProgress({ total: pendingFiles.length, completed: 0, currentFileName: String(pendingFiles[0]?.name || '') });
       const uploadedMediaIds = [];
       const warnings = [];
 
@@ -633,32 +634,146 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         if (summary.photosSkipped > 0) parts.push(`${summary.photosSkipped} duplicada(s) ignorada(s)`);
         showToast(parts.length > 0 ? `KMZ processado: ${parts.join(', ')}.` : 'KMZ processado (nenhuma foto encontrada).', 'success');
       } else {
+        // Dedupe: filtrar fotos ja enviadas em tentativas anteriores desse workspace.
+        const previousState = readImportState(workspace.id) || { completedFingerprints: [], failedFingerprints: [] };
+        const completedSet = new Set(previousState.completedFingerprints);
+        const fingerprintByFile = new Map();
+        const filesToProcess = [];
+        let skippedCount = 0;
+        for (const file of pendingFiles) {
+          const fp = fingerprintFile(file);
+          fingerprintByFile.set(file, fp);
+          if (fp && completedSet.has(fp)) {
+            skippedCount += 1;
+          } else {
+            filesToProcess.push(file);
+          }
+        }
+        if (skippedCount > 0) {
+          showToast(`${skippedCount} foto(s) ja foram enviadas anteriormente e serao ignoradas.`, 'info');
+        }
+
+        if (filesToProcess.length === 0) {
+          showToast('Nenhuma foto nova para importar.', 'info');
+          setBusy('');
+          setUploadProgress({ total: 0, completed: 0, currentFileName: '' });
+          return;
+        }
+
+        // Pool de uploads com concorrencia controlada + retry por foto + continue-on-error.
+        const CONCURRENCY = 3;
+        const MAX_RETRIES = 3;
+        const RETRY_BASE_MS = 800;
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
         let inferredTowerCount = 0;
         let pendingTowerCount = 0;
-        for (const [index, file] of pendingFiles.entries()) {
-          setUploadProgress({ total: pendingFiles.length, completed: index, currentFileName: String(file?.name || '') });
-          const inferredTowerId = workspaceImportMode === 'tower_subfolders' ? inferTowerIdFromRelativePath(file.webkitRelativePath || file.name) : '';
-          const uploaded = await uploadWorkspaceFile(file, workspace, index, workspaceImportMode, { inferredTowerId });
-          uploadedMediaIds.push(uploaded.mediaAssetId);
-          setUploadProgress({ total: pendingFiles.length, completed: index + 1, currentFileName: String(file?.name || '') });
-          if (inferredTowerId) inferredTowerCount += 1;
-          else if (workspaceImportMode === 'tower_subfolders') pendingTowerCount += 1;
+        let completedCount = 0;
+        const failedItems = [];
+        // Reset failedFingerprints do run anterior — vamos re-tentar todas as falhas junto das novas.
+        const completedFingerprints = Array.from(completedSet);
+        const failedFingerprints = [];
+        setUploadProgress({ total: filesToProcess.length, completed: 0, currentFileName: String(filesToProcess[0]?.name || '') });
+
+        async function uploadOneWithRetry(file, index) {
+          let lastErr;
+          for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
+            try {
+              const inferredTowerId = workspaceImportMode === 'tower_subfolders'
+                ? inferTowerIdFromRelativePath(file.webkitRelativePath || file.name)
+                : '';
+              const uploaded = await uploadWorkspaceFile(file, workspace, index, workspaceImportMode, { inferredTowerId });
+              return { ok: true, uploaded, inferredTowerId };
+            } catch (err) {
+              lastErr = err;
+              const status = Number(err?.status) || 0;
+              if (status === 401) {
+                try { await getAuthToken(true); } catch { /* ignorar — proxima tentativa vai falhar de novo */ }
+              } else if (status === 429 || status >= 500 || status === 0) {
+                await sleep(RETRY_BASE_MS * (2 ** attempt));
+              } else {
+                // 4xx nao-recuperaveis (400, 403, 404, etc.): desiste logo.
+                break;
+              }
+            }
+          }
+          return { ok: false, file, error: lastErr };
         }
+
+        const queue = filesToProcess.map((file, idx) => ({ file, idx }));
+        async function worker() {
+          while (queue.length > 0) {
+            const item = queue.shift();
+            if (!item) return;
+            const result = await uploadOneWithRetry(item.file, item.idx);
+            completedCount += 1;
+            setUploadProgress({
+              total: filesToProcess.length,
+              completed: completedCount,
+              currentFileName: String(item.file?.name || ''),
+            });
+
+            const fp = fingerprintByFile.get(item.file) || fingerprintFile(item.file);
+
+            if (result.ok) {
+              uploadedMediaIds.push(result.uploaded.mediaAssetId);
+              if (result.inferredTowerId) inferredTowerCount += 1;
+              else if (workspaceImportMode === 'tower_subfolders') pendingTowerCount += 1;
+
+              if (fp && !completedFingerprints.includes(fp)) {
+                completedFingerprints.push(fp);
+              }
+            } else {
+              failedItems.push(result);
+              if (fp && !failedFingerprints.includes(fp)) {
+                failedFingerprints.push(fp);
+              }
+            }
+
+            // Checkpoint por-foto: persiste imediatamente para sobreviver a crash/reload.
+            writeImportState(workspace.id, { completedFingerprints, failedFingerprints });
+          }
+        }
+
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, filesToProcess.length) }, () => worker()));
+
         if (workspaceImportMode === 'tower_subfolders' && pendingTowerCount > 0) {
           warnings.push(`${pendingTowerCount} foto(s) ficaram sem torre inferida pelas subpastas.`);
         }
+        if (failedItems.length > 0) {
+          warnings.push(`${failedItems.length} foto(s) falharam apos retries.`);
+        }
+
+        // Fecha a importacao mesmo com falhas parciais — summary reflete a realidade.
         await importReportWorkspace(workspace.id, {
           sourceType: workspaceImportMode,
           importSource: workspaceImportMode,
           warnings,
-          summaryJson: { filesReceived: pendingFiles.length, uploadedMediaIds, inferredTowerCount, pendingTowerCount },
+          summaryJson: {
+            filesReceived: filesToProcess.length,
+            filesSkipped: skippedCount,
+            uploadedMediaIds,
+            inferredTowerCount,
+            pendingTowerCount,
+            failedCount: failedItems.length,
+          },
         }, { updatedBy: userEmail || 'web' });
-        showToast(
-          workspaceImportMode === 'tower_subfolders'
-            ? `Importacao concluida para ${uploadedMediaIds.length} foto(s), com ${inferredTowerCount} torre(s) inferida(s).`
-            : `Upload concluido para ${uploadedMediaIds.length} foto(s).`,
-          'success',
-        );
+
+        if (failedItems.length === 0) {
+          // Sucesso total: limpa o registro persistido.
+          clearImportState(workspace.id);
+          showToast(
+            workspaceImportMode === 'tower_subfolders'
+              ? `Importacao concluida para ${uploadedMediaIds.length} foto(s), com ${inferredTowerCount} torre(s) inferida(s).`
+              : `Upload concluido para ${uploadedMediaIds.length} foto(s).`,
+            'success',
+          );
+        } else {
+          showToast(
+            `Importacao parcial: ${uploadedMediaIds.length} enviada(s), ${failedItems.length} falhou(falharam). Clique novamente pra retentar apenas as que falharam.`,
+            'error',
+          );
+        }
       }
 
       await refreshWorkspacePhotos(workspace.id);

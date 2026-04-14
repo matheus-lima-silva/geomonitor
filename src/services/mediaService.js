@@ -13,7 +13,9 @@ async function requestMedia(url, options = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData?.message || 'Erro ao operar midia.');
+    const error = new Error(errorData?.message || 'Erro ao operar midia.');
+    error.status = response.status;
+    throw error;
   }
 
   return response.json();
@@ -92,7 +94,9 @@ export async function uploadMediaBinary(uploadDescriptor, file) {
     const fallbackMessage = isLocal
       ? 'Erro ao enviar midia para o backend.'
       : 'Erro ao enviar midia para o storage assinado.';
-    throw new Error(fallbackMessage);
+    const error = new Error(fallbackMessage);
+    error.status = response.status;
+    throw error;
   }
 
   return response;

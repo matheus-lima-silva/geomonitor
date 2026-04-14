@@ -32,7 +32,9 @@ async function requestWorkspace(url, options = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData?.message || 'Erro ao operar workspace de relatorio.');
+    const error = new Error(errorData?.message || 'Erro ao operar workspace de relatorio.');
+    error.status = response.status;
+    throw error;
   }
 
   return response.json();
