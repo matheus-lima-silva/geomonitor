@@ -63,7 +63,7 @@ Write-Host "fly storage create -a $($apps.Api) -n $bucketName -o $Org -y"
 Write-Host '# Copie os secrets retornados pelo comando acima e replique no worker.'
 
 Write-Section 'Secrets de runtime'
-Write-Host "fly secrets set FIREBASE_SERVICE_ACCOUNT_JSON='<json>' DATA_BACKEND=postgres MEDIA_BACKEND=tigris REPORT_EXECUTION_BACKEND=python WORKER_API_TOKEN='<shared-worker-token>' -a $($apps.Api)"
+Write-Host "fly secrets set MEDIA_BACKEND=tigris REPORT_EXECUTION_BACKEND=python WORKER_API_TOKEN='<shared-worker-token>' -a $($apps.Api)"
 Write-Host "fly secrets set AWS_ACCESS_KEY_ID='<value>' AWS_SECRET_ACCESS_KEY='<value>' AWS_REGION='<value>' AWS_ENDPOINT_URL_S3='<value>' BUCKET_NAME='$bucketName' WORKER_API_TOKEN='<shared-worker-token>' -a $($apps.Worker)"
 
 Write-Section 'Deploy inicial'

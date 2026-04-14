@@ -1,9 +1,6 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
-    getFirestoreDoc,
-    saveFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -13,10 +10,6 @@ function hydrateWorkspaceKmzRow(row) {
 
 async function getByToken(token) {
     const normalizedToken = normalizeText(token);
-    if (!isPostgresBackend()) {
-        return getFirestoreDoc('workspaceKmzRequests', normalizedToken);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT token AS id, workspace_id, status_execucao, expires_at, payload,
@@ -51,10 +44,6 @@ async function save(token, payload, options = {}) {
         token: normalizedToken,
         workspaceId: normalizeText(payload?.workspaceId || current?.workspaceId),
     };
-
-    if (!isPostgresBackend()) {
-        return saveFirestoreDoc('workspaceKmzRequests', normalizedToken, nextPayload, options);
-    }
 
     await postgresStore.query(
         `

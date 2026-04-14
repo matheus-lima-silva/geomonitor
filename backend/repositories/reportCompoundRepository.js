@@ -1,10 +1,6 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
-    getFirestoreDoc,
-    listFirestoreDocs,
-    saveFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -13,10 +9,6 @@ function hydrateCompoundRow(row) {
 }
 
 async function list() {
-    if (!isPostgresBackend()) {
-        return listFirestoreDocs('reportCompounds');
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, nome, status, workspace_ids, order_json, shared_texts_json,
@@ -43,10 +35,6 @@ async function list() {
 
 async function getById(id) {
     const normalizedId = normalizeText(id);
-    if (!isPostgresBackend()) {
-        return getFirestoreDoc('reportCompounds', normalizedId);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, nome, status, workspace_ids, order_json, shared_texts_json,
@@ -83,10 +71,6 @@ async function save(payload, options = {}) {
         ...(payload || {}),
         id: normalizedId,
     };
-
-    if (!isPostgresBackend()) {
-        return saveFirestoreDoc('reportCompounds', normalizedId, nextPayload, options);
-    }
 
     await postgresStore.query(
         `

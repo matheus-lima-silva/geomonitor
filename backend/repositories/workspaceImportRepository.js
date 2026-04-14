@@ -1,10 +1,6 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
-    getFirestoreDoc,
-    listFirestoreDocs,
-    saveFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -14,11 +10,6 @@ function hydrateWorkspaceImportRow(row) {
 
 async function listByWorkspace(workspaceId) {
     const normalizedWorkspaceId = normalizeText(workspaceId);
-    if (!isPostgresBackend()) {
-        const rows = await listFirestoreDocs('workspaceImports');
-        return rows.filter((row) => normalizeText(row.workspaceId) === normalizedWorkspaceId);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, workspace_id, source_type, status, warnings, summary_json,
@@ -45,10 +36,6 @@ async function listByWorkspace(workspaceId) {
 
 async function getById(id) {
     const normalizedId = normalizeText(id);
-    if (!isPostgresBackend()) {
-        return getFirestoreDoc('workspaceImports', normalizedId);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, workspace_id, source_type, status, warnings, summary_json,
@@ -84,10 +71,6 @@ async function save(payload, options = {}) {
         id: normalizedId,
         workspaceId: normalizeText(payload?.workspaceId || current?.workspaceId),
     };
-
-    if (!isPostgresBackend()) {
-        return saveFirestoreDoc('workspaceImports', normalizedId, nextPayload, options);
-    }
 
     await postgresStore.query(
         `

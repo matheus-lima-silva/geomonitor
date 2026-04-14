@@ -1,10 +1,6 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
-    getFirestoreDoc,
-    listFirestoreDocs,
-    saveFirestoreDoc,
     buildMetadata,
 } = require('./common');
 const projectDossierRepository = require('./projectDossierRepository');
@@ -99,10 +95,6 @@ async function syncParentJobStatus(job, overrides = {}) {
 
 async function getById(id) {
     const normalizedId = normalizeText(id);
-    if (!isPostgresBackend()) {
-        return getFirestoreDoc('reportJobs', normalizedId);
-    }
-
     const result = await postgresStore.query(
         `${JOB_SELECT} WHERE id = $1 LIMIT 1`,
         [normalizedId],
@@ -112,20 +104,11 @@ async function getById(id) {
 }
 
 async function list() {
-    if (!isPostgresBackend()) {
-        return listFirestoreDocs('reportJobs');
-    }
-
     const result = await postgresStore.query(`${JOB_SELECT} ORDER BY created_at DESC, id ASC`);
     return result.rows.map((row) => hydrateRow(row));
 }
 
 async function listQueued() {
-    if (!isPostgresBackend()) {
-        const all = await listFirestoreDocs('reportJobs');
-        return all.filter((item) => normalizeText(item.statusExecucao) === 'queued');
-    }
-
     const result = await postgresStore.query(
         `${JOB_SELECT} WHERE status_execucao = 'queued' ORDER BY created_at ASC`,
     );
@@ -134,20 +117,6 @@ async function listQueued() {
 
 async function claimNext(meta = {}) {
     const updatedBy = normalizeText(meta.updatedBy) || 'API';
-    if (!isPostgresBackend()) {
-        const queued = await listQueued();
-        if (queued.length === 0) return null;
-        const job = queued[0];
-        const saved = await saveFirestoreDoc('reportJobs', job.id, {
-            ...job,
-            statusExecucao: 'processing',
-            updatedAt: new Date().toISOString(),
-            updatedBy,
-        }, { merge: true });
-        await syncParentJobStatus(saved, { status: 'processing', updatedBy, lastError: '' });
-        return saved;
-    }
-
     const result = await postgresStore.query(
         `
             UPDATE report_jobs
@@ -230,10 +199,6 @@ async function save(payload, options = {}) {
         ...(payload || {}),
         id: normalizedId,
     };
-
-    if (!isPostgresBackend()) {
-        return saveFirestoreDoc('reportJobs', normalizedId, nextPayload, options);
-    }
 
     await postgresStore.query(
         `

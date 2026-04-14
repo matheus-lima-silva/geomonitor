@@ -1,12 +1,7 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
     normalizeKey,
-    getFirestoreDoc,
-    listFirestoreDocs,
-    saveFirestoreDoc,
-    deleteFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -15,10 +10,6 @@ function hydrateWorkspaceRow(row) {
 }
 
 async function list() {
-    if (!isPostgresBackend()) {
-        return listFirestoreDocs('reportWorkspaces');
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, project_id, status, draft_state, payload, created_at, updated_at, updated_by
@@ -40,10 +31,6 @@ async function list() {
 
 async function getById(id) {
     const normalizedId = normalizeText(id);
-
-    if (!isPostgresBackend()) {
-        return getFirestoreDoc('reportWorkspaces', normalizedId);
-    }
 
     const result = await postgresStore.query(
         `
@@ -70,11 +57,6 @@ async function getById(id) {
 
 async function listByProject(projectId) {
     const normalizedProjectId = normalizeKey(projectId);
-    if (!isPostgresBackend()) {
-        const rows = await list();
-        return rows.filter((row) => normalizeKey(row.projectId) === normalizedProjectId);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, project_id, status, draft_state, payload, created_at, updated_at, updated_by
@@ -105,10 +87,6 @@ async function save(payload, options = {}) {
         id: normalizedId,
         projectId: normalizeKey(payload?.projectId || current?.projectId),
     };
-
-    if (!isPostgresBackend()) {
-        return saveFirestoreDoc('reportWorkspaces', normalizedId, nextPayload, options);
-    }
 
     await postgresStore.query(
         `
@@ -147,20 +125,11 @@ async function save(payload, options = {}) {
 
 async function remove(id) {
     const normalizedId = normalizeText(id);
-    if (!isPostgresBackend()) {
-        return deleteFirestoreDoc('reportWorkspaces', normalizedId);
-    }
-
     await postgresStore.query('DELETE FROM report_workspaces WHERE id = $1', [normalizedId]);
 }
 
 async function countByProject(projectId) {
     const normalizedProjectId = normalizeKey(projectId);
-    if (!isPostgresBackend()) {
-        const rows = await list();
-        return rows.filter((row) => normalizeKey(row.projectId) === normalizedProjectId).length;
-    }
-
     const result = await postgresStore.query(
         'SELECT COUNT(*)::int AS count FROM report_workspaces WHERE project_id = $1',
         [normalizedProjectId],

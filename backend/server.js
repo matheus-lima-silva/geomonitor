@@ -5,12 +5,6 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
-// In future steps, we will configure Firebase Admin properly
-const { initFirebase } = require('./utils/firebaseSetup');
-
-// Initialize Firebase Admin on startup
-initFirebase();
-
 const app = express();
 const PORT = process.env.PORT || 8080;
 

@@ -1,11 +1,7 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
     normalizeKey,
-    getFirestoreDoc,
-    listFirestoreDocs,
-    saveFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -15,11 +11,6 @@ function hydrateDossierRow(row) {
 
 async function listByProjectId(projectId) {
     const normalizedProjectId = normalizeKey(projectId);
-    if (!isPostgresBackend()) {
-        const rows = await listFirestoreDocs('projectDossiers');
-        return rows.filter((row) => normalizeKey(row.projectId) === normalizedProjectId);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, project_id, status, scope_json, draft_state, payload, created_at, updated_at, updated_by
@@ -44,10 +35,6 @@ async function listByProjectId(projectId) {
 
 async function getById(id) {
     const normalizedId = normalizeText(id);
-    if (!isPostgresBackend()) {
-        return getFirestoreDoc('projectDossiers', normalizedId);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, project_id, status, scope_json, draft_state, payload, created_at, updated_at, updated_by
@@ -87,10 +74,6 @@ async function save(payload, options = {}) {
         id: normalizedId,
         projectId: normalizeKey(payload?.projectId || current?.projectId),
     };
-
-    if (!isPostgresBackend()) {
-        return saveFirestoreDoc('projectDossiers', normalizedId, nextPayload, options);
-    }
 
     await postgresStore.query(
         `

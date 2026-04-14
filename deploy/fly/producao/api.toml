@@ -14,7 +14,6 @@ primary_region = "gru"
   TRUST_PROXY = "1"
   API_BASE_URL = "https://geomonitor-api.fly.dev/api"
   FRONTEND_URL = "https://geomonitor-web.fly.dev"
-  DATA_BACKEND = "postgres"
   MEDIA_BACKEND = "tigris"
   REPORT_EXECUTION_BACKEND = "python"
 

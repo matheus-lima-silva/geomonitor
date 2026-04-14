@@ -1,12 +1,7 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
     normalizeKey,
-    getFirestoreDoc,
-    listFirestoreDocs,
-    saveFirestoreDoc,
-    deleteFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -18,7 +13,6 @@ function assertSafeIdentifier(identifier, kind) {
 }
 
 function createDocumentTableRepository(config = {}) {
-    const firestoreCollection = assertSafeIdentifier(config.firestoreCollection, 'collection');
     const tableName = assertSafeIdentifier(config.tableName, 'table');
     const projectIdFields = Array.isArray(config.projectIdFields) && config.projectIdFields.length > 0
         ? config.projectIdFields
@@ -29,10 +23,6 @@ function createDocumentTableRepository(config = {}) {
     }
 
     async function list() {
-        if (!isPostgresBackend()) {
-            return listFirestoreDocs(firestoreCollection);
-        }
-
         const result = await postgresStore.query(
             `
                 SELECT id, payload, created_at, updated_at, updated_by
@@ -46,10 +36,6 @@ function createDocumentTableRepository(config = {}) {
 
     async function getById(id) {
         const normalizedId = normalizeText(id);
-        if (!isPostgresBackend()) {
-            return getFirestoreDoc(firestoreCollection, normalizedId);
-        }
-
         const result = await postgresStore.query(
             `
                 SELECT id, payload, created_at, updated_at, updated_by
@@ -66,13 +52,6 @@ function createDocumentTableRepository(config = {}) {
 
     async function listByProject(projectId) {
         const normalizedProjectId = normalizeKey(projectId);
-
-        if (!isPostgresBackend()) {
-            const rows = await list();
-            return rows.filter((row) => (
-                projectIdFields.some((fieldName) => normalizeKey(row?.[fieldName]) === normalizedProjectId)
-            ));
-        }
 
         const coalesceFields = projectIdFields
             .map((fieldName) => `payload->>'${fieldName}'`)
@@ -100,10 +79,6 @@ function createDocumentTableRepository(config = {}) {
             id: normalizedId,
         };
 
-        if (!isPostgresBackend()) {
-            return saveFirestoreDoc(firestoreCollection, normalizedId, nextPayload, options);
-        }
-
         await postgresStore.query(
             `
                 INSERT INTO ${tableName} (
@@ -128,22 +103,11 @@ function createDocumentTableRepository(config = {}) {
 
     async function remove(id) {
         const normalizedId = normalizeText(id);
-        if (!isPostgresBackend()) {
-            return deleteFirestoreDoc(firestoreCollection, normalizedId);
-        }
-
         await postgresStore.query(`DELETE FROM ${tableName} WHERE id = $1`, [normalizedId]);
     }
 
     async function countByProject(projectId) {
         const normalizedProjectId = normalizeKey(projectId);
-
-        if (!isPostgresBackend()) {
-            const rows = await list();
-            return rows.filter((row) => (
-                projectIdFields.some((fieldName) => normalizeKey(row?.[fieldName]) === normalizedProjectId)
-            )).length;
-        }
 
         const coalesceFields = projectIdFields
             .map((fieldName) => `payload->>'${fieldName}'`)

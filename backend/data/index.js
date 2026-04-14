@@ -1,21 +1,11 @@
-const firestoreStore = require('./firestoreStore');
+const postgresStore = require('./postgresStore');
 
 function getConfiguredDataBackend() {
-    return String(process.env.DATA_BACKEND || 'firestore').trim().toLowerCase();
+    return 'postgres';
 }
 
 function getDataStore() {
-    const backend = getConfiguredDataBackend();
-
-    if (backend === 'firestore') {
-        return firestoreStore;
-    }
-
-    if (backend === 'postgres') {
-        return require('./postgresStore');
-    }
-
-    throw new Error(`DATA_BACKEND nao suportado nesta fase: ${backend}`);
+    return postgresStore;
 }
 
 module.exports = {

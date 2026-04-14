@@ -1,18 +1,11 @@
 const {
     postgresStore,
-    isPostgresBackend,
     buildMetadata,
 } = require('./common');
 
 const SINGLETON_ID = 'default';
 
 async function get() {
-    if (!isPostgresBackend()) {
-        const { getDocRef } = require('../utils/firebaseSetup');
-        const doc = await getDocRef('config', 'rules').get();
-        return doc.exists ? doc.data() : null;
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, payload, created_at, updated_at, updated_by
@@ -34,12 +27,6 @@ async function save(payload, options = {}) {
         ...(current && typeof current === 'object' ? current : {}),
         ...(payload && typeof payload === 'object' ? payload : {}),
     };
-
-    if (!isPostgresBackend()) {
-        const { getDocRef } = require('../utils/firebaseSetup');
-        await getDocRef('config', 'rules').set(nextPayload, { merge: true });
-        return nextPayload;
-    }
 
     await postgresStore.query(
         `

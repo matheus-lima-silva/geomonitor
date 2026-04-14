@@ -1,9 +1,6 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeKey,
-    getFirestoreDoc,
-    saveFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -13,10 +10,6 @@ function hydrateReportDefaultsRow(row) {
 
 async function getByProjectId(projectId) {
     const normalizedProjectId = normalizeKey(projectId);
-
-    if (!isPostgresBackend()) {
-        return getFirestoreDoc('projectReportDefaults', normalizedProjectId);
-    }
 
     const result = await postgresStore.query(
         `
@@ -48,13 +41,6 @@ async function getByProjectId(projectId) {
 
 async function save(projectId, payload, options = {}) {
     const normalizedProjectId = normalizeKey(projectId);
-
-    if (!isPostgresBackend()) {
-        return saveFirestoreDoc('projectReportDefaults', normalizedProjectId, {
-            ...payload,
-            projectId: normalizedProjectId,
-        }, options);
-    }
 
     const current = options.merge ? await getByProjectId(normalizedProjectId) : null;
     const nextPayload = {

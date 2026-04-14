@@ -1,4 +1,3 @@
-import { deleteField } from 'firebase/firestore';
 import { normalizeErosionStatus } from '../features/shared/statusUtils';
 import { buildCriticalityInputFromErosion } from '../features/shared/viewUtils';
 import { extractApiErrorMessage, isNetworkFailureError, normalizeRequestError } from '../utils/apiClient';
@@ -31,8 +30,6 @@ import {
   buildManualFollowupEvent,
   buildSituacaoFromStatus as _buildSituacaoFromStatus,
   buildCriticalityHistory as _buildCriticalityHistory,
-  EROSION_REMOVED_FIELDS_COMMON,
-  LEGACY_CLEANUP_EXTRA_FIELDS,
 } from '../../shared/erosionHelpers';
 
 // Re-export shared functions for consumers that import from this file
@@ -42,8 +39,6 @@ export {
   buildCriticalityTrend,
   normalizeCriticalityHistory,
 };
-
-export const EROSION_REMOVED_FIELDS = EROSION_REMOVED_FIELDS_COMMON;
 
 // ── Wrappers that inject normalizeErosionStatus dependency ──────
 
@@ -120,18 +115,6 @@ export async function postCalculoErosao(payload = {}, options = {}) {
       'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
     );
   }
-}
-
-function buildLegacyFieldCleanupPatch() {
-  const removedFields = [
-    ...EROSION_REMOVED_FIELDS,
-    ...LEGACY_CLEANUP_EXTRA_FIELDS,
-  ];
-
-  return removedFields.reduce((acc, field) => {
-    acc[field] = deleteField();
-    return acc;
-  }, {});
 }
 
 export async function saveErosion(payload, meta = {}) {

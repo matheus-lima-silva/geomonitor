@@ -1,12 +1,7 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
     normalizeKey,
-    getFirestoreDoc,
-    listFirestoreDocs,
-    saveFirestoreDoc,
-    deleteFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -59,10 +54,6 @@ function hydrateRow(row) {
 }
 
 async function list() {
-    if (!isPostgresBackend()) {
-        return listFirestoreDocs('erosions');
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, project_id, status, criticality_code, criticality_score,
@@ -77,10 +68,6 @@ async function list() {
 
 async function getById(id) {
     const normalizedId = normalizeText(id);
-    if (!isPostgresBackend()) {
-        return getFirestoreDoc('erosions', normalizedId);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, project_id, status, criticality_code, criticality_score,
@@ -98,11 +85,6 @@ async function getById(id) {
 
 async function listByProject(projectId) {
     const normalizedProjectId = normalizeKey(projectId);
-    if (!isPostgresBackend()) {
-        const rows = await list();
-        return rows.filter((row) => buildProjectId(row) === normalizedProjectId);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, project_id, status, criticality_code, criticality_score,
@@ -125,10 +107,6 @@ async function save(payload, options = {}) {
         ...(payload || {}),
         id: normalizedId,
     };
-
-    if (!isPostgresBackend()) {
-        return saveFirestoreDoc('erosions', normalizedId, nextPayload, options);
-    }
 
     const criticality = normalizeCriticality(nextPayload);
     const inspectionIds = normalizeInspectionIds(nextPayload);
@@ -172,20 +150,11 @@ async function save(payload, options = {}) {
 
 async function remove(id) {
     const normalizedId = normalizeText(id);
-    if (!isPostgresBackend()) {
-        return deleteFirestoreDoc('erosions', normalizedId);
-    }
-
     await postgresStore.query('DELETE FROM erosions WHERE id = $1', [normalizedId]);
 }
 
 async function countByProject(projectId) {
     const normalizedProjectId = normalizeKey(projectId);
-    if (!isPostgresBackend()) {
-        const rows = await list();
-        return rows.filter((row) => buildProjectId(row) === normalizedProjectId).length;
-    }
-
     const result = await postgresStore.query(
         'SELECT COUNT(*)::int AS count FROM erosions WHERE project_id = $1',
         [normalizedProjectId],

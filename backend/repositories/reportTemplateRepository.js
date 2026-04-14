@@ -1,11 +1,6 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
-    getFirestoreDoc,
-    listFirestoreDocs,
-    saveFirestoreDoc,
-    deleteFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -25,10 +20,6 @@ function hydrateRow(row) {
 }
 
 async function list() {
-    if (!isPostgresBackend()) {
-        return listFirestoreDocs('reportTemplates');
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, version_label, source_kind, storage_key, sha256,
@@ -43,10 +34,6 @@ async function list() {
 
 async function getById(id) {
     const normalizedId = normalizeText(id);
-    if (!isPostgresBackend()) {
-        return getFirestoreDoc('reportTemplates', normalizedId);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, version_label, source_kind, storage_key, sha256,
@@ -69,10 +56,6 @@ async function save(payload, options = {}) {
         ...(payload || {}),
         id: normalizedId,
     };
-
-    if (!isPostgresBackend()) {
-        return saveFirestoreDoc('reportTemplates', normalizedId, nextPayload, options);
-    }
 
     await postgresStore.query(
         `
@@ -111,10 +94,6 @@ async function save(payload, options = {}) {
 
 async function remove(id) {
     const normalizedId = normalizeText(id);
-    if (!isPostgresBackend()) {
-        return deleteFirestoreDoc('reportTemplates', normalizedId);
-    }
-
     await postgresStore.query('DELETE FROM report_templates WHERE id = $1', [normalizedId]);
 }
 
@@ -122,17 +101,6 @@ async function activate(id) {
     const normalizedId = normalizeText(id);
     const template = await getById(normalizedId);
     if (!template) return null;
-
-    if (!isPostgresBackend()) {
-        const all = await listFirestoreDocs('reportTemplates');
-        const sameKind = all.filter(
-            (item) => normalizeText(item.sourceKind) === normalizeText(template.sourceKind) && item.id !== normalizedId,
-        );
-        for (const item of sameKind) {
-            await saveFirestoreDoc('reportTemplates', item.id, { ...item, isActive: false }, { merge: true });
-        }
-        return saveFirestoreDoc('reportTemplates', normalizedId, { ...template, isActive: true }, { merge: true });
-    }
 
     await postgresStore.query(
         `UPDATE report_templates SET is_active = FALSE, updated_at = NOW() WHERE source_kind = $1 AND id != $2`,

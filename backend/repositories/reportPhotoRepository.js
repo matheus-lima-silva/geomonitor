@@ -1,11 +1,7 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
     normalizeKey,
-    getFirestoreDoc,
-    listFirestoreDocs,
-    saveFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -40,11 +36,6 @@ function getPhotoFilterDate(photo = {}) {
 
 async function listByWorkspace(workspaceId) {
     const normalizedWorkspaceId = normalizeText(workspaceId);
-    if (!isPostgresBackend()) {
-        const rows = await listFirestoreDocs('reportPhotos');
-        return rows.filter((row) => normalizeText(row.workspaceId) === normalizedWorkspaceId && !row.deletedAt);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, workspace_id, project_id, media_asset_id, tower_id, tower_source,
@@ -87,10 +78,6 @@ async function listByWorkspace(workspaceId) {
 
 async function getById(id) {
     const normalizedId = normalizeText(id);
-    if (!isPostgresBackend()) {
-        return getFirestoreDoc('reportPhotos', normalizedId);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, workspace_id, project_id, media_asset_id, tower_id, tower_source,
@@ -142,36 +129,6 @@ async function listByProject(projectId, filters = {}) {
     const dateFrom = parseDateBoundary(filters.dateFrom, 'start');
     const dateTo = parseDateBoundary(filters.dateTo, 'end');
     const ids = String(filters.ids || '').split(',').map((value) => normalizeText(value)).filter(Boolean);
-
-    if (!isPostgresBackend()) {
-        const rows = await listFirestoreDocs('reportPhotos');
-        return rows
-            .filter((row) => !row.deletedAt)
-            .filter((row) => normalizeKey(row.projectId) === normalizedProjectId)
-            .filter((row) => !workspaceId || normalizeText(row.workspaceId) === workspaceId)
-            .filter((row) => !towerId || normalizeText(row.towerId) === towerId)
-            .filter((row) => !importSource || normalizeText(row.importSource).toLowerCase() === importSource.toLowerCase())
-            .filter((row) => {
-                const includedOnly = normalizeBooleanQuery(filters.includedOnly);
-                return includedOnly === null ? true : Boolean(row.includeInReport) === includedOnly;
-            })
-            .filter((row) => {
-                const captionMissing = normalizeBooleanQuery(filters.captionMissing);
-                return captionMissing === null ? true : (captionMissing ? !normalizeText(row.caption) : Boolean(normalizeText(row.caption)));
-            })
-            .filter((row) => !captionQuery || normalizeText(row.caption).toLowerCase().includes(captionQuery))
-            .filter((row) => {
-                if (!dateFrom && !dateTo) return true;
-                const photoDate = getPhotoFilterDate(row);
-                if (!photoDate) return false;
-                if (dateFrom && photoDate < dateFrom) return false;
-                if (dateTo && photoDate > dateTo) return false;
-                return true;
-            })
-            .filter((row) => {
-                return ids.length === 0 ? true : ids.includes(normalizeText(row.id));
-            });
-    }
 
     const clauses = ['project_id = $1', 'deleted_at IS NULL'];
     const params = [normalizedProjectId];
@@ -268,10 +225,6 @@ async function save(payload, options = {}) {
         projectId: normalizeKey(payload?.projectId || current?.projectId),
     };
 
-    if (!isPostgresBackend()) {
-        return saveFirestoreDoc('reportPhotos', normalizedId, nextPayload, options);
-    }
-
     await postgresStore.query(
         `
             INSERT INTO report_photos (
@@ -341,11 +294,6 @@ async function save(payload, options = {}) {
 
 async function countByProject(projectId) {
     const normalizedProjectId = normalizeKey(projectId);
-    if (!isPostgresBackend()) {
-        const rows = await listByProject(normalizedProjectId);
-        return rows.length;
-    }
-
     const result = await postgresStore.query(
         'SELECT COUNT(*)::int AS count FROM report_photos WHERE project_id = $1 AND deleted_at IS NULL',
         [normalizedProjectId],
@@ -356,17 +304,6 @@ async function countByProject(projectId) {
 async function batchUpdateSortOrder(updates = []) {
     const valid = updates.filter((u) => normalizeText(u.id) && Number.isFinite(Number(u.sortOrder)));
     if (valid.length === 0) return 0;
-
-    if (!isPostgresBackend()) {
-        let updated = 0;
-        for (const { id, sortOrder } of valid) {
-            const current = await getById(id);
-            if (!current) continue;
-            await saveFirestoreDoc('reportPhotos', id, { ...current, sortOrder: Number(sortOrder) });
-            updated++;
-        }
-        return updated;
-    }
 
     const values = valid.map((u, i) => `($${i * 2 + 1}::text, $${i * 2 + 2}::integer)`).join(', ');
     const params = valid.flatMap((u) => [normalizeText(u.id), Number(u.sortOrder)]);
@@ -413,13 +350,6 @@ function hydratePhotoRowFromPg(row) {
 
 async function listTrashedByWorkspace(workspaceId) {
     const normalizedWorkspaceId = normalizeText(workspaceId);
-    if (!isPostgresBackend()) {
-        const rows = await listFirestoreDocs('reportPhotos');
-        return rows
-            .filter((row) => normalizeText(row.workspaceId) === normalizedWorkspaceId && row.deletedAt)
-            .sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
-    }
-
     const result = await postgresStore.query(
         `
             SELECT id, workspace_id, project_id, media_asset_id, tower_id, tower_source,
@@ -439,12 +369,6 @@ async function listTrashedByWorkspace(workspaceId) {
 
 async function softDelete(photoId) {
     const normalizedId = normalizeText(photoId);
-    if (!isPostgresBackend()) {
-        const current = await getFirestoreDoc('reportPhotos', normalizedId);
-        if (!current) return null;
-        return saveFirestoreDoc('reportPhotos', normalizedId, { ...current, deletedAt: new Date().toISOString() });
-    }
-
     await postgresStore.query(
         'UPDATE report_photos SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1',
         [normalizedId],
@@ -454,13 +378,6 @@ async function softDelete(photoId) {
 
 async function restore(photoId) {
     const normalizedId = normalizeText(photoId);
-    if (!isPostgresBackend()) {
-        const current = await getFirestoreDoc('reportPhotos', normalizedId);
-        if (!current) return null;
-        const { deletedAt, ...rest } = current;
-        return saveFirestoreDoc('reportPhotos', normalizedId, { ...rest, deletedAt: null });
-    }
-
     await postgresStore.query(
         'UPDATE report_photos SET deleted_at = NULL, updated_at = NOW() WHERE id = $1',
         [normalizedId],
@@ -470,14 +387,6 @@ async function restore(photoId) {
 
 async function removeAllTrashed(workspaceId) {
     const normalizedWorkspaceId = normalizeText(workspaceId);
-    if (!isPostgresBackend()) {
-        const trashed = await listTrashedByWorkspace(normalizedWorkspaceId);
-        for (const photo of trashed) {
-            await saveFirestoreDoc('reportPhotos', photo.id, null);
-        }
-        return trashed;
-    }
-
     const result = await postgresStore.query(
         `
             DELETE FROM report_photos

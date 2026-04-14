@@ -1,9 +1,4 @@
-const { getConfiguredDataBackend, getDataStore } = require('../data');
 const postgresStore = require('../data/postgresStore');
-
-function isPostgresBackend() {
-    return getConfiguredDataBackend() === 'postgres';
-}
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -15,35 +10,6 @@ function normalizeKey(value) {
 
 function clone(value) {
     return value === undefined ? value : JSON.parse(JSON.stringify(value));
-}
-
-async function getFirestoreDoc(collectionName, docId) {
-    const doc = await getDataStore().getDoc(collectionName, docId);
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
-}
-
-async function listFirestoreDocs(collectionName) {
-    const docs = await getDataStore().listDocs(collectionName);
-    return docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-}
-
-async function saveFirestoreDoc(collectionName, docId, payload, options = {}) {
-    if (options.merge) {
-        const current = await getFirestoreDoc(collectionName, docId);
-        const nextPayload = {
-            ...(current && typeof current === 'object' ? current : {}),
-            ...(payload && typeof payload === 'object' ? payload : {}),
-        };
-        await getDataStore().setDoc(collectionName, docId, nextPayload, { merge: false });
-        return nextPayload;
-    }
-
-    await getDataStore().setDoc(collectionName, docId, payload, { merge: false });
-    return payload;
-}
-
-async function deleteFirestoreDoc(collectionName, docId) {
-    return getDataStore().deleteDoc(collectionName, docId);
 }
 
 function buildMetadata(payload, row = {}) {
@@ -58,13 +24,8 @@ function buildMetadata(payload, row = {}) {
 
 module.exports = {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
     normalizeKey,
     clone,
-    getFirestoreDoc,
-    listFirestoreDocs,
-    saveFirestoreDoc,
-    deleteFirestoreDoc,
     buildMetadata,
 };

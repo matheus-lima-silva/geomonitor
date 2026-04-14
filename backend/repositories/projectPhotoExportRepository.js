@@ -1,10 +1,7 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
     normalizeKey,
-    getFirestoreDoc,
-    saveFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -14,10 +11,6 @@ function hydrateExportRow(row) {
 
 async function getByToken(token) {
     const normalizedToken = normalizeText(token);
-    if (!isPostgresBackend()) {
-        return getFirestoreDoc('projectPhotoExports', normalizedToken);
-    }
-
     const result = await postgresStore.query(
         `
             SELECT token AS id, project_id, folder_mode, selection_ids, filters, item_count,
@@ -56,10 +49,6 @@ async function save(token, payload, options = {}) {
         token: normalizedToken,
         projectId: normalizeKey(payload?.projectId || current?.projectId),
     };
-
-    if (!isPostgresBackend()) {
-        return saveFirestoreDoc('projectPhotoExports', normalizedToken, nextPayload, options);
-    }
 
     await postgresStore.query(
         `

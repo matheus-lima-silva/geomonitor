@@ -1,9 +1,7 @@
 /**
  * Backend-specific wrapper around shared erosion helpers.
  * Pure logic lives in shared/erosionHelpers.js (bundled via esbuild).
- * This file adds Firebase Admin-specific functionality (FieldValue.delete).
  */
-const admin = require('firebase-admin');
 const { normalizeErosionStatus } = require('./statusUtils_dist');
 const shared = require('./sharedErosionHelpers_dist');
 
@@ -15,18 +13,6 @@ function buildCriticalityHistory(previous, nextData, criticalidade) {
     return shared.buildCriticalityHistory(previous, nextData, criticalidade, {
         normalizeStatusFn: normalizeErosionStatus,
     });
-}
-
-function buildLegacyFieldCleanupPatch() {
-    const removedFields = [
-        ...shared.EROSION_REMOVED_FIELDS_LEGACY,
-        ...shared.LEGACY_CLEANUP_EXTRA_FIELDS,
-    ];
-
-    return removedFields.reduce((acc, field) => {
-        acc[field] = admin.firestore.FieldValue.delete();
-        return acc;
-    }, {});
 }
 
 module.exports = {
@@ -44,5 +30,4 @@ module.exports = {
     // Backend-specific wrappers
     buildSituacaoFromStatus,
     buildCriticalityHistory,
-    buildLegacyFieldCleanupPatch,
 };

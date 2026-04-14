@@ -26,7 +26,6 @@ const { resolveLocationCoordinatesForSave } = require('../utils/erosionCoordinat
 const { normalizeErosionStatus } = require('../utils/statusUtils_dist');
 const {
     buildCriticalityHistory,
-    buildLegacyFieldCleanupPatch
 } = require('../utils/internalErosionHelpers');
 function normalizeCriticalityPayload(payload) {
     if (!payload || typeof payload !== 'object') return null;
@@ -204,7 +203,6 @@ async function saveErosionHandler(req, res) {
 
         const finalDocument = {
             ...nextData,
-            ...buildLegacyFieldCleanupPatch(),
             acompanhamentosResumo: appendFollowupEvent(nextData.acompanhamentosResumo ?? history, event),
             historicoCriticidade: isHistoricalRecord
                 ? (Array.isArray(previous?.historicoCriticidade) ? previous.historicoCriticidade : [])

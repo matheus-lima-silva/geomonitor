@@ -1,4 +1,6 @@
 jest.mock('./utils/firebaseSetup', () => {
+    // Stub retained for legacy tests that call getDocRef(...).set(...) to seed data.
+    // Routes run against Postgres, so the in-memory KV here is no-op seeding.
     const db = new Map();
 
     const deepClone = (value) => JSON.parse(JSON.stringify(value || {}));
@@ -77,7 +79,7 @@ jest.mock('./utils/firebaseSetup', () => {
         initFirebase: jest.fn(),
         __resetMockDb,
     };
-});
+}, { virtual: true });
 
 jest.mock('./utils/authMiddleware', () => {
     const profileCache = new Map();

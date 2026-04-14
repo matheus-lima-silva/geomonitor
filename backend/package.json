@@ -8,10 +8,7 @@
     "dev": "nodemon server.js",
     "test": "jest",
     "migrate": "node scripts/runMigrations.js",
-    "backfill:criticalidade": "npm run build:utils && node scripts/backfillCriticalidadeCanonica.js",
-    "etl:extract-load": "node scripts/etl-extract-load.js",
     "etl:backfill-media": "node scripts/etl-backfill-media.js",
-    "etl:verify": "node scripts/etl-verify.js",
     "build:utils": "esbuild utils/criticality.js --bundle --platform=node --format=cjs --outfile=utils/criticality_dist.js && esbuild ../src/features/shared/erosionCoordinates.js --bundle --platform=node --format=cjs --outfile=utils/erosionCoordinates_dist.js && esbuild utils/erosionUtils.js --bundle --platform=node --format=cjs --outfile=utils/erosionUtils_dist.js && esbuild ../src/features/shared/statusUtils.js --bundle --platform=node --format=cjs --outfile=utils/statusUtils_dist.js && esbuild ../shared/erosionHelpers.js --bundle --platform=node --format=cjs --outfile=utils/sharedErosionHelpers_dist.js",
     "prestart": "npm run build:utils",
     "predev": "npm run build:utils",
@@ -30,7 +27,6 @@
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.1",
-    "firebase-admin": "^13.7.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.1",
@@ -38,9 +34,6 @@
     "pg": "^8.20.0"
   },
   "overrides": {
-    "@google-cloud/firestore": {
-      "google-gax": "^5.0.1"
-    },
     "@google-cloud/storage": {
       "gaxios": "^7.1.3",
       "teeny-request": "^10.1.2"

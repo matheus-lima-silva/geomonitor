@@ -1,11 +1,6 @@
 const {
     postgresStore,
-    isPostgresBackend,
     normalizeText,
-    getFirestoreDoc,
-    listFirestoreDocs,
-    saveFirestoreDoc,
-    deleteFirestoreDoc,
     buildMetadata,
 } = require('./common');
 
@@ -42,20 +37,12 @@ function hydrateRow(row) {
 }
 
 async function list() {
-    if (!isPostgresBackend()) {
-        return listFirestoreDocs('mediaAssets');
-    }
-
     const result = await postgresStore.query(`${MEDIA_SELECT} ORDER BY updated_at DESC, id ASC`);
     return result.rows.map((row) => hydrateRow(row));
 }
 
 async function getById(id) {
     const normalizedId = normalizeText(id);
-    if (!isPostgresBackend()) {
-        return getFirestoreDoc('mediaAssets', normalizedId);
-    }
-
     const result = await postgresStore.query(`${MEDIA_SELECT} WHERE id = $1 LIMIT 1`, [normalizedId]);
     return result.rows.length > 0 ? hydrateRow(result.rows[0]) : null;
 }
@@ -63,14 +50,6 @@ async function getById(id) {
 async function listByLinkedResource(resourceType, resourceId) {
     const normalizedType = normalizeText(resourceType);
     const normalizedId = normalizeText(resourceId);
-
-    if (!isPostgresBackend()) {
-        const all = await listFirestoreDocs('mediaAssets');
-        return all.filter(
-            (item) => normalizeText(item.linkedResourceType) === normalizedType
-                && normalizeText(item.linkedResourceId) === normalizedId,
-        );
-    }
 
     const result = await postgresStore.query(
         `${MEDIA_SELECT} WHERE linked_resource_type = $1 AND linked_resource_id = $2 ORDER BY updated_at DESC, id ASC`,
@@ -81,11 +60,6 @@ async function listByLinkedResource(resourceType, resourceId) {
 
 async function listByPurpose(purpose) {
     const normalizedPurpose = normalizeText(purpose);
-
-    if (!isPostgresBackend()) {
-        const all = await listFirestoreDocs('mediaAssets');
-        return all.filter((item) => normalizeText(item.purpose) === normalizedPurpose);
-    }
 
     const result = await postgresStore.query(
         `${MEDIA_SELECT} WHERE purpose = $1 ORDER BY updated_at DESC, id ASC`,
@@ -131,10 +105,6 @@ async function save(payload, options = {}) {
         ...(payload || {}),
         id: normalizedId,
     };
-
-    if (!isPostgresBackend()) {
-        return saveFirestoreDoc('mediaAssets', normalizedId, nextPayload, options);
-    }
 
     await postgresStore.query(
         `
@@ -197,10 +167,6 @@ async function save(payload, options = {}) {
 
 async function remove(id) {
     const normalizedId = normalizeText(id);
-    if (!isPostgresBackend()) {
-        return deleteFirestoreDoc('mediaAssets', normalizedId);
-    }
-
     await postgresStore.query('DELETE FROM media_assets WHERE id = $1', [normalizedId]);
 }
 

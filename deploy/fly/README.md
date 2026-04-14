@@ -23,9 +23,7 @@ Configuracoes canonicas do Fly.io para esta frente:
 ## Segredos por app
 
 - `geomonitor-api*`
-  - `FIREBASE_SERVICE_ACCOUNT_JSON`
   - `DATABASE_URL`
-  - `DATA_BACKEND`
   - `MEDIA_BACKEND`
   - `REPORT_EXECUTION_BACKEND`
   - `WORKER_API_TOKEN`
