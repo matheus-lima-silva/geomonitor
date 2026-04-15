@@ -54,6 +54,39 @@ async function listWorkspaceIdsByUser(userId) {
     return result.rows.map((row) => row.workspace_id);
 }
 
+/**
+ * Devolve um Map<workspaceId, role> com a role local do usuario para cada
+ * workspace informado. Workspaces sem membership para esse usuario ficam
+ * ausentes do Map. Usado pelo handler GET / para anotar `currentUserRole`
+ * em cada item sem disparar N queries.
+ */
+async function listRolesForUser(userId, workspaceIds = []) {
+    const normalizedUserId = normalizeText(userId);
+    if (!normalizedUserId || !Array.isArray(workspaceIds) || workspaceIds.length === 0) {
+        return new Map();
+    }
+
+    const normalizedIds = workspaceIds
+        .map((id) => normalizeText(id))
+        .filter(Boolean);
+    if (normalizedIds.length === 0) return new Map();
+
+    const result = await postgresStore.query(
+        `
+            SELECT workspace_id, role
+            FROM workspace_members
+            WHERE user_id = $1 AND workspace_id = ANY($2::text[])
+        `,
+        [normalizedUserId, normalizedIds],
+    );
+
+    const map = new Map();
+    for (const row of result.rows) {
+        map.set(row.workspace_id, row.role);
+    }
+    return map;
+}
+
 async function getMember(workspaceId, userId) {
     const normalizedId = normalizeText(workspaceId);
     const normalizedUserId = normalizeText(userId);
@@ -125,6 +158,7 @@ module.exports = {
     VALID_ROLES,
     listByWorkspace,
     listWorkspaceIdsByUser,
+    listRolesForUser,
     getMember,
     addMember,
     removeMember,

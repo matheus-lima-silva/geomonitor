@@ -8,7 +8,13 @@ const {
     requireWorkspaceRead,
     requireWorkspaceWrite,
 } = require('../utils/workspaceAccess');
-const { createHateoasResponse, createResourceHateoasResponse, resolveApiBaseUrl, createPaginatedHateoasResponse } = require('../utils/hateoas');
+const {
+    createHateoasResponse,
+    createResourceHateoasResponse,
+    resolveApiBaseUrl,
+    createPaginatedHateoasResponse,
+    generatePaginationLinks,
+} = require('../utils/hateoas');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { validateBody } = require('../middleware/validate');
 const { workspaceCreateSchema, workspaceUpdateSchema } = require('../schemas/reportWorkspaceSchemas');
@@ -107,6 +113,47 @@ function createWorkspacePhotoResponse(req, workspaceId, photo) {
     );
 }
 
+// Links HATEOAS padronizados para um recurso de membro.
+// O recurso "membro" e identificado pelo par (workspaceId, userId), entao
+// o path canonico e /report-workspaces/:id/members/:userId.
+function createMemberHateoasResponse(req, workspaceId, member, { allowDelete = true } = {}) {
+    const userId = member?.userId || '';
+    return createResourceHateoasResponse(
+        req,
+        member,
+        `report-workspaces/${workspaceId}/members/${userId}`,
+        {
+            allowUpdate: false,
+            allowDelete,
+            collectionPath: `report-workspaces/${workspaceId}/members`,
+            extraLinks: {
+                workspace: {
+                    href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}`,
+                    method: 'GET',
+                },
+            },
+        },
+    );
+}
+
+// Monta a resposta HATEOAS de um workspace inserindo o campo currentUserRole
+// e um link extra para a sub-resource /members. Precisa fazer merge manual
+// porque createHateoasResponse sobrescreve _links.
+function buildWorkspaceResponse(req, workspace, { currentUserRole }) {
+    const base = createHateoasResponse(req, workspace, 'report-workspaces', workspace.id);
+    return {
+        ...base,
+        currentUserRole,
+        _links: {
+            ...base._links,
+            members: {
+                href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspace.id}/members`,
+                method: 'GET',
+            },
+        },
+    };
+}
+
 function buildWorkspaceKmzLinks(req, workspaceId, requestEntry) {
     const links = {
         workspace: { href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}`, method: 'GET' },
@@ -139,14 +186,27 @@ router.get('/', verifyToken, requireActiveUser, asyncHandler(async (req, res) =>
     // Busca tudo e filtra por acesso — paginacao aplicada in-memory apos filtro,
     // ja que a visibilidade e por usuario, nao por query SQL global.
     const workspaces = await reportWorkspaceRepository.list();
+    const superuser = isGlobalSuperuser(req.userProfile);
 
     let visible = workspaces;
-    if (!isGlobalSuperuser(req.userProfile)) {
+    if (!superuser) {
         const memberWorkspaceIds = new Set(
             await workspaceMemberRepository.listWorkspaceIdsByUser(req.user?.uid),
         );
         visible = workspaces.filter((workspace) => memberWorkspaceIds.has(workspace.id));
     }
+
+    // Resolve currentUserRole de cada workspace visivel em uma unica query
+    // batch — evita N consultas e permite ao frontend decidir se mostra
+    // botoes de gerenciamento sem um roundtrip extra ao endpoint /members.
+    let roleMap = new Map();
+    if (!superuser && visible.length > 0) {
+        roleMap = await workspaceMemberRepository.listRolesForUser(
+            req.user?.uid,
+            visible.map((w) => w.id),
+        );
+    }
+    const resolveRole = (workspaceId) => (superuser ? 'owner' : (roleMap.get(workspaceId) || null));
 
     const wantsPagination = req.query.page != null || req.query.limit != null;
     if (wantsPagination) {
@@ -154,39 +214,59 @@ router.get('/', verifyToken, requireActiveUser, asyncHandler(async (req, res) =>
         const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
         const total = visible.length;
         const start = (page - 1) * limit;
-        const pageItems = visible.slice(start, start + limit);
+        const pageItems = visible.slice(start, start + limit).map((workspace) =>
+            buildWorkspaceResponse(req, workspace, { currentUserRole: resolveRole(workspace.id) }),
+        );
 
-        const envelope = createPaginatedHateoasResponse(req, pageItems, {
-            entityType: 'report-workspaces',
+        // createPaginatedHateoasResponse re-envelopa com _links de paginacao,
+        // mas ele tambem chama createHateoasResponse por item e sobrescreve
+        // nossos _links. Por isso preferimos montar a paginacao manualmente
+        // preservando os _links ja hidratados.
+        const pagination = {
             page,
             limit,
             total,
+            totalPages: Math.max(1, Math.ceil(total / limit)),
+        };
+        const paginationLinks = generatePaginationLinks(req, {
+            page,
+            limit,
+            total,
+            collectionPath: 'report-workspaces',
         });
-        return res.status(200).json({ status: 'success', ...envelope });
+        return res.status(200).json({
+            status: 'success',
+            data: pageItems,
+            pagination,
+            _links: paginationLinks,
+        });
     }
 
     return res.status(200).json({
         status: 'success',
-        data: visible.map((workspace) => createHateoasResponse(req, workspace, 'report-workspaces', workspace.id)),
+        data: visible.map((workspace) =>
+            buildWorkspaceResponse(req, workspace, { currentUserRole: resolveRole(workspace.id) }),
+        ),
     });
 }));
 
-router.get('/:id', verifyToken, requireActiveUser, requireWorkspaceRead, async (req, res) => {
-    try {
-        const workspace = await reportWorkspaceRepository.getById(req.params.id);
-        if (!workspace) {
-            return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
-        }
-
-        return res.status(200).json({
-            status: 'success',
-            data: createHateoasResponse(req, workspace, 'report-workspaces', workspace.id),
-        });
-    } catch (error) {
-        console.error('[report-workspaces API] Error GET /:id:', error);
-        return res.status(500).json({ status: 'error', message: 'Erro ao buscar workspace de relatorio' });
+router.get('/:id', verifyToken, requireActiveUser, requireWorkspaceRead, asyncHandler(async (req, res) => {
+    const workspace = await reportWorkspaceRepository.getById(req.params.id);
+    if (!workspace) {
+        return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
     }
-});
+
+    // req.workspaceAccess e anexado pelo middleware requireWorkspaceRead com
+    // { allowed, reason, role }. Expomos `currentUserRole` como atalho
+    // informativo e acrescentamos o link _links.members apontando para a
+    // sub-resource, seguindo o padrao HATEOAS do resto do projeto.
+    return res.status(200).json({
+        status: 'success',
+        data: buildWorkspaceResponse(req, workspace, {
+            currentUserRole: req.workspaceAccess?.role || null,
+        }),
+    });
+}));
 
 router.post('/', verifyToken, requireEditor, validateBody(workspaceCreateSchema), asyncHandler(async (req, res) => {
     const { data, meta = {} } = req.body;
@@ -844,16 +924,39 @@ router.get('/:id/kmz/:token', verifyToken, requireActiveUser, requireWorkspaceRe
 
 const VALID_MEMBER_ROLES = new Set(['owner', 'editor', 'viewer']);
 
-router.get('/:id/members', verifyToken, requireActiveUser, requireWorkspaceRead, async (req, res) => {
-    try {
-        const workspaceId = normalizeText(req.params.id);
-        const members = await workspaceMemberRepository.listByWorkspace(workspaceId);
-        return res.status(200).json({ status: 'success', data: members });
-    } catch (error) {
-        console.error('[report-workspaces API] Error GET /:id/members:', error);
-        return res.status(500).json({ status: 'error', message: 'Erro ao listar membros do workspace' });
-    }
-});
+router.get('/:id/members', verifyToken, requireActiveUser, requireWorkspaceRead, asyncHandler(async (req, res) => {
+    const workspaceId = normalizeText(req.params.id);
+    const members = await workspaceMemberRepository.listByWorkspace(workspaceId);
+
+    // O middleware ja garantiu que o requester tem acesso de leitura. Se
+    // ele tem acesso de escrita (owner/editor local ou superuser global),
+    // o allowDelete nos links individuais fica true — o cliente pode
+    // chamar o DELETE; caso contrario, omitimos o link de delete.
+    const canWrite = (req.workspaceAccess?.role === 'owner' || req.workspaceAccess?.role === 'editor');
+
+    return res.status(200).json({
+        status: 'success',
+        data: members.map((member) =>
+            createMemberHateoasResponse(req, workspaceId, member, { allowDelete: canWrite }),
+        ),
+        _links: {
+            self: {
+                href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}/members`,
+                method: 'GET',
+            },
+            workspace: {
+                href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}`,
+                method: 'GET',
+            },
+            ...(canWrite ? {
+                add: {
+                    href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}/members`,
+                    method: 'POST',
+                },
+            } : {}),
+        },
+    });
+}));
 
 router.post('/:id/members', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
@@ -890,7 +993,10 @@ router.post('/:id/members', verifyToken, requireEditor, requireWorkspaceWrite, a
             req.user?.email || 'API',
         );
 
-        return res.status(201).json({ status: 'success', data: member });
+        return res.status(201).json({
+            status: 'success',
+            data: createMemberHateoasResponse(req, workspaceId, member),
+        });
     } catch (error) {
         console.error('[report-workspaces API] Error POST /:id/members:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao adicionar membro do workspace' });
