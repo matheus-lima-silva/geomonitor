@@ -34,6 +34,36 @@ function createDocumentTableRepository(config = {}) {
         return result.rows.map((row) => hydrateRow(row));
     }
 
+    /**
+     * Listagem paginada. Retorna { items, total, page, limit }.
+     * Mantida separada de list() para nao quebrar callers existentes.
+     */
+    async function listPaginated({ page = 1, limit = 50 } = {}) {
+        const safePage = Math.max(1, Math.floor(Number(page) || 1));
+        const safeLimit = Math.min(200, Math.max(1, Math.floor(Number(limit) || 50)));
+        const offset = (safePage - 1) * safeLimit;
+
+        const [itemsResult, countResult] = await Promise.all([
+            postgresStore.query(
+                `
+                    SELECT id, payload, created_at, updated_at, updated_by
+                    FROM ${tableName}
+                    ORDER BY updated_at DESC, id ASC
+                    LIMIT $1 OFFSET $2
+                `,
+                [safeLimit, offset],
+            ),
+            postgresStore.query(`SELECT COUNT(*)::int AS count FROM ${tableName}`),
+        ]);
+
+        return {
+            items: itemsResult.rows.map((row) => hydrateRow(row)),
+            total: countResult.rows[0]?.count || 0,
+            page: safePage,
+            limit: safeLimit,
+        };
+    }
+
     async function getById(id) {
         const normalizedId = normalizeText(id);
         const result = await postgresStore.query(
@@ -127,6 +157,7 @@ function createDocumentTableRepository(config = {}) {
 
     return {
         list,
+        listPaginated,
         getById,
         listByProject,
         save,

@@ -284,7 +284,7 @@ router.delete('/:id/dossiers/:dossierId', verifyToken, requireEditor, async (req
         const current = await projectDossierRepository.getByProjectAndId(projectId, dossierId);
         if (!current) return res.status(404).json({ status: 'error', message: 'Dossie nao encontrado' });
         await projectDossierRepository.remove(dossierId);
-        return res.status(200).json({ status: 'success', message: 'Dossie removido permanentemente' });
+        return res.status(204).send();
     } catch (error) {
         console.error('[project-dossiers API] Error DELETE /:id/dossiers/:dossierId:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao remover dossie' });

@@ -7,8 +7,32 @@ const authCredentials = require('../repositories/authCredentialsRepository');
 const { buildBootstrapProfile, loadUserProfile, saveUserProfile } = require('../utils/userProfiles');
 const { userRepository } = require('../repositories');
 const { getMailTransport, sendResetEmail } = require('../utils/mailer');
+const { sanitizeUser } = require('../utils/sanitizeUser');
+const { resolveApiBaseUrl } = require('../utils/hateoas');
+const { validateBody } = require('../middleware/validate');
+const {
+    registerSchema,
+    loginSchema,
+    refreshSchema,
+    resetPasswordRequestSchema,
+    resetPasswordConfirmSchema,
+} = require('../schemas/authSchemas');
 
 const router = express.Router();
+
+function buildAuthLinks(req, { includeMe = false } = {}) {
+    const baseUrl = resolveApiBaseUrl(req);
+    const links = {
+        login: { href: `${baseUrl}/auth/login`, method: 'POST' },
+        register: { href: `${baseUrl}/auth/register`, method: 'POST' },
+        refresh: { href: `${baseUrl}/auth/refresh`, method: 'POST' },
+        resetPassword: { href: `${baseUrl}/auth/reset-password`, method: 'POST' },
+    };
+    if (includeMe) {
+        links.me = { href: `${baseUrl}/users/me`, method: 'GET' };
+    }
+    return links;
+}
 
 const BCRYPT_SALT_ROUNDS = 12;
 const MIGRATION_PENDING_HASH = 'MIGRATION_PENDING';
@@ -41,24 +65,9 @@ function validatePassword(password) {
 }
 
 // POST /api/auth/register
-router.post('/register', async (req, res) => {
+router.post('/register', validateBody(registerSchema), async (req, res) => {
     try {
-        const { email, password, nome } = req.body || {};
-        const trimmedEmail = String(email || '').trim();
-        const trimmedNome = String(nome || '').trim();
-
-        if (!trimmedEmail || !validateEmail(trimmedEmail)) {
-            return res.status(400).json({ status: 'error', code: 'INVALID_EMAIL', message: 'Email inválido.' });
-        }
-
-        if (!trimmedNome) {
-            return res.status(400).json({ status: 'error', code: 'MISSING_NAME', message: 'Nome é obrigatório.' });
-        }
-
-        const passwordError = validatePassword(password);
-        if (passwordError) {
-            return res.status(400).json({ status: 'error', code: 'WEAK_PASSWORD', message: passwordError });
-        }
+        const { email: trimmedEmail, password, nome: trimmedNome } = req.body;
 
         const existing = await authCredentials.getByEmail(trimmedEmail);
         if (existing) {
@@ -90,7 +99,8 @@ router.post('/register', async (req, res) => {
 
         return res.status(201).json({
             status: 'success',
-            data: { user: profile },
+            data: { user: sanitizeUser(profile) },
+            _links: buildAuthLinks(req),
         });
     } catch (error) {
         console.error('[auth] Register error:', error);
@@ -99,14 +109,9 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', validateBody(loginSchema), async (req, res) => {
     try {
-        const { email, password } = req.body || {};
-        const trimmedEmail = String(email || '').trim();
-
-        if (!trimmedEmail || !password) {
-            return res.status(400).json({ status: 'error', code: 'MISSING_CREDENTIALS', message: 'Email e senha são obrigatórios.' });
-        }
+        const { email: trimmedEmail, password } = req.body;
 
         const creds = await authCredentials.getByEmail(trimmedEmail);
         if (!creds) {
@@ -136,7 +141,8 @@ router.post('/login', async (req, res) => {
 
         return res.status(200).json({
             status: 'success',
-            data: { accessToken, refreshToken, user: profile },
+            data: { accessToken, refreshToken, user: sanitizeUser(profile) },
+            _links: buildAuthLinks(req, { includeMe: true }),
         });
     } catch (error) {
         console.error('[auth] Login error:', error);
@@ -145,13 +151,9 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/auth/refresh
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', validateBody(refreshSchema), async (req, res) => {
     try {
-        const { refreshToken } = req.body || {};
-
-        if (!refreshToken) {
-            return res.status(400).json({ status: 'error', message: 'Refresh token é obrigatório.' });
-        }
+        const { refreshToken } = req.body;
 
         let decoded;
         try {
@@ -171,6 +173,7 @@ router.post('/refresh', async (req, res) => {
         return res.status(200).json({
             status: 'success',
             data: { accessToken: newAccessToken, refreshToken: newRefreshToken },
+            _links: buildAuthLinks(req, { includeMe: true }),
         });
     } catch (error) {
         console.error('[auth] Refresh error:', error);
@@ -179,10 +182,9 @@ router.post('/refresh', async (req, res) => {
 });
 
 // POST /api/auth/reset-password
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', validateBody(resetPasswordRequestSchema), async (req, res) => {
     try {
-        const { email } = req.body || {};
-        const trimmedEmail = String(email || '').trim();
+        const trimmedEmail = String(req.body.email || '').trim();
 
         // Always return success to prevent email enumeration
         const successResponse = { status: 'success', message: 'Se o email estiver cadastrado, você receberá instruções para redefinir sua senha.' };
@@ -216,18 +218,9 @@ router.post('/reset-password', async (req, res) => {
 });
 
 // POST /api/auth/reset-password/confirm
-router.post('/reset-password/confirm', async (req, res) => {
+router.post('/reset-password/confirm', validateBody(resetPasswordConfirmSchema), async (req, res) => {
     try {
-        const { token, newPassword } = req.body || {};
-
-        if (!token) {
-            return res.status(400).json({ status: 'error', message: 'Token é obrigatório.' });
-        }
-
-        const passwordError = validatePassword(newPassword);
-        if (passwordError) {
-            return res.status(400).json({ status: 'error', code: 'WEAK_PASSWORD', message: passwordError });
-        }
+        const { token, newPassword } = req.body;
 
         const creds = await authCredentials.getByResetToken(token);
         if (!creds) {

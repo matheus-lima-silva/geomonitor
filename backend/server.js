@@ -54,8 +54,21 @@ const apiLimiter = rateLimit({
   skip: (req) => BULK_UPLOAD_SKIP_PATTERNS.some((pattern) => pattern.test(req.originalUrl || req.url || '')),
 });
 
+// Limiter dedicado para endpoints de autenticação — protege contra brute force
+// em /login, /register, /reset-password e /refresh. skipSuccessfulRequests evita
+// punir usuários legítimos que logam corretamente.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { status: 'error', code: 'RATE_LIMITED', message: 'Muitas tentativas. Tente novamente em alguns minutos.' },
+});
+
 // Aplicar rate limiter apenas em rotas da API
 app.use('/api', apiLimiter);
+app.use('/api/auth', authLimiter);
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', service: 'geomonitor-api' });
@@ -101,12 +114,29 @@ app.use('/api/report-templates', reportTemplatesRouter);
 app.use('/api/rules', rulesRouter);
 
 // Global Error Handler para não expor erros ao cliente em prod
+const { logError } = require('./utils/asyncHandler');
 app.use((err, req, res, next) => {
-  console.error('[Geomonitor API] Global Error:', err);
-  const message = process.env.NODE_ENV === 'production' 
-    ? 'Ocorreu um erro interno no servidor.' 
+  logError('Geomonitor API Global', err, {
+    headers: req.headers,
+    body: req.body,
+    route: `${req.method} ${req.originalUrl || req.url}`,
+    userId: req.user?.uid,
+  });
+  const status = err.status || 500;
+  const isProd = process.env.NODE_ENV === 'production';
+  // Erros do Zod validator (via middleware/validate) ja sao 400 com code VALIDATION_ERROR,
+  // mas quando caem aqui (lancados fora do middleware) precisam ser tratados.
+  if (err.name === 'ZodError' || err.code === 'VALIDATION_ERROR') {
+    return res.status(400).json({
+      status: 'error',
+      code: 'VALIDATION_ERROR',
+      message: err.message || 'Dados invalidos.',
+    });
+  }
+  const message = isProd
+    ? 'Ocorreu um erro interno no servidor.'
     : err.message;
-  res.status(err.status || 500).json({ status: 'error', message });
+  res.status(status).json({ status: 'error', message });
 });
 
 if (process.env.NODE_ENV !== 'test') {

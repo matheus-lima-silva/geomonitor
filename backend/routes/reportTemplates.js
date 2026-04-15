@@ -108,7 +108,7 @@ router.delete('/:id', verifyToken, requireEditor, async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Template nao encontrado' });
         }
         await reportTemplateRepository.remove(req.params.id);
-        return res.status(200).json({ status: 'success', message: 'Template removido' });
+        return res.status(204).send();
     } catch (error) {
         console.error('[report-templates API] Error DELETE /:id:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao remover template' });

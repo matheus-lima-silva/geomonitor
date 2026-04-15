@@ -3,5 +3,10 @@ module.exports = {
     setupFilesAfterEnv: ['./jest.setup.js'],
     clearMocks: true,
     restoreMocks: true,
-    roots: ['<rootDir>']
+    roots: ['<rootDir>'],
+    testPathIgnorePatterns: [
+        '/node_modules/',
+        '/__tests__/helpers/',
+        '/__tests__/fixtures/',
+    ],
 };

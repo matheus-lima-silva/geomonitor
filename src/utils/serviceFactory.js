@@ -191,6 +191,10 @@ export function createCrudService({
         } catch { /* ignore */ }
         throw new Error(message);
       }
+      // 204 No Content: response sem body. Ex.: DELETE padronizado.
+      if (response.status === 204) {
+        return { status: 'success' };
+      }
       return response.json();
     } catch (error) {
       if (error?.name === 'AbortError') {
@@ -449,6 +453,10 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
           if (errorData?.message) message = errorData.message;
         } catch { /* ignore */ }
         throw new Error(message);
+      }
+      // 204 No Content: response sem body. Ex.: DELETE padronizado.
+      if (response.status === 204) {
+        return { status: 'success' };
       }
       return response.json();
     } catch (error) {

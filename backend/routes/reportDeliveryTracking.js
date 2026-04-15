@@ -1,5 +1,9 @@
 const createCrudRouter = require('../utils/crudFactory');
 const { reportDeliveryTrackingRepository } = require('../repositories');
+const {
+    reportDeliveryTrackingCreateSchema,
+    reportDeliveryTrackingUpdateSchema,
+} = require('../schemas/reportDeliveryTrackingSchemas');
 
 const MONTH_KEY_PATTERN = /^\d{4}-\d{2}$/;
 
@@ -12,6 +16,8 @@ const router = createCrudRouter('reportDeliveryTracking', {
         if (!projectId || !MONTH_KEY_PATTERN.test(monthKey)) return '';
         return `${projectId}__${monthKey}`;
     },
+    createSchema: reportDeliveryTrackingCreateSchema,
+    updateSchema: reportDeliveryTrackingUpdateSchema,
 });
 
 module.exports = router;

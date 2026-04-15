@@ -319,7 +319,7 @@ router.delete('/:id', verifyToken, requireEditor, async (req, res) => {
         const current = await reportCompoundRepository.getById(req.params.id);
         if (!current) return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
         await reportCompoundRepository.remove(req.params.id);
-        return res.status(200).json({ status: 'success', message: 'Relatorio composto removido permanentemente' });
+        return res.status(204).send();
     } catch (error) {
         console.error('[report-compounds API] Error DELETE /:id:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao remover relatorio composto' });

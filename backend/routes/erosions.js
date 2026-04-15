@@ -2,9 +2,16 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
 const crypto = require('crypto');
-const { createHateoasResponse, generateHateoasLinks } = require('../utils/hateoas');
+const { createHateoasResponse, generateHateoasLinks, createPaginatedHateoasResponse } = require('../utils/hateoas');
 const { erosionRepository, reportJobRepository } = require('../repositories');
 const { triggerWorkerRun } = require('../utils/workerTrigger');
+const { asyncHandler } = require('../utils/asyncHandler');
+const { validateBody } = require('../middleware/validate');
+const {
+    erosionSaveSchema,
+    erosionSimulateSchema,
+    erosionFichaCadastroSchema,
+} = require('../schemas/erosionSchemas');
 
 const {
     calculateCriticality,
@@ -75,15 +82,11 @@ function runCriticalityCalculation(input, rulesConfig) {
 }
 
 async function saveErosionHandler(req, res) {
+    // Body ja validado por validateBody(erosionSaveSchema) no middleware.
+    const { data, meta = {} } = req.body;
     try {
-        const { data, meta = {} } = req.body;
-
-        if (!data || typeof data !== 'object') {
-            return res.status(400).json({ status: 'error', message: 'Payload data inválido' });
-        }
-
         const sanitizedPayload = stripRemovedErosionFields(data);
-        const id = String(sanitizedPayload.id || '').trim() || `ERS-${Date.now()}`;
+        const id = String(sanitizedPayload.id || '').trim() || `ERS-${crypto.randomUUID()}`;
 
         let previous = null;
 
@@ -223,36 +226,42 @@ async function saveErosionHandler(req, res) {
     }
 }
 
-router.get('/', verifyToken, requireActiveUser, async (req, res) => {
-    try {
-        const items = (await erosionRepository.list()).map((item) => createHateoasResponse(req, item, 'erosions', item.id));
-        return res.status(200).json({ status: 'success', data: items });
-    } catch (error) {
-        console.error('[Geomonitor API] Erro ao listar erosões:', error);
-        return res.status(500).json({ status: 'error', message: 'Erro ao buscar erosoes' });
-    }
-});
-
-router.get('/:id', verifyToken, requireActiveUser, async (req, res) => {
-    try {
-        const erosion = await erosionRepository.getById(req.params.id);
-        if (!erosion) {
-            return res.status(404).json({ status: 'error', message: 'Registro nao encontrado' });
-        }
-
-        return res.status(200).json({
-            status: 'success',
-            data: createHateoasResponse(req, erosion, 'erosions', erosion.id),
+router.get('/', verifyToken, requireActiveUser, asyncHandler(async (req, res) => {
+    // Opt-in: paginacao ativa quando ?page ou ?limit presentes.
+    const wantsPagination = req.query.page != null || req.query.limit != null;
+    if (wantsPagination && typeof erosionRepository.listPaginated === 'function') {
+        const { items, total, page, limit } = await erosionRepository.listPaginated({
+            page: req.query.page,
+            limit: req.query.limit,
         });
-    } catch (error) {
-        console.error('[Geomonitor API] Erro ao buscar erosão:', error);
-        return res.status(500).json({ status: 'error', message: 'Erro ao buscar erosao' });
+        const envelope = createPaginatedHateoasResponse(req, items, {
+            entityType: 'erosions',
+            page,
+            limit,
+            total,
+        });
+        return res.status(200).json({ status: 'success', ...envelope });
     }
-});
 
-router.post('/', verifyToken, requireEditor, saveErosionHandler);
+    const items = (await erosionRepository.list()).map((item) => createHateoasResponse(req, item, 'erosions', item.id));
+    return res.status(200).json({ status: 'success', data: items });
+}));
 
-router.put('/:id', verifyToken, requireEditor, async (req, res) => {
+router.get('/:id', verifyToken, requireActiveUser, asyncHandler(async (req, res) => {
+    const erosion = await erosionRepository.getById(req.params.id);
+    if (!erosion) {
+        return res.status(404).json({ status: 'error', message: 'Registro nao encontrado' });
+    }
+
+    return res.status(200).json({
+        status: 'success',
+        data: createHateoasResponse(req, erosion, 'erosions', erosion.id),
+    });
+}));
+
+router.post('/', verifyToken, requireEditor, validateBody(erosionSaveSchema), asyncHandler(saveErosionHandler));
+
+router.put('/:id', verifyToken, requireEditor, validateBody(erosionSaveSchema), asyncHandler(async (req, res) => {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const data = body.data && typeof body.data === 'object' ? body.data : {};
     req.body = {
@@ -263,19 +272,14 @@ router.put('/:id', verifyToken, requireEditor, async (req, res) => {
         },
     };
     return saveErosionHandler(req, res);
-});
+}));
 
-router.delete('/:id', verifyToken, requireEditor, async (req, res) => {
-    try {
-        await erosionRepository.remove(req.params.id);
-        return res.status(200).json({ status: 'success', message: 'Registro deletado' });
-    } catch (error) {
-        console.error('[Geomonitor API] Erro ao deletar erosão:', error);
-        return res.status(500).json({ status: 'error', message: 'Erro ao deletar erosao' });
-    }
-});
+router.delete('/:id', verifyToken, requireEditor, asyncHandler(async (req, res) => {
+    await erosionRepository.remove(req.params.id);
+    return res.status(204).send();
+}));
 
-router.post('/simulate', verifyToken, requireActiveUser, async (req, res) => {
+router.post('/simulate', verifyToken, requireActiveUser, validateBody(erosionSimulateSchema), asyncHandler(async (req, res) => {
     try {
         const { data, meta = {} } = req.body;
 
@@ -308,7 +312,7 @@ router.post('/simulate', verifyToken, requireActiveUser, async (req, res) => {
             : 'Error running simulation: ' + error.message;
         res.status(500).json({ message: safeMessage });
     }
-});
+}));
 
 // --- Ficha de Cadastro de Erosao (DOCX) ---
 
@@ -316,41 +320,31 @@ function normalizeTextLocal(value) {
     return String(value || '').trim();
 }
 
-router.post('/fichas-cadastro/generate', verifyToken, requireEditor, async (req, res) => {
-    try {
-        const body = req.body && typeof req.body === 'object' ? req.body : {};
-        const projectId = normalizeTextLocal(body.projectId).toUpperCase();
-        if (!projectId) {
-            return res.status(400).json({ status: 'error', message: 'projectId e obrigatorio' });
-        }
+router.post('/fichas-cadastro/generate', verifyToken, requireEditor, validateBody(erosionFichaCadastroSchema), asyncHandler(async (req, res) => {
+    const projectId = normalizeTextLocal(req.body.projectId).toUpperCase();
+    const erosionIds = Array.isArray(req.body.erosionIds)
+        ? req.body.erosionIds.map((id) => normalizeTextLocal(id)).filter(Boolean)
+        : [];
 
-        const erosionIds = Array.isArray(body.erosionIds)
-            ? body.erosionIds.map((id) => normalizeTextLocal(id)).filter(Boolean)
-            : [];
+    const now = new Date().toISOString();
+    const jobId = `JOB-${crypto.randomUUID()}`;
+    await reportJobRepository.save({
+        id: jobId,
+        kind: 'ficha_cadastro',
+        projectId,
+        erosionIds,
+        statusExecucao: 'queued',
+        createdAt: now,
+        updatedAt: now,
+        updatedBy: req.user?.email || 'API',
+    }, { merge: true });
 
-        const now = new Date().toISOString();
-        const jobId = `JOB-${crypto.randomUUID()}`;
-        await reportJobRepository.save({
-            id: jobId,
-            kind: 'ficha_cadastro',
-            projectId,
-            erosionIds,
-            statusExecucao: 'queued',
-            createdAt: now,
-            updatedAt: now,
-            updatedBy: req.user?.email || 'API',
-        }, { merge: true });
+    triggerWorkerRun();
 
-        triggerWorkerRun();
-
-        return res.status(202).json({
-            status: 'success',
-            data: { jobId, kind: 'ficha_cadastro', projectId, statusExecucao: 'queued' },
-        });
-    } catch (error) {
-        console.error('[erosions API] Error POST /fichas-cadastro/generate:', error);
-        return res.status(500).json({ status: 'error', message: 'Erro ao enfileirar geracao de fichas de cadastro' });
-    }
-});
+    return res.status(202).json({
+        status: 'success',
+        data: { jobId, kind: 'ficha_cadastro', projectId, statusExecucao: 'queued' },
+    });
+}));
 
 module.exports = router;

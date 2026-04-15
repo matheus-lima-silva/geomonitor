@@ -22,6 +22,10 @@ const {
     writeLocalContent,
     buildLocalContentPath,
 } = require('../utils/mediaStorage');
+const {
+    isAllowedMimeType,
+    enforceAllowedContentType,
+} = require('../utils/uploadValidation');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -41,13 +45,23 @@ router.post('/upload-url', requireEditorOrWorker, async (req, res) => {
         const fileName = sanitizeFileName(data.fileName);
         const mediaId = normalizeText(data.id) || `MED-${crypto.randomUUID()}`;
         const now = new Date().toISOString();
+        const declaredContentType = normalizeText(data.contentType);
+
+        if (!isAllowedMimeType(declaredContentType)) {
+            return res.status(415).json({
+                status: 'error',
+                code: 'UNSUPPORTED_MEDIA_TYPE',
+                message: `Content-Type nao suportado: ${declaredContentType || '(vazio)'}.`,
+            });
+        }
+
         const storageKey = `${normalizeText(data.purpose) || 'generic'}/${mediaId}/${fileName}`;
         const mediaBackend = getConfiguredMediaBackend();
 
         const payload = {
             id: mediaId,
             fileName,
-            contentType: normalizeText(data.contentType) || 'application/octet-stream',
+            contentType: declaredContentType,
             sizeBytes: Number.isFinite(Number(data.sizeBytes)) ? Number(data.sizeBytes) : 0,
             purpose: normalizeText(data.purpose) || 'generic',
             linkedResourceType: normalizeText(data.linkedResourceType),
@@ -90,7 +104,7 @@ router.post('/upload-url', requireEditorOrWorker, async (req, res) => {
     }
 });
 
-router.put('/:id/upload', requireEditorOrWorker, express.raw({ type: '*/*', limit: '50mb' }), async (req, res) => {
+router.put('/:id/upload', requireEditorOrWorker, enforceAllowedContentType(), express.raw({ type: '*/*', limit: '50mb' }), async (req, res) => {
     try {
         const mediaId = normalizeText(req.params.id);
         const asset = await mediaAssetRepository.getById(mediaId);
@@ -250,7 +264,7 @@ router.delete('/:id', verifyToken, requireEditor, async (req, res) => {
             await removeStoredMedia(asset);
             await mediaAssetRepository.remove(mediaId);
         }
-        return res.status(200).json({ status: 'success', message: 'Media removida com sucesso' });
+        return res.status(204).send();
     } catch (error) {
         console.error('[media API] Error DELETE /:id:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao remover media' });

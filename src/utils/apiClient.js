@@ -87,6 +87,11 @@ export async function fetchWithHateoas(hateoasLink, body = null, preferredBaseUr
             throw new Error(message);
         }
 
+        // 204 No Content: response sem body. Ex.: DELETE padronizado.
+        if (response.status === 204) {
+            return { status: 'success' };
+        }
+
         return response.json();
     } catch (error) {
         throw normalizeRequestError(error, 'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.');

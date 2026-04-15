@@ -2,7 +2,16 @@ const crypto = require('crypto');
 const express = require('express');
 const router = express.Router();
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
-const { createHateoasResponse, createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/hateoas');
+const {
+    isGlobalSuperuser,
+    checkWorkspaceAccess,
+    requireWorkspaceRead,
+    requireWorkspaceWrite,
+} = require('../utils/workspaceAccess');
+const { createHateoasResponse, createResourceHateoasResponse, resolveApiBaseUrl, createPaginatedHateoasResponse } = require('../utils/hateoas');
+const { asyncHandler } = require('../utils/asyncHandler');
+const { validateBody } = require('../middleware/validate');
+const { workspaceCreateSchema, workspaceUpdateSchema } = require('../schemas/reportWorkspaceSchemas');
 const {
     reportWorkspaceRepository,
     reportPhotoRepository,
@@ -10,6 +19,8 @@ const {
     workspaceImportRepository,
     workspaceKmzRequestRepository,
     mediaAssetRepository,
+    workspaceMemberRepository,
+    userRepository,
 } = require('../repositories');
 const { processKmzImport } = require('../utils/kmzProcessor');
 const { removeStoredMedia } = require('../utils/mediaStorage');
@@ -124,20 +135,43 @@ function buildWorkspaceKmzLinks(req, workspaceId, requestEntry) {
     return links;
 }
 
-router.get('/', verifyToken, requireActiveUser, async (req, res) => {
-    try {
-        const workspaces = await reportWorkspaceRepository.list();
-        return res.status(200).json({
-            status: 'success',
-            data: workspaces.map((workspace) => createHateoasResponse(req, workspace, 'report-workspaces', workspace.id)),
-        });
-    } catch (error) {
-        console.error('[report-workspaces API] Error GET /:', error);
-        return res.status(500).json({ status: 'error', message: 'Erro ao listar workspaces de relatorio' });
-    }
-});
+router.get('/', verifyToken, requireActiveUser, asyncHandler(async (req, res) => {
+    // Busca tudo e filtra por acesso — paginacao aplicada in-memory apos filtro,
+    // ja que a visibilidade e por usuario, nao por query SQL global.
+    const workspaces = await reportWorkspaceRepository.list();
 
-router.get('/:id', verifyToken, requireActiveUser, async (req, res) => {
+    let visible = workspaces;
+    if (!isGlobalSuperuser(req.userProfile)) {
+        const memberWorkspaceIds = new Set(
+            await workspaceMemberRepository.listWorkspaceIdsByUser(req.user?.uid),
+        );
+        visible = workspaces.filter((workspace) => memberWorkspaceIds.has(workspace.id));
+    }
+
+    const wantsPagination = req.query.page != null || req.query.limit != null;
+    if (wantsPagination) {
+        const page = Math.max(1, Number(req.query.page) || 1);
+        const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+        const total = visible.length;
+        const start = (page - 1) * limit;
+        const pageItems = visible.slice(start, start + limit);
+
+        const envelope = createPaginatedHateoasResponse(req, pageItems, {
+            entityType: 'report-workspaces',
+            page,
+            limit,
+            total,
+        });
+        return res.status(200).json({ status: 'success', ...envelope });
+    }
+
+    return res.status(200).json({
+        status: 'success',
+        data: visible.map((workspace) => createHateoasResponse(req, workspace, 'report-workspaces', workspace.id)),
+    });
+}));
+
+router.get('/:id', verifyToken, requireActiveUser, requireWorkspaceRead, async (req, res) => {
     try {
         const workspace = await reportWorkspaceRepository.getById(req.params.id);
         if (!workspace) {
@@ -154,52 +188,56 @@ router.get('/:id', verifyToken, requireActiveUser, async (req, res) => {
     }
 });
 
-router.post('/', verifyToken, requireEditor, async (req, res) => {
-    try {
-        const body = req.body && typeof req.body === 'object' ? req.body : {};
-        const data = body.data && typeof body.data === 'object' ? body.data : {};
-        const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
-        const payload = normalizeWorkspacePayload(data);
-        const saved = await reportWorkspaceRepository.save({
-            ...payload,
-            updatedAt: new Date().toISOString(),
-            updatedBy: meta.updatedBy || req.user?.email || 'API',
-        }, { merge: true });
+router.post('/', verifyToken, requireEditor, validateBody(workspaceCreateSchema), asyncHandler(async (req, res) => {
+    const { data, meta = {} } = req.body;
+    const payload = normalizeWorkspacePayload(data);
+    const saved = await reportWorkspaceRepository.save({
+        ...payload,
+        updatedAt: new Date().toISOString(),
+        updatedBy: meta.updatedBy || req.user?.email || 'API',
+    }, { merge: true });
 
-        return res.status(201).json({
-            status: 'success',
-            data: createHateoasResponse(req, saved || payload, 'report-workspaces', payload.id),
-        });
-    } catch (error) {
-        console.error('[report-workspaces API] Error POST /:', error);
-        return res.status(500).json({ status: 'error', message: 'Erro ao criar workspace de relatorio' });
+    // Registra o criador como owner local do workspace, mesmo que ele ja
+    // seja superuser global — assim a UI consegue exibir "meus workspaces"
+    // corretamente quando ele perder o privilegio global no futuro.
+    const creatorId = req.user?.uid;
+    if (creatorId && creatorId !== 'internal-worker') {
+        try {
+            await workspaceMemberRepository.addMember(
+                payload.id,
+                creatorId,
+                'owner',
+                req.user?.email || 'API',
+            );
+        } catch (memberError) {
+            console.error('[report-workspaces API] Falha ao registrar owner do workspace', payload.id, memberError);
+        }
     }
-});
 
-router.put('/:id', verifyToken, requireEditor, async (req, res) => {
-    try {
-        const body = req.body && typeof req.body === 'object' ? req.body : {};
-        const data = body.data && typeof body.data === 'object' ? body.data : {};
-        const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
-        const current = await reportWorkspaceRepository.getById(req.params.id) || {};
-        const payload = normalizeWorkspacePayload({ ...data, id: req.params.id }, current);
-        const saved = await reportWorkspaceRepository.save({
-            ...payload,
-            updatedAt: new Date().toISOString(),
-            updatedBy: meta.updatedBy || req.user?.email || 'API',
-        }, { merge: true });
+    return res.status(201).json({
+        status: 'success',
+        data: createHateoasResponse(req, saved || payload, 'report-workspaces', payload.id),
+    });
+}));
 
-        return res.status(201).json({
-            status: 'success',
-            data: createHateoasResponse(req, saved || payload, 'report-workspaces', req.params.id),
-        });
-    } catch (error) {
-        console.error('[report-workspaces API] Error PUT /:id:', error);
-        return res.status(500).json({ status: 'error', message: 'Erro ao atualizar workspace de relatorio' });
-    }
-});
+router.put('/:id', verifyToken, requireEditor, requireWorkspaceWrite, validateBody(workspaceUpdateSchema), asyncHandler(async (req, res) => {
+    const { data, meta = {} } = req.body;
+    const current = await reportWorkspaceRepository.getById(req.params.id) || {};
+    const payload = normalizeWorkspacePayload({ ...data, id: req.params.id }, current);
+    const saved = await reportWorkspaceRepository.save({
+        ...payload,
+        updatedAt: new Date().toISOString(),
+        updatedBy: meta.updatedBy || req.user?.email || 'API',
+    }, { merge: true });
 
-router.post('/:id/trash', verifyToken, requireEditor, async (req, res) => {
+    // Fix REST: PUT retorna 200 (nao 201 — aquele e pra POST create).
+    return res.status(200).json({
+        status: 'success',
+        data: createHateoasResponse(req, saved || payload, 'report-workspaces', req.params.id),
+    });
+}));
+
+router.post('/:id/trash', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const current = await reportWorkspaceRepository.getById(req.params.id);
         if (!current) return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
@@ -214,7 +252,7 @@ router.post('/:id/trash', verifyToken, requireEditor, async (req, res) => {
     }
 });
 
-router.post('/:id/restore', verifyToken, requireEditor, async (req, res) => {
+router.post('/:id/restore', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const current = await reportWorkspaceRepository.getById(req.params.id);
         if (!current) return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
@@ -230,17 +268,12 @@ router.post('/:id/restore', verifyToken, requireEditor, async (req, res) => {
     }
 });
 
-router.delete('/:id', verifyToken, requireEditor, async (req, res) => {
-    try {
-        await reportWorkspaceRepository.remove(req.params.id);
-        return res.status(200).json({ status: 'success', message: 'Registro deletado' });
-    } catch (error) {
-        console.error('[report-workspaces API] Error DELETE /:id:', error);
-        return res.status(500).json({ status: 'error', message: 'Erro ao deletar workspace de relatorio' });
-    }
-});
+router.delete('/:id', verifyToken, requireEditor, requireWorkspaceWrite, asyncHandler(async (req, res) => {
+    await reportWorkspaceRepository.remove(req.params.id);
+    return res.status(204).send();
+}));
 
-router.post('/:id/import', verifyToken, requireEditor, async (req, res) => {
+router.post('/:id/import', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         if (!workspaceId) {
@@ -284,7 +317,7 @@ router.post('/:id/import', verifyToken, requireEditor, async (req, res) => {
     }
 });
 
-router.get('/:id/photos', verifyToken, requireActiveUser, async (req, res) => {
+router.get('/:id/photos', verifyToken, requireActiveUser, requireWorkspaceRead, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         const photos = await reportPhotoRepository.listByWorkspace(workspaceId);
@@ -299,7 +332,7 @@ router.get('/:id/photos', verifyToken, requireActiveUser, async (req, res) => {
     }
 });
 
-router.get('/:id/photos/trash', verifyToken, requireActiveUser, async (req, res) => {
+router.get('/:id/photos/trash', verifyToken, requireActiveUser, requireWorkspaceRead, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         const photos = await reportPhotoRepository.listTrashedByWorkspace(workspaceId);
@@ -314,7 +347,7 @@ router.get('/:id/photos/trash', verifyToken, requireActiveUser, async (req, res)
     }
 });
 
-router.post('/:id/photos/:photoId/trash', verifyToken, requireEditor, async (req, res) => {
+router.post('/:id/photos/:photoId/trash', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         const photoId = normalizeText(req.params.photoId);
@@ -336,7 +369,7 @@ router.post('/:id/photos/:photoId/trash', verifyToken, requireEditor, async (req
     }
 });
 
-router.post('/:id/photos/:photoId/restore', verifyToken, requireEditor, async (req, res) => {
+router.post('/:id/photos/:photoId/restore', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         const photoId = normalizeText(req.params.photoId);
@@ -358,7 +391,7 @@ router.post('/:id/photos/:photoId/restore', verifyToken, requireEditor, async (r
     }
 });
 
-router.delete('/:id/photos/trash', verifyToken, requireEditor, async (req, res) => {
+router.delete('/:id/photos/trash', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
 
@@ -383,6 +416,9 @@ router.delete('/:id/photos/trash', verifyToken, requireEditor, async (req, res) 
             }
         }
 
+        // NOTA: este DELETE retorna 200 (nao 204) deliberadamente porque carrega
+        // payload informativo (count de fotos purgadas). REST aceita 200 em bulk
+        // deletes que reportam o resultado da operacao. NAO trocar para 204.
         return res.status(200).json({
             status: 'success',
             message: `${removed.length} foto(s) removida(s) permanentemente`,
@@ -394,7 +430,7 @@ router.delete('/:id/photos/trash', verifyToken, requireEditor, async (req, res) 
     }
 });
 
-router.delete('/:id/photos/:photoId', verifyToken, requireEditor, async (req, res) => {
+router.delete('/:id/photos/:photoId', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         const photoId = normalizeText(req.params.photoId);
@@ -419,17 +455,14 @@ router.delete('/:id/photos/:photoId', verifyToken, requireEditor, async (req, re
             }
         }
 
-        return res.status(200).json({
-            status: 'success',
-            message: 'Foto removida do workspace com sucesso',
-        });
+        return res.status(204).send();
     } catch (error) {
         console.error('[report-workspaces API] Error DELETE /:id/photos/:photoId:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao deletar foto do workspace' });
     }
 });
 
-router.put('/:id/photos/:photoId', verifyToken, requireEditor, async (req, res) => {
+router.put('/:id/photos/:photoId', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         const photoId = normalizeText(req.params.photoId);
@@ -460,7 +493,7 @@ router.put('/:id/photos/:photoId', verifyToken, requireEditor, async (req, res) 
     }
 });
 
-router.post('/:id/photos/organize', verifyToken, requireEditor, async (req, res) => {
+router.post('/:id/photos/organize', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -489,14 +522,19 @@ router.post('/:id/photos/organize', verifyToken, requireEditor, async (req, res)
 
         return res.status(202).json({
             status: 'success',
-            data: {
-                workspaceId,
-                summary,
-                _links: {
-                    self: { href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}`, method: 'GET' },
-                    photos: { href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}/photos`, method: 'GET' },
+            data: createResourceHateoasResponse(
+                req,
+                { workspaceId, summary },
+                `report-workspaces/${workspaceId}`,
+                {
+                    collectionPath: 'report-workspaces',
+                    allowUpdate: false,
+                    allowDelete: false,
+                    extraLinks: {
+                        photos: { href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}/photos`, method: 'GET' },
+                    },
                 },
-            },
+            ),
         });
     } catch (error) {
         console.error('[report-workspaces API] Error POST /:id/photos/organize:', error);
@@ -506,7 +544,7 @@ router.post('/:id/photos/organize', verifyToken, requireEditor, async (req, res)
 
 const PHOTO_SORT_MODES = ['tower_asc', 'tower_desc', 'capture_date_asc', 'capture_date_desc', 'sort_order_asc', 'caption_asc'];
 
-router.post('/:id/photos/reorder', verifyToken, requireEditor, async (req, res) => {
+router.post('/:id/photos/reorder', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -553,7 +591,7 @@ router.post('/:id/photos/reorder', verifyToken, requireEditor, async (req, res) 
     }
 });
 
-router.post('/:id/photos/manual-order', verifyToken, requireEditor, async (req, res) => {
+router.post('/:id/photos/manual-order', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -620,7 +658,7 @@ router.post('/:id/photos/manual-order', verifyToken, requireEditor, async (req, 
     }
 });
 
-router.post('/:id/kmz/process', verifyToken, requireEditor, async (req, res) => {
+router.post('/:id/kmz/process', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -675,21 +713,29 @@ router.post('/:id/kmz/process', verifyToken, requireEditor, async (req, res) => 
 
         return res.status(200).json({
             status: 'success',
-            data: {
-                workspaceId,
-                summary: {
-                    photosCreated: result.photosCreated,
-                    photosSkipped: result.photosSkipped,
-                    towersInferred: result.towersInferred,
-                    pendingLinkage: result.pendingLinkage,
-                    placemarkCount: result.placemarkCount,
-                    warnings: result.warnings,
+            data: createResourceHateoasResponse(
+                req,
+                {
+                    workspaceId,
+                    summary: {
+                        photosCreated: result.photosCreated,
+                        photosSkipped: result.photosSkipped,
+                        towersInferred: result.towersInferred,
+                        pendingLinkage: result.pendingLinkage,
+                        placemarkCount: result.placemarkCount,
+                        warnings: result.warnings,
+                    },
                 },
-                _links: {
-                    self: { href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}`, method: 'GET' },
-                    photos: { href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}/photos`, method: 'GET' },
+                `report-workspaces/${workspaceId}`,
+                {
+                    collectionPath: 'report-workspaces',
+                    allowUpdate: false,
+                    allowDelete: false,
+                    extraLinks: {
+                        photos: { href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}/photos`, method: 'GET' },
+                    },
                 },
-            },
+            ),
         });
     } catch (error) {
         console.error('[report-workspaces API] Error POST /:id/kmz/process:', error);
@@ -697,7 +743,7 @@ router.post('/:id/kmz/process', verifyToken, requireEditor, async (req, res) => 
     }
 });
 
-router.post('/:id/kmz', verifyToken, requireEditor, async (req, res) => {
+router.post('/:id/kmz', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -760,7 +806,7 @@ router.post('/:id/kmz', verifyToken, requireEditor, async (req, res) => {
     }
 });
 
-router.get('/:id/kmz/:token', verifyToken, requireActiveUser, async (req, res) => {
+router.get('/:id/kmz/:token', verifyToken, requireActiveUser, requireWorkspaceRead, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);
         const token = normalizeText(req.params.token);
@@ -786,6 +832,100 @@ router.get('/:id/kmz/:token', verifyToken, requireActiveUser, async (req, res) =
     } catch (error) {
         console.error('[report-workspaces API] Error GET /:id/kmz/:token:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao consultar KMZ do workspace' });
+    }
+});
+
+// ===== Membros do workspace ==============================================
+// Ver, adicionar e remover usuarios com acesso ao workspace. Regras:
+//   - Leitura (GET): qualquer usuario com acesso de leitura ao workspace.
+//   - Escrita (POST/DELETE): owner/editor do workspace ou superuser global.
+//     requireWorkspaceWrite ja cobre esses dois casos.
+//   - Nao e possivel remover o ultimo owner do workspace.
+
+const VALID_MEMBER_ROLES = new Set(['owner', 'editor', 'viewer']);
+
+router.get('/:id/members', verifyToken, requireActiveUser, requireWorkspaceRead, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const members = await workspaceMemberRepository.listByWorkspace(workspaceId);
+        return res.status(200).json({ status: 'success', data: members });
+    } catch (error) {
+        console.error('[report-workspaces API] Error GET /:id/members:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao listar membros do workspace' });
+    }
+});
+
+router.post('/:id/members', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const data = body.data && typeof body.data === 'object' ? body.data : body;
+        const userId = normalizeText(data.userId);
+        const role = normalizeText(data.role).toLowerCase();
+
+        if (!userId) {
+            return res.status(400).json({ status: 'error', message: 'userId obrigatorio.' });
+        }
+        if (!VALID_MEMBER_ROLES.has(role)) {
+            return res.status(400).json({
+                status: 'error',
+                message: `role invalida. Use: ${[...VALID_MEMBER_ROLES].join(', ')}.`,
+            });
+        }
+
+        const targetUser = await userRepository.getById(userId);
+        if (!targetUser) {
+            return res.status(404).json({ status: 'error', message: 'Usuario nao encontrado.' });
+        }
+
+        const workspace = await reportWorkspaceRepository.getById(workspaceId);
+        if (!workspace) {
+            return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
+        }
+
+        const member = await workspaceMemberRepository.addMember(
+            workspaceId,
+            userId,
+            role,
+            req.user?.email || 'API',
+        );
+
+        return res.status(201).json({ status: 'success', data: member });
+    } catch (error) {
+        console.error('[report-workspaces API] Error POST /:id/members:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao adicionar membro do workspace' });
+    }
+});
+
+router.delete('/:id/members/:userId', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const userId = normalizeText(req.params.userId);
+
+        if (!userId) {
+            return res.status(400).json({ status: 'error', message: 'userId obrigatorio.' });
+        }
+
+        const member = await workspaceMemberRepository.getMember(workspaceId, userId);
+        if (!member) {
+            return res.status(404).json({ status: 'error', message: 'Membro nao encontrado neste workspace.' });
+        }
+
+        if (member.role === 'owner') {
+            const ownerCount = await workspaceMemberRepository.countOwners(workspaceId);
+            if (ownerCount <= 1) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'Nao e possivel remover o ultimo owner do workspace. Promova outro usuario antes.',
+                });
+            }
+        }
+
+        await workspaceMemberRepository.removeMember(workspaceId, userId);
+        return res.status(204).send();
+    } catch (error) {
+        console.error('[report-workspaces API] Error DELETE /:id/members/:userId:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao remover membro do workspace' });
     }
 });
 
