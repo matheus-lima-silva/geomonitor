@@ -136,6 +136,14 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
             return res.status(403).json({ status: 'error', code: 'PROFILE_NOT_FOUND', message: 'Perfil de usuário não encontrado.' });
         }
 
+        // Registra o timestamp do login para alimentar a metrica de "ultimos
+        // utilizadores a se conectar". Falhas aqui nao devem quebrar o login.
+        try {
+            await userRepository.updateLastLogin(creds.user_id, new Date().toISOString());
+        } catch (lastLoginErr) {
+            console.warn('[auth] updateLastLogin falhou:', lastLoginErr?.message || lastLoginErr);
+        }
+
         const accessToken = signAccessToken({ userId: creds.user_id, email: creds.email });
         const refreshToken = signRefreshToken({ userId: creds.user_id });
 

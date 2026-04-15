@@ -39,3 +39,9 @@ export async function getAdminHealth() {
   const result = await requestMetrics(`${API_BASE_URL}/admin/metrics/health`, { method: 'GET' });
   return result?.data || null;
 }
+
+export async function getAdminRecentLogins(limit = 10) {
+  const url = `${API_BASE_URL}/admin/metrics/recent-logins?limit=${encodeURIComponent(limit)}`;
+  const result = await requestMetrics(url, { method: 'GET' });
+  return result?.data || null;
+}

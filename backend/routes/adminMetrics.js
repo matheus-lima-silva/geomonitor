@@ -115,6 +115,42 @@ router.get('/top-users', verifyToken, ...adminGuards, asyncHandler(async (req, r
     });
 }));
 
+router.get('/recent-logins', verifyToken, ...adminGuards, asyncHandler(async (req, res) => {
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
+
+    // Ordena por payload->>'lastLoginAt' como texto; ISO 8601 e lexicograficamente
+    // ordenavel, entao nao precisa cast para timestamp. Usuarios que nunca
+    // logaram (lastLoginAt IS NULL) sao filtrados.
+    const result = await postgresStore.query(
+        `SELECT id,
+                payload->>'nome' AS nome,
+                payload->>'email' AS email,
+                payload->>'perfil' AS perfil,
+                payload->>'lastLoginAt' AS last_login_at
+         FROM users
+         WHERE payload->>'lastLoginAt' IS NOT NULL
+           AND payload->>'lastLoginAt' <> ''
+         ORDER BY payload->>'lastLoginAt' DESC
+         LIMIT $1`,
+        [limit],
+    );
+
+    const data = {
+        recentLogins: result.rows.map((row) => ({
+            userId: row.id,
+            nome: row.nome,
+            email: row.email,
+            perfil: row.perfil,
+            lastLoginAt: row.last_login_at,
+        })),
+    };
+
+    return res.status(200).json({
+        status: 'success',
+        data: createSingletonHateoasResponse(req, data, 'admin/metrics/recent-logins'),
+    });
+}));
+
 router.get('/health', verifyToken, ...adminGuards, asyncHandler(async (req, res) => {
     const [queuedRes, processingRes, failedRes] = await Promise.all([
         postgresStore.query(`SELECT COUNT(*)::int AS n FROM report_jobs WHERE status_execucao = 'queued'`),

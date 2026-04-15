@@ -7,6 +7,7 @@ import {
   getAdminActivity,
   getAdminTopUsers,
   getAdminHealth,
+  getAdminRecentLogins,
 } from '../../../services/adminMetricsService';
 
 function KpiCard({ label, value, icon }) {
@@ -36,6 +37,7 @@ function UsageStatsSection() {
   const [activity, setActivity] = useState(null);
   const [topUsers, setTopUsers] = useState(null);
   const [health, setHealth] = useState(null);
+  const [recentLogins, setRecentLogins] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,17 +45,19 @@ function UsageStatsSection() {
     async function load() {
       try {
         setLoading(true);
-        const [t, a, tu, h] = await Promise.all([
+        const [t, a, tu, h, rl] = await Promise.all([
           getAdminTotals(),
           getAdminActivity(),
           getAdminTopUsers(10),
           getAdminHealth(),
+          getAdminRecentLogins(10),
         ]);
         if (cancelled) return;
         setTotals(t);
         setActivity(a);
         setTopUsers(tu);
         setHealth(h);
+        setRecentLogins(rl);
       } catch (err) {
         if (!cancelled) show(err.message || 'Erro ao carregar metricas.', 'error');
       } finally {
@@ -124,6 +128,38 @@ function UsageStatsSection() {
             </ul>
           </Card>
         </div>
+      </section>
+
+      {/* Ultimos utilizadores a se conectar */}
+      <section>
+        <h3 className="text-base font-bold text-slate-800 mb-3">Ultimos utilizadores a se conectar</h3>
+        <Card variant="flat" className="!p-0 overflow-x-auto">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead>
+              <tr>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Usuario</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Perfil</th>
+                <th className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">Ultimo login</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {(recentLogins?.recentLogins || []).length === 0 ? (
+                <tr>
+                  <td colSpan="4" className="px-4 py-6 text-center text-sm text-slate-500">Nenhum login registrado ainda.</td>
+                </tr>
+              ) : null}
+              {(recentLogins?.recentLogins || []).map((u) => (
+                <tr key={u.userId} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 text-sm text-slate-700">{u.nome || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{u.email || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{u.perfil || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-500">{formatDate(u.lastLoginAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
       </section>
 
       {/* Top usuarios */}
