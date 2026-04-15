@@ -1,5 +1,4 @@
-// Whitelist de Content-Types aceitos em uploads. Mantenha enxuta: apenas
-// formatos que o frontend realmente envia (fotos de campo + PDFs de laudo).
+// Whitelist de Content-Types aceitos em uploads (frontend + worker).
 // Rejeitar tudo que nao estiver aqui previne upload de executaveis, scripts
 // e arquivos que o backend nao sabe processar.
 
@@ -14,6 +13,8 @@ const IMAGE_MIME_TYPES = new Set([
 
 const DOCUMENT_MIME_TYPES = new Set([
     'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.google-earth.kmz',
 ]);
 
 const ALL_ALLOWED_MIME_TYPES = new Set([...IMAGE_MIME_TYPES, ...DOCUMENT_MIME_TYPES]);

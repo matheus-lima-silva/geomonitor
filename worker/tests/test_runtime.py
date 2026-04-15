@@ -153,12 +153,13 @@ def build_workspace_kmz_context():
 
 
 class StubClient:
-    def __init__(self, configured=True, job=None, contexts=None, download_fail_media_ids=None, fail_upload=False):
+    def __init__(self, configured=True, job=None, contexts=None, download_fail_media_ids=None, fail_upload=False, fail_create_media=False):
         self._configured = configured
         self.job = job
         self.contexts = contexts or {}
         self.download_fail_media_ids = set(download_fail_media_ids or [])
         self.fail_upload = fail_upload
+        self.fail_create_media = fail_create_media
         self.completed = []
         self.failed = []
         self.created_media = []
@@ -183,6 +184,9 @@ class StubClient:
         }
 
     def create_output_media(self, job_id, file_name, content_type, size_bytes=0, purpose="report_output_docx"):
+        if self.fail_create_media:
+            from worker.runtime import WorkerClientError
+            raise WorkerClientError("API respondeu 415: Content-Type nao suportado")
         media = {
             "id": f"MED-{job_id}",
             "upload": {
@@ -395,6 +399,23 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertEqual(result["status"], "failed")
         self.assertEqual(client.failed[0][0], "JOB-UPLOAD-FAIL")
         self.assertIn("falha no upload final", client.failed[0][1])
+
+    def test_run_once_marks_failed_on_worker_client_error_during_processing(self):
+        """Regression: WorkerClientError from API (e.g. 415) must mark job failed."""
+        job = {"id": "JOB-415", "kind": "project_dossier"}
+        client = StubClient(
+            configured=True,
+            job=job,
+            contexts={"JOB-415": build_dossier_context()},
+            fail_create_media=True,
+        )
+        runtime = WorkerRuntime(client=client)
+        result = runtime.run_once()
+
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(len(client.failed), 1)
+        self.assertEqual(client.failed[0][0], "JOB-415")
+        self.assertIn("415", client.failed[0][1])
 
     def test_run_once_ignores_individual_photo_download_failure(self):
         context = build_dossier_context()

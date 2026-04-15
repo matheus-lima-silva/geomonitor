@@ -26,13 +26,15 @@ describe('uploadValidation', () => {
     });
 
     describe('isAllowedMimeType', () => {
-        it('aceita JPEG, PNG, WebP, HEIC, HEIF, PDF', () => {
+        it('aceita JPEG, PNG, WebP, HEIC, HEIF, PDF, DOCX, KMZ', () => {
             expect(isAllowedMimeType('image/jpeg')).toBe(true);
             expect(isAllowedMimeType('image/png')).toBe(true);
             expect(isAllowedMimeType('image/webp')).toBe(true);
             expect(isAllowedMimeType('image/heic')).toBe(true);
             expect(isAllowedMimeType('image/heif')).toBe(true);
             expect(isAllowedMimeType('application/pdf')).toBe(true);
+            expect(isAllowedMimeType('application/vnd.openxmlformats-officedocument.wordprocessingml.document')).toBe(true);
+            expect(isAllowedMimeType('application/vnd.google-earth.kmz')).toBe(true);
         });
 
         it('rejeita executaveis e scripts', () => {
@@ -96,12 +98,26 @@ describe('uploadValidation', () => {
             const { next } = runMiddleware('image/png; boundary=xyz');
             expect(next).toHaveBeenCalled();
         });
+
+        it('chama next() para DOCX do worker', () => {
+            const { next, res } = runMiddleware('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+            expect(next).toHaveBeenCalled();
+            expect(res.status).not.toHaveBeenCalled();
+        });
+
+        it('chama next() para KMZ do worker', () => {
+            const { next, res } = runMiddleware('application/vnd.google-earth.kmz');
+            expect(next).toHaveBeenCalled();
+            expect(res.status).not.toHaveBeenCalled();
+        });
     });
 
     describe('ALL_ALLOWED_MIME_TYPES', () => {
-        it('contem imagens e pdf', () => {
+        it('contem imagens, pdf, docx e kmz', () => {
             expect(ALL_ALLOWED_MIME_TYPES.has('image/jpeg')).toBe(true);
             expect(ALL_ALLOWED_MIME_TYPES.has('application/pdf')).toBe(true);
+            expect(ALL_ALLOWED_MIME_TYPES.has('application/vnd.openxmlformats-officedocument.wordprocessingml.document')).toBe(true);
+            expect(ALL_ALLOWED_MIME_TYPES.has('application/vnd.google-earth.kmz')).toBe(true);
         });
 
         it('nao contem tipos perigosos', () => {

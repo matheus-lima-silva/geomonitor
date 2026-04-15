@@ -472,7 +472,11 @@ class WorkerRuntime:
                 "timestamp": finished_at,
             }
         except WorkerClientError as exc:
-            error_log = f"Falha ao atualizar status do job '{job_id}': {exc}"
+            error_log = f"Falha de comunicacao com a API ao processar '{job_id}': {exc}"
+            try:
+                self.client.mark_failed(job_id, error_log)
+            except WorkerClientError as mark_exc:
+                error_log = f"{error_log} | falha ao reportar erro: {mark_exc}"
         except Exception as exc:  # pragma: no cover - protection for unexpected runtime failures
             error_log = f"Falha interna do worker ao processar '{job_id}': {exc}"
             logger.exception(
