@@ -371,7 +371,6 @@ def _resolve_heading_style(document):
 # ----------------------------------------------------------------------------
 ELETROBRAS_BODY_FONT = "Arial"
 ELETROBRAS_BODY_SIZE_PT = 11
-ELETROBRAS_CAPTION_SIZE_PT = 10
 
 
 def _clear_autospacing(style):
@@ -448,16 +447,7 @@ def apply_eletrobras_formatting_compound(document):
         pass
 
     # --- 4. Legenda (photo caption) ---
-    # Arial 10, bold, not italic, no gray color.
-    try:
-        caption = styles["caption"]
-        caption.font.name = ELETROBRAS_BODY_FONT
-        caption.font.size = Pt(ELETROBRAS_CAPTION_SIZE_PT)
-        caption.font.bold = True
-        caption.font.italic = False
-        _clear_run_color(caption)
-    except KeyError:
-        pass
+    # Preserva o estilo original do template (italic, 9pt, cor tema text2).
 
 
 def add_heading_paragraph(document, text, ilvl=0):

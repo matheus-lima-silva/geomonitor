@@ -349,16 +349,10 @@ class WorkerRuntimeTests(unittest.TestCase):
             spacing_el.attrib,
         )
 
-        # Caption (photo legend): Arial 10 bold, not italic, no explicit color.
+        # Caption (photo legend): preserva estilo original do template (italic, cor tema).
         caption = document.styles["caption"]
-        self.assertEqual(caption.font.name, "Arial")
-        self.assertEqual(caption.font.size, Pt(10))
-        self.assertTrue(caption.font.bold)
-        self.assertFalse(caption.font.italic)
-        rPr = caption.element.find("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}rPr")
-        if rPr is not None:
-            color_el = rPr.find("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}color")
-            self.assertIsNone(color_el)
+        self.assertTrue(caption.font.italic)
+        self.assertIsNone(caption.font.bold)
 
     def test_run_once_completes_workspace_kmz_job(self):
         job = {"id": "JOB-KMZ-1", "kind": "workspace_kmz"}
