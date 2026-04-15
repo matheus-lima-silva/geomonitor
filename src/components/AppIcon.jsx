@@ -42,6 +42,7 @@ import Trash2 from 'lucide-react/dist/esm/icons/trash-2';
 import Undo2 from 'lucide-react/dist/esm/icons/undo-2';
 import Upload from 'lucide-react/dist/esm/icons/upload';
 import User from 'lucide-react/dist/esm/icons/user';
+import Users from 'lucide-react/dist/esm/icons/users';
 import Waypoints from 'lucide-react/dist/esm/icons/waypoints';
 import X from 'lucide-react/dist/esm/icons/x';
 
@@ -63,6 +64,7 @@ const ICON_MAP = {
   check: Check,
   pause: Pause,
   user: User,
+  users: Users,
   logout: LogOut,
   clipboard: ClipboardList,
   alert: AlertTriangle,

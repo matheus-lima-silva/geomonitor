@@ -17,6 +17,8 @@ import {
   tone,
 } from '../utils/reportUtils';
 import PhotoPreviewModal from './PhotoPreviewModal';
+import WorkspaceMembersModal from './WorkspaceMembersModal';
+import { useAuth } from '../../../context/AuthContext';
 
 const PAGE_SIZE = 24;
 
@@ -96,12 +98,25 @@ export default function WorkspacesTab({
   handleRestoreWorkspace,
   handleHardDeleteWorkspace,
 }) {
+  const { user } = useAuth();
+  const isGlobalManager = user?.role === 'admin' || user?.role === 'manager';
+  const [membersModalWorkspace, setMembersModalWorkspace] = useState(null);
   const [sidebarKmzOpen, setSidebarKmzOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [draggingPhotoId, setDraggingPhotoId] = useState(null);
   const [dragOverPhotoId, setDragOverPhotoId] = useState(null);
   const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
   const [confirmHardDeleteWorkspace, setConfirmHardDeleteWorkspace] = useState(null);
+
+  // Um workspace pode ter seu painel de membros aberto quando o requester
+  // e admin/manager global OU membro local com role owner/editor. A role
+  // local vem no campo currentUserRole, anotado pelo backend em GET / e
+  // GET /:id via middleware requireWorkspaceRead.
+  const canManageMembers = (workspace) => {
+    if (isGlobalManager) return true;
+    const localRole = workspace?.currentUserRole;
+    return localRole === 'owner' || localRole === 'editor';
+  };
   const [showWorkspaceTrash, setShowWorkspaceTrash] = useState(false);
   const [photoTrashOpen, setPhotoTrashOpen] = useState(false);
   const [captionsSectionOpen, setCaptionsSectionOpen] = useState(false);
@@ -484,7 +499,18 @@ export default function WorkspacesTab({
               <EmptyState icon="file-text" title="Nenhum workspace criado" description="Crie um workspace usando o formulario acima." />
             ) : filteredWorkspaceList.filter((w) => !w.deletedAt).length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500 text-center">
-                Nenhum workspace encontrado com o filtro atual.
+                {!isGlobalManager && workspaces.filter((w) => !w.deletedAt).length === 0 ? (
+                  <>
+                    <div className="font-medium text-slate-700 mb-1">
+                      Voce ainda nao foi adicionado a nenhum workspace.
+                    </div>
+                    <div>
+                      Peca a um administrador ou dono de workspace para te incluir como membro.
+                    </div>
+                  </>
+                ) : (
+                  'Nenhum workspace encontrado com o filtro atual.'
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-2">
@@ -510,6 +536,17 @@ export default function WorkspacesTab({
                         >
                           {workspace.id === workspaceImportTargetId ? 'Selecionado' : 'Selecionar'}
                         </Button>
+                        {canManageMembers(workspace) && (
+                          <button
+                            type="button"
+                            className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                            aria-label="Gerenciar membros"
+                            title="Gerenciar membros"
+                            onClick={() => setMembersModalWorkspace(workspace)}
+                          >
+                            <AppIcon name="users" size={14} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-red-400 hover:bg-red-50 disabled:opacity-40"
@@ -1349,6 +1386,15 @@ export default function WorkspacesTab({
           }));
         }}
         onSave={() => activePreviewPhoto && handleSaveWorkspacePhoto(activePreviewPhoto)}
+      />
+
+      {/* Modal de gestao de membros do workspace */}
+      <WorkspaceMembersModal
+        open={Boolean(membersModalWorkspace)}
+        onClose={() => setMembersModalWorkspace(null)}
+        workspaceId={membersModalWorkspace?.id}
+        workspaceName={membersModalWorkspace?.nome || membersModalWorkspace?.id}
+        canManage={membersModalWorkspace ? canManageMembers(membersModalWorkspace) : false}
       />
     </>
   );
