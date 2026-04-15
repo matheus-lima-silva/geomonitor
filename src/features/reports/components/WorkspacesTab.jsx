@@ -18,7 +18,7 @@ import {
 } from '../utils/reportUtils';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import WorkspaceMembersModal from './WorkspaceMembersModal';
-import { useAuth } from '../../../context/AuthContext';
+import { useOptionalAuth } from '../../../context/AuthContext';
 
 const PAGE_SIZE = 24;
 
@@ -98,7 +98,12 @@ export default function WorkspacesTab({
   handleRestoreWorkspace,
   handleHardDeleteWorkspace,
 }) {
-  const { user } = useAuth();
+  // useOptionalAuth em vez de useAuth porque os testes existentes montam
+  // o WorkspacesTab sem envolver em AuthProvider. Em runtime o contexto
+  // existe e user vem preenchido; em testes de snapshot cai em null
+  // (usuario nao-admin e nao-membro — empty state padrao).
+  const auth = useOptionalAuth();
+  const user = auth?.user || null;
   const isGlobalManager = user?.role === 'admin' || user?.role === 'manager';
   const [membersModalWorkspace, setMembersModalWorkspace] = useState(null);
   const [sidebarKmzOpen, setSidebarKmzOpen] = useState(false);
@@ -1388,14 +1393,18 @@ export default function WorkspacesTab({
         onSave={() => activePreviewPhoto && handleSaveWorkspacePhoto(activePreviewPhoto)}
       />
 
-      {/* Modal de gestao de membros do workspace */}
-      <WorkspaceMembersModal
-        open={Boolean(membersModalWorkspace)}
-        onClose={() => setMembersModalWorkspace(null)}
-        workspaceId={membersModalWorkspace?.id}
-        workspaceName={membersModalWorkspace?.nome || membersModalWorkspace?.id}
-        canManage={membersModalWorkspace ? canManageMembers(membersModalWorkspace) : false}
-      />
+      {/* Modal de gestao de membros do workspace. Renderizado condicionalmente
+          para evitar montar useToast/useEffect em cenarios de teste que
+          nao envolvem ToastProvider ou AuthProvider no tree. */}
+      {membersModalWorkspace && (
+        <WorkspaceMembersModal
+          open
+          onClose={() => setMembersModalWorkspace(null)}
+          workspaceId={membersModalWorkspace.id}
+          workspaceName={membersModalWorkspace.nome || membersModalWorkspace.id}
+          canManage={canManageMembers(membersModalWorkspace)}
+        />
+      )}
     </>
   );
 }

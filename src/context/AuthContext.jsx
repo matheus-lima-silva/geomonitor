@@ -91,3 +91,12 @@ export function useAuth() {
   if (!context) throw new Error('useAuth deve ser usado dentro de AuthProvider');
   return context;
 }
+
+/**
+ * Como useAuth, mas retorna null quando nao ha AuthProvider no tree.
+ * Util em componentes apresentacionais que podem ser renderizados tanto
+ * dentro do app completo quanto isoladamente em testes de snapshot.
+ */
+export function useOptionalAuth() {
+  return useContext(AuthContext) || null;
+}
