@@ -16,6 +16,7 @@ const workspaceKmzRequestRepository = require('./workspaceKmzRequestRepository')
 const mediaAssetRepository = require('./mediaAssetRepository');
 const reportTemplateRepository = require('./reportTemplateRepository');
 const rulesConfigRepository = require('./rulesConfigRepository');
+const workspaceMemberRepository = require('./workspaceMemberRepository');
 
 module.exports = {
     reportDefaultsRepository,
@@ -36,4 +37,5 @@ module.exports = {
     mediaAssetRepository,
     reportTemplateRepository,
     rulesConfigRepository,
+    workspaceMemberRepository,
 };
