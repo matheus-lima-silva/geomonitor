@@ -93,6 +93,7 @@ const reportCompoundsRouter = require('./routes/reportCompounds');
 const reportTemplatesRouter = require('./routes/reportTemplates');
 const authRouter = require('./routes/auth');
 const profissoesRouter = require('./routes/profissoes');
+const adminMetricsRouter = require('./routes/adminMetrics');
 
 app.use('/api/auth', authRouter);
 app.use('/api/profissoes', profissoesRouter);
@@ -112,6 +113,7 @@ app.use('/api/reports', reportsRouter);
 app.use('/api/report-delivery-tracking', reportDeliveryTrackingRouter);
 app.use('/api/report-templates', reportTemplatesRouter);
 app.use('/api/rules', rulesRouter);
+app.use('/api/admin/metrics', adminMetricsRouter);
 
 // Global Error Handler para não expor erros ao cliente em prod
 const { logError } = require('./utils/asyncHandler');

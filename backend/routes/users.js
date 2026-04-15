@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
 const { verifyToken, requireAdmin, getCachedProfile, setCachedProfile, invalidateCachedProfile } = require('../utils/authMiddleware');
-const { createHateoasResponse, createPaginatedHateoasResponse } = require('../utils/hateoas');
+const { createHateoasResponse, createPaginatedHateoasResponse, createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/hateoas');
 const { sanitizeUser, sanitizeUsers } = require('../utils/sanitizeUser');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { validateBody } = require('../middleware/validate');
@@ -217,6 +217,25 @@ router.post('/bootstrap', verifyToken, validateBody(userBootstrapSchema), asyncH
     await userRepository.save(profile, { merge: true });
     invalidateCachedProfile(userId);
 
+    // Garante um signatario "self" em user_signatories para o novo usuario,
+    // unificando a fonte de signatarios de relatorios (ver plano 3.2).
+    try {
+        const existingSigs = await userSignatoryRepository.listByUser(userId);
+        if (!Array.isArray(existingSigs) || existingSigs.length === 0) {
+            await userSignatoryRepository.create({
+                userId,
+                nome: profile.nome || profile.email || userId,
+                profissaoId: profile.profissao_id || null,
+                registroConselho: profile.registro_conselho || '',
+                registroEstado: profile.registro_estado || '',
+                registroNumero: profile.registro_numero || '',
+                registroSufixo: profile.registro_sufixo || '',
+            });
+        }
+    } catch (sigErr) {
+        console.warn('[users bootstrap] Falha ao criar signatario self:', sigErr?.message || sigErr);
+    }
+
     return res.status(201).json({
         status: 'success',
         data: createHateoasResponse(req, sanitizeUser(profile), 'users', userId),
@@ -286,6 +305,120 @@ router.post('/:id/send-reset', verifyToken, ...adminGuards, asyncHandler(async (
 
 router.delete('/:id', verifyToken, ...adminGuards, asyncHandler(async (req, res) => {
     await userRepository.remove(req.params.id);
+    return res.status(204).send();
+}));
+
+// --- Signatarios gerenciados por admin (qualquer usuario-alvo) ---
+//
+// Diferente das rotas /me/signatarios (formato plano {status, data}), estas
+// sao sub-recursos admin-gerenciados e seguem HATEOAS — mesmo padrao de
+// /report-workspaces/:id/members. Cada resposta individual carrega
+// _links.self/collection/update/delete apontando para a sub-resource canonica
+// /users/:id/signatarios/:sigId.
+
+function createAdminSignatoryResponse(req, userId, signatory) {
+    const sigId = String(signatory?.id || '');
+    return createResourceHateoasResponse(
+        req,
+        signatory,
+        `users/${userId}/signatarios/${sigId}`,
+        {
+            collectionPath: `users/${userId}/signatarios`,
+            extraLinks: {
+                user: {
+                    href: `${resolveApiBaseUrl(req)}/users/${userId}`,
+                    method: 'GET',
+                },
+            },
+        },
+    );
+}
+
+router.get('/:id/signatarios', verifyToken, ...adminGuards, asyncHandler(async (req, res) => {
+    const userId = String(req.params.id || '').trim();
+    if (!userId) {
+        return res.status(400).json({ status: 'error', message: 'userId obrigatorio.' });
+    }
+    const targetUser = await userRepository.getById(userId);
+    if (!targetUser) {
+        return res.status(404).json({ status: 'error', message: 'Usuario nao encontrado.' });
+    }
+    const items = await userSignatoryRepository.listByUser(userId);
+    return res.status(200).json({
+        status: 'success',
+        data: items.map((item) => createAdminSignatoryResponse(req, userId, item)),
+        _links: {
+            self: {
+                href: `${resolveApiBaseUrl(req)}/users/${userId}/signatarios`,
+                method: 'GET',
+            },
+            user: {
+                href: `${resolveApiBaseUrl(req)}/users/${userId}`,
+                method: 'GET',
+            },
+            add: {
+                href: `${resolveApiBaseUrl(req)}/users/${userId}/signatarios`,
+                method: 'POST',
+            },
+        },
+    });
+}));
+
+router.post('/:id/signatarios', verifyToken, ...adminGuards, validateBody(signatorySchema), asyncHandler(async (req, res) => {
+    const userId = String(req.params.id || '').trim();
+    if (!userId) {
+        return res.status(400).json({ status: 'error', message: 'userId obrigatorio.' });
+    }
+    const targetUser = await userRepository.getById(userId);
+    if (!targetUser) {
+        return res.status(404).json({ status: 'error', message: 'Usuario nao encontrado.' });
+    }
+    const { nome, profissao_id, registro_conselho, registro_estado, registro_numero, registro_sufixo } = req.body;
+    const created = await userSignatoryRepository.create({
+        userId,
+        nome,
+        profissaoId: profissao_id || null,
+        registroConselho: registro_conselho || '',
+        registroEstado: registro_estado || '',
+        registroNumero: registro_numero || '',
+        registroSufixo: registro_sufixo || '',
+    });
+    return res.status(201).json({
+        status: 'success',
+        data: createAdminSignatoryResponse(req, userId, created),
+    });
+}));
+
+router.put('/:id/signatarios/:sigId', verifyToken, ...adminGuards, validateBody(signatoryUpdateSchema), asyncHandler(async (req, res) => {
+    const userId = String(req.params.id || '').trim();
+    const sigId = String(req.params.sigId || '').trim();
+    const existing = await userSignatoryRepository.getById(sigId);
+    if (!existing || existing.user_id !== userId) {
+        return res.status(404).json({ status: 'error', message: 'Signatario nao encontrado.' });
+    }
+    const { nome, profissao_id, registro_conselho, registro_estado, registro_numero, registro_sufixo } = req.body;
+    const updated = await userSignatoryRepository.update(sigId, {
+        nome: (nome && nome.trim()) || existing.nome,
+        profissaoId: profissao_id !== undefined ? profissao_id : existing.profissao_id,
+        registroConselho: registro_conselho !== undefined ? registro_conselho : existing.registro_conselho,
+        registroEstado: registro_estado !== undefined ? registro_estado : existing.registro_estado,
+        registroNumero: registro_numero !== undefined ? registro_numero : existing.registro_numero,
+        registroSufixo: registro_sufixo !== undefined ? registro_sufixo : existing.registro_sufixo,
+    });
+    return res.status(200).json({
+        status: 'success',
+        data: createAdminSignatoryResponse(req, userId, updated),
+    });
+}));
+
+router.delete('/:id/signatarios/:sigId', verifyToken, ...adminGuards, asyncHandler(async (req, res) => {
+    const userId = String(req.params.id || '').trim();
+    const sigId = String(req.params.sigId || '').trim();
+    const existing = await userSignatoryRepository.getById(sigId);
+    if (!existing || existing.user_id !== userId) {
+        return res.status(404).json({ status: 'error', message: 'Signatario nao encontrado.' });
+    }
+    await userSignatoryRepository.remove(sigId);
     return res.status(204).send();
 }));
 

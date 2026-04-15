@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Input, Modal, Select } from '../../../components/ui';
+import { Button, Input, Modal } from '../../../components/ui';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
+import SignatoryFields, { EMPTY_SIG, formatRegistroPreview } from '../../admin/components/SignatoryFields';
 import {
   createSignatario,
   deleteSignatario,
@@ -21,16 +22,6 @@ function formatPhone(value) {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
-function formatRegistroPreview(conselho, estado, numero, sufixo) {
-  const parts = [];
-  if (conselho && estado) parts.push(`${conselho}-${estado}`);
-  else if (conselho) parts.push(conselho);
-  if (numero) parts.push(sufixo ? `${numero}/${sufixo}` : numero);
-  return parts.join(' ');
-}
-
-const EMPTY_SIG = { nome: '', profissao_id: '', registro_conselho: '', registro_estado: '', registro_numero: '', registro_sufixo: '' };
-
 function ProfileModal({ onClose }) {
   const { user, refreshProfile } = useAuth();
   const { show } = useToast();
@@ -42,11 +33,6 @@ function ProfileModal({ onClose }) {
     departamento: user?.departamento || '',
     telefone: formatPhone(user?.telefone || ''),
     perfil: user?.perfil || 'Utilizador',
-    profissao_id: user?.profissao_id || '',
-    registro_conselho: user?.registro_conselho || '',
-    registro_estado: user?.registro_estado || '',
-    registro_numero: user?.registro_numero || '',
-    registro_sufixo: user?.registro_sufixo || '',
   });
 
   const [profissoes, setProfissoes] = useState([]);
@@ -78,11 +64,6 @@ function ProfileModal({ onClose }) {
         perfil: user.perfil || 'Utilizador',
         status: user.status || 'Pendente',
         perfilAtualizadoPrimeiroLogin: user.perfilAtualizadoPrimeiroLogin ?? true,
-        profissao_id: formData.profissao_id,
-        registro_conselho: String(formData.registro_conselho || '').trim(),
-        registro_estado: String(formData.registro_estado || '').trim().toUpperCase(),
-        registro_numero: String(formData.registro_numero || '').trim(),
-        registro_sufixo: String(formData.registro_sufixo || '').trim().toUpperCase(),
       }, { merge: true, updatedBy: user.email });
 
       await refreshProfile();
@@ -148,30 +129,6 @@ function ProfileModal({ onClose }) {
       registro_numero: sig.registro_numero || '',
       registro_sufixo: sig.registro_sufixo || '',
     });
-  }
-
-  const registroPreview = formatRegistroPreview(formData.registro_conselho, formData.registro_estado, formData.registro_numero, formData.registro_sufixo);
-
-  function renderSigFields(data, setData, prefix) {
-    return (
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
-        <div className="sm:col-span-2">
-          <Input id={`${prefix}-nome`} label="Nome" value={data.nome} onChange={(e) => setData((prev) => ({ ...prev, nome: e.target.value }))} placeholder="Nome completo" />
-        </div>
-        <div className="sm:col-span-1">
-          <Select id={`${prefix}-prof`} label="Profissao" value={data.profissao_id} onChange={(e) => setData((prev) => ({ ...prev, profissao_id: e.target.value }))}>
-            <option value="">--</option>
-            {profissoes.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-          </Select>
-        </div>
-        <div className="sm:col-span-3 grid grid-cols-4 gap-2">
-          <Input id={`${prefix}-cons`} label="Conselho" value={data.registro_conselho} onChange={(e) => setData((prev) => ({ ...prev, registro_conselho: e.target.value }))} placeholder="CREA" />
-          <Input id={`${prefix}-uf`} label="UF" value={data.registro_estado} onChange={(e) => setData((prev) => ({ ...prev, registro_estado: e.target.value.slice(0, 2).toUpperCase() }))} placeholder="RJ" maxLength={2} />
-          <Input id={`${prefix}-num`} label="Numero" value={data.registro_numero} onChange={(e) => setData((prev) => ({ ...prev, registro_numero: e.target.value }))} placeholder="123456" />
-          <Input id={`${prefix}-suf`} label="Sufixo" value={data.registro_sufixo} onChange={(e) => setData((prev) => ({ ...prev, registro_sufixo: e.target.value.toUpperCase() }))} placeholder="D" />
-        </div>
-      </div>
-    );
   }
 
   const footer = (
@@ -252,40 +209,21 @@ function ProfileModal({ onClose }) {
         />
       </div>
 
-      {/* Minha Assinatura */}
+      {/* Minhas Assinaturas */}
       <hr className="my-6 border-slate-200" />
-      <h3 className="text-sm font-bold text-slate-700 mb-3">Minha Assinatura</h3>
-      <div className="grid grid-cols-1 gap-4 mb-2">
-        <Select
-          id="profile-profissao"
-          label="Profissao"
-          value={formData.profissao_id}
-          onChange={(e) => setFormData((prev) => ({ ...prev, profissao_id: e.target.value }))}
-        >
-          <option value="">Selecione...</option>
-          {profissoes.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-        </Select>
-      </div>
-      <div className="grid grid-cols-4 gap-3 mb-2">
-        <Input id="profile-reg-conselho" label="Conselho" value={formData.registro_conselho} onChange={(e) => setFormData((prev) => ({ ...prev, registro_conselho: e.target.value }))} placeholder="CREA" />
-        <Input id="profile-reg-uf" label="UF" value={formData.registro_estado} onChange={(e) => setFormData((prev) => ({ ...prev, registro_estado: e.target.value.slice(0, 2).toUpperCase() }))} placeholder="RJ" maxLength={2} />
-        <Input id="profile-reg-numero" label="Numero" value={formData.registro_numero} onChange={(e) => setFormData((prev) => ({ ...prev, registro_numero: e.target.value }))} placeholder="123456" />
-        <Input id="profile-reg-sufixo" label="Sufixo" value={formData.registro_sufixo} onChange={(e) => setFormData((prev) => ({ ...prev, registro_sufixo: e.target.value.toUpperCase() }))} placeholder="D" />
-      </div>
-      {registroPreview ? (
-        <p className="text-xs text-slate-500 mb-4">Registro: <strong>{registroPreview}</strong></p>
-      ) : null}
-
-      {/* Signatarios Frequentes */}
-      <hr className="my-6 border-slate-200" />
-      <h3 className="text-sm font-bold text-slate-700 mb-3">Signatarios Frequentes</h3>
+      <h3 className="text-sm font-bold text-slate-700 mb-3">Minhas Assinaturas</h3>
       {signatarios.length > 0 ? (
         <div className="flex flex-col gap-2 mb-4">
           {signatarios.map((sig) => (
             <div key={sig.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
               {editingSigId === sig.id ? (
                 <div className="flex-1 flex flex-col gap-2">
-                  {renderSigFields(editingSig, setEditingSig, `edit-sig-${sig.id}`)}
+                  <SignatoryFields
+                    data={editingSig}
+                    onChange={setEditingSig}
+                    prefix={`edit-sig-${sig.id}`}
+                    profissoes={profissoes}
+                  />
                   <div className="flex gap-2 justify-end">
                     <Button variant="outline" size="sm" onClick={() => setEditingSigId(null)}><AppIcon name="close" />Cancelar</Button>
                     <Button size="sm" onClick={() => handleUpdateSignatario(sig.id)} disabled={sigBusy === `edit:${sig.id}`}>
@@ -319,7 +257,12 @@ function ProfileModal({ onClose }) {
 
       <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 mb-6">
         <p className="text-xs font-semibold text-slate-600 mb-2">Adicionar signatario</p>
-        {renderSigFields(newSig, setNewSig, 'new-sig')}
+        <SignatoryFields
+          data={newSig}
+          onChange={setNewSig}
+          prefix="new-sig"
+          profissoes={profissoes}
+        />
         <div className="flex justify-end mt-2">
           <Button size="sm" onClick={handleAddSignatario} disabled={sigBusy === 'add'}>
             <AppIcon name="plus" size={14} />

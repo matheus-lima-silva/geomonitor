@@ -11,6 +11,9 @@ import {
   normalizeRulesConfig,
 } from '../../shared/rulesConfig';
 import { normalizeUserStatus } from '../../shared/statusUtils';
+import SignaturesSection from './SignaturesSection';
+import WorkspacesAccessSection from './WorkspacesAccessSection';
+import UsageStatsSection from './UsageStatsSection';
 
 function AdminView({
   users,
@@ -161,14 +164,17 @@ function AdminView({
     <section className="bg-white rounded-xl shadow-[0_4px_18px_rgba(15,23,42,0.08)] p-5 mb-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 m-0">Administracao</h2>
-          <p className="text-sm text-slate-500 mt-1">Gestao de utilizadores e configuracao canonica de criticidade.</p>
+          <h2 className="text-xl font-bold text-slate-800 m-0">Gerenciamento</h2>
+          <p className="text-sm text-slate-500 mt-1">Gestao de utilizadores, assinaturas, acessos a workspaces, criticidade e metricas.</p>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-6">
         <Button variant={section === 'users' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('users')}><AppIcon name="user" />Utilizadores</Button>
+        <Button variant={section === 'signatures' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('signatures')}><AppIcon name="edit" />Assinaturas</Button>
+        <Button variant={section === 'workspaces-access' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('workspaces-access')}><AppIcon name="projects-nav" />Acessos a Workspaces</Button>
         <Button variant={section === 'rules' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('rules')}><AppIcon name="shield" />Criticidade</Button>
+        <Button variant={section === 'stats' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('stats')}><AppIcon name="dashboard-nav" />Estatisticas</Button>
       </div>
 
       {section === 'users' && (
@@ -241,6 +247,18 @@ function AdminView({
             </table>
           </Card>
         </div>
+      )}
+
+      {section === 'signatures' && (
+        <SignaturesSection users={users} searchTerm={searchTerm} />
+      )}
+
+      {section === 'workspaces-access' && (
+        <WorkspacesAccessSection />
+      )}
+
+      {section === 'stats' && (
+        <UsageStatsSection />
       )}
 
       {section === 'rules' && (

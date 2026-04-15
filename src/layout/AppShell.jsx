@@ -45,7 +45,7 @@ function AppShell({
   ];
 
   const adminTabs = user?.role === 'admin' || user?.role === 'manager'
-    ? [{ id: 'admin', label: 'Administração', icon: 'admin-nav' }]
+    ? [{ id: 'admin', label: 'Gerenciamento', icon: 'admin-nav' }]
     : [];
   const iconRailTabs = [...navigationTabs, ...adminTabs];
 
