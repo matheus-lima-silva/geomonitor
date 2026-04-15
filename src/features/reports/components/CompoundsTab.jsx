@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Card, HintText, Input, Textarea } from '../../../components/ui';
+import { Button, Card, HintText, Input, Select, Textarea } from '../../../components/ui';
 import Modal from '../../../components/ui/Modal';
 import SearchableSelect from '../../../components/ui/SearchableSelect';
 import {
@@ -162,6 +162,36 @@ export default function CompoundsTab({
               hint="Numero do documento conforme sistema de gestao."
             />
           </div>
+        </div>
+
+        {/* Opcoes de fotos */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Opcoes de fotos</p>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={!!compoundDraft.includeTowerCoordinates}
+              onChange={(event) => setCompoundDraft((prev) => ({ ...prev, includeTowerCoordinates: event.target.checked }))}
+            />
+            <span>Incluir coordenada da torre antes das fotos</span>
+          </label>
+          {compoundDraft.includeTowerCoordinates ? (
+            <div className="mt-3 max-w-sm">
+              <Select
+                id="compound-coord-format"
+                label="Formato da coordenada"
+                value={compoundDraft.towerCoordinateFormat || 'decimal'}
+                onChange={(event) => setCompoundDraft((prev) => ({ ...prev, towerCoordinateFormat: event.target.value }))}
+              >
+                <option value="decimal">Decimal (ex: -22.905556°, -43.199444°)</option>
+                <option value="dms">Sexagesimal / GMS (ex: 22°54'20"S 43°11'58"W)</option>
+                <option value="utm">UTM (ex: 686345E 7465123N 23S)</option>
+              </Select>
+              <HintText>
+                Requer que o empreendimento do workspace tenha coordenadas de torres cadastradas (upload de KML).
+              </HintText>
+            </div>
+          ) : null}
         </div>
 
         {/* Secoes de texto — accordion */}

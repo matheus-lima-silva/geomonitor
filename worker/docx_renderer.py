@@ -10,10 +10,13 @@ from copy import deepcopy
 logger = logging.getLogger(__name__)
 
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt
+
+from worker.coordinate_format import format_tower_coordinate
+from worker.kmz_renderer import build_tower_lookup, normalize_tower_id
 
 
 MAX_IMAGE_WIDTH_CM = 15
@@ -328,6 +331,107 @@ def _resolve_heading_style(document):
     return FALLBACK_HEADING_STYLE
 
 
+# ----------------------------------------------------------------------------
+# Eletrobras/Biocev formatting overrides — scope: report_compound only.
+#
+# The institutional template `template_relatorio.docx` ships with body/caption
+# styles that drift from the Eletrobras style guide (NormalWeb is Times New
+# Roman 12 with autospacing; Legenda is 9pt italic gray; section margins are
+# 2.54/1.91cm instead of 4/2cm). We apply these fixes at runtime on the loaded
+# Document so they don't leak into dossier/ficha renders — each render loads a
+# fresh template copy, so the mutation is scoped to a single render call.
+# ----------------------------------------------------------------------------
+ELETROBRAS_BODY_FONT = "Arial"
+ELETROBRAS_BODY_SIZE_PT = 11
+ELETROBRAS_CAPTION_SIZE_PT = 10
+
+
+def _clear_autospacing(style):
+    """Strip w:beforeAutospacing/afterAutospacing from a style's spacing element.
+
+    Without this, Word ignores space_before/space_after because the autospacing
+    flags take precedence. NormalWeb ships with both flags enabled.
+    """
+    pPr = style.element.get_or_add_pPr()
+    spacing = pPr.find(qn("w:spacing"))
+    if spacing is None:
+        return
+    for attr_name in ("beforeAutospacing", "afterAutospacing"):
+        key = qn(f"w:{attr_name}")
+        if key in spacing.attrib:
+            del spacing.attrib[key]
+
+
+def _clear_run_color(style):
+    """Remove any explicit w:color child on the style's rPr so color falls back to auto."""
+    rPr = style.element.find(qn("w:rPr"))
+    if rPr is None:
+        return
+    color = rPr.find(qn("w:color"))
+    if color is not None:
+        rPr.remove(color)
+
+
+def apply_eletrobras_formatting_compound(document):
+    """Mutate a template-backed Document to match the Eletrobras/Biocev guide.
+
+    Only called from render_report_compound_docx, and only when used_template
+    is True (the fallback Document() path relies on python-docx defaults that
+    are already closer to the spec). Mutates margins and the custom styles
+    NormalWeb, caption and Normal in place.
+    """
+    # --- 1. Content section margins (leave back-cover section untouched) ---
+    content_sections = list(document.sections)
+    if len(content_sections) > 1:
+        content_sections = content_sections[:-1]
+    for section in content_sections:
+        section.top_margin = Cm(4)
+        section.right_margin = Cm(2)
+        section.left_margin = Cm(2)
+        section.bottom_margin = Cm(2)
+        # Header distance is already 1.25cm in the template.
+        # Footer distance deliberately left at template default (user asked
+        # us not to touch the footer area).
+
+    styles = document.styles
+
+    # --- 2. Normal: Arial 11 (was 11.5) ---
+    try:
+        normal = styles["Normal"]
+        normal.font.name = ELETROBRAS_BODY_FONT
+        normal.font.size = Pt(ELETROBRAS_BODY_SIZE_PT)
+    except KeyError:
+        pass
+
+    # --- 3. NormalWeb (body paragraphs via _add_body_paragraph) ---
+    # Arial 11, justified, 12pt before/after, single line spacing.
+    try:
+        body = styles["Normal (Web)"]
+        body.font.name = ELETROBRAS_BODY_FONT
+        body.font.size = Pt(ELETROBRAS_BODY_SIZE_PT)
+        body.font.italic = False
+        fmt = body.paragraph_format
+        fmt.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        fmt.space_before = Pt(12)
+        fmt.space_after = Pt(12)
+        fmt.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        _clear_autospacing(body)
+    except KeyError:
+        pass
+
+    # --- 4. Legenda (photo caption) ---
+    # Arial 10, bold, not italic, no gray color.
+    try:
+        caption = styles["caption"]
+        caption.font.name = ELETROBRAS_BODY_FONT
+        caption.font.size = Pt(ELETROBRAS_CAPTION_SIZE_PT)
+        caption.font.bold = True
+        caption.font.italic = False
+        _clear_run_color(caption)
+    except KeyError:
+        pass
+
+
 def add_heading_paragraph(document, text, ilvl=0):
     style_name = _resolve_heading_style(document)
     p = document.add_paragraph(text, style=style_name)
@@ -533,7 +637,15 @@ def add_photo_entry(document, photo, image_loader, photo_index):
         paragraph.add_run(f" - {caption}")
 
 
-def add_photos_section(document, photos, image_loader, section_title="ILUSTRAÇÃO FOTOGRÁFICA", group_by_tower=True):
+def add_photos_section(
+    document,
+    photos,
+    image_loader,
+    section_title="ILUSTRAÇÃO FOTOGRÁFICA",
+    group_by_tower=True,
+    tower_lookup=None,
+    coordinate_format=None,
+):
     rows = [photo for photo in safe_list(photos) if photo.get("includeInReport") is True]
 
     add_heading_paragraph(document, section_title, ilvl=0)
@@ -559,6 +671,18 @@ def add_photos_section(document, photos, image_loader, section_title="ILUSTRAÇ�
         photo_index = 1
         for group_label, items in grouped:
             add_heading_paragraph(document, group_label, ilvl=1)
+            if tower_lookup and coordinate_format and items:
+                raw_tower_id = items[0].get("towerId") if isinstance(items[0], dict) else None
+                tid = normalize_tower_id(raw_tower_id)
+                tower = tower_lookup.get(tid) if tid else None
+                if tower:
+                    coord_str = format_tower_coordinate(
+                        tower.get("latitude"),
+                        tower.get("longitude"),
+                        coordinate_format,
+                    )
+                    if coord_str:
+                        _add_body_paragraph(document, f"Coordenada: {coord_str}")
             for photo in items:
                 add_photo_entry(document, photo, image_loader, photo_index)
                 photo_index += 1
@@ -813,6 +937,8 @@ def render_report_compound_docx(context, output_path, image_loader):
         job.get("updatedAt") or job.get("createdAt"),
         revision,
     )
+    if used_template:
+        apply_eletrobras_formatting_compound(document)
     titulo_programa = normalize_text(shared.get("titulo_programa"))
 
     if used_template:
@@ -856,6 +982,9 @@ def render_report_compound_docx(context, output_path, image_loader):
     if descricao_text:
         add_numbered_text_section(document, "DESCRIÇÃO DAS ATIVIDADES", descricao_text)
 
+    include_tower_coords = bool(shared.get("includeTowerCoordinates"))
+    tower_coord_format = normalize_text(shared.get("towerCoordinateFormat")) or "decimal"
+
     for bundle in workspaces:
         if not isinstance(bundle, dict):
             continue
@@ -867,7 +996,21 @@ def render_report_compound_docx(context, output_path, image_loader):
         ws = ensure_dict(bundle.get("workspace"))
         ws_name = normalize_text(ws.get("nome")) or normalize_text(ws.get("id"))
         section_title = f"ILUSTRAÇÃO FOTOGRÁFICA - {ws_name}" if len(workspaces) > 1 and ws_name else "ILUSTRAÇÃO FOTOGRÁFICA"
-        add_photos_section(document, photos, image_loader, section_title=section_title, group_by_tower=use_tower_grouping)
+
+        tower_lookup = None
+        if include_tower_coords and use_tower_grouping:
+            project = ensure_dict(bundle.get("project"))
+            tower_lookup = build_tower_lookup(project) or None
+
+        add_photos_section(
+            document,
+            photos,
+            image_loader,
+            section_title=section_title,
+            group_by_tower=use_tower_grouping,
+            tower_lookup=tower_lookup,
+            coordinate_format=tower_coord_format if include_tower_coords else None,
+        )
 
     post_photo_sections = [
         ("CONCLUSÕES E RECOMENDAÇÕES", "conclusoes"),

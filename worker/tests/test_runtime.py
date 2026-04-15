@@ -5,6 +5,13 @@ import re
 import unittest
 import zipfile
 
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Cm, Pt
+
+from worker.docx_renderer import (
+    apply_eletrobras_formatting_compound,
+    create_document_from_template,
+)
 from worker.runtime import WorkerClient, WorkerRuntime
 
 
@@ -281,6 +288,73 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertIn("ILUSTRA\u00c7\u00c3O FOTOGR\u00c1FICA", document_text)
         self.assertIn("Foto 1", document_text)
         self.assertIn("Foto 2", document_text)
+
+    def test_apply_eletrobras_formatting_compound_aligns_styles_and_margins(self):
+        document, used_template, _ = create_document_from_template(
+            "LT Test", "COD-001", "2026-04-15", "00"
+        )
+        self.assertTrue(used_template, "Template file must exist for this test to be meaningful")
+
+        apply_eletrobras_formatting_compound(document)
+
+        sections = list(document.sections)
+        self.assertGreater(len(sections), 1, "Template expected to have a back-cover section")
+
+        # All content sections (everything except the back cover) get Eletrobras margins.
+        # Margins round-trip through w:pgMar as twips, so Cm(4) lands ~180 EMU off
+        # (2268 twips * 635 EMU = 1440180 vs Cm(4) = 1440000). Tolerate <0.01 cm.
+        margin_tolerance = Cm(0.01)
+        for section in sections[:-1]:
+            self.assertAlmostEqual(section.top_margin, Cm(4), delta=margin_tolerance)
+            self.assertAlmostEqual(section.right_margin, Cm(2), delta=margin_tolerance)
+            self.assertAlmostEqual(section.left_margin, Cm(2), delta=margin_tolerance)
+            self.assertAlmostEqual(section.bottom_margin, Cm(2), delta=margin_tolerance)
+
+        # Back-cover section stays at its original zero-margin layout (quarta capa).
+        back_cover = sections[-1]
+        self.assertAlmostEqual(back_cover.top_margin, Cm(0), delta=margin_tolerance)
+        self.assertAlmostEqual(back_cover.right_margin, Cm(0), delta=margin_tolerance)
+        self.assertAlmostEqual(back_cover.left_margin, Cm(0), delta=margin_tolerance)
+        self.assertAlmostEqual(back_cover.bottom_margin, Cm(0), delta=margin_tolerance)
+
+        # Normal: Arial 11.
+        normal = document.styles["Normal"]
+        self.assertEqual(normal.font.name, "Arial")
+        self.assertEqual(normal.font.size, Pt(11))
+
+        # NormalWeb (body paragraph style) — justified Arial 11 with 12pt spacing.
+        body = document.styles["Normal (Web)"]
+        self.assertEqual(body.font.name, "Arial")
+        self.assertEqual(body.font.size, Pt(11))
+        self.assertFalse(body.font.italic)
+        self.assertEqual(body.paragraph_format.alignment, WD_ALIGN_PARAGRAPH.JUSTIFY)
+        self.assertEqual(body.paragraph_format.space_before, Pt(12))
+        self.assertEqual(body.paragraph_format.space_after, Pt(12))
+
+        # Autospacing flags on NormalWeb must be cleared so space_before/after take effect.
+        pPr = body.element.find("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pPr")
+        self.assertIsNotNone(pPr)
+        spacing_el = pPr.find("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}spacing")
+        self.assertIsNotNone(spacing_el)
+        self.assertNotIn(
+            "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}beforeAutospacing",
+            spacing_el.attrib,
+        )
+        self.assertNotIn(
+            "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}afterAutospacing",
+            spacing_el.attrib,
+        )
+
+        # Caption (photo legend): Arial 10 bold, not italic, no explicit color.
+        caption = document.styles["caption"]
+        self.assertEqual(caption.font.name, "Arial")
+        self.assertEqual(caption.font.size, Pt(10))
+        self.assertTrue(caption.font.bold)
+        self.assertFalse(caption.font.italic)
+        rPr = caption.element.find("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}rPr")
+        if rPr is not None:
+            color_el = rPr.find("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}color")
+            self.assertIsNone(color_el)
 
     def test_run_once_completes_workspace_kmz_job(self):
         job = {"id": "JOB-KMZ-1", "kind": "workspace_kmz"}

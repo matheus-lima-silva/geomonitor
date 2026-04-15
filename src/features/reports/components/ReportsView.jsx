@@ -109,6 +109,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     observacoes: '',
     elaboradores: {},
     revisores: {},
+    includeTowerCoordinates: false,
+    towerCoordinateFormat: 'decimal',
   });
   const [profissoes, setProfissoes] = useState([]);
   const [signatariosCandidatos, setSignatariosCandidatos] = useState([]);
@@ -1178,6 +1180,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
           descricao_atividades: trimField('descricao_atividades'), conclusoes: trimField('conclusoes'),
           analise_evolucao: trimField('analise_evolucao'), observacoes: trimField('observacoes'),
           elaboradores: elaboradoresArr, revisores: revisoresArr,
+          includeTowerCoordinates: !!compoundDraft.includeTowerCoordinates,
+          towerCoordinateFormat: compoundDraft.towerCoordinateFormat || 'decimal',
         },
         status: 'draft', workspaceIds: [], orderJson: [],
       }, { updatedBy: userEmail || 'web' });
@@ -1185,6 +1189,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         nome: '', nome_lt: '', titulo_programa: '', codigo_documento: '', revisao: '00',
         introducao: '', geologia: '', geotecnia: '', geomorfologia: '', descricao_atividades: '',
         conclusoes: '', analise_evolucao: '', observacoes: '', elaboradores: {}, revisores: {},
+        includeTowerCoordinates: false, towerCoordinateFormat: 'decimal',
       });
       await refreshCompounds();
       showToast('Relatorio composto criado.', 'success');
