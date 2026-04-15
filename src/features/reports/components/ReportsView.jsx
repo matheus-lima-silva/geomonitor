@@ -107,8 +107,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     conclusoes: '',
     analise_evolucao: '',
     observacoes: '',
-    elaboradores: {},
-    revisores: {},
+    elaboradores: [],
+    revisores: [],
     includeTowerCoordinates: false,
     towerCoordinateFormat: 'decimal',
   });
@@ -1161,11 +1161,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       setBusy('compound');
       const trimField = (key) => String(compoundDraft[key] || '').trim();
       const profLookup = Object.fromEntries(profissoes.map((p) => [p.id, p.nome]));
-      const elaboradoresArr = Object.entries(compoundDraft.elaboradores || {}).filter(([, v]) => v).map(([id]) => {
+      const elaboradoresArr = (compoundDraft.elaboradores || []).map((id) => {
         const sig = signatariosCandidatos.find((s) => s.id === id);
         return buildSignatarySnapshot(sig, profLookup);
       }).filter(Boolean);
-      const revisoresArr = Object.entries(compoundDraft.revisores || {}).filter(([, v]) => v).map(([id]) => {
+      const revisoresArr = (compoundDraft.revisores || []).map((id) => {
         const sig = signatariosCandidatos.find((s) => s.id === id);
         return buildSignatarySnapshot(sig, profLookup);
       }).filter(Boolean);
@@ -1188,7 +1188,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       setCompoundDraft({
         nome: '', nome_lt: '', titulo_programa: '', codigo_documento: '', revisao: '00',
         introducao: '', geologia: '', geotecnia: '', geomorfologia: '', descricao_atividades: '',
-        conclusoes: '', analise_evolucao: '', observacoes: '', elaboradores: {}, revisores: {},
+        conclusoes: '', analise_evolucao: '', observacoes: '', elaboradores: [], revisores: [],
         includeTowerCoordinates: false, towerCoordinateFormat: 'decimal',
       });
       await refreshCompounds();

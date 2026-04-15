@@ -64,7 +64,7 @@ export default function CompoundsTab({
   const [coordFormatDraft, setCoordFormatDraft] = useState('decimal');
   const [showTrash, setShowTrash] = useState(false);
   const [editingSignaturesFor, setEditingSignaturesFor] = useState(null);
-  const [editSignatures, setEditSignatures] = useState({ elaboradores: {}, revisores: {} });
+  const [editSignatures, setEditSignatures] = useState({ elaboradores: [], revisores: [] });
 
   function openGenerateWithCoords(compound) {
     const shared = compound?.sharedTextsJson || {};
@@ -80,31 +80,47 @@ export default function CompoundsTab({
     setOpenPreflights((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
+  function moveSignatario(role, sigId, direction) {
+    setCompoundDraft((prev) => {
+      const arr = [...(prev[role] || [])];
+      const idx = arr.indexOf(sigId);
+      if (idx < 0) return prev;
+      const target = direction === 'up' ? idx - 1 : idx + 1;
+      if (target < 0 || target >= arr.length) return prev;
+      [arr[idx], arr[target]] = [arr[target], arr[idx]];
+      return { ...prev, [role]: arr };
+    });
+  }
+
+  function moveEditSignatario(role, sigId, direction) {
+    setEditSignatures((prev) => {
+      const arr = [...(prev[role] || [])];
+      const idx = arr.indexOf(sigId);
+      if (idx < 0) return prev;
+      const target = direction === 'up' ? idx - 1 : idx + 1;
+      if (target < 0 || target >= arr.length) return prev;
+      [arr[idx], arr[target]] = [arr[target], arr[idx]];
+      return { ...prev, [role]: arr };
+    });
+  }
+
   function startEditingSignatures(compound) {
     const shared = compound.sharedTextsJson || {};
     const existingElab = Array.isArray(shared.elaboradores) ? shared.elaboradores : [];
     const existingRev = Array.isArray(shared.revisores) ? shared.revisores : [];
-    const elabMap = {};
-    const revMap = {};
-    for (const snap of existingElab) {
-      const match = signatariosCandidatos.find((s) => s.nome === snap.nome);
-      if (match) elabMap[match.id] = true;
-    }
-    for (const snap of existingRev) {
-      const match = signatariosCandidatos.find((s) => s.nome === snap.nome);
-      if (match) revMap[match.id] = true;
-    }
-    setEditSignatures({ elaboradores: elabMap, revisores: revMap });
+    const elabArr = existingElab.map((snap) => signatariosCandidatos.find((s) => s.nome === snap.nome)?.id).filter(Boolean);
+    const revArr = existingRev.map((snap) => signatariosCandidatos.find((s) => s.nome === snap.nome)?.id).filter(Boolean);
+    setEditSignatures({ elaboradores: elabArr, revisores: revArr });
     setEditingSignaturesFor(compound.id);
   }
 
   async function saveEditedSignatures(compound) {
     const profLookup = Object.fromEntries(profissoes.map((p) => [p.id, p.nome]));
-    const elaboradoresArr = Object.entries(editSignatures.elaboradores).filter(([, v]) => v).map(([id]) => {
+    const elaboradoresArr = (editSignatures.elaboradores || []).map((id) => {
       const sig = signatariosCandidatos.find((s) => s.id === id);
       return buildSignatarySnapshot(sig, profLookup);
     }).filter(Boolean);
-    const revisoresArr = Object.entries(editSignatures.revisores).filter(([, v]) => v).map(([id]) => {
+    const revisoresArr = (editSignatures.revisores || []).map((id) => {
       const sig = signatariosCandidatos.find((s) => s.id === id);
       return buildSignatarySnapshot(sig, profLookup);
     }).filter(Boolean);
@@ -322,8 +338,8 @@ export default function CompoundsTab({
               {signatariosCandidatos.map((sig) => {
                 const registro = formatSignatarioRegistro(sig);
                 const profNome = profissoes.find((p) => p.id === sig.profissao_id)?.nome || sig.profissao_nome || '';
-                const isElab = !!compoundDraft.elaboradores?.[sig.id];
-                const isRev = !!compoundDraft.revisores?.[sig.id];
+                const isElab = (compoundDraft.elaboradores || []).includes(sig.id);
+                const isRev = (compoundDraft.revisores || []).includes(sig.id);
                 return (
                   <div
                     key={sig.id}
@@ -335,7 +351,12 @@ export default function CompoundsTab({
                           type="checkbox"
                           className="h-3.5 w-3.5 accent-brand-600"
                           checked={isElab}
-                          onChange={(e) => setCompoundDraft((prev) => ({ ...prev, elaboradores: { ...prev.elaboradores, [sig.id]: e.target.checked } }))}
+                          onChange={(e) => setCompoundDraft((prev) => ({
+                            ...prev,
+                            elaboradores: e.target.checked
+                              ? [...(prev.elaboradores || []).filter((x) => x !== sig.id), sig.id]
+                              : (prev.elaboradores || []).filter((x) => x !== sig.id),
+                          }))}
                         />
                         Elaborador
                       </label>
@@ -344,7 +365,12 @@ export default function CompoundsTab({
                           type="checkbox"
                           className="h-3.5 w-3.5 accent-brand-600"
                           checked={isRev}
-                          onChange={(e) => setCompoundDraft((prev) => ({ ...prev, revisores: { ...prev.revisores, [sig.id]: e.target.checked } }))}
+                          onChange={(e) => setCompoundDraft((prev) => ({
+                            ...prev,
+                            revisores: e.target.checked
+                              ? [...(prev.revisores || []).filter((x) => x !== sig.id), sig.id]
+                              : (prev.revisores || []).filter((x) => x !== sig.id),
+                          }))}
                         />
                         Revisor
                       </label>
@@ -354,6 +380,62 @@ export default function CompoundsTab({
                   </div>
                 );
               })}
+
+              {/* Ordem dos elaboradores */}
+              {(compoundDraft.elaboradores || []).length >= 2 ? (
+                <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="mb-2 text-2xs font-semibold uppercase tracking-wide text-slate-400">Ordem dos Elaboradores</p>
+                  <div className="flex flex-col gap-1.5">
+                    {(compoundDraft.elaboradores || []).map((sigId, index) => {
+                      const sig = signatariosCandidatos.find((s) => s.id === sigId);
+                      return (
+                        <div key={sigId} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                          <div className="flex items-center gap-3">
+                            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 px-1.5 text-2xs font-bold text-slate-600">{index + 1}</span>
+                            <span>{sig?.nome || sigId}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40" disabled={index === 0} onClick={() => moveSignatario('elaboradores', sigId, 'up')} aria-label="Mover para cima">
+                              <AppIcon name="chevron-left" size={12} className="-rotate-90" />
+                            </button>
+                            <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40" disabled={index === (compoundDraft.elaboradores || []).length - 1} onClick={() => moveSignatario('elaboradores', sigId, 'down')} aria-label="Mover para baixo">
+                              <AppIcon name="chevron-right" size={12} className="rotate-90" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Ordem dos revisores */}
+              {(compoundDraft.revisores || []).length >= 2 ? (
+                <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="mb-2 text-2xs font-semibold uppercase tracking-wide text-slate-400">Ordem dos Revisores</p>
+                  <div className="flex flex-col gap-1.5">
+                    {(compoundDraft.revisores || []).map((sigId, index) => {
+                      const sig = signatariosCandidatos.find((s) => s.id === sigId);
+                      return (
+                        <div key={sigId} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                          <div className="flex items-center gap-3">
+                            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 px-1.5 text-2xs font-bold text-slate-600">{index + 1}</span>
+                            <span>{sig?.nome || sigId}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40" disabled={index === 0} onClick={() => moveSignatario('revisores', sigId, 'up')} aria-label="Mover para cima">
+                              <AppIcon name="chevron-left" size={12} className="-rotate-90" />
+                            </button>
+                            <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40" disabled={index === (compoundDraft.revisores || []).length - 1} onClick={() => moveSignatario('revisores', sigId, 'down')} aria-label="Mover para baixo">
+                              <AppIcon name="chevron-right" size={12} className="rotate-90" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p className="text-xs text-slate-500">Nenhum signatario cadastrado. Adicione no seu perfil.</p>
@@ -449,8 +531,8 @@ export default function CompoundsTab({
                           signatariosCandidatos.map((sig) => {
                             const registro = formatSignatarioRegistro(sig);
                             const profNome = profissoes.find((p) => p.id === sig.profissao_id)?.nome || sig.profissao_nome || '';
-                            const isElab = !!editSignatures.elaboradores?.[sig.id];
-                            const isRev = !!editSignatures.revisores?.[sig.id];
+                            const isElab = (editSignatures.elaboradores || []).includes(sig.id);
+                            const isRev = (editSignatures.revisores || []).includes(sig.id);
                             return (
                               <div
                                 key={sig.id}
@@ -462,7 +544,12 @@ export default function CompoundsTab({
                                       type="checkbox"
                                       className="h-3.5 w-3.5 accent-brand-600"
                                       checked={isElab}
-                                      onChange={(e) => setEditSignatures((prev) => ({ ...prev, elaboradores: { ...prev.elaboradores, [sig.id]: e.target.checked } }))}
+                                      onChange={(e) => setEditSignatures((prev) => ({
+                                        ...prev,
+                                        elaboradores: e.target.checked
+                                          ? [...(prev.elaboradores || []).filter((x) => x !== sig.id), sig.id]
+                                          : (prev.elaboradores || []).filter((x) => x !== sig.id),
+                                      }))}
                                     />
                                     Elaborador
                                   </label>
@@ -471,7 +558,12 @@ export default function CompoundsTab({
                                       type="checkbox"
                                       className="h-3.5 w-3.5 accent-brand-600"
                                       checked={isRev}
-                                      onChange={(e) => setEditSignatures((prev) => ({ ...prev, revisores: { ...prev.revisores, [sig.id]: e.target.checked } }))}
+                                      onChange={(e) => setEditSignatures((prev) => ({
+                                        ...prev,
+                                        revisores: e.target.checked
+                                          ? [...(prev.revisores || []).filter((x) => x !== sig.id), sig.id]
+                                          : (prev.revisores || []).filter((x) => x !== sig.id),
+                                      }))}
                                     />
                                     Revisor
                                   </label>
@@ -484,6 +576,63 @@ export default function CompoundsTab({
                         ) : (
                           <p className="text-xs text-slate-500">Nenhum signatario cadastrado. Adicione no seu perfil.</p>
                         )}
+
+                        {/* Ordem dos elaboradores (edicao) */}
+                        {(editSignatures.elaboradores || []).length >= 2 ? (
+                          <div className="mt-2 rounded-xl border border-blue-200 bg-white p-3">
+                            <p className="mb-2 text-2xs font-semibold uppercase tracking-wide text-slate-400">Ordem dos Elaboradores</p>
+                            <div className="flex flex-col gap-1.5">
+                              {(editSignatures.elaboradores || []).map((sigId, index) => {
+                                const sig = signatariosCandidatos.find((s) => s.id === sigId);
+                                return (
+                                  <div key={sigId} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                    <div className="flex items-center gap-3">
+                                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 px-1.5 text-2xs font-bold text-slate-600">{index + 1}</span>
+                                      <span>{sig?.nome || sigId}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40" disabled={index === 0} onClick={() => moveEditSignatario('elaboradores', sigId, 'up')} aria-label="Mover para cima">
+                                        <AppIcon name="chevron-left" size={12} className="-rotate-90" />
+                                      </button>
+                                      <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40" disabled={index === (editSignatures.elaboradores || []).length - 1} onClick={() => moveEditSignatario('elaboradores', sigId, 'down')} aria-label="Mover para baixo">
+                                        <AppIcon name="chevron-right" size={12} className="rotate-90" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {/* Ordem dos revisores (edicao) */}
+                        {(editSignatures.revisores || []).length >= 2 ? (
+                          <div className="mt-2 rounded-xl border border-blue-200 bg-white p-3">
+                            <p className="mb-2 text-2xs font-semibold uppercase tracking-wide text-slate-400">Ordem dos Revisores</p>
+                            <div className="flex flex-col gap-1.5">
+                              {(editSignatures.revisores || []).map((sigId, index) => {
+                                const sig = signatariosCandidatos.find((s) => s.id === sigId);
+                                return (
+                                  <div key={sigId} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                    <div className="flex items-center gap-3">
+                                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 px-1.5 text-2xs font-bold text-slate-600">{index + 1}</span>
+                                      <span>{sig?.nome || sigId}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40" disabled={index === 0} onClick={() => moveEditSignatario('revisores', sigId, 'up')} aria-label="Mover para cima">
+                                        <AppIcon name="chevron-left" size={12} className="-rotate-90" />
+                                      </button>
+                                      <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-40" disabled={index === (editSignatures.revisores || []).length - 1} onClick={() => moveEditSignatario('revisores', sigId, 'down')} aria-label="Mover para baixo">
+                                        <AppIcon name="chevron-right" size={12} className="rotate-90" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : null}
+
                         <div className="flex items-center justify-end gap-2 pt-1">
                           <Button variant="outline" size="sm" onClick={() => setEditingSignaturesFor(null)}>
                             Cancelar

@@ -5,8 +5,9 @@ import ReportsView from '../ReportsView';
 import { getWorkspaceKmzRequest, listReportWorkspacePhotos, requestWorkspaceKmz, saveReportWorkspacePhoto, updateReportWorkspace } from '../../../../services/reportWorkspaceService';
 import { downloadProjectPhotoExport, listProjectPhotos, requestProjectPhotoExport } from '../../../../services/projectPhotoLibraryService';
 import { createProjectDossier, listProjectDossiers } from '../../../../services/projectDossierService';
-import { addWorkspaceToReportCompound, generateReportCompound, listReportCompounds, reorderReportCompound, runReportCompoundPreflight } from '../../../../services/reportCompoundService';
+import { addWorkspaceToReportCompound, createReportCompound, generateReportCompound, listReportCompounds, reorderReportCompound, runReportCompoundPreflight, updateReportCompound } from '../../../../services/reportCompoundService';
 import { downloadMediaAsset } from '../../../../services/mediaService';
+import { listProfissoes, listSignatarios } from '../../../../services/userService';
 
 const mockData = vi.hoisted(() => ({
   workspaces: [
@@ -47,6 +48,9 @@ vi.mock('../../../../services/reportCompoundService', () => ({
   subscribeReportCompounds: vi.fn((onData) => { onData(mockData.compounds); return () => {}; }),
   listReportCompounds: vi.fn().mockImplementation(async () => mockData.compounds),
   createReportCompound: vi.fn().mockResolvedValue({ data: { id: 'RC-2' } }),
+  updateReportCompound: vi.fn().mockImplementation(async (id, data) => ({
+    data: { id, ...data, status: 'draft', updatedAt: new Date().toISOString() },
+  })),
   addWorkspaceToReportCompound: vi.fn().mockResolvedValue({
     data: {
       id: 'RC-1',
@@ -772,6 +776,190 @@ describe('ReportsView', () => {
 
       const input = container.querySelector('input[aria-label="Importar legendas"]');
       expect(input.value).toBe('');
+    });
+  });
+
+  // ── Reordenacao de assinaturas (elaboradores/revisores) ──────────────────
+  describe('Reordenacao de assinaturas', () => {
+    const mockSignatarios = [
+      { id: 'SIG-A', nome: 'Alice Silva', profissao_id: 'PROF-1', profissao_nome: 'Eng Civil', registro_conselho: 'CREA', registro_estado: 'RJ', registro_numero: '111', registro_sufixo: 'D' },
+      { id: 'SIG-B', nome: 'Bruno Costa', profissao_id: 'PROF-2', profissao_nome: 'Geologo', registro_conselho: 'CREA', registro_estado: 'SP', registro_numero: '222', registro_sufixo: '' },
+      { id: 'SIG-C', nome: 'Carlos Lima', profissao_id: 'PROF-1', profissao_nome: 'Eng Civil', registro_conselho: 'CREA', registro_estado: 'MG', registro_numero: '333', registro_sufixo: '' },
+    ];
+    const mockProfissoesList = [
+      { id: 'PROF-1', nome: 'Engenheiro Civil' },
+      { id: 'PROF-2', nome: 'Geologo' },
+    ];
+
+    async function openCompoundsTab() {
+      const compoundsButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Relatorios Compostos'));
+      await act(async () => {
+        compoundsButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+    }
+
+    it('cria compound com elaboradores na ordem definida pelo usuario', async () => {
+      listSignatarios.mockResolvedValue(mockSignatarios);
+      listProfissoes.mockResolvedValue(mockProfissoesList);
+
+      await act(async () => {
+        root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await openCompoundsTab();
+
+      // Preenche o nome do compound
+      const nameInput = container.querySelector('#compound-name');
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(nameInput, 'Compound com assinaturas');
+        nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+        nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      // Seleciona 3 elaboradores na ordem A, B, C
+      const elabCheckboxes = [...container.querySelectorAll('label')].filter((label) => label.textContent.trim() === 'Elaborador');
+      for (const label of elabCheckboxes) {
+        const checkbox = label.querySelector('input[type="checkbox"]');
+        if (!checkbox.checked) {
+          await act(async () => { checkbox.click(); });
+        }
+      }
+
+      // Verifica que a secao "Ordem dos Elaboradores" apareceu (>=2 selecionados)
+      expect(container.textContent).toContain('Ordem dos Elaboradores');
+
+      // Verifica que os 3 signatarios aparecem em ordem: Alice(1), Bruno(2), Carlos(3)
+      const orderLabels = [...container.querySelectorAll('[aria-label="Mover para cima"]')];
+      expect(orderLabels.length).toBeGreaterThanOrEqual(3);
+
+      // Move Carlos (posicao 3) para cima duas vezes => Carlos fica em primeiro
+      const moveUpButtons = [...container.querySelectorAll('[aria-label="Mover para cima"]')];
+      // O terceiro botao de "Mover para cima" corresponde ao terceiro elaborador (Carlos)
+      await act(async () => {
+        moveUpButtons[2].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+      // Agora a ordem e: Alice, Carlos, Bruno — mover Carlos (agora indice 1) para cima
+      const moveUpButtons2 = [...container.querySelectorAll('[aria-label="Mover para cima"]')];
+      await act(async () => {
+        moveUpButtons2[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+
+      // Criar o compound
+      const createButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Criar Relatorio Composto'));
+      await act(async () => {
+        createButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+
+      // Verifica que createReportCompound foi chamado com elaboradores na ordem: Carlos, Alice, Bruno
+      expect(createReportCompound).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sharedTextsJson: expect.objectContaining({
+            elaboradores: [
+              expect.objectContaining({ nome: 'Carlos Lima' }),
+              expect.objectContaining({ nome: 'Alice Silva' }),
+              expect.objectContaining({ nome: 'Bruno Costa' }),
+            ],
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('edita assinaturas de compound existente e preserva a reordenacao', async () => {
+      listSignatarios.mockResolvedValue(mockSignatarios);
+      listProfissoes.mockResolvedValue(mockProfissoesList);
+
+      // Compound existente com 2 elaboradores ja definidos em ordem: Alice, Bruno
+      mockData.compounds = [{
+        id: 'RC-SIG',
+        nome: 'Compound com sigs',
+        workspaceIds: ['RW-1'],
+        orderJson: ['RW-1'],
+        status: 'draft',
+        updatedAt: '2026-04-15T10:00:00.000Z',
+        sharedTextsJson: {
+          elaboradores: [
+            { nome: 'Alice Silva', profissao: 'Engenheiro Civil', registro: 'CREA-RJ 111/D' },
+            { nome: 'Bruno Costa', profissao: 'Geologo', registro: 'CREA-SP 222' },
+          ],
+          revisores: [],
+        },
+      }];
+
+      await act(async () => {
+        root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await openCompoundsTab();
+
+      // Clica em "Editar" assinaturas
+      const editButton = [...container.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Editar');
+      await act(async () => {
+        editButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+
+      // Verifica que "Ordem dos Elaboradores" apareceu
+      expect(container.textContent).toContain('Ordem dos Elaboradores');
+
+      // Move Bruno (posicao 2) para cima => Bruno fica em primeiro
+      const moveUpButtons = [...container.querySelectorAll('[aria-label="Mover para cima"]')];
+      // O segundo botao de "Mover para cima" corresponde ao segundo elaborador (Bruno)
+      const brunoUpButton = moveUpButtons.find((btn) => {
+        const row = btn.closest('.flex.items-center.justify-between');
+        return row && row.textContent.includes('Bruno Costa');
+      });
+      expect(brunoUpButton).toBeTruthy();
+      await act(async () => {
+        brunoUpButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+
+      // Salva
+      const saveButton = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Salvar Assinaturas'));
+      await act(async () => {
+        saveButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+
+      // Verifica que updateReportCompound foi chamado com elaboradores na ordem: Bruno, Alice
+      expect(updateReportCompound).toHaveBeenCalledWith(
+        'RC-SIG',
+        expect.objectContaining({
+          sharedTextsJson: expect.objectContaining({
+            elaboradores: [
+              expect.objectContaining({ nome: 'Bruno Costa' }),
+              expect.objectContaining({ nome: 'Alice Silva' }),
+            ],
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('nao mostra secao de reordenacao quando ha menos de 2 signatarios selecionados', async () => {
+      listSignatarios.mockResolvedValue(mockSignatarios);
+      listProfissoes.mockResolvedValue(mockProfissoesList);
+
+      await act(async () => {
+        root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await openCompoundsTab();
+
+      // Seleciona apenas 1 elaborador
+      const elabCheckboxes = [...container.querySelectorAll('label')].filter((label) => label.textContent.trim() === 'Elaborador');
+      await act(async () => {
+        elabCheckboxes[0].querySelector('input[type="checkbox"]').click();
+      });
+
+      // "Ordem dos Elaboradores" NAO deve aparecer com 1 unico selecionado
+      expect(container.textContent).not.toContain('Ordem dos Elaboradores');
+      expect(container.textContent).not.toContain('Ordem dos Revisores');
     });
   });
 });
