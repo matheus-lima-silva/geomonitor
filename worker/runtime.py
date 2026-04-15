@@ -1,10 +1,16 @@
 import json
+import logging
 import os
 import threading
+import time
 from datetime import datetime, timezone
 from urllib import error, parse, request
 
 from worker.job_processor import DOCX_CONTENT_TYPE, process_claimed_job
+from worker.logging_utils import timed_phase
+
+
+logger = logging.getLogger("worker.runtime")
 
 
 def utc_now():
@@ -77,10 +83,37 @@ class WorkerClient:
         )
 
     def download_media_content(self, media_id):
-        status_code, raw_body, headers = self._request_binary(
-            "GET",
-            f"/api/media/{parse.quote(normalize_text(media_id))}/content",
-            expected_statuses={200},
+        normalized = normalize_text(media_id)
+        start = time.perf_counter()
+        try:
+            status_code, raw_body, headers = self._request_binary(
+                "GET",
+                f"/api/media/{parse.quote(normalized)}/content",
+                expected_statuses={200},
+            )
+        except Exception as exc:
+            duration_ms = int((time.perf_counter() - start) * 1000)
+            logger.warning(
+                "download_image_error",
+                extra={
+                    "phase": "download_image",
+                    "mediaAssetId": normalized,
+                    "durationMs": duration_ms,
+                    "errorType": type(exc).__name__,
+                },
+            )
+            raise
+
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        size_bytes = len(raw_body) if raw_body else 0
+        logger.info(
+            "download_image",
+            extra={
+                "phase": "download_image",
+                "mediaAssetId": normalized,
+                "sizeBytes": size_bytes,
+                "durationMs": duration_ms,
+            },
         )
         return {
             "statusCode": status_code,
@@ -362,6 +395,7 @@ class WorkerRuntime:
         if not configured:
             message = "GEOMONITOR_API_URL e WORKER_API_TOKEN devem estar configurados."
             self.state.note_idle(timestamp, "disabled", message)
+            logger.warning("worker_not_configured")
             return {
                 "status": "disabled",
                 "message": message,
@@ -369,10 +403,12 @@ class WorkerRuntime:
             }
 
         try:
-            job = self.client.claim_next_job()
+            with timed_phase(logger, "claim"):
+                job = self.client.claim_next_job()
         except WorkerClientError as exc:
             error_log = str(exc)
             self.state.note_idle(timestamp, "error", error_log)
+            logger.error("claim_failed", extra={"errorLog": error_log})
             return {
                 "status": "error",
                 "errorLog": error_log,
@@ -390,18 +426,28 @@ class WorkerRuntime:
         job_id = normalize_text(job.get("id")) or "unknown-job"
         job_kind = normalize_text(job.get("kind")) or "unknown"
         self.state.note_claimed(timestamp, job_id, job_kind)
+        logger.info(
+            "job_claimed",
+            extra={"jobId": job_id, "kind": job_kind},
+        )
 
         try:
-            result = self.processor(job)
+            with timed_phase(logger, "process", job_id=job_id, kind=job_kind):
+                result = self.processor(job)
             result_status = normalize_text(result.get("status")) or "failed"
             if result_status == "completed":
-                self.client.mark_complete(
-                    job_id,
-                    output_docx_media_id=result.get("outputDocxMediaId"),
-                    output_kmz_media_id=result.get("outputKmzMediaId"),
-                )
+                with timed_phase(logger, "mark_complete", job_id=job_id):
+                    self.client.mark_complete(
+                        job_id,
+                        output_docx_media_id=result.get("outputDocxMediaId"),
+                        output_kmz_media_id=result.get("outputKmzMediaId"),
+                    )
                 finished_at = utc_now()
                 self.state.note_completed(finished_at, job_id)
+                logger.info(
+                    "job_completed",
+                    extra={"jobId": job_id, "kind": job_kind},
+                )
                 return {
                     "status": "completed",
                     "jobId": job_id,
@@ -410,9 +456,14 @@ class WorkerRuntime:
                 }
 
             error_log = normalize_text(result.get("errorLog")) or f"Falha ao processar job '{job_kind}'."
-            self.client.mark_failed(job_id, error_log)
+            with timed_phase(logger, "mark_failed", job_id=job_id):
+                self.client.mark_failed(job_id, error_log)
             finished_at = utc_now()
             self.state.note_failed(finished_at, job_id, error_log)
+            logger.warning(
+                "job_failed",
+                extra={"jobId": job_id, "kind": job_kind, "errorLog": error_log},
+            )
             return {
                 "status": "failed",
                 "jobId": job_id,
@@ -424,6 +475,10 @@ class WorkerRuntime:
             error_log = f"Falha ao atualizar status do job '{job_id}': {exc}"
         except Exception as exc:  # pragma: no cover - protection for unexpected runtime failures
             error_log = f"Falha interna do worker ao processar '{job_id}': {exc}"
+            logger.exception(
+                "job_unexpected_error",
+                extra={"jobId": job_id, "kind": job_kind},
+            )
             try:
                 self.client.mark_failed(job_id, error_log)
             except WorkerClientError as mark_exc:
@@ -431,6 +486,10 @@ class WorkerRuntime:
 
         finished_at = utc_now()
         self.state.note_failed(finished_at, job_id, error_log)
+        logger.error(
+            "job_failed_with_exception",
+            extra={"jobId": job_id, "kind": job_kind, "errorLog": error_log},
+        )
         return {
             "status": "failed",
             "jobId": job_id,

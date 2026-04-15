@@ -442,7 +442,7 @@ describe('ReportsView', () => {
       confirmButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(generateReportCompound).toHaveBeenCalledWith('RC-1');
+    expect(generateReportCompound).toHaveBeenCalledWith('RC-1', {});
     // Status e traduzido para portugues
     expect(container.textContent).toContain('Na fila');
   });

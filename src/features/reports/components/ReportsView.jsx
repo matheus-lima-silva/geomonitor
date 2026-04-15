@@ -1232,15 +1232,21 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
-  async function handleCompoundGenerate(compound) {
+  async function handleCompoundGenerate(compound, options = {}) {
     if (!compound?.id) return;
     try {
       setBusy(`compound-generate:${compound.id}`);
-      const result = await generateReportCompound(compound.id);
+      const result = await generateReportCompound(compound.id, options);
       const savedCompound = result?.data;
       if (savedCompound?.id) setCompounds((prev) => prev.map((item) => (item.id === savedCompound.id ? savedCompound : item)));
       else await refreshCompounds();
-      showToast('Geracao do relatorio composto enfileirada.', 'success');
+      const withCoords = options?.ensureTowerCoordinates === true;
+      showToast(
+        withCoords
+          ? 'Relatorio enfileirado para re-geracao com coordenadas de torres.'
+          : 'Geracao do relatorio composto enfileirada.',
+        'success',
+      );
     } catch (error) {
       showToast(error?.message || 'Erro ao enfileirar geracao do relatorio composto.', 'error');
     } finally {

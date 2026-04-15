@@ -95,6 +95,33 @@ router.post('/claim', requireEditorOrWorker, async (req, res) => {
     }
 });
 
+router.post('/reclaim-stuck', requireEditorOrWorker, async (req, res) => {
+    try {
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const data = body.data && typeof body.data === 'object' ? body.data : {};
+        const thresholdMinutes = Number.isFinite(Number(data.thresholdMinutes))
+            ? Math.max(1, Number(data.thresholdMinutes))
+            : reportJobRepository.STUCK_PROCESSING_THRESHOLD_MINUTES;
+
+        const reclaimed = await reportJobRepository.reclaimStuckJobs({
+            updatedBy: resolveActor(req),
+            thresholdMinutes,
+        });
+
+        return res.status(200).json({
+            status: 'success',
+            data: {
+                count: reclaimed.length,
+                thresholdMinutes,
+                jobs: reclaimed.map((job) => createJobResponse(req, job)),
+            },
+        });
+    } catch (error) {
+        console.error('[report-jobs API] Error POST /reclaim-stuck:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao recuperar jobs stuck' });
+    }
+});
+
 router.put('/:id/complete', requireEditorOrWorker, async (req, res) => {
     try {
         const body = req.body && typeof req.body === 'object' ? req.body : {};

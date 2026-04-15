@@ -60,9 +60,17 @@ export default function CompoundsTab({
   const [openPreflights, setOpenPreflights] = useState({});
   const [confirmGenerate, setConfirmGenerate] = useState(null);
   const [confirmHardDelete, setConfirmHardDelete] = useState(null);
+  const [confirmGenerateWithCoords, setConfirmGenerateWithCoords] = useState(null);
+  const [coordFormatDraft, setCoordFormatDraft] = useState('decimal');
   const [showTrash, setShowTrash] = useState(false);
   const [editingSignaturesFor, setEditingSignaturesFor] = useState(null);
   const [editSignatures, setEditSignatures] = useState({ elaboradores: {}, revisores: {} });
+
+  function openGenerateWithCoords(compound) {
+    const shared = compound?.sharedTextsJson || {};
+    setCoordFormatDraft(shared.towerCoordinateFormat || 'decimal');
+    setConfirmGenerateWithCoords(compound);
+  }
 
   function toggleSection(key) {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -684,6 +692,15 @@ export default function CompoundsTab({
                   </Button>
                 ) : null}
                 <Button
+                  variant="outline"
+                  onClick={() => openGenerateWithCoords(compound)}
+                  disabled={busy === `compound-generate:${compound.id}`}
+                  title="Enfileira uma nova geracao forcando a inclusao de coordenadas de torres antes de cada grupo de fotos"
+                >
+                  <AppIcon name="map" />
+                  Gerar com coordenadas
+                </Button>
+                <Button
                   onClick={() => setConfirmGenerate(compound)}
                   disabled={busy === `compound-generate:${compound.id}`}
                 >
@@ -773,6 +790,59 @@ export default function CompoundsTab({
           <strong>{confirmGenerate?.nome || confirmGenerate?.id}</strong>?
           O documento sera processado em segundo plano.
         </p>
+      </Modal>
+
+      {/* Modal confirmacao geracao com coordenadas de torres */}
+      <Modal
+        open={Boolean(confirmGenerateWithCoords)}
+        onClose={() => setConfirmGenerateWithCoords(null)}
+        title="Gerar com coordenadas de torres"
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfirmGenerateWithCoords(null)}>
+              <AppIcon name="close" /> Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                handleCompoundGenerate(confirmGenerateWithCoords, {
+                  ensureTowerCoordinates: true,
+                  towerCoordinateFormat: coordFormatDraft || 'decimal',
+                });
+                setConfirmGenerateWithCoords(null);
+              }}
+              disabled={busy === `compound-generate:${confirmGenerateWithCoords?.id}`}
+            >
+              <AppIcon name="map" />
+              Re-gerar com coordenadas
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <p className="m-0 text-sm text-slate-700">
+            Deseja re-gerar o relatorio composto{' '}
+            <strong>{confirmGenerateWithCoords?.nome || confirmGenerateWithCoords?.id}</strong>{' '}
+            forcando a inclusao de coordenadas de torres antes de cada grupo de fotos?
+          </p>
+          <p className="m-0 text-xs text-slate-500">
+            O campo <code>includeTowerCoordinates</code> do relatorio sera marcado como
+            verdadeiro e um novo DOCX sera gerado em segundo plano.
+          </p>
+          <Select
+            id="compound-regen-coord-format"
+            label="Formato da coordenada"
+            value={coordFormatDraft}
+            onChange={(event) => setCoordFormatDraft(event.target.value)}
+          >
+            <option value="decimal">Decimal (ex: -22.905556°, -43.199444°)</option>
+            <option value="dms">Sexagesimal / GMS (ex: 22°54'20"S 43°11'58"W)</option>
+            <option value="utm">UTM (ex: 686345E 7465123N 23S)</option>
+          </Select>
+          <HintText>
+            Requer que o empreendimento do workspace tenha coordenadas de torres cadastradas (upload de KML).
+          </HintText>
+        </div>
       </Modal>
       {/* Modal confirmacao exclusao definitiva */}
       <Modal

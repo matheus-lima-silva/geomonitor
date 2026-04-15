@@ -237,6 +237,8 @@ router.post('/:id/preflight', verifyToken, requireEditor, async (req, res) => {
     }
 });
 
+const ALLOWED_TOWER_COORDINATE_FORMATS = new Set(['decimal', 'dms', 'utm']);
+
 router.post('/:id/generate', verifyToken, requireEditor, async (req, res) => {
     try {
         const compound = await reportCompoundRepository.getById(req.params.id);
@@ -244,10 +246,42 @@ router.post('/:id/generate', verifyToken, requireEditor, async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
         }
 
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const ensureTowerCoordinates = body.ensureTowerCoordinates === true;
+        let towerCoordinateFormat = normalizeText(body.towerCoordinateFormat).toLowerCase();
+        if (towerCoordinateFormat && !ALLOWED_TOWER_COORDINATE_FORMATS.has(towerCoordinateFormat)) {
+            return res.status(400).json({
+                status: 'error',
+                message: `Formato de coordenada invalido: '${towerCoordinateFormat}'. Use 'decimal', 'dms' ou 'utm'.`,
+            });
+        }
+
         // Flush curation drafts to report_photos before generating
         const workspaceIds = normalizeWorkspaceIds(compound.workspaceIds);
         for (const workspaceId of workspaceIds) {
             await flushWorkspaceDraftsToPhotos(workspaceId);
+        }
+
+        let compoundForJob = compound;
+        if (ensureTowerCoordinates) {
+            const currentShared = compound.sharedTextsJson && typeof compound.sharedTextsJson === 'object'
+                ? compound.sharedTextsJson
+                : {};
+            const resolvedFormat = towerCoordinateFormat
+                || normalizeText(currentShared.towerCoordinateFormat).toLowerCase()
+                || 'decimal';
+            const mergedShared = {
+                ...currentShared,
+                includeTowerCoordinates: true,
+                towerCoordinateFormat: resolvedFormat,
+            };
+            const savedCompound = await reportCompoundRepository.save({
+                ...compound,
+                sharedTextsJson: mergedShared,
+                updatedAt: new Date().toISOString(),
+                updatedBy: req.user?.email || 'API',
+            }, { merge: true });
+            compoundForJob = savedCompound || { ...compound, sharedTextsJson: mergedShared };
         }
 
         const now = new Date().toISOString();
@@ -263,7 +297,7 @@ router.post('/:id/generate', verifyToken, requireEditor, async (req, res) => {
         }, { merge: true });
 
         const nextPayload = {
-            ...compound,
+            ...compoundForJob,
             status: 'queued',
             lastJobId: jobId,
             updatedAt: now,

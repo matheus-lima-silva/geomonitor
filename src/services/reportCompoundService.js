@@ -92,8 +92,17 @@ export async function updateReportCompound(compoundId, data, meta = {}) {
   });
 }
 
-export async function generateReportCompound(compoundId) {
+export async function generateReportCompound(compoundId, options = {}) {
+  const body = {};
+  if (options.ensureTowerCoordinates) {
+    body.ensureTowerCoordinates = true;
+  }
+  if (options.towerCoordinateFormat) {
+    body.towerCoordinateFormat = String(options.towerCoordinateFormat);
+  }
+  const hasBody = Object.keys(body).length > 0;
   return requestCompound(`${API_BASE_URL}/report-compounds/${encodeURIComponent(compoundId)}/generate`, {
     method: 'POST',
+    ...(hasBody ? { body: JSON.stringify(body) } : {}),
   });
 }

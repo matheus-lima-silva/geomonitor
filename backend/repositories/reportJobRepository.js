@@ -7,6 +7,12 @@ const projectDossierRepository = require('./projectDossierRepository');
 const reportCompoundRepository = require('./reportCompoundRepository');
 const workspaceKmzRequestRepository = require('./workspaceKmzRequestRepository');
 
+const STUCK_PROCESSING_THRESHOLD_MINUTES = Number.parseInt(
+    process.env.REPORT_JOB_STUCK_MINUTES || '15',
+    10,
+) || 15;
+const AUTO_RECLAIM_MARKER = '[auto-reclaim]';
+
 function hydrateRow(row) {
     return buildMetadata(
         {
@@ -115,8 +121,60 @@ async function listQueued() {
     return result.rows.map((row) => hydrateRow(row));
 }
 
+async function reclaimStuckJobs(meta = {}) {
+    const updatedBy = normalizeText(meta.updatedBy) || 'API';
+    const thresholdMinutes = Number.isFinite(Number(meta.thresholdMinutes))
+        ? Math.max(1, Number(meta.thresholdMinutes))
+        : STUCK_PROCESSING_THRESHOLD_MINUTES;
+
+    const reclaimNote = `\n${AUTO_RECLAIM_MARKER} job estava em processing sem atualizacao ha >${thresholdMinutes} min (${new Date().toISOString()})`;
+
+    const result = await postgresStore.query(
+        `
+            UPDATE report_jobs
+            SET status_execucao = 'queued',
+                error_log = COALESCE(error_log, '') || $1,
+                updated_at = NOW(),
+                updated_by = $2
+            WHERE status_execucao = 'processing'
+              AND updated_at < NOW() - (INTERVAL '1 minute' * $3)
+            RETURNING id, kind, workspace_id, project_id, dossier_id, compound_id, template_id,
+                      status_execucao, error_log, output_docx_media_id, output_kmz_media_id,
+                      payload, created_at, updated_at, updated_by
+        `,
+        [reclaimNote, updatedBy, thresholdMinutes],
+    );
+
+    const reclaimed = result.rows.map((row) => hydrateRow(row));
+    for (const job of reclaimed) {
+        try {
+            await syncParentJobStatus(job, {
+                status: 'queued',
+                updatedBy,
+                lastError: String(job.errorLog || ''),
+            });
+        } catch (error) {
+            console.error(`[report-jobs] falha ao sincronizar parent durante reclaim do job ${job.id}:`, error);
+        }
+    }
+    return reclaimed;
+}
+
 async function claimNext(meta = {}) {
     const updatedBy = normalizeText(meta.updatedBy) || 'API';
+
+    try {
+        const reclaimed = await reclaimStuckJobs({ updatedBy });
+        if (reclaimed.length > 0) {
+            console.warn(
+                `[report-jobs] ${reclaimed.length} job(s) recuperado(s) de processing stuck:`,
+                reclaimed.map((job) => job.id),
+            );
+        }
+    } catch (error) {
+        console.error('[report-jobs] falha ao recuperar jobs stuck (prosseguindo com claim):', error);
+    }
+
     const result = await postgresStore.query(
         `
             UPDATE report_jobs
@@ -250,6 +308,8 @@ module.exports = {
     listQueued,
     save,
     claimNext,
+    reclaimStuckJobs,
     markComplete,
     markFailed,
+    STUCK_PROCESSING_THRESHOLD_MINUTES,
 };

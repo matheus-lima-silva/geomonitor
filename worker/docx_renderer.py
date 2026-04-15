@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
-from docx.oxml import OxmlElement
+from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt
 
@@ -254,45 +254,73 @@ def replace_header_lt_title(xml, title):
     return xml
 
 
-def rewrite_template_header_metadata(docx_path, title, document_code="", emission_date="", revision="00"):
-    """Inject runtime metadata into every header XML in the DOCX zip.
+def apply_template_header_metadata(document, title, document_code="", emission_date="", revision="00"):
+    """Injeta os metadados de cabecalho diretamente nas HeaderParts do documento.
 
-    We rewrite the zip in-place because python-docx cannot traverse headers
-    that are linked to the previous section — `document.sections[i].header`
-    returns an empty proxy. Instead of the previous placeholder-based
-    approach (which hard-coded strings like `OOSEMB.RT.023.2026` and broke
-    silently on template updates), we locate each field by its label and
-    rewrite the value run(s) that follow it.
+    Substitui a antiga ``rewrite_template_header_metadata`` que abria o ZIP
+    depois do ``document.save()`` e o reescrevia inteiro, gerando ~2-3s de
+    I/O redundante em compostos com muitas fotos.
+
+    Acessamos os headers via ``document.part.package.iter_parts()`` porque
+    ``document.sections[i].header`` retorna um proxy vazio para headers
+    ligados a secoes anteriores (``link_to_previous``). Iterando as parts
+    diretamente vemos todos os ``HeaderPart`` reais do pacote.
+
+    Deve ser chamada **antes** de ``document.save()``.
     """
-    if not os.path.exists(docx_path):
-        return
 
     normalized_title = normalize_lt_name(title)
     normalized_code = normalize_text(document_code)
     normalized_date = format_emission_date(emission_date)
     normalized_revision = normalize_text(revision) or "00"
-    temp_path = f"{docx_path}.tmp"
 
-    with zipfile.ZipFile(docx_path, "r") as source_zip, zipfile.ZipFile(temp_path, "w", compression=zipfile.ZIP_DEFLATED) as target_zip:
-        for info in source_zip.infolist():
-            data = source_zip.read(info.filename)
-            if info.filename.startswith("word/header") and info.filename.endswith(".xml"):
-                xml = data.decode("utf-8")
-                if "N\u00b0 do Documento:" in xml:
-                    xml = replace_header_lt_title(xml, normalized_title)
-                    xml = replace_header_xml_value_after_marker(
-                        xml, "N\u00b0 do Documento:", normalized_code
-                    )
-                    xml = replace_header_xml_value_after_marker(
-                        xml, "Emiss\u00e3o Inicial:", normalized_date
-                    )
-                    xml = replace_header_xml_value_after_marker(
-                        xml, "Rev.:", normalized_revision
-                    )
-                    data = xml.encode("utf-8")
-            target_zip.writestr(info, data)
+    package = getattr(getattr(document, "part", None), "package", None)
+    if package is None or not hasattr(package, "iter_parts"):
+        return
 
-    os.replace(temp_path, docx_path)
+    for part in package.iter_parts():
+        partname = str(getattr(part, "partname", ""))
+        if not partname.startswith("/word/header") or not partname.endswith(".xml"):
+            continue
+        try:
+            blob = part.blob
+        except Exception:  # pragma: no cover - defensive
+            continue
+        try:
+            xml = blob.decode("utf-8")
+        except (AttributeError, UnicodeDecodeError):
+            continue
+        if "N\u00b0 do Documento:" not in xml:
+            continue
+
+        updated_xml = replace_header_lt_title(xml, normalized_title)
+        updated_xml = replace_header_xml_value_after_marker(
+            updated_xml, "N\u00b0 do Documento:", normalized_code
+        )
+        updated_xml = replace_header_xml_value_after_marker(
+            updated_xml, "Emiss\u00e3o Inicial:", normalized_date
+        )
+        updated_xml = replace_header_xml_value_after_marker(
+            updated_xml, "Rev.:", normalized_revision
+        )
+
+        if updated_xml == xml:
+            continue
+
+        try:
+            new_element = parse_xml(updated_xml.encode("utf-8"))
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "header_metadata_parse_failed",
+                extra={
+                    "partname": partname,
+                    "errorType": type(exc).__name__,
+                    "errorMessage": str(exc),
+                },
+            )
+            continue
+
+        part._element = new_element
 
 
 TEMPLATE_HEADING_STYLE = "Ttulo1"
@@ -589,6 +617,10 @@ def add_workspace_summary(document, workspaces):
 def add_photo_entry(document, photo, image_loader, photo_index):
     media_asset_id = normalize_text(photo.get("mediaAssetId"))
     if not media_asset_id:
+        logger.warning(
+            "photo_missing_media_id",
+            extra={"photoIndex": photo_index},
+        )
         document.add_paragraph("[Imagem indisponível]")
     else:
         try:
@@ -598,8 +630,16 @@ def add_photo_entry(document, photo, image_loader, photo_index):
                 raise ValueError("conteudo vazio")
             document.add_picture(io.BytesIO(buffer), width=Cm(MAX_IMAGE_WIDTH_CM))
             document.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        except Exception:  # pragma: no cover - defensive fallback
-            logger.exception("falha ao carregar mídia %s", media_asset_id)
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            logger.warning(
+                "photo_load_failed",
+                extra={
+                    "mediaAssetId": media_asset_id,
+                    "photoIndex": photo_index,
+                    "errorType": type(exc).__name__,
+                    "errorMessage": str(exc),
+                },
+            )
             document.add_paragraph("[Imagem indisponível]")
 
     caption = normalize_text(photo.get("caption"))
@@ -651,8 +691,22 @@ def add_photos_section(
     add_heading_paragraph(document, section_title, ilvl=0)
 
     if not rows:
+        logger.info(
+            "photos_section_empty",
+            extra={"sectionTitle": section_title},
+        )
         _add_body_paragraph(document, "Nenhuma foto marcada para inclusao no relatorio.")
         return
+
+    logger.info(
+        "photos_section_start",
+        extra={
+            "sectionTitle": section_title,
+            "photoCount": len(rows),
+            "groupByTower": bool(group_by_tower),
+            "coordinateFormat": coordinate_format or "",
+        },
+    )
 
     if group_by_tower:
         grouped = []
@@ -667,6 +721,15 @@ def add_photos_section(
                 lookup[group_key] = []
                 grouped.append((group_key, lookup[group_key]))
             lookup[group_key].append(photo)
+
+        logger.info(
+            "photos_section_grouped",
+            extra={
+                "sectionTitle": section_title,
+                "groupCount": len(grouped),
+                "groupSizes": [len(items) for _, items in grouped],
+            },
+        )
 
         photo_index = 1
         for group_label, items in grouped:
@@ -906,16 +969,17 @@ def render_project_dossier_docx(context, output_path, image_loader):
     if used_template:
         insert_content_section_break(document, content_sectpr)
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    document.save(output_path)
     if used_template:
-        rewrite_template_header_metadata(
-            output_path,
+        apply_template_header_metadata(
+            document,
             normalize_text(project.get("nome")) or normalize_text(project.get("id")) or normalize_text(dossier.get("nome")),
             metadata["document_code"],
             job.get("updatedAt") or job.get("createdAt"),
             metadata["revision"],
         )
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    document.save(output_path)
     return output_path
 
 
@@ -1030,16 +1094,17 @@ def render_report_compound_docx(context, output_path, image_loader):
     if used_template:
         insert_content_section_break(document, content_sectpr)
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    document.save(output_path)
     if used_template:
-        rewrite_template_header_metadata(
-            output_path,
+        apply_template_header_metadata(
+            document,
             lt_name,
             doc_code,
             job.get("updatedAt") or job.get("createdAt"),
             revision,
         )
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    document.save(output_path)
     return output_path
 
 

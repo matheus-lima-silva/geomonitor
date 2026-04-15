@@ -209,23 +209,41 @@ async function buildReportCompoundContext(job) {
     }
 
     const orderedWorkspaceIds = normalizeCompoundOrder(compound.workspaceIds, compound.orderJson);
-    const workspaces = [];
 
-    for (const workspaceId of orderedWorkspaceIds) {
-        const workspace = await reportWorkspaceRepository.getById(workspaceId);
-        if (!workspace) continue;
-
-        const projectId = normalizeText(workspace.projectId).toUpperCase();
-        const [project, photos] = await Promise.all([
-            projectRepository.getById(projectId),
+    // 1) Buscar todos os workspaces + fotos em paralelo, preservando ordem.
+    const workspaceBundles = await Promise.all(orderedWorkspaceIds.map(async (workspaceId) => {
+        const [workspace, photos] = await Promise.all([
+            reportWorkspaceRepository.getById(workspaceId),
             reportPhotoRepository.listByWorkspace(workspaceId),
         ]);
+        return { workspaceId, workspace, photos };
+    }));
 
-        const mode = normalizeText(workspace.photoSortMode) || 'tower_asc';
-        const included = photos.filter((photo) => photo.includeInReport === true);
+    // 2) Deduplicar projectIds e buscar cada projeto apenas uma vez.
+    const uniqueProjectIds = Array.from(new Set(
+        workspaceBundles
+            .filter((entry) => entry.workspace)
+            .map((entry) => normalizeText(entry.workspace.projectId).toUpperCase())
+            .filter(Boolean),
+    ));
+    const projectEntries = await Promise.all(uniqueProjectIds.map(async (projectId) => {
+        const project = await projectRepository.getById(projectId);
+        return [projectId, project || null];
+    }));
+    const projectMap = new Map(projectEntries);
+
+    // 3) Montar os bundles finais na ordem original.
+    const workspaces = [];
+    for (const entry of workspaceBundles) {
+        if (!entry.workspace) continue;
+        const projectId = normalizeText(entry.workspace.projectId).toUpperCase();
+        const mode = normalizeText(entry.workspace.photoSortMode) || 'tower_asc';
+        const included = (Array.isArray(entry.photos) ? entry.photos : []).filter(
+            (photo) => photo.includeInReport === true,
+        );
         workspaces.push({
-            workspace,
-            project: project || null,
+            workspace: entry.workspace,
+            project: projectMap.get(projectId) || null,
             photos: sortPhotosByMode(included, mode),
             photoSortMode: mode,
         });

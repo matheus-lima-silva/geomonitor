@@ -1,14 +1,17 @@
 import json
+import logging
 import os
 import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from worker.logging_utils import configure_worker_logging
 from worker.runtime import WorkerRuntime, utc_now
 
 
 RUNTIME = WorkerRuntime()
+logger = logging.getLogger("worker.app")
 
 
 class WorkerHandler(BaseHTTPRequestHandler):
@@ -71,31 +74,32 @@ class WorkerHandler(BaseHTTPRequestHandler):
         self._write_json(404, {"error": "not_found", "timestamp": utc_now()})
 
     def log_message(self, format, *args):  # noqa: A003
-        message = "%s - - [%s] %s" % (
-            self.address_string(),
-            self.log_date_time_string(),
-            format % args,
+        logger.debug(
+            "http_access",
+            extra={
+                "client": self.address_string(),
+                "line": format % args,
+            },
         )
-        print(message, flush=True)
 
 
 def start_background_poll(runtime):
     if not runtime.auto_poll_enabled:
-        print("[geomonitor-worker] auto poll disabled", flush=True)
+        logger.info("auto_poll_disabled")
         return None
 
-    print(
-        f"[geomonitor-worker] auto poll enabled every {runtime.poll_interval_seconds}s",
-        flush=True,
+    logger.info(
+        "auto_poll_enabled",
+        extra={"pollIntervalSeconds": runtime.poll_interval_seconds},
     )
 
     def loop():
         while True:
             result = runtime.run_once()
             if result.get("status") == "error":
-                print(
-                    f"[geomonitor-worker] poll error: {result.get('errorLog')}",
-                    flush=True,
+                logger.error(
+                    "poll_error",
+                    extra={"errorLog": result.get("errorLog")},
                 )
             time.sleep(runtime.poll_interval_seconds)
 
@@ -105,14 +109,15 @@ def start_background_poll(runtime):
 
 
 def main():
+    configure_worker_logging()
     port = int(os.getenv("PORT", "8080"))
-    print(
-        f"[geomonitor-worker] API URL: {RUNTIME.client.base_url}",
-        flush=True,
-    )
-    print(
-        f"[geomonitor-worker] token configured: {bool(RUNTIME.client.token)}",
-        flush=True,
+    logger.info(
+        "worker_boot",
+        extra={
+            "apiUrl": RUNTIME.client.base_url,
+            "tokenConfigured": bool(RUNTIME.client.token),
+            "port": port,
+        },
     )
     start_background_poll(RUNTIME)
 
@@ -120,10 +125,7 @@ def main():
         address_family = socket.AF_INET6
 
     server = DualStackHTTPServer(("::", port), WorkerHandler)
-    print(
-        f"[geomonitor-worker] worker listening on [::]:{port}",
-        flush=True,
-    )
+    logger.info("worker_listening", extra={"port": port})
     server.serve_forever()
 
 
