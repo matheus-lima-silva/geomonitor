@@ -63,6 +63,7 @@ import {
   buildWorkspaceKmzDownloadFileName,
   buildWorkspacePhotoDraft,
   buildWorkspacePhotoDrafts,
+  computeTowerCurationStatus,
   getPersistedWorkspaceCurationDrafts,
   getWorkspacePhotoStatus,
   inferTowerIdFromRelativePath,
@@ -348,6 +349,20 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
     return counts;
   }, [visibleWorkspacePhotos, workspacePhotoDrafts]);
+
+  const towerCurationStatus = useMemo(
+    () => computeTowerCurationStatus(visibleWorkspacePhotos, workspacePhotoDrafts),
+    [visibleWorkspacePhotos, workspacePhotoDrafts],
+  );
+
+  const sortedTowerOptions = useMemo(() => {
+    const withPhotos = workspaceTowerOptions.filter((t) => (photoCountsByTower[t] || 0) > 0);
+    return [...withPhotos].sort((a, b) => {
+      const aDone = towerCurationStatus[a] ? 1 : 0;
+      const bDone = towerCurationStatus[b] ? 1 : 0;
+      return aDone - bDone;
+    });
+  }, [workspaceTowerOptions, photoCountsByTower, towerCurationStatus]);
 
   const filteredWorkspacePhotos = useMemo(() => {
     const filtered = !towerFilter
@@ -1537,6 +1552,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             towerFilter={towerFilter}
             setTowerFilter={setTowerFilter}
             photoCountsByTower={photoCountsByTower}
+            towerCurationStatus={towerCurationStatus}
+            sortedTowerOptions={sortedTowerOptions}
             filteredWorkspacePhotos={filteredWorkspacePhotos}
             visibleWorkspacePhotos={visibleWorkspacePhotos}
             activePreviewPhotoId={activePreviewPhotoId}

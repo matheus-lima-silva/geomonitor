@@ -62,6 +62,8 @@ export default function WorkspacesTab({
   towerFilter,
   setTowerFilter,
   photoCountsByTower,
+  towerCurationStatus,
+  sortedTowerOptions,
   filteredWorkspacePhotos,
   visibleWorkspacePhotos,
   // Foto preview
@@ -702,17 +704,32 @@ export default function WorkspacesTab({
                       <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-700">{photoCountsByTower.__none__}</span>
                     </button>
                   )}
-                  {workspaceTowerOptions.filter((tower) => (photoCountsByTower[tower] || 0) > 0).map((tower) => (
-                    <button
-                      key={tower}
-                      type="button"
-                      className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${towerFilter === tower ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50'}`}
-                      onClick={() => handleTowerFilterChange(tower)}
-                    >
-                      <span>Torre {tower}</span>
-                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-2xs font-semibold text-slate-600">{photoCountsByTower[tower] || 0}</span>
-                    </button>
-                  ))}
+                  {sortedTowerOptions.map((tower) => {
+                    const isActive = towerFilter === tower;
+                    const isComplete = towerCurationStatus[tower];
+                    return (
+                      <button
+                        key={tower}
+                        type="button"
+                        className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                          isActive
+                            ? 'bg-brand-50 text-brand-700'
+                            : isComplete
+                              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                              : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                        onClick={() => handleTowerFilterChange(tower)}
+                      >
+                        <span className="flex items-center gap-1">
+                          {isComplete && <AppIcon name="check" size={12} className="text-emerald-500" />}
+                          Torre {tower}
+                        </span>
+                        <span className={`rounded-full px-1.5 py-0.5 text-2xs font-semibold ${
+                          isComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                        }`}>{photoCountsByTower[tower] || 0}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

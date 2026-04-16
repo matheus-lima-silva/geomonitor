@@ -253,6 +253,26 @@ export function groupPhotosByTower(photos = [], drafts = {}) {
   return groups;
 }
 
+// ── Status de curadoria por torre ───────────────────────────────────────────
+
+export function computeTowerCurationStatus(photos = [], drafts = {}) {
+  const grouped = {};
+  for (const photo of photos) {
+    const draft = drafts[photo.id] || buildWorkspacePhotoDraft(photo);
+    const tower = (draft.towerId || photo.towerId || '').trim() || '__none__';
+    if (!grouped[tower]) grouped[tower] = { total: 0, curated: 0 };
+    grouped[tower].total += 1;
+    if (getWorkspacePhotoStatus(photo, draft) === 'curated') {
+      grouped[tower].curated += 1;
+    }
+  }
+  const result = {};
+  for (const [tower, counts] of Object.entries(grouped)) {
+    result[tower] = counts.total > 0 && counts.curated === counts.total;
+  }
+  return result;
+}
+
 // ── Filtros ──────────────────────────────────────────────────────────────────
 
 export function buildProjectPhotoFilters(filters = {}) {
