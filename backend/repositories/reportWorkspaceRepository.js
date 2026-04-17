@@ -12,7 +12,7 @@ function hydrateWorkspaceRow(row) {
 async function list() {
     const result = await postgresStore.query(
         `
-            SELECT id, project_id, status, draft_state, payload, created_at, updated_at, updated_by
+            SELECT id, project_id, inspection_id, status, draft_state, payload, created_at, updated_at, updated_by
             FROM report_workspaces
             ORDER BY updated_at DESC, id ASC
         `,
@@ -23,6 +23,7 @@ async function list() {
         payload: {
             ...(row.payload || {}),
             projectId: row.project_id,
+            inspectionId: row.inspection_id || null,
             status: row.status,
             draftState: row.draft_state || {},
         },
@@ -34,7 +35,7 @@ async function getById(id) {
 
     const result = await postgresStore.query(
         `
-            SELECT id, project_id, status, draft_state, payload, created_at, updated_at, updated_by
+            SELECT id, project_id, inspection_id, status, draft_state, payload, created_at, updated_at, updated_by
             FROM report_workspaces
             WHERE id = $1
             LIMIT 1
@@ -49,6 +50,7 @@ async function getById(id) {
         payload: {
             ...(row.payload || {}),
             projectId: row.project_id,
+            inspectionId: row.inspection_id || null,
             status: row.status,
             draftState: row.draft_state || {},
         },
@@ -59,7 +61,7 @@ async function listByProject(projectId) {
     const normalizedProjectId = normalizeKey(projectId);
     const result = await postgresStore.query(
         `
-            SELECT id, project_id, status, draft_state, payload, created_at, updated_at, updated_by
+            SELECT id, project_id, inspection_id, status, draft_state, payload, created_at, updated_at, updated_by
             FROM report_workspaces
             WHERE project_id = $1
             ORDER BY updated_at DESC, id ASC
@@ -72,6 +74,7 @@ async function listByProject(projectId) {
         payload: {
             ...(row.payload || {}),
             projectId: row.project_id,
+            inspectionId: row.inspection_id || null,
             status: row.status,
             draftState: row.draft_state || {},
         },
@@ -86,6 +89,7 @@ async function save(payload, options = {}) {
         ...(payload || {}),
         id: normalizedId,
         projectId: normalizeKey(payload?.projectId || current?.projectId),
+        inspectionId: normalizeText(payload?.inspectionId ?? current?.inspectionId) || null,
     };
 
     await postgresStore.query(
@@ -93,6 +97,7 @@ async function save(payload, options = {}) {
             INSERT INTO report_workspaces (
                 id,
                 project_id,
+                inspection_id,
                 status,
                 draft_state,
                 payload,
@@ -100,10 +105,11 @@ async function save(payload, options = {}) {
                 updated_at,
                 updated_by
             )
-            VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, NOW(), NOW(), $6)
+            VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, NOW(), NOW(), $7)
             ON CONFLICT (id)
             DO UPDATE SET
                 project_id = EXCLUDED.project_id,
+                inspection_id = EXCLUDED.inspection_id,
                 status = EXCLUDED.status,
                 draft_state = EXCLUDED.draft_state,
                 payload = EXCLUDED.payload,
@@ -113,6 +119,7 @@ async function save(payload, options = {}) {
         [
             normalizedId,
             nextPayload.projectId,
+            nextPayload.inspectionId,
             normalizeText(nextPayload.status) || 'draft',
             JSON.stringify(nextPayload.draftState || {}),
             JSON.stringify(nextPayload),

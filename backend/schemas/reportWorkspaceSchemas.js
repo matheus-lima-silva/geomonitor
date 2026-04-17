@@ -18,6 +18,7 @@ const workspaceDataSchema = z.object({
     nome: z.string().trim().optional(),
     descricao: z.string().optional(),
     projectId: z.string().trim().optional(),
+    inspectionId: z.string().trim().nullable().optional(),
     status: z.string().trim().optional(),
     slots: z.array(slotSchema).optional(),
     draftState: z.record(z.string(), z.any()).optional(),

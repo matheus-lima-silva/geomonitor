@@ -48,12 +48,17 @@ function normalizeSlot(slot = {}) {
 }
 
 function normalizeWorkspacePayload(data = {}, fallback = {}) {
+    // inspectionId: null explicito (ex.: desclassificar) preserva o null;
+    // undefined cai no fallback. Strings vazias viram null.
+    const rawInspectionId = data.inspectionId !== undefined ? data.inspectionId : fallback.inspectionId;
+    const inspectionId = rawInspectionId === null ? null : (normalizeText(rawInspectionId) || null);
     return {
         ...fallback,
         id: normalizeText(data.id) || normalizeText(fallback.id) || `RW-${crypto.randomUUID()}`,
         nome: normalizeText(data.nome) || normalizeText(fallback.nome),
         descricao: normalizeText(data.descricao) || normalizeText(fallback.descricao),
         projectId: normalizeText(data.projectId || fallback.projectId).toUpperCase(),
+        inspectionId,
         status: normalizeText(data.status) || normalizeText(fallback.status) || 'draft',
         slots: Array.isArray(data.slots) ? data.slots.map((slot) => normalizeSlot(slot)) : (fallback.slots || []),
         draftState: data.draftState && typeof data.draftState === 'object' ? data.draftState : (fallback.draftState || {}),
@@ -141,16 +146,23 @@ function createMemberHateoasResponse(req, workspaceId, member, { allowDelete = t
 // porque createHateoasResponse sobrescreve _links.
 function buildWorkspaceResponse(req, workspace, { currentUserRole }) {
     const base = createHateoasResponse(req, workspace, 'report-workspaces', workspace.id);
+    const links = {
+        ...base._links,
+        members: {
+            href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspace.id}/members`,
+            method: 'GET',
+        },
+    };
+    if (workspace.inspectionId) {
+        links.inspection = {
+            href: `${resolveApiBaseUrl(req)}/inspections/${workspace.inspectionId}`,
+            method: 'GET',
+        };
+    }
     return {
         ...base,
         currentUserRole,
-        _links: {
-            ...base._links,
-            members: {
-                href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspace.id}/members`,
-                method: 'GET',
-            },
-        },
+        _links: links,
     };
 }
 

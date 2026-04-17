@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { subscribeProjects } from '../../../services/projectService';
+import { subscribeInspections, saveInspection } from '../../../services/inspectionService';
 import {
   createProjectDossier,
   deleteProjectDossier,
@@ -77,11 +78,13 @@ import BibliotecaTab from './BibliotecaTab';
 import CompoundsTab from './CompoundsTab';
 import DossierTab from './DossierTab';
 import WorkspacesTab from './WorkspacesTab';
+import UnclassifiedWorkspacesModal from './UnclassifiedWorkspacesModal';
 
 export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [tab, setTab] = useState('workspaces');
   const [projects, setProjects] = useState([]);
   const [workspaces, setWorkspaces] = useState([]);
+  const [inspections, setInspections] = useState([]);
   const [compounds, setCompounds] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [projectPhotos, setProjectPhotos] = useState([]);
@@ -92,7 +95,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [libraryFilters, setLibraryFilters] = useState({ workspaceId: '', towerId: '', captionQuery: '', dateFrom: '', dateTo: '' });
   const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState('');
   // Draft de criacao desacoplado do selectedProjectId
-  const [workspaceDraft, setWorkspaceDraft] = useState({ projectId: '', nome: '', descricao: '' });
+  const [workspaceDraft, setWorkspaceDraft] = useState({ projectId: '', inspectionId: '', nome: '', descricao: '' });
   const [dossierDraft, setDossierDraft] = useState({ nome: '', observacoes: '', scopeJson: buildDefaultDossierScope() });
   const [compoundDraft, setCompoundDraft] = useState({
     nome: '',
@@ -142,6 +145,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   useEffect(() => subscribeReportWorkspaces((rows) => setWorkspaces(rows || []), () => showToast('Erro ao carregar workspaces.', 'error')), [showToast]);
   useEffect(() => subscribeProjects((rows) => setProjects(rows || []), () => showToast('Erro ao carregar empreendimentos.', 'error')), [showToast]);
   useEffect(() => subscribeReportCompounds((rows) => setCompounds(rows || []), () => showToast('Erro ao carregar compostos.', 'error')), [showToast]);
+  useEffect(() => subscribeInspections((rows) => setInspections(rows || []), () => showToast('Erro ao carregar vistorias.', 'error')), [showToast]);
 
   useEffect(() => {
     listProfissoes().then(setProfissoes).catch(() => showToast('Erro ao carregar profissoes.', 'error'));
@@ -577,23 +581,74 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       showToast('Selecione um empreendimento e informe um nome para o workspace.', 'error');
       return;
     }
+    if (!workspaceDraft.inspectionId) {
+      showToast('Selecione uma vistoria antes de criar o workspace.', 'error');
+      return;
+    }
     try {
       setBusy('workspace');
       await createReportWorkspace({
         id: `RW-${Date.now()}`,
         projectId: workspaceDraft.projectId,
+        inspectionId: workspaceDraft.inspectionId,
         nome: workspaceDraft.nome.trim(),
         descricao: String(workspaceDraft.descricao || '').trim(),
         status: 'draft',
         slots: [],
         draftState: { autosave: 'pending' },
       }, { updatedBy: userEmail || 'web' });
-      setWorkspaceDraft((prev) => ({ ...prev, nome: '', descricao: '' }));
+      setWorkspaceDraft((prev) => ({ ...prev, nome: '', descricao: '', inspectionId: '' }));
       showToast('Workspace criado.', 'success');
     } catch (error) {
       showToast(error?.message || 'Erro ao criar workspace.', 'error');
     } finally {
       setBusy('');
+    }
+  }
+
+  const projectInspections = useMemo(() => {
+    if (!selectedProjectId) return [];
+    return inspections.filter((inspection) => String(inspection.projetoId || '') === selectedProjectId);
+  }, [inspections, selectedProjectId]);
+
+  const unclassifiedWorkspaces = useMemo(() => {
+    if (!selectedProjectId) return [];
+    return workspaces.filter(
+      (workspace) => workspace.projectId === selectedProjectId && !workspace.inspectionId && !workspace.deletedAt,
+    );
+  }, [workspaces, selectedProjectId]);
+
+  async function handleClassifyUnclassifiedWorkspaces(assignments) {
+    if (!Array.isArray(assignments) || assignments.length === 0) return;
+    setBusy('classify-batch');
+    let successCount = 0;
+    for (const { workspaceId, inspectionId } of assignments) {
+      try {
+        await updateReportWorkspace(workspaceId, { inspectionId }, { updatedBy: userEmail || 'web' });
+        successCount += 1;
+      } catch (error) {
+        console.error('Falha ao classificar workspace', workspaceId, error);
+      }
+    }
+    setBusy('');
+    if (successCount > 0) {
+      showToast(`${successCount} workspace(s) classificado(s).`, 'success');
+    }
+    if (successCount < assignments.length) {
+      showToast(`${assignments.length - successCount} falha(s) ao classificar.`, 'error');
+    }
+  }
+
+  async function handleCreateInspectionForClassification({ projetoId, dataInicio, responsavel }) {
+    try {
+      const id = await saveInspection(
+        { projetoId, dataInicio, responsavel, status: 'aberta' },
+        { updatedBy: userEmail || 'web' },
+      );
+      return { id };
+    } catch (error) {
+      showToast(error?.message || 'Erro ao criar vistoria.', 'error');
+      return null;
     }
   }
 
@@ -891,6 +946,66 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       showToast(`${successCount} foto(s) restaurada(s).`, 'success');
       setTrashedPhotos([]);
       await refreshWorkspacePhotos(selectedWorkspace.id);
+    }
+  }
+
+  async function handleRestoreTowerTrashedPhotos(photos) {
+    if (!selectedWorkspace || !Array.isArray(photos) || photos.length === 0) return;
+    const busyKey = `restore-tower:${photos[0]?.towerId || '__none__'}`;
+    setBusy(busyKey);
+    const restoredIds = new Set();
+    for (const photo of photos) {
+      try {
+        await restoreWorkspacePhoto(selectedWorkspace.id, photo.id);
+        restoredIds.add(photo.id);
+      } catch (error) {
+        console.error('Falha ao restaurar foto', photo.id, error);
+      }
+    }
+    setBusy('');
+    if (restoredIds.size > 0) {
+      showToast(`${restoredIds.size} foto(s) restaurada(s).`, 'success');
+      setTrashedPhotos((prev) => prev.filter((p) => !restoredIds.has(p.id)));
+      await refreshWorkspacePhotos(selectedWorkspace.id);
+    }
+  }
+
+  async function handleRestoreSelectedTrashedPhotos(photoIds) {
+    if (!selectedWorkspace || !Array.isArray(photoIds) || photoIds.length === 0) return;
+    setBusy('restore-selected');
+    const restoredIds = new Set();
+    for (const photoId of photoIds) {
+      try {
+        await restoreWorkspacePhoto(selectedWorkspace.id, photoId);
+        restoredIds.add(photoId);
+      } catch (error) {
+        console.error('Falha ao restaurar foto', photoId, error);
+      }
+    }
+    setBusy('');
+    if (restoredIds.size > 0) {
+      showToast(`${restoredIds.size} foto(s) restaurada(s).`, 'success');
+      setTrashedPhotos((prev) => prev.filter((p) => !restoredIds.has(p.id)));
+      await refreshWorkspacePhotos(selectedWorkspace.id);
+    }
+  }
+
+  async function handleHardDeleteSelectedTrashedPhotos(photoIds) {
+    if (!selectedWorkspace || !Array.isArray(photoIds) || photoIds.length === 0) return;
+    setBusy('hard-delete-selected');
+    const deletedIds = new Set();
+    for (const photoId of photoIds) {
+      try {
+        await deleteReportWorkspacePhoto(selectedWorkspace.id, photoId);
+        deletedIds.add(photoId);
+      } catch (error) {
+        console.error('Falha ao excluir foto permanentemente', photoId, error);
+      }
+    }
+    setBusy('');
+    if (deletedIds.size > 0) {
+      showToast(`${deletedIds.size} foto(s) excluida(s) permanentemente.`, 'success');
+      setTrashedPhotos((prev) => prev.filter((p) => !deletedIds.has(p.id)));
     }
   }
 
@@ -1571,6 +1686,9 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleMovePhotoToTrash={handleMovePhotoToTrash}
             handleRestorePhoto={handleRestorePhoto}
             handleRestoreAllTrashedPhotos={handleRestoreAllTrashedPhotos}
+            handleRestoreTowerTrashedPhotos={handleRestoreTowerTrashedPhotos}
+            handleRestoreSelectedTrashedPhotos={handleRestoreSelectedTrashedPhotos}
+            handleHardDeleteSelectedTrashedPhotos={handleHardDeleteSelectedTrashedPhotos}
             handleEmptyPhotoTrash={handleEmptyPhotoTrash}
             handleRequestWorkspaceKmz={handleRequestWorkspaceKmz}
             handleDownloadWorkspaceKmz={handleDownloadWorkspaceKmz}
@@ -1584,6 +1702,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleTrashWorkspace={handleTrashWorkspace}
             handleRestoreWorkspace={handleRestoreWorkspace}
             handleHardDeleteWorkspace={handleHardDeleteWorkspace}
+            projectInspections={projectInspections}
           />
         ) : null}
 
@@ -1650,9 +1769,24 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleHardDeleteCompound={handleHardDeleteCompound}
             handleDownloadReportOutput={handleDownloadReportOutput}
             buildCompoundDownloadFileName={buildCompoundDownloadFileName}
+            userEmail={userEmail}
+            showToast={showToast}
           />
         ) : null}
       </div>
+
+      {/* Bloqueia a aba Workspaces quando ha workspaces sem vistoria no
+          empreendimento selecionado. Nao possui close explicito — so sai
+          quando todos forem classificados e submetidos. */}
+      <UnclassifiedWorkspacesModal
+        open={tab === 'workspaces' && unclassifiedWorkspaces.length > 0}
+        unclassifiedWorkspaces={unclassifiedWorkspaces}
+        projectInspections={projectInspections}
+        projectId={selectedProjectId}
+        busy={busy}
+        onAssign={handleClassifyUnclassifiedWorkspaces}
+        onCreateInspection={handleCreateInspectionForClassification}
+      />
     </section>
   );
 }

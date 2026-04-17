@@ -13,6 +13,8 @@ import {
   getStatusLabel,
   tone,
 } from '../utils/reportUtils';
+import DeliveryUploadModal from './DeliveryUploadModal';
+import ArchivedDeliveriesPanel from './ArchivedDeliveriesPanel';
 
 const TEXT_SECTIONS_PRE = [
   ['introducao', '1. Introducao', 'Contexto e objetivo do relatorio.'],
@@ -55,12 +57,16 @@ export default function CompoundsTab({
   handleDownloadReportOutput,
   buildCompoundDownloadFileName,
   handleUpdateCompoundSignatures,
+  userEmail = '',
+  showToast = () => {},
 }) {
   const [openSections, setOpenSections] = useState({});
   const [openPreflights, setOpenPreflights] = useState({});
   const [confirmGenerate, setConfirmGenerate] = useState(null);
   const [confirmHardDelete, setConfirmHardDelete] = useState(null);
   const [confirmGenerateWithCoords, setConfirmGenerateWithCoords] = useState(null);
+  const [deliveryCompound, setDeliveryCompound] = useState(null);
+  const [archiveRefreshToken, setArchiveRefreshToken] = useState(0);
   const [coordFormatDraft, setCoordFormatDraft] = useState('decimal');
   const [showTrash, setShowTrash] = useState(false);
   const [editingSignaturesFor, setEditingSignaturesFor] = useState(null);
@@ -840,6 +846,16 @@ export default function CompoundsTab({
                     {busy === `download:${compound.outputDocxMediaId}` ? 'Baixando...' : 'Baixar DOCX'}
                   </Button>
                 ) : null}
+                {compound.outputDocxMediaId ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => setDeliveryCompound(compound)}
+                    data-testid={`deliver-compound-${compound.id}`}
+                  >
+                    <AppIcon name="check" />
+                    Marcar como entregue
+                  </Button>
+                ) : null}
                 <Button
                   variant="outline"
                   onClick={() => openGenerateWithCoords(compound)}
@@ -856,6 +872,14 @@ export default function CompoundsTab({
                   <AppIcon name="file-text" />
                   Enfileirar Geracao
                 </Button>
+              </div>
+              <div className="mt-3">
+                <ArchivedDeliveriesPanel
+                  compoundId={compound.id}
+                  compoundName={compound.nome}
+                  refreshToken={archiveRefreshToken}
+                  showToast={showToast}
+                />
               </div>
             </article>
           );
@@ -1024,6 +1048,16 @@ export default function CompoundsTab({
           Essa acao nao pode ser desfeita.
         </p>
       </Modal>
+
+      <DeliveryUploadModal
+        open={Boolean(deliveryCompound)}
+        onClose={() => setDeliveryCompound(null)}
+        compoundId={deliveryCompound?.id || ''}
+        compoundName={deliveryCompound?.nome || ''}
+        userEmail={userEmail}
+        onDelivered={() => setArchiveRefreshToken((t) => t + 1)}
+        showToast={showToast}
+      />
     </>
   );
 }

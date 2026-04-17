@@ -4,7 +4,13 @@ const router = express.Router();
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
 const { createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/hateoas');
 const { normalizeText } = require('../utils/projectScope');
-const { reportCompoundRepository, reportWorkspaceRepository, reportJobRepository } = require('../repositories');
+const {
+    reportCompoundRepository,
+    reportWorkspaceRepository,
+    reportJobRepository,
+    reportArchiveRepository,
+    mediaAssetRepository,
+} = require('../repositories');
 const { triggerWorkerRun } = require('../utils/workerTrigger');
 const { flushWorkspaceDraftsToPhotos } = require('../utils/reportJobContext');
 
@@ -38,6 +44,8 @@ function createCompoundResponse(req, compound) {
                 reorder: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/reorder`, method: 'POST' },
                 preflight: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/preflight`, method: 'POST' },
                 generate: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/generate`, method: 'POST' },
+                deliver: { href: `${resolveApiBaseUrl(req)}/report-compounds/${compoundId}/deliver`, method: 'POST' },
+                archives: { href: `${resolveApiBaseUrl(req)}/report-archives?compoundId=${compoundId}`, method: 'GET' },
             },
         },
     );
@@ -314,6 +322,91 @@ router.post('/:id/generate', verifyToken, requireEditor, async (req, res) => {
     } catch (error) {
         console.error('[report-compounds API] Error POST /:id/generate:', error);
         return res.status(500).json({ status: 'error', message: 'Erro ao enfileirar geracao do relatorio composto' });
+    }
+});
+
+// Cria um snapshot imutavel (report_archive) do compound + do media gerado,
+// sequenciando a versao automaticamente. O upload do PDF final entregue
+// externamente e feito em duas etapas subsequentes pelo frontend:
+//   (a) POST /api/media/upload-url para criar media_asset pending_upload
+//   (b) PUT no signed URL com o binario
+//   (c) POST /api/report-archives/:archiveId/attach-delivered com {mediaId, sha256}
+router.post('/:id/deliver', verifyToken, requireEditor, async (req, res) => {
+    try {
+        const compound = await reportCompoundRepository.getById(req.params.id);
+        if (!compound) {
+            return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
+        }
+
+        const generatedMediaId = normalizeText(compound.outputDocxMediaId);
+        if (!generatedMediaId) {
+            return res.status(400).json({
+                status: 'error',
+                code: 'MISSING_GENERATED_DOCX',
+                message: 'Gere o relatorio antes de criar uma entrega.',
+            });
+        }
+
+        let generatedSha256 = '';
+        try {
+            const generatedAsset = await mediaAssetRepository.getById(generatedMediaId);
+            generatedSha256 = normalizeText(generatedAsset?.sha256);
+        } catch (_err) {
+            // sha256 e opcional no snapshot; segue sem bloquear.
+        }
+
+        const previousMax = await reportArchiveRepository.getMaxVersionForCompound(compound.id);
+        const nextVersion = Number(previousMax) + 1;
+
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const data = body.data && typeof body.data === 'object' ? body.data : {};
+
+        const archiveId = `RA-${crypto.randomUUID()}`;
+        const snapshotPayload = {
+            id: compound.id,
+            nome: compound.nome,
+            status: compound.status,
+            workspaceIds: Array.isArray(compound.workspaceIds) ? compound.workspaceIds : [],
+            orderJson: Array.isArray(compound.orderJson) ? compound.orderJson : [],
+            sharedTextsJson: compound.sharedTextsJson && typeof compound.sharedTextsJson === 'object'
+                ? compound.sharedTextsJson
+                : {},
+            templateId: compound.templateId || null,
+            outputDocxMediaId: generatedMediaId,
+            lastJobId: compound.lastJobId || null,
+            capturedAt: new Date().toISOString(),
+        };
+
+        const created = await reportArchiveRepository.create({
+            id: archiveId,
+            compoundId: compound.id,
+            version: nextVersion,
+            deliveredBy: req.user?.email || normalizeText(body.meta?.updatedBy) || 'API',
+            generatedMediaId,
+            generatedSha256,
+            deliveredMediaId: null,
+            deliveredSha256: null,
+            notes: normalizeText(data.notes),
+            snapshotPayload,
+        });
+
+        const apiBaseUrl = resolveApiBaseUrl(req);
+        const archiveUrl = `${apiBaseUrl}/report-archives/${archiveId}`;
+        return res.status(201).json({
+            status: 'success',
+            data: {
+                ...created,
+                _links: {
+                    self: { href: archiveUrl, method: 'GET' },
+                    compound: { href: `${apiBaseUrl}/report-compounds/${compound.id}`, method: 'GET' },
+                    attachDelivered: { href: `${archiveUrl}/attach-delivered`, method: 'POST' },
+                    downloadGenerated: { href: `${archiveUrl}/download?variant=generated`, method: 'GET' },
+                },
+            },
+        });
+    } catch (error) {
+        console.error('[report-compounds API] Error POST /:id/deliver:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao criar entrega do relatorio composto' });
     }
 });
 

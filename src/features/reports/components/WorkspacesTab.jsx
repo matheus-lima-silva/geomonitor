@@ -17,6 +17,7 @@ import {
   tone,
 } from '../utils/reportUtils';
 import PhotoPreviewModal from './PhotoPreviewModal';
+import TrashExpandedModal from './TrashExpandedModal';
 import WorkspaceMembersModal from './WorkspaceMembersModal';
 import { useOptionalAuth } from '../../../context/AuthContext';
 
@@ -86,6 +87,9 @@ export default function WorkspacesTab({
   handleMovePhotoToTrash,
   handleRestorePhoto,
   handleRestoreAllTrashedPhotos,
+  handleRestoreTowerTrashedPhotos,
+  handleRestoreSelectedTrashedPhotos,
+  handleHardDeleteSelectedTrashedPhotos,
   handleEmptyPhotoTrash,
   handleRequestWorkspaceKmz,
   handleDownloadWorkspaceKmz,
@@ -99,6 +103,7 @@ export default function WorkspacesTab({
   handleTrashWorkspace,
   handleRestoreWorkspace,
   handleHardDeleteWorkspace,
+  projectInspections = [],
 }) {
   // useOptionalAuth em vez de useAuth porque os testes existentes montam
   // o WorkspacesTab sem envolver em AuthProvider. Em runtime o contexto
@@ -114,6 +119,7 @@ export default function WorkspacesTab({
   const [dragOverPhotoId, setDragOverPhotoId] = useState(null);
   const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
   const [confirmHardDeleteWorkspace, setConfirmHardDeleteWorkspace] = useState(null);
+  const [trashExpandedOpen, setTrashExpandedOpen] = useState(false);
 
   // Um workspace pode ter seu painel de membros aberto quando o requester
   // e admin/manager global OU membro local com role owner/editor. A role
@@ -359,8 +365,42 @@ export default function WorkspacesTab({
                   onChange={(event) => setWorkspaceDraft((prev) => ({ ...prev, descricao: event.target.value }))}
                   placeholder="Escopo, periodo ou observacoes"
                 />
+                <div className="md:col-span-3">
+                  <label htmlFor="rw-inspection" className="block text-xs font-medium text-slate-700 mb-1">
+                    Vistoria *
+                  </label>
+                  <Select
+                    id="rw-inspection"
+                    value={workspaceDraft.inspectionId || ''}
+                    onChange={(event) => setWorkspaceDraft((prev) => ({ ...prev, inspectionId: event.target.value }))}
+                    disabled={!workspaceDraft.projectId}
+                  >
+                    <option value="">
+                      {workspaceDraft.projectId
+                        ? (projectInspections.filter((i) => i.projetoId === workspaceDraft.projectId).length === 0
+                          ? 'Nenhuma vistoria cadastrada para este empreendimento'
+                          : 'Selecione uma vistoria...')
+                        : 'Escolha o empreendimento primeiro'}
+                    </option>
+                    {projectInspections
+                      .filter((inspection) => inspection.projetoId === workspaceDraft.projectId)
+                      .sort((a, b) => String(b.dataInicio || '').localeCompare(String(a.dataInicio || '')))
+                      .map((inspection) => {
+                        const data = inspection.dataInicio ? new Date(inspection.dataInicio).toLocaleDateString('pt-BR') : '';
+                        return (
+                          <option key={inspection.id} value={inspection.id}>
+                            {[inspection.id, data, inspection.responsavel].filter(Boolean).join(' — ')}
+                          </option>
+                        );
+                      })}
+                  </Select>
+                </div>
                 <div className="md:col-span-3 flex justify-end">
-                  <Button onClick={handleCreateWorkspace} disabled={busy === 'workspace'}>
+                  <Button
+                    data-testid="create-workspace-submit"
+                    onClick={handleCreateWorkspace}
+                    disabled={busy === 'workspace' || !workspaceDraft.inspectionId}
+                  >
                     <AppIcon name="plus" />
                     {busy === 'workspace' ? 'Criando...' : 'Criar Workspace'}
                   </Button>
@@ -623,7 +663,27 @@ export default function WorkspacesTab({
                   </span>
                 </div>
                 <p className="mt-0 mb-1 text-sm font-bold text-slate-800">{selectedWorkspace.nome || selectedWorkspace.id}</p>
-                <p className="m-0 mb-3 text-xs text-slate-400">{selectedWorkspace.id}</p>
+                <p className="m-0 mb-1 text-xs text-slate-400">{selectedWorkspace.id}</p>
+                {selectedWorkspace.inspectionId ? (
+                  (() => {
+                    const inspection = projectInspections.find((i) => i.id === selectedWorkspace.inspectionId);
+                    const label = inspection
+                      ? [inspection.id, inspection.dataInicio ? new Date(inspection.dataInicio).toLocaleDateString('pt-BR') : ''].filter(Boolean).join(' — ')
+                      : selectedWorkspace.inspectionId;
+                    return (
+                      <p
+                        className="m-0 mb-3 inline-flex items-center gap-1 rounded bg-brand-50 px-1.5 py-0.5 text-2xs font-semibold text-brand-700"
+                        data-testid="workspace-inspection-badge"
+                      >
+                        <AppIcon name="map-pin" size={10} /> Vistoria: {label}
+                      </p>
+                    );
+                  })()
+                ) : (
+                  <p className="m-0 mb-3 inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-2xs font-semibold text-amber-700">
+                    <AppIcon name="alert-triangle" size={10} /> Sem vistoria vinculada
+                  </p>
+                )}
                 <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                   <div
                     className="h-full rounded-full bg-emerald-500 transition-all duration-300"
@@ -922,40 +982,76 @@ export default function WorkspacesTab({
                       </div>
                     ) : (
                       <div className="px-3 pb-3">
-                        <div className="flex flex-col gap-1.5 mt-2">
-                          {trashedPhotos.map((photo) => {
-                            const previewUrl = photoPreviewUrls[photo.id];
-                            const deletedDate = photo.deletedAt ? new Date(photo.deletedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                        <div className="flex flex-col gap-3 mt-2" data-testid="trash-grouped">
+                          {groupPhotosByTower(trashedPhotos, {}).map((group) => {
+                            const towerKey = group.items[0]?.towerId || '__none__';
+                            const restoringTower = busy === `restore-tower:${towerKey}`;
                             return (
-                              <div key={photo.id} className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-1.5">
-                                <div className="h-10 w-10 shrink-0 rounded bg-slate-200 overflow-hidden">
-                                  {previewUrl ? (
-                                    <img src={previewUrl} alt="" className="h-full w-full object-cover opacity-60" />
-                                  ) : (
-                                    <div className="h-full w-full flex items-center justify-center">
-                                      <AppIcon name="image" size={14} className="text-slate-300" />
+                              <div
+                                key={group.label}
+                                className="flex flex-col gap-1.5"
+                                data-testid={`trash-group-${towerKey}`}
+                              >
+                                <div className="flex items-center justify-between px-0.5">
+                                  <span className="text-2xs font-semibold uppercase tracking-wide text-slate-500">
+                                    {group.label} · {group.items.length}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    aria-label={`Restaurar todas de ${group.label}`}
+                                    onClick={() => handleRestoreTowerTrashedPhotos(group.items)}
+                                    disabled={restoringTower}
+                                    className="shrink-0 inline-flex items-center justify-center h-5 w-5 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                                  >
+                                    <AppIcon name="undo" size={10} />
+                                  </button>
+                                </div>
+                                {group.items.map((photo) => {
+                                  const previewUrl = photoPreviewUrls[photo.id];
+                                  const deletedDate = photo.deletedAt ? new Date(photo.deletedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                                  return (
+                                    <div key={photo.id} className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-1.5">
+                                      <div className="h-10 w-10 shrink-0 rounded bg-slate-200 overflow-hidden">
+                                        {previewUrl ? (
+                                          <img src={previewUrl} alt="" className="h-full w-full object-cover opacity-60" />
+                                        ) : (
+                                          <div className="h-full w-full flex items-center justify-center">
+                                            <AppIcon name="image" size={14} className="text-slate-300" />
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-xs text-slate-600 truncate m-0">{photo.caption || photo.relativePath || photo.id}</p>
+                                        {deletedDate && <p className="text-2xs text-rose-400 m-0">{deletedDate}</p>}
+                                      </div>
+                                      <IconButton
+                                        variant="outline"
+                                        size="sm"
+                                        aria-label="Restaurar foto"
+                                        onClick={() => handleRestorePhoto(photo)}
+                                        disabled={busy === `photo-restore:${photo.id}`}
+                                        className="shrink-0"
+                                      >
+                                        <AppIcon name="undo" size={12} />
+                                      </IconButton>
                                     </div>
-                                  )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs text-slate-600 truncate m-0">{photo.caption || photo.relativePath || photo.id}</p>
-                                  {deletedDate && <p className="text-2xs text-rose-400 m-0">{deletedDate}</p>}
-                                </div>
-                                <IconButton
-                                  variant="outline"
-                                  size="sm"
-                                  aria-label="Restaurar foto"
-                                  onClick={() => handleRestorePhoto(photo)}
-                                  disabled={busy === `photo-restore:${photo.id}`}
-                                  className="shrink-0"
-                                >
-                                  <AppIcon name="undo" size={12} />
-                                </IconButton>
+                                  );
+                                })}
                               </div>
                             );
                           })}
                         </div>
                         <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-slate-200">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full justify-center"
+                            onClick={() => setTrashExpandedOpen(true)}
+                            data-testid="trash-expand-button"
+                          >
+                            <AppIcon name="search" size={14} />
+                            Expandir lixeira
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -1422,6 +1518,19 @@ export default function WorkspacesTab({
           canManage={canManageMembers(membersModalWorkspace)}
         />
       )}
+
+      <TrashExpandedModal
+        open={trashExpandedOpen}
+        onClose={() => setTrashExpandedOpen(false)}
+        trashedPhotos={trashedPhotos}
+        photoPreviewUrls={photoPreviewUrls}
+        ensurePhotoPreview={ensurePhotoPreview}
+        busy={busy}
+        handleRestorePhoto={handleRestorePhoto}
+        handleRestoreSelectedTrashedPhotos={handleRestoreSelectedTrashedPhotos}
+        handleHardDeleteSelectedTrashedPhotos={handleHardDeleteSelectedTrashedPhotos}
+        handleEmptyPhotoTrash={handleEmptyPhotoTrash}
+      />
     </>
   );
 }

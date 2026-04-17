@@ -10,6 +10,7 @@ const reportDeliveryTrackingRepository = require('./reportDeliveryTrackingReposi
 const projectPhotoExportRepository = require('./projectPhotoExportRepository');
 const projectDossierRepository = require('./projectDossierRepository');
 const reportCompoundRepository = require('./reportCompoundRepository');
+const reportArchiveRepository = require('./reportArchiveRepository');
 const reportJobRepository = require('./reportJobRepository');
 const workspaceImportRepository = require('./workspaceImportRepository');
 const workspaceKmzRequestRepository = require('./workspaceKmzRequestRepository');
@@ -31,6 +32,7 @@ module.exports = {
     projectPhotoExportRepository,
     projectDossierRepository,
     reportCompoundRepository,
+    reportArchiveRepository,
     reportJobRepository,
     workspaceImportRepository,
     workspaceKmzRequestRepository,
