@@ -1,6 +1,8 @@
 # TODO - Migracao GeoMonitor + GeoRelat + Tigris
 
-Status atual: `81/82` itens concluidos (`98,8%`), `1` pendente (remover dependencias operacionais de Firestore — pos-estabilizacao).
+Status atual: `81/82` itens concluidos (`98,8%`), `1` pendente.
+
+O unico item restante e limpeza: nao ha mais dependencias operacionais de Firestore no runtime (backend roda sobre Postgres via `pg`, sem `firebase-admin`; frontend consome a API REST, sem `firebase`). O que falta sao apenas residuos textuais (comentarios historicos em `backend/utils/authMiddleware.js`, `backend/routes/auth.js`, `backend/utils/mailer.js`, teste `criticality.test.js` e label "UID (Firebase Auth)" em `src/features/admin/components/AdminView.jsx`). Esses nao afetam execucao e podem ser limpos quando conveniente.
 
 ## infra/schema
 

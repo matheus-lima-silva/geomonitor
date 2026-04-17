@@ -10,9 +10,9 @@ Antes do GeoMonitor, esse controle era feito de forma dispersa: planilhas Excel 
 
 ## 2. O que e o GeoMonitor
 
-GeoMonitor e uma aplicacao web centralizada para gestao de empreendimentos, erosoes, vistorias e licencas de operacao em linhas de transmissao de energia.
+GeoMonitor e uma aplicacao web centralizada para gestao de empreendimentos, erosoes, vistorias, licencas de operacao e **producao de relatorios tecnicos** em linhas de transmissao de energia.
 
-O sistema substitui documentos espalhados por um banco de dados unico, com interface visual, historico completo e calculo automatico de criticidade — permitindo que equipes tecnicas e gestores tomem decisoes com base em dados consolidados e rastreavies.
+O sistema substitui documentos espalhados por um banco de dados unico, com interface visual, historico completo, calculo automatico de criticidade e pipeline integrado de curadoria de fotos → composicao → entrega versionada — permitindo que equipes tecnicas e gestores tomem decisoes com base em dados consolidados e rastreaveis.
 
 ---
 
@@ -25,8 +25,11 @@ O sistema substitui documentos espalhados por um banco de dados unico, com inter
 | **Vistorias** | Planejamento e registro de campanhas de campo multi-dia; diario por torre; controle de pendencias |
 | **Licencas de Operacao (LO)** | Gestao de LOs por empreendimento com cobertura de torres e alertas de vencimento |
 | **Acompanhamento** | Historico de eventos e evolucao de cada ponto erosivo ao longo do tempo |
-| **Entrega de Relatorios** | Controle de entrega de relatorios mensais por empreendimento |
-| **Administracao** | Gestao de usuarios, perfis de acesso e configuracao de regras de criticidade |
+| **Workspaces de Relatorio** | Pipeline completo de producao: upload direto de KMZ/fotos → curadoria por torre → composicao DOCX → entrega versionada e imutavel. Lixeira com retencao e arquivamento automatico. Ver [modulo-reports.md](modulo-reports.md) |
+| **Entrega de Relatorios** | Registro mensal de entregas por empreendimento (separado do pipeline de producao) |
+| **Dossies de Projeto** | Compilacao de licencas, erosoes e relatorios em dossies exportaveis para auditoria |
+| **Monitoramento** | Dashboard com alertas de planejamento, status de torres curadas e metricas operacionais |
+| **Administracao** | Gestao de usuarios, perfis de acesso, signatarios e configuracao de regras de criticidade |
 
 ---
 
@@ -63,23 +66,37 @@ O sistema tambem aplica **politicas contextuais automaticas**:
 
 ## 5. Perfis de Usuario
 
+### Perfis globais
+
 | Perfil | O que pode fazer |
 |---|---|
-| **Admin** | Acesso total: usuarios, configuracoes, todos os dados |
-| **Gerente** | Acesso editorial completo com visao gerencial |
-| **Editor** | Criar e editar empreendimentos, erosoes, vistorias e licencas |
+| **Admin/Administrador** | Acesso total: usuarios, configuracoes, todos os dados e todos os workspaces |
+| **Gerente** | Acesso editorial completo com visao gerencial; ve todos os workspaces |
+| **Editor** | Criar e editar empreendimentos, erosoes, vistorias e licencas; so ve workspaces em que for membro |
 | **Visualizador** | Leitura de dados sem edicao |
+
+### Papeis locais por workspace
+
+Alem do perfil global, workspaces de relatorio aplicam RBAC fino:
+
+| Papel local | Acesso |
+|---|---|
+| **owner** | Leitura, escrita e gestao de membros (nao pode ser removido se for o ultimo owner) |
+| **editor** | Leitura e escrita (curadoria, upload, composicao) |
+| **viewer** | Apenas leitura |
+
+Usuarios Admin/Gerente veem todos os workspaces independentemente de serem membros. Demais usuarios so veem os workspaces em que estao listados na tabela `workspace_members`.
 
 ---
 
 ## 6. Beneficios
 
-- **Centralizacao**: todos os dados de empreendimentos, erosoes e vistorias em um unico sistema
-- **Rastreabilidade**: historico completo de cada ponto erosivo, incluindo evolucao de criticidade ao longo do tempo
+- **Centralizacao**: todos os dados de empreendimentos, erosoes, vistorias e producao de relatorios em um unico sistema
+- **Rastreabilidade**: historico completo de cada ponto erosivo; entregas versionadas e imutaveis com SHA256; ciclo de vida das fotos auditado (ativa → lixeira → arquivada)
 - **Padronizacao**: metodologia de criticidade unica aplicada de forma consistente a todos os projetos
-- **Agilidade de campo**: formularios estruturados com tooltips de orientacao, diario de vistoria por torre e alertas de pendencia
-- **Suporte a decisao**: recomendacoes tecnicas automaticas, exportacao de dados e visualizacao em mapa
-- **Seguranca**: controle de acesso por perfis, autenticacao Firebase e auditoria de alteracoes
+- **Agilidade de campo**: formularios estruturados com tooltips de orientacao, diario de vistoria por torre, alertas de pendencia e feedback visual de torres totalmente curadas
+- **Suporte a decisao**: recomendacoes tecnicas automaticas, exportacao de dados, visualizacao em mapa e dashboards operacionais
+- **Seguranca**: controle de acesso por perfis globais + RBAC fino por workspace; autenticacao JWT propria com bcrypt; auditoria de alteracoes
 
 ---
 
@@ -87,16 +104,18 @@ O sistema tambem aplica **politicas contextuais automaticas**:
 
 O sistema e uma aplicacao web moderna, acessivel pelo navegador, sem necessidade de instalacao:
 
-- **Interface**: React 18 com mapas interativos (Leaflet) e graficos (Recharts)
-- **Banco de dados**: Firebase Firestore (nuvem, tempo real)
-- **Autenticacao**: Firebase Authentication
-- **API backend**: Node.js / Express (servidor dedicado)
-- **Infraestrutura**: Docker + Fly.io com pipeline de CI/CD automatizado
+- **Interface**: React 18 + Vite com mapas interativos (Leaflet) e graficos (Recharts)
+- **Banco de dados**: PostgreSQL gerenciado (Fly Managed Postgres em producao)
+- **Autenticacao**: JWT propria com bcrypt (access + refresh tokens, reset por email)
+- **Storage de midia**: AWS S3 / Tigris com signed URLs (upload direto do navegador para o bucket)
+- **API backend**: Node.js / Express 5 (servidor dedicado, ~20 routers HATEOAS)
+- **Worker**: processador assincrono de jobs (composicao DOCX, processamento KMZ, exports)
+- **Infraestrutura**: Docker + Fly.io com pipeline de CI/CD automatizado por ambiente (homologacao/producao)
 
 ---
 
-## 8. Limitacoes Atuais (Prototipo Funcional)
+## 8. Limitacoes Atuais
 
-- Importacao de fotos por link externo (sem upload direto no sistema ainda)
-- Geracao de relatorios PDF ainda nao integrada ao sistema (fluxo externo)
-- Integracao com sistemas corporativos (SAP, GIS empresarial) nao implementada
+- Integracao com sistemas corporativos (SAP, GIS empresarial) nao implementada.
+- Relatorios sao gerados em DOCX e entregues manualmente; nao ha integracao automatica com sistemas de protocolo externos.
+- Auditoria detalhada de alteracoes (quem editou o que, quando) e limitada a campos `updated_by`/`updated_at` em cada registro — nao ha log de mudancas por campo.
