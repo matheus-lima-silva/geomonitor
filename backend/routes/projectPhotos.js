@@ -241,6 +241,22 @@ router.get('/:id/photos', verifyToken, requireActiveUser, async (req, res) => {
     }
 });
 
+// Lista fotos arquivadas do empreendimento (archived_at IS NOT NULL).
+// O frontend agrupa por mes/ano da vistoria (inspection.dataInicio).
+router.get('/:id/archived-photos', verifyToken, requireActiveUser, async (req, res) => {
+    try {
+        const projectId = normalizeText(req.params.id).toUpperCase();
+        const photos = await reportPhotoRepository.listArchivedByProject(projectId);
+        return res.status(200).json({
+            status: 'success',
+            data: photos.map((photo) => createPhotoResponse(req, projectId, photo)),
+        });
+    } catch (error) {
+        console.error('[project-photos API] Error GET /:id/archived-photos:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao listar fotos arquivadas' });
+    }
+});
+
 router.get('/:id/photos/:photoId', verifyToken, requireActiveUser, async (req, res) => {
     try {
         const projectId = normalizeText(req.params.id).toUpperCase();

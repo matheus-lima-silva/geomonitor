@@ -29,6 +29,9 @@ function AdminView({
     null,
     2,
   ));
+  const [retentionDays, setRetentionDays] = useState(() => (
+    Number(rulesConfig?.retencao?.lixeira_para_arquivo_dias) || 30
+  ));
 
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -51,6 +54,7 @@ function AdminView({
       null,
       2,
     ));
+    setRetentionDays(Number(rulesConfig?.retencao?.lixeira_para_arquivo_dias) || 30);
   }, [rulesConfig]);
 
   const canApproveUsers = user?.role === 'admin' || user?.role === 'manager';
@@ -160,6 +164,23 @@ function AdminView({
     show('Regras salvas com sucesso.', 'success');
   }
 
+  async function handleSaveRetention() {
+    const parsed = Number(retentionDays);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 3650) {
+      show('Informe um numero inteiro entre 1 e 3650 dias.', 'error');
+      return;
+    }
+    try {
+      await saveRulesConfig(
+        { retencao: { lixeira_para_arquivo_dias: parsed } },
+        { updatedBy: user?.email, merge: true },
+      );
+      show('Retencao atualizada com sucesso.', 'success');
+    } catch (error) {
+      show(error?.message || 'Falha ao salvar retencao.', 'error');
+    }
+  }
+
   return (
     <section className="bg-white rounded-xl shadow-[0_4px_18px_rgba(15,23,42,0.08)] p-5 mb-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
@@ -174,6 +195,7 @@ function AdminView({
         <Button variant={section === 'signatures' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('signatures')}><AppIcon name="edit" />Assinaturas</Button>
         <Button variant={section === 'workspaces-access' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('workspaces-access')}><AppIcon name="projects-nav" />Acessos a Workspaces</Button>
         <Button variant={section === 'rules' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('rules')}><AppIcon name="shield" />Criticidade</Button>
+        <Button variant={section === 'retencao' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('retencao')}><AppIcon name="clock" />Retencao</Button>
         <Button variant={section === 'stats' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('stats')}><AppIcon name="dashboard-nav" />Estatisticas</Button>
       </div>
 
@@ -259,6 +281,43 @@ function AdminView({
 
       {section === 'stats' && (
         <UsageStatsSection />
+      )}
+
+      {section === 'retencao' && (
+        <div className="flex flex-col gap-5" data-testid="admin-retention-section">
+          <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+            <h3 className="text-base font-bold text-slate-800 m-0 mb-1">Retencao de fotos na lixeira</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Define apos quantos dias fotos da lixeira passam a ser sugeridas para arquivamento.
+              Nao apaga nada automaticamente — apenas exibe um alerta dentro da lixeira com a acao
+              "Arquivar antigas" em lote.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="admin-retention-days" className="block text-xs font-semibold text-slate-700 mb-1">
+                  Dias para elegibilidade de arquivamento
+                </label>
+                <Input
+                  id="admin-retention-days"
+                  type="number"
+                  min="1"
+                  max="3650"
+                  value={retentionDays}
+                  onChange={(event) => setRetentionDays(event.target.value === '' ? '' : Number(event.target.value))}
+                />
+                <p className="text-2xs text-slate-500 m-0 mt-1">
+                  Padrao: 30 dias. Limite maximo: 3650 dias (10 anos).
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button variant="primary" onClick={handleSaveRetention} data-testid="admin-retention-save">
+                <AppIcon name="save" />
+                Salvar retencao
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {section === 'rules' && (

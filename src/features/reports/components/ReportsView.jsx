@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { subscribeProjects } from '../../../services/projectService';
 import { subscribeInspections, saveInspection } from '../../../services/inspectionService';
+import { subscribeRulesConfig } from '../../../services/rulesService';
 import {
   createProjectDossier,
   deleteProjectDossier,
@@ -33,8 +34,10 @@ import { getProjectTowerList } from '../../../utils/getProjectTowerList';
 import {
   createReportWorkspace,
   deleteReportWorkspace,
+  archiveTrashedPhotosOlderThan,
   deleteReportWorkspacePhoto,
   emptyWorkspacePhotoTrash,
+  unarchivePhotoToTrash,
   getWorkspaceKmzRequest,
   importReportWorkspace,
   listReportWorkspacePhotos,
@@ -85,6 +88,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   const [projects, setProjects] = useState([]);
   const [workspaces, setWorkspaces] = useState([]);
   const [inspections, setInspections] = useState([]);
+  const [rulesConfig, setRulesConfig] = useState(null);
   const [compounds, setCompounds] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [projectPhotos, setProjectPhotos] = useState([]);
@@ -146,6 +150,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   useEffect(() => subscribeProjects((rows) => setProjects(rows || []), () => showToast('Erro ao carregar empreendimentos.', 'error')), [showToast]);
   useEffect(() => subscribeReportCompounds((rows) => setCompounds(rows || []), () => showToast('Erro ao carregar compostos.', 'error')), [showToast]);
   useEffect(() => subscribeInspections((rows) => setInspections(rows || []), () => showToast('Erro ao carregar vistorias.', 'error')), [showToast]);
+  useEffect(() => subscribeRulesConfig((config) => setRulesConfig(config || null), () => {}), []);
 
   useEffect(() => {
     listProfissoes().then(setProfissoes).catch(() => showToast('Erro ao carregar profissoes.', 'error'));
@@ -606,6 +611,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
+  const retentionDays = useMemo(() => {
+    const value = Number(rulesConfig?.retencao?.lixeira_para_arquivo_dias);
+    return Number.isInteger(value) && value >= 1 && value <= 3650 ? value : 30;
+  }, [rulesConfig]);
+
   const projectInspections = useMemo(() => {
     if (!selectedProjectId) return [];
     return inspections.filter((inspection) => String(inspection.projetoId || '') === selectedProjectId);
@@ -987,6 +997,41 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       showToast(`${restoredIds.size} foto(s) restaurada(s).`, 'success');
       setTrashedPhotos((prev) => prev.filter((p) => !restoredIds.has(p.id)));
       await refreshWorkspacePhotos(selectedWorkspace.id);
+    }
+  }
+
+  async function handleUnarchivePhotoToTrash(workspaceId, photoId) {
+    if (!workspaceId || !photoId) return;
+    try {
+      setBusy(`unarchive:${photoId}`);
+      await unarchivePhotoToTrash(workspaceId, photoId);
+      showToast('Foto devolvida para a lixeira.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao desarquivar foto.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleArchiveOldTrashedPhotos(days) {
+    if (!selectedWorkspace) return;
+    setBusy('archive-old-trash');
+    try {
+      const result = await archiveTrashedPhotosOlderThan(selectedWorkspace.id, days);
+      const count = result?.data?.count || 0;
+      if (count > 0) {
+        showToast(`${count} foto(s) arquivada(s).`, 'success');
+        setTrashedPhotos((prev) => prev.filter((p) => {
+          const deletedMs = new Date(p.deletedAt || 0).getTime();
+          return !Number.isFinite(deletedMs) || deletedMs >= Date.now() - days * 86_400_000;
+        }));
+      } else {
+        showToast('Nenhuma foto antiga para arquivar.', 'info');
+      }
+    } catch (error) {
+      showToast(error?.message || 'Erro ao arquivar fotos antigas.', 'error');
+    } finally {
+      setBusy('');
     }
   }
 
@@ -1689,7 +1734,9 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleRestoreTowerTrashedPhotos={handleRestoreTowerTrashedPhotos}
             handleRestoreSelectedTrashedPhotos={handleRestoreSelectedTrashedPhotos}
             handleHardDeleteSelectedTrashedPhotos={handleHardDeleteSelectedTrashedPhotos}
+            handleArchiveOldTrashedPhotos={handleArchiveOldTrashedPhotos}
             handleEmptyPhotoTrash={handleEmptyPhotoTrash}
+            retentionDays={retentionDays}
             handleRequestWorkspaceKmz={handleRequestWorkspaceKmz}
             handleDownloadWorkspaceKmz={handleDownloadWorkspaceKmz}
             photoSortMode={photoSortMode}
@@ -1720,6 +1767,10 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             metrics={metrics}
             busy={busy}
             handlePhotoExport={handlePhotoExport}
+            workspaces={workspaces}
+            inspections={inspections}
+            handleUnarchivePhotoToTrash={handleUnarchivePhotoToTrash}
+            showToast={showToast}
           />
         ) : null}
 

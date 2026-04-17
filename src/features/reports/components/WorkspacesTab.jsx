@@ -90,7 +90,9 @@ export default function WorkspacesTab({
   handleRestoreTowerTrashedPhotos,
   handleRestoreSelectedTrashedPhotos,
   handleHardDeleteSelectedTrashedPhotos,
+  handleArchiveOldTrashedPhotos,
   handleEmptyPhotoTrash,
+  retentionDays = 30,
   handleRequestWorkspaceKmz,
   handleDownloadWorkspaceKmz,
   photoSortMode,
@@ -130,6 +132,23 @@ export default function WorkspacesTab({
     const localRole = workspace?.currentUserRole;
     return localRole === 'owner' || localRole === 'editor';
   };
+
+  // Permissao de escrita no workspace ativo: gerente global OU owner/editor
+  // local. Usado para habilitar/desabilitar acoes destrutivas na lixeira.
+  const canWriteSelected = isGlobalManager || (
+    selectedWorkspace?.currentUserRole === 'owner'
+    || selectedWorkspace?.currentUserRole === 'editor'
+  );
+
+  // Conta fotos na lixeira com idade > retentionDays (para badge e banner).
+  const oldTrashCount = useMemo(() => {
+    if (!Array.isArray(trashedPhotos) || trashedPhotos.length === 0) return 0;
+    const threshold = Date.now() - retentionDays * 86_400_000;
+    return trashedPhotos.filter((photo) => {
+      const ms = new Date(photo?.deletedAt || 0).getTime();
+      return Number.isFinite(ms) && ms < threshold;
+    }).length;
+  }, [trashedPhotos, retentionDays]);
   const [showWorkspaceTrash, setShowWorkspaceTrash] = useState(false);
   const [photoTrashOpen, setPhotoTrashOpen] = useState(false);
   const [captionsSectionOpen, setCaptionsSectionOpen] = useState(false);
@@ -968,6 +987,15 @@ export default function WorkspacesTab({
                           {trashedPhotos.length}
                         </span>
                       )}
+                      {oldTrashCount > 0 && (
+                        <span
+                          data-testid="sidebar-old-trash-badge"
+                          className="bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 text-2xs font-medium"
+                          title={`${oldTrashCount} foto(s) na lixeira ha mais de ${retentionDays} dias`}
+                        >
+                          {oldTrashCount} antigas
+                        </span>
+                      )}
                     </span>
                     <AppIcon
                       name="chevron-right"
@@ -1529,7 +1557,10 @@ export default function WorkspacesTab({
         handleRestorePhoto={handleRestorePhoto}
         handleRestoreSelectedTrashedPhotos={handleRestoreSelectedTrashedPhotos}
         handleHardDeleteSelectedTrashedPhotos={handleHardDeleteSelectedTrashedPhotos}
+        handleArchiveOldTrashedPhotos={handleArchiveOldTrashedPhotos}
         handleEmptyPhotoTrash={handleEmptyPhotoTrash}
+        retentionDays={retentionDays}
+        canWrite={canWriteSelected}
       />
     </>
   );

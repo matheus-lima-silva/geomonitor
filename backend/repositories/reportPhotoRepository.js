@@ -44,7 +44,7 @@ async function listByWorkspace(workspaceId) {
                    distance_to_tower_m, curation_status, manual_override,
                    sort_order, import_source, payload, created_at, updated_at, updated_by
             FROM report_photos
-            WHERE workspace_id = $1 AND deleted_at IS NULL
+            WHERE workspace_id = $1 AND deleted_at IS NULL AND archived_at IS NULL
             ORDER BY sort_order ASC, updated_at DESC, id ASC
         `,
         [normalizedWorkspaceId],
@@ -344,6 +344,7 @@ function hydratePhotoRowFromPg(row) {
             sortOrder: row.sort_order,
             importSource: row.import_source,
             deletedAt: row.deleted_at instanceof Date ? row.deleted_at.toISOString() : (row.deleted_at || null),
+            archivedAt: row.archived_at instanceof Date ? row.archived_at.toISOString() : (row.archived_at || null),
         },
     });
 }
@@ -356,14 +357,32 @@ async function listTrashedByWorkspace(workspaceId) {
                    include_in_report, caption, capture_at, gps_lat, gps_lon,
                    inside_right_of_way, inside_tower_radius, distance_to_axis_m,
                    distance_to_tower_m, curation_status, manual_override,
-                   sort_order, import_source, deleted_at, payload, created_at, updated_at, updated_by
+                   sort_order, import_source, deleted_at, archived_at, payload, created_at, updated_at, updated_by
             FROM report_photos
-            WHERE workspace_id = $1 AND deleted_at IS NOT NULL
+            WHERE workspace_id = $1 AND deleted_at IS NOT NULL AND archived_at IS NULL
             ORDER BY deleted_at DESC, id ASC
         `,
         [normalizedWorkspaceId],
     );
 
+    return result.rows.map(hydratePhotoRowFromPg);
+}
+
+async function listArchivedByProject(projectId) {
+    const normalizedProjectId = normalizeText(projectId);
+    const result = await postgresStore.query(
+        `
+            SELECT id, workspace_id, project_id, media_asset_id, tower_id, tower_source,
+                   include_in_report, caption, capture_at, gps_lat, gps_lon,
+                   inside_right_of_way, inside_tower_radius, distance_to_axis_m,
+                   distance_to_tower_m, curation_status, manual_override,
+                   sort_order, import_source, deleted_at, archived_at, payload, created_at, updated_at, updated_by
+            FROM report_photos
+            WHERE project_id = $1 AND archived_at IS NOT NULL
+            ORDER BY archived_at DESC, id ASC
+        `,
+        [normalizedProjectId],
+    );
     return result.rows.map(hydratePhotoRowFromPg);
 }
 
@@ -385,12 +404,66 @@ async function restore(photoId) {
     return getById(normalizedId);
 }
 
+// Arquiva uma foto da lixeira. Apenas fotos ja em lixeira podem ser
+// arquivadas. Retorna null se a foto nao estiver em estado lixeira.
+async function archive(photoId) {
+    const normalizedId = normalizeText(photoId);
+    const result = await postgresStore.query(
+        `
+            UPDATE report_photos
+            SET archived_at = NOW(), deleted_at = NULL, updated_at = NOW()
+            WHERE id = $1 AND deleted_at IS NOT NULL AND archived_at IS NULL
+            RETURNING id
+        `,
+        [normalizedId],
+    );
+    if (result.rowCount === 0) return null;
+    return getById(normalizedId);
+}
+
+// Devolve foto arquivada para a lixeira. Bloqueia se a foto nao estiver
+// arquivada.
+async function unarchiveToTrash(photoId) {
+    const normalizedId = normalizeText(photoId);
+    const result = await postgresStore.query(
+        `
+            UPDATE report_photos
+            SET archived_at = NULL, deleted_at = NOW(), updated_at = NOW()
+            WHERE id = $1 AND archived_at IS NOT NULL
+            RETURNING id
+        `,
+        [normalizedId],
+    );
+    if (result.rowCount === 0) return null;
+    return getById(normalizedId);
+}
+
+// Arquiva em lote fotos da lixeira mais antigas que N dias. Retorna a
+// quantidade efetivamente movida.
+async function archiveOlderThanDays(workspaceId, days) {
+    const normalizedWorkspaceId = normalizeText(workspaceId);
+    const daysNum = Number.isInteger(Number(days)) ? Number(days) : 30;
+    const result = await postgresStore.query(
+        `
+            UPDATE report_photos
+            SET archived_at = NOW(), deleted_at = NULL, updated_at = NOW()
+            WHERE workspace_id = $1
+              AND deleted_at IS NOT NULL
+              AND archived_at IS NULL
+              AND deleted_at < NOW() - ($2 || ' days')::interval
+            RETURNING id
+        `,
+        [normalizedWorkspaceId, String(daysNum)],
+    );
+    return { count: result.rowCount || 0 };
+}
+
 async function removeAllTrashed(workspaceId) {
     const normalizedWorkspaceId = normalizeText(workspaceId);
     const result = await postgresStore.query(
         `
             DELETE FROM report_photos
-            WHERE workspace_id = $1 AND deleted_at IS NOT NULL
+            WHERE workspace_id = $1 AND deleted_at IS NOT NULL AND archived_at IS NULL
             RETURNING id, media_asset_id, payload
         `,
         [normalizedWorkspaceId],
@@ -404,11 +477,15 @@ async function removeAllTrashed(workspaceId) {
 module.exports = {
     listByWorkspace,
     listTrashedByWorkspace,
+    listArchivedByProject,
     getById,
     listByProject,
     save,
     softDelete,
     restore,
+    archive,
+    unarchiveToTrash,
+    archiveOlderThanDays,
     removeAllTrashed,
     countByProject,
     batchUpdateSortOrder,

@@ -13,6 +13,20 @@ const SORT_OPTIONS = [
 const PAGE_SIZE = 24;
 const PAGE_SIZE_OPTIONS = [12, 24, 48, 96];
 
+const OLD_THRESHOLD_DAYS = 30;
+const MS_PER_DAY = 86_400_000;
+
+function daysSince(deletedAt) {
+  if (!deletedAt) return 0;
+  const deletedMs = new Date(deletedAt).getTime();
+  if (!Number.isFinite(deletedMs)) return 0;
+  return Math.floor((Date.now() - deletedMs) / MS_PER_DAY);
+}
+
+function towerKey(photo) {
+  return photo?.towerId ? String(photo.towerId) : '__none__';
+}
+
 function sortTrashedPhotos(photos, sortMode) {
   const list = [...photos];
   switch (sortMode) {
@@ -52,10 +66,15 @@ export default function TrashExpandedModal({
   handleRestorePhoto,
   handleRestoreSelectedTrashedPhotos,
   handleHardDeleteSelectedTrashedPhotos,
+  handleArchiveOldTrashedPhotos,
   handleEmptyPhotoTrash,
+  retentionDays = OLD_THRESHOLD_DAYS,
+  canWrite = true,
 }) {
   const [search, setSearch] = useState('');
   const [sortMode, setSortMode] = useState('deleted_desc');
+  const [towerFilter, setTowerFilter] = useState('__all__');
+  const [groupByTower, setGroupByTower] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [previewPhotoId, setPreviewPhotoId] = useState(null);
   const [confirmDeleteSelected, setConfirmDeleteSelected] = useState(false);
@@ -66,6 +85,8 @@ export default function TrashExpandedModal({
   useEffect(() => {
     if (!open) {
       setSearch('');
+      setTowerFilter('__all__');
+      setGroupByTower(false);
       setSelectedIds(new Set());
       setPreviewPhotoId(null);
       setConfirmDeleteSelected(false);
@@ -75,16 +96,37 @@ export default function TrashExpandedModal({
     }
   }, [open]);
 
+  // Opcoes do dropdown derivadas das torres presentes na lixeira atual.
+  const towerOptions = useMemo(() => {
+    const set = new Set();
+    let hasNone = false;
+    for (const photo of trashedPhotos || []) {
+      if (photo?.towerId) set.add(String(photo.towerId));
+      else hasNone = true;
+    }
+    const towers = [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return [
+      { value: '__all__', label: `Todas (${trashedPhotos?.length || 0})` },
+      ...towers.map((t) => ({ value: t, label: `Torre ${t}` })),
+      ...(hasNone ? [{ value: '__none__', label: 'Sem torre' }] : []),
+    ];
+  }, [trashedPhotos]);
+
   const filteredPhotos = useMemo(() => {
-    const filtered = (trashedPhotos || []).filter((photo) => matchesFilter(photo, search));
+    const filtered = (trashedPhotos || []).filter((photo) => {
+      if (!matchesFilter(photo, search)) return false;
+      if (towerFilter === '__all__') return true;
+      if (towerFilter === '__none__') return !photo?.towerId;
+      return String(photo?.towerId || '') === towerFilter;
+    });
     return sortTrashedPhotos(filtered, sortMode);
-  }, [trashedPhotos, search, sortMode]);
+  }, [trashedPhotos, search, sortMode, towerFilter]);
 
   // Reseta para a primeira pagina quando o filtro/ordenacao mudam ou
   // o total filtrado cai abaixo do offset atual.
   useEffect(() => {
     setPage(1);
-  }, [search, sortMode, pageSize]);
+  }, [search, sortMode, pageSize, towerFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPhotos.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -95,10 +137,14 @@ export default function TrashExpandedModal({
     [filteredPhotos, pageStart, pageEnd],
   );
 
+  // Agrupamento por torre fica independente da ordenacao: desliga so quando
+  // usuario desmarca o toggle. Quando sort mode e 'tower_asc' ou toggle
+  // ligado, entrega grupos; caso contrario, lista unica.
+  const effectiveGroupByTower = groupByTower || sortMode === 'tower_asc';
   const groups = useMemo(() => {
-    if (sortMode === 'tower_asc') return groupPhotosByTower(pagedPhotos, {});
+    if (effectiveGroupByTower) return groupPhotosByTower(pagedPhotos, {});
     return [{ label: null, items: pagedPhotos }];
-  }, [pagedPhotos, sortMode]);
+  }, [pagedPhotos, effectiveGroupByTower]);
 
   useEffect(() => {
     if (!open || typeof ensurePhotoPreview !== 'function') return;
@@ -146,6 +192,17 @@ export default function TrashExpandedModal({
   const selectedCount = selectedIds.size;
   const totalTrash = trashedPhotos?.length || 0;
 
+  // Fotos elegiveis para arquivamento automatico (idade > retentionDays).
+  const oldPhotosCount = useMemo(() => {
+    if (!Array.isArray(trashedPhotos) || trashedPhotos.length === 0) return 0;
+    return trashedPhotos.filter((photo) => daysSince(photo?.deletedAt) > retentionDays).length;
+  }, [trashedPhotos, retentionDays]);
+
+  async function onArchiveOld() {
+    if (typeof handleArchiveOldTrashedPhotos !== 'function') return;
+    await handleArchiveOldTrashedPhotos(retentionDays);
+  }
+
   return (
     <Modal
       open={open}
@@ -164,6 +221,17 @@ export default function TrashExpandedModal({
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
+          <div className="w-48">
+            <Select
+              id="trash-expanded-tower"
+              value={towerFilter}
+              onChange={(event) => setTowerFilter(event.target.value)}
+            >
+              {towerOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </Select>
+          </div>
           <div className="w-56">
             <Select
               id="trash-expanded-sort"
@@ -175,6 +243,18 @@ export default function TrashExpandedModal({
               ))}
             </Select>
           </div>
+          <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              data-testid="trash-group-toggle"
+              className="h-4 w-4 cursor-pointer"
+              checked={effectiveGroupByTower}
+              onChange={(event) => setGroupByTower(event.target.checked)}
+              disabled={sortMode === 'tower_asc'}
+              title={sortMode === 'tower_asc' ? 'Ordenacao por torre ja agrupa' : ''}
+            />
+            Agrupar por torre
+          </label>
           <Button variant="outline" size="sm" onClick={selectAllVisible} disabled={filteredPhotos.length === 0}>
             Selecionar todas ({filteredPhotos.length})
           </Button>
@@ -182,6 +262,31 @@ export default function TrashExpandedModal({
             Limpar
           </Button>
         </div>
+
+        {/* Banner de fotos antigas — notifica que ha fotos elegiveis para arquivar */}
+        {oldPhotosCount > 0 && (
+          <div
+            data-testid="trash-old-banner"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+          >
+            <span>
+              <AppIcon name="alert-triangle" size={14} className="inline -mt-0.5" />
+              {' '}
+              <strong>{oldPhotosCount}</strong> foto(s) na lixeira ha mais de {retentionDays} dias.
+            </span>
+            <Button
+              size="sm"
+              className="bg-amber-600 hover:bg-amber-700 text-white border-0"
+              onClick={onArchiveOld}
+              disabled={!canWrite || busy === 'archive-old-trash'}
+              data-testid="trash-archive-old-button"
+              title={!canWrite ? 'Sem permissao de escrita neste workspace' : ''}
+            >
+              <AppIcon name="archive" size={14} className="text-white" />
+              {busy === 'archive-old-trash' ? 'Arquivando...' : `Arquivar antigas (${oldPhotosCount})`}
+            </Button>
+          </div>
+        )}
 
         {/* Barra de ações em lote */}
         {selectedCount > 0 && (
@@ -248,6 +353,8 @@ export default function TrashExpandedModal({
                           minute: '2-digit',
                         })
                         : '';
+                      const ageDays = daysSince(photo.deletedAt);
+                      const isOld = ageDays > retentionDays;
                       return (
                         <div
                           key={photo.id}
@@ -305,6 +412,16 @@ export default function TrashExpandedModal({
                               {photo.towerId ? `Torre ${photo.towerId}` : 'Sem torre'}
                               {deletedDate ? ` · ${deletedDate}` : ''}
                             </p>
+                            {isOld && (
+                              <span
+                                data-testid={`trash-card-old-${photo.id}`}
+                                className="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-700"
+                                title="Foto antiga na lixeira — candidata a arquivamento"
+                              >
+                                <AppIcon name="alert-triangle" size={10} />
+                                {ageDays}d
+                              </span>
+                            )}
                           </div>
                         </div>
                       );

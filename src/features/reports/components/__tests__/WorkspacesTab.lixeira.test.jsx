@@ -60,7 +60,9 @@ function buildStubProps(overrides = {}) {
     handleRestoreTowerTrashedPhotos: vi.fn(),
     handleRestoreSelectedTrashedPhotos: vi.fn(),
     handleHardDeleteSelectedTrashedPhotos: vi.fn(),
+    handleArchiveOldTrashedPhotos: vi.fn(),
     handleEmptyPhotoTrash: vi.fn(),
+    retentionDays: 30,
     handleRequestWorkspaceKmz: vi.fn(),
     handleDownloadWorkspaceKmz: vi.fn(),
     photoSortMode: 'sort_order_asc',
@@ -219,6 +221,129 @@ describe('WorkspacesTab — modal expandido da lixeira', () => {
     expect(body.textContent).toContain('Foto A');
     expect(body.textContent).toContain('Foto B');
     expect(body.textContent).toContain('Foto C');
+  });
+
+  it('filtra por torre via dropdown independente da ordenacao', async () => {
+    await openExpandedModal([
+      { id: 'RPH-1', towerId: 'T-01', caption: 'A', deletedAt: '2026-04-17T10:00:00Z' },
+      { id: 'RPH-2', towerId: 'T-01', caption: 'B', deletedAt: '2026-04-17T11:00:00Z' },
+      { id: 'RPH-3', towerId: 'T-02', caption: 'C', deletedAt: '2026-04-17T12:00:00Z' },
+      { id: 'RPH-4', towerId: '', caption: 'SemTorre', deletedAt: '2026-04-17T13:00:00Z' },
+    ]);
+
+    const towerSelect = document.querySelector('#trash-expanded-tower');
+    expect(towerSelect).not.toBeNull();
+    const values = [...towerSelect.querySelectorAll('option')].map((o) => o.value);
+    expect(values).toContain('__all__');
+    expect(values).toContain('T-01');
+    expect(values).toContain('T-02');
+    expect(values).toContain('__none__');
+
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+    await act(async () => {
+      setter.call(towerSelect, 'T-01');
+      towerSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const cards = document.querySelectorAll('[data-testid^="trash-card-RPH-"]');
+    expect(cards.length).toBe(2);
+    const ids = [...cards].map((c) => c.getAttribute('data-testid'));
+    expect(ids).toContain('trash-card-RPH-1');
+    expect(ids).toContain('trash-card-RPH-2');
+    expect(ids).not.toContain('trash-card-RPH-3');
+  });
+
+  it('toggle "agrupar por torre" funciona com qualquer ordenacao', async () => {
+    await openExpandedModal([
+      { id: 'RPH-1', towerId: 'T-01', caption: 'A', deletedAt: '2026-04-17T10:00:00Z' },
+      { id: 'RPH-2', towerId: 'T-02', caption: 'B', deletedAt: '2026-04-17T11:00:00Z' },
+    ]);
+
+    // Sem toggle (sort = deleted_desc por default) → 1 secao sem header h3
+    let body = document.querySelector('[data-testid="trash-expanded-body"]');
+    expect(body.querySelectorAll('section h3').length).toBe(0);
+    expect(body.querySelectorAll('[data-testid^="trash-expanded-group-"]').length).toBe(1);
+
+    const toggle = document.querySelector('[data-testid="trash-group-toggle"]');
+    await act(async () => { toggle.click(); });
+
+    body = document.querySelector('[data-testid="trash-expanded-body"]');
+    expect(body.querySelectorAll('section h3').length).toBe(2);
+    expect(body.querySelector('[data-testid="trash-expanded-group-T-01"]')).not.toBeNull();
+    expect(body.querySelector('[data-testid="trash-expanded-group-T-02"]')).not.toBeNull();
+  });
+
+  it('banner "arquivar antigas" aparece quando ha fotos > retencao; botao dispara handler', async () => {
+    const handleArchiveOldTrashedPhotos = vi.fn();
+    const oldDate = new Date(Date.now() - 45 * 86_400_000).toISOString();
+    await openExpandedModal(
+      [
+        { id: 'RPH-OLD', towerId: 'T-01', caption: 'antiga', deletedAt: oldDate },
+        { id: 'RPH-NEW', towerId: 'T-01', caption: 'recente', deletedAt: new Date().toISOString() },
+      ],
+      {
+        handleArchiveOldTrashedPhotos,
+        selectedWorkspace: { id: 'RW-1', nome: 'W', projectId: 'PRJ-01', currentUserRole: 'owner' },
+      },
+    );
+
+    const banner = document.querySelector('[data-testid="trash-old-banner"]');
+    expect(banner).not.toBeNull();
+    expect(banner.textContent).toContain('1');
+
+    const btn = document.querySelector('[data-testid="trash-archive-old-button"]');
+    expect(btn.disabled).toBe(false);
+    await act(async () => {
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(handleArchiveOldTrashedPhotos).toHaveBeenCalledWith(30);
+  });
+
+  it('botao de arquivar antigas fica desabilitado sem canWrite', async () => {
+    const oldDate = new Date(Date.now() - 45 * 86_400_000).toISOString();
+    // Renderiza direto pelo modal (como nos outros testes do panel isolado)
+    // para poder controlar canWrite sem depender de currentUserRole do workspace.
+    const props = buildStubProps({
+      trashedPhotos: [{ id: 'RPH-OLD', towerId: 'T-01', caption: 'x', deletedAt: oldDate }],
+      selectedWorkspace: { id: 'RW-1', nome: 'W', projectId: 'PRJ-01', currentUserRole: 'viewer' },
+    });
+    await act(async () => { root.render(<WorkspacesTab {...props} />); });
+    await openTrashSection(container);
+    const expandBtn = container.querySelector('[data-testid="trash-expand-button"]');
+    await act(async () => { expandBtn.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    const btn = document.querySelector('[data-testid="trash-archive-old-button"]');
+    expect(btn).not.toBeNull();
+    expect(btn.disabled).toBe(true);
+  });
+
+  it('badge amarelo "antigas" aparece na sidebar quando ha fotos antigas', async () => {
+    const oldDate = new Date(Date.now() - 40 * 86_400_000).toISOString();
+    await act(async () => {
+      root.render(<WorkspacesTab {...buildStubProps({
+        trashedPhotos: [
+          { id: 'RPH-OLD', towerId: 'T-01', caption: 'a', deletedAt: oldDate },
+          { id: 'RPH-NEW', towerId: 'T-01', caption: 'b', deletedAt: new Date().toISOString() },
+        ],
+      })} />);
+    });
+    await openTrashSection(container);
+
+    const badge = container.querySelector('[data-testid="sidebar-old-trash-badge"]');
+    expect(badge).not.toBeNull();
+    expect(badge.textContent).toContain('1');
+  });
+
+  it('exibe badge >30 dias em fotos antigas', async () => {
+    const oldDate = new Date(Date.now() - 35 * 86_400_000).toISOString();
+    const recentDate = new Date(Date.now() - 5 * 86_400_000).toISOString();
+    await openExpandedModal([
+      { id: 'RPH-OLD', towerId: 'T-01', caption: 'antiga', deletedAt: oldDate },
+      { id: 'RPH-NEW', towerId: 'T-01', caption: 'nova', deletedAt: recentDate },
+    ]);
+
+    expect(document.querySelector('[data-testid="trash-card-old-RPH-OLD"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="trash-card-old-RPH-NEW"]')).toBeNull();
   });
 
   it('filtra as fotos quando o campo de busca e preenchido', async () => {

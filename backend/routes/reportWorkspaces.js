@@ -483,6 +483,88 @@ router.post('/:id/photos/:photoId/restore', verifyToken, requireEditor, requireW
     }
 });
 
+// Arquiva foto individual (so se estiver na lixeira).
+router.post('/:id/photos/:photoId/archive', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const photoId = normalizeText(req.params.photoId);
+
+        const photo = await reportPhotoRepository.getById(photoId);
+        if (!photo || photo.workspaceId !== workspaceId) {
+            return res.status(404).json({ status: 'error', message: 'Foto nao vinculada a este workspace ou nao encontrada' });
+        }
+
+        const updated = await reportPhotoRepository.archive(photoId);
+        if (!updated) {
+            return res.status(400).json({
+                status: 'error',
+                code: 'NOT_IN_TRASH',
+                message: 'So e possivel arquivar fotos que estao na lixeira.',
+            });
+        }
+
+        return res.status(200).json({ status: 'success', message: 'Foto arquivada' });
+    } catch (error) {
+        console.error('[report-workspaces API] Error POST /:id/photos/:photoId/archive:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao arquivar foto' });
+    }
+});
+
+// Bulk: arquiva todas as fotos da lixeira do workspace com deleted_at mais
+// velho que N dias. Se o body nao trouxer `days`, usa o threshold admin
+// (rules_config.retencao.lixeira_para_arquivo_dias, default 30).
+router.post('/:id/photos/archive-trash-older-than', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const workspace = await reportWorkspaceRepository.getById(workspaceId);
+        if (!workspace) {
+            return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
+        }
+
+        const bodyDays = Number(req.body?.data?.days ?? req.body?.days);
+        const { clampDays, getTrashRetentionDays } = require('../utils/retentionConfig');
+        const clamped = clampDays(bodyDays);
+        const days = clamped !== null ? clamped : await getTrashRetentionDays();
+
+        const { count } = await reportPhotoRepository.archiveOlderThanDays(workspaceId, days);
+        return res.status(200).json({
+            status: 'success',
+            message: `${count} foto(s) arquivada(s)`,
+            data: { count, days },
+        });
+    } catch (error) {
+        console.error('[report-workspaces API] Error POST /:id/photos/archive-trash-older-than:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao arquivar fotos antigas' });
+    }
+});
+
+// Devolve foto arquivada para a lixeira.
+router.post('/:id/photos/:photoId/unarchive-to-trash', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const photoId = normalizeText(req.params.photoId);
+
+        const photo = await reportPhotoRepository.getById(photoId);
+        if (!photo || photo.workspaceId !== workspaceId) {
+            return res.status(404).json({ status: 'error', message: 'Foto nao vinculada a este workspace ou nao encontrada' });
+        }
+
+        const updated = await reportPhotoRepository.unarchiveToTrash(photoId);
+        if (!updated) {
+            return res.status(400).json({
+                status: 'error',
+                code: 'NOT_ARCHIVED',
+                message: 'So e possivel desarquivar fotos que estao no arquivo.',
+            });
+        }
+
+        return res.status(200).json({ status: 'success', message: 'Foto devolvida para a lixeira' });
+    } catch (error) {
+        console.error('[report-workspaces API] Error POST /:id/photos/:photoId/unarchive-to-trash:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao desarquivar foto' });
+    }
+});
+
 router.delete('/:id/photos/trash', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {
         const workspaceId = normalizeText(req.params.id);

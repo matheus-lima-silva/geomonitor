@@ -1,7 +1,41 @@
+import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, Card, HintText, Input, Select } from '../../../components/ui';
 import SearchableSelect from '../../../components/ui/SearchableSelect';
 import { fmt, getProjectPhotoDate, getTranslatedStatus } from '../utils/reportUtils';
+import { listArchivedProjectPhotos } from '../../../services/reportWorkspaceService';
+
+const PT_MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+function buildInspectionBucketLookup(workspaces, inspections) {
+  const inspectionById = new Map((inspections || []).map((i) => [i.id, i]));
+  const result = new Map();
+  for (const workspace of workspaces || []) {
+    const inspectionId = workspace?.inspectionId;
+    if (!inspectionId) {
+      result.set(workspace.id, { key: '__none__', label: 'Sem vistoria', sortKey: '0000-00' });
+      continue;
+    }
+    const inspection = inspectionById.get(inspectionId);
+    const data = inspection?.dataInicio ? new Date(inspection.dataInicio) : null;
+    if (!data || Number.isNaN(data.getTime())) {
+      result.set(workspace.id, { key: `insp-${inspectionId}`, label: `Vistoria ${inspectionId}`, sortKey: '0000-00' });
+      continue;
+    }
+    const year = data.getFullYear();
+    const month = data.getMonth();
+    const key = `${year}-${String(month + 1).padStart(2, '0')}`;
+    result.set(workspace.id, {
+      key,
+      label: `${PT_MONTH_NAMES[month]} de ${year}`,
+      sortKey: key,
+    });
+  }
+  return result;
+}
 
 export default function BibliotecaTab({
   selectedProjectId,
@@ -16,9 +50,141 @@ export default function BibliotecaTab({
   metrics,
   busy,
   handlePhotoExport,
+  workspaces = [],
+  inspections = [],
+  handleUnarchivePhotoToTrash = () => {},
+  showToast = () => {},
 }) {
+  const [mode, setMode] = useState('biblioteca');
+  const [archivedPhotos, setArchivedPhotos] = useState([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [archivedRefreshToken, setArchivedRefreshToken] = useState(0);
+
+  useEffect(() => {
+    if (mode !== 'arquivo' || !selectedProjectId) { setArchivedPhotos([]); return; }
+    let cancelled = false;
+    setArchivedLoading(true);
+    listArchivedProjectPhotos(selectedProjectId)
+      .then((items) => { if (!cancelled) setArchivedPhotos(items); })
+      .catch((error) => { if (!cancelled) showToast(error?.message || 'Erro ao carregar arquivo.', 'error'); })
+      .finally(() => { if (!cancelled) setArchivedLoading(false); });
+    return () => { cancelled = true; };
+  }, [mode, selectedProjectId, archivedRefreshToken, showToast]);
+
+  const bucketLookup = useMemo(
+    () => buildInspectionBucketLookup(workspaces, inspections),
+    [workspaces, inspections],
+  );
+
+  const archivedGroups = useMemo(() => {
+    if (!archivedPhotos.length) return [];
+    const groups = new Map();
+    for (const photo of archivedPhotos) {
+      const bucket = bucketLookup.get(photo.workspaceId)
+        || { key: '__none__', label: 'Sem vistoria', sortKey: '0000-00' };
+      if (!groups.has(bucket.key)) {
+        groups.set(bucket.key, { ...bucket, items: [] });
+      }
+      groups.get(bucket.key).items.push(photo);
+    }
+    return [...groups.values()].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+  }, [archivedPhotos, bucketLookup]);
+
+  async function onUnarchive(photo) {
+    if (!photo?.id || !photo?.workspaceId) return;
+    await handleUnarchivePhotoToTrash(photo.workspaceId, photo.id);
+    setArchivedRefreshToken((t) => t + 1);
+  }
+
   return (
     <>
+      {/* Seletor modo: Biblioteca vs Arquivo */}
+      <div className="flex flex-wrap items-center gap-2" data-testid="library-mode-switch">
+        <Button
+          variant={mode === 'biblioteca' ? 'primary' : 'outline'}
+          size="sm"
+          onClick={() => setMode('biblioteca')}
+        >
+          <AppIcon name="search" />
+          Biblioteca agregada
+        </Button>
+        <Button
+          variant={mode === 'arquivo' ? 'primary' : 'outline'}
+          size="sm"
+          onClick={() => setMode('arquivo')}
+          data-testid="library-mode-arquivo"
+        >
+          <AppIcon name="archive" />
+          Arquivo
+        </Button>
+      </div>
+
+      {mode === 'arquivo' ? (
+        <Card variant="nested" className="flex flex-col gap-3" data-testid="library-archive-panel">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+            <span>Fotos arquivadas</span>
+            <HintText label="Fotos arquivadas">
+              Fotos que sairam da lixeira por tempo excedido. Agrupadas por mes/ano da vistoria.
+              So e permitido mover de volta para a lixeira (nao ha retorno direto para a grid ativa).
+            </HintText>
+          </div>
+          <div className="text-xs text-slate-500">
+            {!selectedProjectId
+              ? 'Selecione um empreendimento para ver o arquivo.'
+              : archivedLoading
+                ? 'Carregando arquivo...'
+                : `${archivedPhotos.length} foto(s) arquivada(s) no total.`}
+          </div>
+          {selectedProjectId && !archivedLoading && archivedPhotos.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+              Nenhuma foto arquivada para este empreendimento.
+            </div>
+          ) : null}
+          {archivedGroups.map((group) => (
+            <section
+              key={group.key}
+              data-testid={`library-archive-group-${group.key}`}
+              className="flex flex-col gap-2"
+            >
+              <header className="flex items-center gap-2 border-b border-slate-200 pb-1">
+                <AppIcon name="clock" size={14} className="text-slate-500" />
+                <span className="text-sm font-semibold text-slate-700">{group.label}</span>
+                <span className="text-xs text-slate-500">· {group.items.length} foto(s)</span>
+              </header>
+              {group.items.map((photo) => (
+                <article
+                  key={photo.id}
+                  data-testid={`archive-photo-${photo.id}`}
+                  className="rounded-lg border border-slate-200 bg-white p-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <strong className="text-slate-800 text-sm">{photo.caption || photo.id}</strong>
+                      <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-slate-500">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5">Torre: {photo.towerId || '-'}</span>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5">Workspace: {photo.workspaceId || '-'}</span>
+                        {photo.archivedAt ? (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5">Arquivada: {fmt(photo.archivedAt)}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onUnarchive(photo)}
+                      data-testid={`archive-unarchive-${photo.id}`}
+                    >
+                      <AppIcon name="undo" size={12} />
+                      Mover para lixeira
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </section>
+          ))}
+        </Card>
+      ) : (
+      <>
       {/* Filtros */}
       <Card variant="nested" className="flex flex-col gap-4">
         <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
@@ -161,6 +327,8 @@ export default function BibliotecaTab({
           </article>
         ))}
       </Card>
+      </>
+      )}
     </>
   );
 }

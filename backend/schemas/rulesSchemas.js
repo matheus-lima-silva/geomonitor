@@ -31,6 +31,12 @@ const criticalidadeSchema = z.object({
     solucoes_por_criticidade: z.record(z.string(), solucaoSchema).optional(),
 }).passthrough();
 
+// Configuracoes de retencao/ciclo de vida. Controla quando fotos na lixeira
+// sao elegiveis para arquivamento automatico. Min 1 dia, max 10 anos.
+const retencaoSchema = z.object({
+    lixeira_para_arquivo_dias: z.number().int().min(1).max(3650).optional(),
+}).passthrough();
+
 // TOP LEVEL strict-ish: whitelist dos campos editaveis. Qualquer campo fora daqui
 // e rejeitado pelo .strict() — previne mass assignment com campos tipo isAdmin.
 const rulesDataSchema = z.object({
@@ -41,6 +47,7 @@ const rulesDataSchema = z.object({
     faixas: z.array(faixaSchema).optional(),
     pontos: z.record(z.string(), pontoGroupSchema).optional(),
     solucoes_por_criticidade: z.record(z.string(), solucaoSchema).optional(),
+    retencao: retencaoSchema.optional(),
     updatedAt: z.string().optional(),
     updatedBy: z.string().optional(),
 }).strict();

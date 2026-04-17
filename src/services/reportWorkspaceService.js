@@ -114,6 +114,38 @@ export async function emptyWorkspacePhotoTrash(workspaceId) {
   });
 }
 
+export async function archiveTrashedPhoto(workspaceId, photoId) {
+  return requestWorkspace(
+    `${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/${encodeURIComponent(photoId)}/archive`,
+    { method: 'POST', body: JSON.stringify({}) },
+  );
+}
+
+export async function archiveTrashedPhotosOlderThan(workspaceId, days) {
+  return requestWorkspace(
+    `${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/archive-trash-older-than`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ data: { days } }),
+    },
+  );
+}
+
+export async function unarchivePhotoToTrash(workspaceId, photoId) {
+  return requestWorkspace(
+    `${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/${encodeURIComponent(photoId)}/unarchive-to-trash`,
+    { method: 'POST', body: JSON.stringify({}) },
+  );
+}
+
+export async function listArchivedProjectPhotos(projectId) {
+  const result = await requestWorkspace(
+    `${API_BASE_URL}/projects/${encodeURIComponent(projectId)}/archived-photos`,
+    { method: 'GET' },
+  );
+  return Array.isArray(result?.data) ? result.data : [];
+}
+
 export async function reorderWorkspacePhotos(workspaceId, photoSortMode, meta = {}) {
   return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/reorder`, {
     method: 'POST',
