@@ -611,12 +611,12 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     return inspections.filter((inspection) => String(inspection.projetoId || '') === selectedProjectId);
   }, [inspections, selectedProjectId]);
 
-  const unclassifiedWorkspaces = useMemo(() => {
-    if (!selectedProjectId) return [];
-    return workspaces.filter(
-      (workspace) => workspace.projectId === selectedProjectId && !workspace.inspectionId && !workspace.deletedAt,
-    );
-  }, [workspaces, selectedProjectId]);
+  // Lista workspaces sem vistoria em TODOS os projetos visiveis (nao depende
+  // do filtro selectedProjectId). Cada linha da modal resolve sua propria
+  // lista de vistorias baseada no workspace.projectId.
+  const unclassifiedWorkspaces = useMemo(() => (
+    workspaces.filter((workspace) => !workspace.inspectionId && !workspace.deletedAt)
+  ), [workspaces]);
 
   async function handleClassifyUnclassifiedWorkspaces(assignments) {
     if (!Array.isArray(assignments) || assignments.length === 0) return;
@@ -1781,8 +1781,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       <UnclassifiedWorkspacesModal
         open={tab === 'workspaces' && unclassifiedWorkspaces.length > 0}
         unclassifiedWorkspaces={unclassifiedWorkspaces}
-        projectInspections={projectInspections}
-        projectId={selectedProjectId}
+        inspections={inspections}
+        projectNamesById={projectNamesById}
         busy={busy}
         onAssign={handleClassifyUnclassifiedWorkspaces}
         onCreateInspection={handleCreateInspectionForClassification}
