@@ -1,7 +1,7 @@
 const { verifyAccessToken } = require('./jwt');
 const { loadUserProfile } = require('./userProfiles');
 
-// In-memory profile cache: evita 1 leitura Firestore por request
+// In-memory profile cache: evita 1 leitura do userRepository por request
 // TTL de 5 minutos por uid — mudancas de status levam ate 5 min para propagar
 const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
 const profileCache = new Map(); // uid -> { profile, expiresAt }

@@ -172,7 +172,7 @@ shared/                       # Helpers compartilhados entre front e back
 - Backend de dados: **PostgreSQL** (via `pg` + migracoes versionadas). Sem dependencias operacionais de Firestore.
 - Backend de midia: **AWS S3/Tigris** com signed URLs para upload direto (fallback local para dev).
 - Autenticacao: JWT proprio em `backend/utils/jwt.js`; credenciais em `auth_credentials` (bcrypt salt 12).
-- Checklist da migracao: [docs/plans/migracao-geomonitor-postgres-tigris-relatorios.todo.md](docs/plans/migracao-geomonitor-postgres-tigris-relatorios.todo.md) (99%+ concluido; restam apenas limpezas pos-estabilizacao).
+- Checklist da migracao: [docs/plans/migracao-geomonitor-postgres-tigris-relatorios.todo.md](docs/plans/migracao-geomonitor-postgres-tigris-relatorios.todo.md) (100% concluido).
 
 ## CI/CD e Deploy
 

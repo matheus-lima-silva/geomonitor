@@ -74,7 +74,7 @@ router.post('/register', validateBody(registerSchema), async (req, res) => {
             return res.status(409).json({ status: 'error', code: 'EMAIL_IN_USE', message: 'Este email já está cadastrado.' });
         }
 
-        // Reuse existing profile if one already exists with this email (e.g. migrated from Firebase)
+        // Reuse existing profile if one already exists with this email
         const allUsers = await userRepository.list();
         const existingProfile = allUsers.find(
             (u) => String(u.email || '').trim().toLowerCase() === trimmedEmail.toLowerCase(),

@@ -388,9 +388,9 @@ describe('Criticality V3 engine', () => {
         });
     });
 
-    describe('Firestore Infinity serialization', () => {
-        it('resolves C4 when faixas have null max (Firestore loses Infinity)', () => {
-            const firestoreConfig = {
+    describe('null max serialization', () => {
+        it('resolves C4 when faixas have null max (JSON/Postgres cannot store Infinity)', () => {
+            const configComMaxNulo = {
                 faixas: [
                     { codigo: 'C1', classe: 'Baixo', min: 0, max: 9 },
                     { codigo: 'C2', classe: 'Médio', min: 10, max: 18 },
@@ -412,7 +412,7 @@ describe('Criticality V3 engine', () => {
                     grauObstrucao: 'total',
                     estadoVia: 'terra',
                 },
-            }, firestoreConfig);
+            }, configComMaxNulo);
 
             // T3=4, P2=2, D3=4, S2=2, E4=6, A4=6 = 24, via modifier capped at 4 = 28
             expect(out.criticidade_score).toBe(28);

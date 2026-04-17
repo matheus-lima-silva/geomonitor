@@ -60,7 +60,8 @@ async function sendResetEmail(transport, email, resetToken, expiryHours = 1) {
 }
 
 /**
- * Envia o email de reset específico para usuários migrados do Firebase.
+ * Envia o email de reset para contas pre-existentes que ainda nao definiram senha.
+ * Usado quando o backend detecta um perfil sem `auth_credentials` associados.
  */
 async function sendMigrationResetEmail(transport, email, resetToken, expiryHours = 48) {
     const frontendUrl = String(process.env.FRONTEND_URL || '').trim().replace(/\/+$/, '');

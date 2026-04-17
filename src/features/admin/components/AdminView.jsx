@@ -385,7 +385,7 @@ function AdminView({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             id="user-uid"
-            label="UID (Firebase Auth)"
+            label="UID"
             value={userForm.id}
             onChange={(event) => setUserForm((prev) => ({ ...prev, id: event.target.value.trim() }))}
             disabled={isEditingUser}
