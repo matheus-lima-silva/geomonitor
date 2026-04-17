@@ -76,6 +76,18 @@ export function fmt(value) {
   return value ? new Date(value).toLocaleString('pt-BR') : '-';
 }
 
+export const PT_MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+export function formatInspectionMonthYear(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${PT_MONTH_NAMES[d.getMonth()]}/${d.getFullYear()}`;
+}
+
 export function tone(status) {
   const value = String(status || '').toLowerCase();
   if (value.includes('queued') || value.includes('process') || value.includes('saving') || value.includes('pending')) return 'bg-amber-100 text-amber-700';

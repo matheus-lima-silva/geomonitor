@@ -35,6 +35,7 @@ import {
   createReportWorkspace,
   deleteReportWorkspace,
   archiveTrashedPhotosOlderThan,
+  archiveAllTrashedPhotos,
   deleteReportWorkspacePhoto,
   emptyWorkspacePhotoTrash,
   unarchivePhotoToTrash,
@@ -1069,6 +1070,25 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
+  async function handleArchiveAllTrashedPhotos() {
+    if (!selectedWorkspace || trashedPhotos.length === 0) return;
+    setBusy('archive-all-trash');
+    try {
+      const result = await archiveAllTrashedPhotos(selectedWorkspace.id);
+      const count = result?.data?.count ?? trashedPhotos.length;
+      if (count > 0) {
+        showToast(`${count} foto(s) arquivada(s).`, 'success');
+        setTrashedPhotos([]);
+      } else {
+        showToast('Nenhuma foto para arquivar.', 'info');
+      }
+    } catch (error) {
+      showToast(error?.message || 'Erro ao arquivar lixeira.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function handlePhotoSortModeChange(mode) {
     setPhotoSortMode(mode);
     if (!selectedWorkspace) return;
@@ -1735,6 +1755,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleRestoreSelectedTrashedPhotos={handleRestoreSelectedTrashedPhotos}
             handleHardDeleteSelectedTrashedPhotos={handleHardDeleteSelectedTrashedPhotos}
             handleArchiveOldTrashedPhotos={handleArchiveOldTrashedPhotos}
+            handleArchiveAllTrashedPhotos={handleArchiveAllTrashedPhotos}
             handleEmptyPhotoTrash={handleEmptyPhotoTrash}
             retentionDays={retentionDays}
             handleRequestWorkspaceKmz={handleRequestWorkspaceKmz}
@@ -1750,6 +1771,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleRestoreWorkspace={handleRestoreWorkspace}
             handleHardDeleteWorkspace={handleHardDeleteWorkspace}
             projectInspections={projectInspections}
+            inspections={inspections}
           />
         ) : null}
 

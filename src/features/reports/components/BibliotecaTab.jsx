@@ -2,13 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, Card, HintText, Input, Select } from '../../../components/ui';
 import SearchableSelect from '../../../components/ui/SearchableSelect';
-import { fmt, getProjectPhotoDate, getTranslatedStatus } from '../utils/reportUtils';
+import { fmt, getProjectPhotoDate, getTranslatedStatus, PT_MONTH_NAMES } from '../utils/reportUtils';
 import { listArchivedProjectPhotos } from '../../../services/reportWorkspaceService';
-
-const PT_MONTH_NAMES = [
-  'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-];
 
 function buildInspectionBucketLookup(workspaces, inspections) {
   const inspectionById = new Map((inspections || []).map((i) => [i.id, i]));

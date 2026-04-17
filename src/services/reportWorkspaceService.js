@@ -131,6 +131,16 @@ export async function archiveTrashedPhotosOlderThan(workspaceId, days) {
   );
 }
 
+export async function archiveAllTrashedPhotos(workspaceId) {
+  return requestWorkspace(
+    `${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/archive-all-trash`,
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+  );
+}
+
 export async function unarchivePhotoToTrash(workspaceId, photoId) {
   return requestWorkspace(
     `${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/${encodeURIComponent(photoId)}/unarchive-to-trash`,

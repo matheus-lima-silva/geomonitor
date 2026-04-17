@@ -10,6 +10,7 @@ import {
   STEPS,
   buildWorkspacePhotoDraft,
   fmt,
+  formatInspectionMonthYear,
   getTranslatedStatus,
   getWorkspacePhotoStatus,
   groupPhotosByTower,
@@ -91,6 +92,7 @@ export default function WorkspacesTab({
   handleRestoreSelectedTrashedPhotos,
   handleHardDeleteSelectedTrashedPhotos,
   handleArchiveOldTrashedPhotos,
+  handleArchiveAllTrashedPhotos,
   handleEmptyPhotoTrash,
   retentionDays = 30,
   handleRequestWorkspaceKmz,
@@ -106,6 +108,7 @@ export default function WorkspacesTab({
   handleRestoreWorkspace,
   handleHardDeleteWorkspace,
   projectInspections = [],
+  inspections = [],
 }) {
   // useOptionalAuth em vez de useAuth porque os testes existentes montam
   // o WorkspacesTab sem envolver em AuthProvider. Em runtime o contexto
@@ -117,6 +120,10 @@ export default function WorkspacesTab({
   const [membersModalWorkspace, setMembersModalWorkspace] = useState(null);
   const [sidebarKmzOpen, setSidebarKmzOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const inspectionsById = useMemo(
+    () => new Map((inspections || []).map((i) => [i.id, i])),
+    [inspections],
+  );
   const [draggingPhotoId, setDraggingPhotoId] = useState(null);
   const [dragOverPhotoId, setDragOverPhotoId] = useState(null);
   const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
@@ -590,8 +597,16 @@ export default function WorkspacesTab({
                             {getTranslatedStatus(workspace.status)}
                           </span>
                         </div>
-                        <p className="mt-0.5 mb-0 text-xs text-slate-500 truncate">
-                          {projectNamesById.get(workspace.projectId) || workspace.projectId || '-'} • {fmt(workspace.updatedAt)}
+                        <p
+                          className="mt-0.5 mb-0 text-xs text-slate-500 truncate"
+                          title={workspace.updatedAt ? `Editado em ${fmt(workspace.updatedAt)}` : undefined}
+                        >
+                          {projectNamesById.get(workspace.projectId) || workspace.projectId || '-'} • {(() => {
+                            if (!workspace.inspectionId) return 'Sem vistoria';
+                            const insp = inspectionsById.get(workspace.inspectionId);
+                            const label = formatInspectionMonthYear(insp?.dataInicio);
+                            return label ? `Vistoria: ${label}` : 'Sem vistoria';
+                          })()}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -1558,6 +1573,7 @@ export default function WorkspacesTab({
         handleRestoreSelectedTrashedPhotos={handleRestoreSelectedTrashedPhotos}
         handleHardDeleteSelectedTrashedPhotos={handleHardDeleteSelectedTrashedPhotos}
         handleArchiveOldTrashedPhotos={handleArchiveOldTrashedPhotos}
+        handleArchiveAllTrashedPhotos={handleArchiveAllTrashedPhotos}
         handleEmptyPhotoTrash={handleEmptyPhotoTrash}
         retentionDays={retentionDays}
         canWrite={canWriteSelected}

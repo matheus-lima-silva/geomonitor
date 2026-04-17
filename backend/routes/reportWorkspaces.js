@@ -538,6 +538,28 @@ router.post('/:id/photos/archive-trash-older-than', verifyToken, requireEditor, 
     }
 });
 
+// Bulk: arquiva TODAS as fotos da lixeira do workspace agora, ignorando o
+// threshold de retencao. Dispara pelo botao "Arquivar todas" na lixeira.
+// Reversivel via POST /:id/photos/:photoId/unarchive-to-trash.
+router.post('/:id/photos/archive-all-trash', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
+    try {
+        const workspaceId = normalizeText(req.params.id);
+        const workspace = await reportWorkspaceRepository.getById(workspaceId);
+        if (!workspace) {
+            return res.status(404).json({ status: 'error', message: 'Workspace nao encontrado' });
+        }
+        const { count } = await reportPhotoRepository.archiveAllTrashed(workspaceId);
+        return res.status(200).json({
+            status: 'success',
+            message: `${count} foto(s) arquivada(s)`,
+            data: { count },
+        });
+    } catch (error) {
+        console.error('[report-workspaces API] Error POST /:id/photos/archive-all-trash:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao arquivar lixeira' });
+    }
+});
+
 // Devolve foto arquivada para a lixeira.
 router.post('/:id/photos/:photoId/unarchive-to-trash', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {

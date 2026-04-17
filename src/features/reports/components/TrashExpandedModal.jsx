@@ -67,6 +67,7 @@ export default function TrashExpandedModal({
   handleRestoreSelectedTrashedPhotos,
   handleHardDeleteSelectedTrashedPhotos,
   handleArchiveOldTrashedPhotos,
+  handleArchiveAllTrashedPhotos,
   handleEmptyPhotoTrash,
   retentionDays = OLD_THRESHOLD_DAYS,
   canWrite = true,
@@ -79,6 +80,7 @@ export default function TrashExpandedModal({
   const [previewPhotoId, setPreviewPhotoId] = useState(null);
   const [confirmDeleteSelected, setConfirmDeleteSelected] = useState(false);
   const [confirmEmptyAll, setConfirmEmptyAll] = useState(false);
+  const [confirmArchiveAll, setConfirmArchiveAll] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
@@ -91,6 +93,7 @@ export default function TrashExpandedModal({
       setPreviewPhotoId(null);
       setConfirmDeleteSelected(false);
       setConfirmEmptyAll(false);
+      setConfirmArchiveAll(false);
       setPage(1);
       setPageSize(PAGE_SIZE);
     }
@@ -201,6 +204,13 @@ export default function TrashExpandedModal({
   async function onArchiveOld() {
     if (typeof handleArchiveOldTrashedPhotos !== 'function') return;
     await handleArchiveOldTrashedPhotos(retentionDays);
+  }
+
+  async function onArchiveAll() {
+    if (typeof handleArchiveAllTrashedPhotos !== 'function') return;
+    await handleArchiveAllTrashedPhotos();
+    clearSelection();
+    setConfirmArchiveAll(false);
   }
 
   return (
@@ -491,15 +501,28 @@ export default function TrashExpandedModal({
           <span className="text-xs text-slate-500">
             {filteredPhotos.length} visível(eis) de {totalTrash}
           </span>
-          <Button
-            size="sm"
-            className="bg-rose-600 hover:bg-rose-700 text-white border-0"
-            onClick={() => setConfirmEmptyAll(true)}
-            disabled={totalTrash === 0 || busy === 'empty-trash'}
-          >
-            <AppIcon name="trash" size={14} className="text-white" />
-            Esvaziar lixeira
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="bg-amber-600 hover:bg-amber-700 text-white border-0"
+              onClick={() => setConfirmArchiveAll(true)}
+              disabled={totalTrash === 0 || !canWrite || busy === 'archive-all-trash'}
+              data-testid="trash-archive-all-button"
+              title={!canWrite ? 'Sem permissao de escrita neste workspace' : ''}
+            >
+              <AppIcon name="archive" size={14} className="text-white" />
+              {busy === 'archive-all-trash' ? 'Arquivando...' : 'Arquivar todas'}
+            </Button>
+            <Button
+              size="sm"
+              className="bg-rose-600 hover:bg-rose-700 text-white border-0"
+              onClick={() => setConfirmEmptyAll(true)}
+              disabled={totalTrash === 0 || busy === 'empty-trash'}
+            >
+              <AppIcon name="trash" size={14} className="text-white" />
+              Esvaziar lixeira
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -602,6 +625,33 @@ export default function TrashExpandedModal({
         >
           <p className="text-sm text-slate-600">
             Todas as {totalTrash} fotos da lixeira serão removidas permanentemente.
+          </p>
+        </Modal>
+      )}
+
+      {/* Confirmação: arquivar todas da lixeira */}
+      {confirmArchiveAll && (
+        <Modal
+          open={confirmArchiveAll}
+          onClose={() => setConfirmArchiveAll(false)}
+          title="Arquivar todas as fotos da lixeira"
+          size="sm"
+          footer={(
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmArchiveAll(false)}>Cancelar</Button>
+              <Button
+                className="bg-amber-600 hover:bg-amber-700 text-white border-0"
+                onClick={onArchiveAll}
+                disabled={busy === 'archive-all-trash'}
+                data-testid="trash-archive-all-confirm"
+              >
+                Arquivar {totalTrash} foto(s)
+              </Button>
+            </div>
+          )}
+        >
+          <p className="text-sm text-slate-600">
+            {totalTrash} foto(s) serão movidas para a área de arquivadas. Você pode devolvê-las para a lixeira depois, foto a foto, se precisar.
           </p>
         </Modal>
       )}

@@ -410,6 +410,7 @@ Tabela: `report_photos` com campos `deleted_at` (lixeira) e `archived_at` (arqui
 | POST | `/api/report-workspaces/:id/photos/:photoId/archive` | `requireWorkspaceWrite` | Arquiva (imutavel) a partir da lixeira |
 | POST | `/api/report-workspaces/:id/photos/:photoId/unarchive-to-trash` | `requireWorkspaceWrite` | Devolve foto arquivada para a lixeira |
 | POST | `/api/report-workspaces/:id/photos/archive-trash-older-than` | `requireWorkspaceWrite` | Arquiva em lote fotos > N dias na lixeira |
+| POST | `/api/report-workspaces/:id/photos/archive-all-trash` | `requireWorkspaceWrite` | Arquiva em lote TODAS as fotos da lixeira agora, sem filtro de idade |
 | DELETE | `/api/report-workspaces/:id/photos/trash` | `requireWorkspaceWrite` | Esvazia lixeira (200 + count) |
 | DELETE | `/api/report-workspaces/:id/photos/:photoId` | `requireWorkspaceWrite` | Remove foto definitivamente |
 | POST | `/api/report-workspaces/:id/photos/organize` | `requireWorkspaceWrite` | Registra sumario pos-import (GPS, torres inferidas) |

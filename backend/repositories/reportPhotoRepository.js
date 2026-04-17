@@ -458,6 +458,26 @@ async function archiveOlderThanDays(workspaceId, days) {
     return { count: result.rowCount || 0 };
 }
 
+// Arquiva TODAS as fotos da lixeira do workspace agora, sem filtro de idade.
+// Usado pelo botao "Arquivar todas" no TrashExpandedModal — acao reversivel
+// via unarchive-to-trash. Fotos ativas (nao deletadas) e ja arquivadas sao
+// ignoradas pelo WHERE.
+async function archiveAllTrashed(workspaceId) {
+    const normalizedWorkspaceId = normalizeText(workspaceId);
+    const result = await postgresStore.query(
+        `
+            UPDATE report_photos
+            SET archived_at = NOW(), deleted_at = NULL, updated_at = NOW()
+            WHERE workspace_id = $1
+              AND deleted_at IS NOT NULL
+              AND archived_at IS NULL
+            RETURNING id
+        `,
+        [normalizedWorkspaceId],
+    );
+    return { count: result.rowCount || 0 };
+}
+
 async function removeAllTrashed(workspaceId) {
     const normalizedWorkspaceId = normalizeText(workspaceId);
     const result = await postgresStore.query(
@@ -486,6 +506,7 @@ module.exports = {
     archive,
     unarchiveToTrash,
     archiveOlderThanDays,
+    archiveAllTrashed,
     removeAllTrashed,
     countByProject,
     batchUpdateSortOrder,

@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WorkspacesTab from '../WorkspacesTab';
+import TrashExpandedModal from '../TrashExpandedModal';
 
 function buildStubProps(overrides = {}) {
   return {
@@ -61,6 +62,7 @@ function buildStubProps(overrides = {}) {
     handleRestoreSelectedTrashedPhotos: vi.fn(),
     handleHardDeleteSelectedTrashedPhotos: vi.fn(),
     handleArchiveOldTrashedPhotos: vi.fn(),
+    handleArchiveAllTrashedPhotos: vi.fn(),
     handleEmptyPhotoTrash: vi.fn(),
     retentionDays: 30,
     handleRequestWorkspaceKmz: vi.fn(),
@@ -315,6 +317,90 @@ describe('WorkspacesTab — modal expandido da lixeira', () => {
     const btn = document.querySelector('[data-testid="trash-archive-old-button"]');
     expect(btn).not.toBeNull();
     expect(btn.disabled).toBe(true);
+  });
+
+  it('botao "Arquivar todas" aparece no rodape e abre modal de confirmacao que dispara handler', async () => {
+    const handleArchiveAllTrashedPhotos = vi.fn();
+    await openExpandedModal(
+      [
+        { id: 'RPH-1', towerId: 'T-01', caption: 'foto1', deletedAt: new Date().toISOString() },
+        { id: 'RPH-2', towerId: 'T-02', caption: 'foto2', deletedAt: new Date().toISOString() },
+      ],
+      {
+        handleArchiveAllTrashedPhotos,
+        selectedWorkspace: { id: 'RW-1', nome: 'W', projectId: 'PRJ-01', currentUserRole: 'owner' },
+      },
+    );
+
+    const btn = document.querySelector('[data-testid="trash-archive-all-button"]');
+    expect(btn).not.toBeNull();
+    expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toContain('Arquivar todas');
+
+    await act(async () => {
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const confirmBtn = document.querySelector('[data-testid="trash-archive-all-confirm"]');
+    expect(confirmBtn).not.toBeNull();
+    expect(confirmBtn.textContent).toContain('2 foto');
+
+    await act(async () => {
+      confirmBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(handleArchiveAllTrashedPhotos).toHaveBeenCalledTimes(1);
+  });
+
+  it('botao "Arquivar todas" fica desabilitado quando a lixeira esta vazia (render direto)', async () => {
+    await act(async () => {
+      root.render(<TrashExpandedModal
+        open
+        onClose={() => {}}
+        trashedPhotos={[]}
+        photoPreviewUrls={{}}
+        ensurePhotoPreview={() => {}}
+        busy=""
+        handleRestorePhoto={() => {}}
+        handleRestoreSelectedTrashedPhotos={() => {}}
+        handleHardDeleteSelectedTrashedPhotos={() => {}}
+        handleArchiveOldTrashedPhotos={() => {}}
+        handleArchiveAllTrashedPhotos={() => {}}
+        handleEmptyPhotoTrash={() => {}}
+        retentionDays={30}
+        canWrite
+      />);
+    });
+
+    const btn = document.querySelector('[data-testid="trash-archive-all-button"]');
+    expect(btn).not.toBeNull();
+    expect(btn.disabled).toBe(true);
+  });
+
+  it('botao "Arquivar todas" fica desabilitado quando usuario nao tem permissao de escrita (render direto)', async () => {
+    await act(async () => {
+      root.render(<TrashExpandedModal
+        open
+        onClose={() => {}}
+        trashedPhotos={[{ id: 'RPH-1', towerId: 'T-01', caption: 'x', deletedAt: new Date().toISOString() }]}
+        photoPreviewUrls={{}}
+        ensurePhotoPreview={() => {}}
+        busy=""
+        handleRestorePhoto={() => {}}
+        handleRestoreSelectedTrashedPhotos={() => {}}
+        handleHardDeleteSelectedTrashedPhotos={() => {}}
+        handleArchiveOldTrashedPhotos={() => {}}
+        handleArchiveAllTrashedPhotos={() => {}}
+        handleEmptyPhotoTrash={() => {}}
+        retentionDays={30}
+        canWrite={false}
+      />);
+    });
+
+    const btn = document.querySelector('[data-testid="trash-archive-all-button"]');
+    expect(btn).not.toBeNull();
+    expect(btn.disabled).toBe(true);
+    expect(btn.getAttribute('title')).toContain('escrita');
   });
 
   it('badge amarelo "antigas" aparece na sidebar quando ha fotos antigas', async () => {

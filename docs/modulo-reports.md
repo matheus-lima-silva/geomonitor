@@ -63,9 +63,12 @@ Tabela `report_photos` usa dois timestamps para modelar tres estados (definidos 
 - **arquivada → lixeira** — `POST .../photos/:photoId/unarchive-to-trash`. Nao existe transicao direta `arquivada → ativa` — o operador precisa devolver para a lixeira e restaurar.
 - **Purga definitiva** — `DELETE .../photos/:photoId` remove a linha e o `media_asset` associado.
 
-### Retencao automatica
+### Retencao e arquivamento em lote
 
-`POST /api/report-workspaces/:id/photos/archive-trash-older-than` recebe `{ olderThanDays: N }` e arquiva em lote todas as fotos com `deleted_at < NOW() - N days`. A UI expoe o botao em [TrashExpandedModal.jsx](../src/features/reports/components/TrashExpandedModal.jsx) com limiar default `OLD_THRESHOLD_DAYS = 30`.
+A lixeira oferece dois caminhos de arquivamento em lote, ambos em [TrashExpandedModal.jsx](../src/features/reports/components/TrashExpandedModal.jsx):
+
+- `POST /api/report-workspaces/:id/photos/archive-trash-older-than` recebe `{ olderThanDays: N }` e arquiva em lote todas as fotos com `deleted_at < NOW() - N days`. UI: botao "Arquivar antigas (N)" (banner amber), aparece quando ha fotos elegiveis. Limiar default `OLD_THRESHOLD_DAYS = 30`.
+- `POST /api/report-workspaces/:id/photos/archive-all-trash` arquiva **todas** as fotos da lixeira agora, sem filtro de idade. UI: botao "Arquivar todas" no rodape da lixeira, ao lado de "Esvaziar lixeira". Reversivel individualmente via `POST .../photos/:photoId/unarchive-to-trash`.
 
 ---
 
@@ -88,6 +91,7 @@ Componente principal: [src/features/reports/components/TrashExpandedModal.jsx](.
 | Restaurar foto | `POST .../photos/:photoId/restore` |
 | Arquivar foto | `POST .../photos/:photoId/archive` |
 | Arquivar em lote por idade | `POST .../photos/archive-trash-older-than` |
+| Arquivar todas da lixeira agora | `POST .../photos/archive-all-trash` |
 | Esvaziar lixeira | `DELETE .../photos/trash` |
 
 ---

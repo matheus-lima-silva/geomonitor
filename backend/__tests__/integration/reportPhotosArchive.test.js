@@ -1,6 +1,7 @@
 // Testes de integracao para o fluxo de arquivamento de fotos:
 //   - POST /:id/photos/:photoId/archive (individual, so de lixeira)
 //   - POST /:id/photos/archive-trash-older-than (bulk por idade)
+//   - POST /:id/photos/archive-all-trash (bulk imediato, sem filtro de idade)
 //   - POST /:id/photos/:photoId/unarchive-to-trash (volta pra lixeira)
 //
 // Integracao com rules_config.retencao.lixeira_para_arquivo_dias: quando o
@@ -66,6 +67,16 @@ const mockReportPhotoRepository = {
             if (photo.workspaceId !== workspaceId) continue;
             if (!photo.deletedAt || photo.archivedAt) continue;
             if (new Date(photo.deletedAt).getTime() >= threshold) continue;
+            mockState.photos.set(id, { ...photo, deletedAt: null, archivedAt: new Date().toISOString() });
+            count += 1;
+        }
+        return { count };
+    }),
+    archiveAllTrashed: jest.fn(async (workspaceId) => {
+        let count = 0;
+        for (const [id, photo] of mockState.photos) {
+            if (photo.workspaceId !== workspaceId) continue;
+            if (!photo.deletedAt || photo.archivedAt) continue;
             mockState.photos.set(id, { ...photo, deletedAt: null, archivedAt: new Date().toISOString() });
             count += 1;
         }
@@ -208,6 +219,48 @@ describe('report-photos archive flow', () => {
         expect(response.status).toBe(200);
         expect(response.body.data.days).toBe(15);
         expect(response.body.data.count).toBe(1);
+    });
+
+    it('POST /archive-all-trash arquiva TODAS as fotos da lixeira imediatamente, incluindo recentes', async () => {
+        seedPhoto('PH-RECENT', { deletedAt: new Date(Date.now() - 60_000).toISOString() });
+        seedPhoto('PH-OLD', { deletedAt: new Date(Date.now() - 60 * 86_400_000).toISOString() });
+
+        const response = await request(app)
+            .post('/api/report-workspaces/WS-1/photos/archive-all-trash')
+            .send({});
+
+        expect(response.status).toBe(200);
+        expect(response.body.status).toBe('success');
+        expect(response.body.data.count).toBe(2);
+        expect(mockReportPhotoRepository.archiveAllTrashed).toHaveBeenCalledWith('WS-1');
+        expect(mockState.photos.get('PH-RECENT').archivedAt).not.toBeNull();
+        expect(mockState.photos.get('PH-OLD').archivedAt).not.toBeNull();
+    });
+
+    it('POST /archive-all-trash ignora fotos ativas e ja arquivadas', async () => {
+        seedPhoto('PH-ACTIVE', { deletedAt: null, archivedAt: null });
+        const preArchived = new Date(Date.now() - 3600_000).toISOString();
+        seedPhoto('PH-ARCHIVED', { deletedAt: null, archivedAt: preArchived });
+        seedPhoto('PH-TRASH', { deletedAt: new Date().toISOString() });
+
+        const response = await request(app)
+            .post('/api/report-workspaces/WS-1/photos/archive-all-trash')
+            .send({});
+
+        expect(response.status).toBe(200);
+        expect(response.body.data.count).toBe(1);
+        expect(mockState.photos.get('PH-ACTIVE').archivedAt).toBeNull();
+        expect(mockState.photos.get('PH-ARCHIVED').archivedAt).toBe(preArchived);
+        expect(mockState.photos.get('PH-TRASH').archivedAt).not.toBeNull();
+    });
+
+    it('POST /archive-all-trash em workspace inexistente retorna 404', async () => {
+        const response = await request(app)
+            .post('/api/report-workspaces/WS-NONE/photos/archive-all-trash')
+            .send({});
+
+        expect(response.status).toBe(404);
+        expect(mockReportPhotoRepository.archiveAllTrashed).not.toHaveBeenCalled();
     });
 
     it('POST /:id/photos/:photoId/unarchive-to-trash devolve foto arquivada para lixeira', async () => {

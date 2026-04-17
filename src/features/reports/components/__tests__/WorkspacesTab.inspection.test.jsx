@@ -74,6 +74,7 @@ function buildStubProps(overrides = {}) {
     handleRestoreWorkspace: vi.fn(),
     handleHardDeleteWorkspace: vi.fn(),
     projectInspections: [],
+    inspections: [],
     ...overrides,
   };
 }
@@ -157,5 +158,101 @@ describe('WorkspacesTab — picker de vistoria', () => {
     const badge = container.querySelector('[data-testid="workspace-inspection-badge"]');
     expect(badge).not.toBeNull();
     expect(badge.textContent).toContain('VS-01');
+  });
+});
+
+describe('WorkspacesTab — card de workspace exibe mes da vistoria', () => {
+  let container;
+  let root;
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    vi.clearAllMocks();
+  });
+
+  function renderCard(overrides = {}) {
+    const baseWorkspace = {
+      id: 'RW-CARD-1',
+      nome: 'Card workspace',
+      projectId: 'PRJ-01',
+      inspectionId: null,
+      status: 'draft',
+      updatedAt: '2026-04-17T17:11:38Z',
+    };
+    const workspace = { ...baseWorkspace, ...(overrides.workspace || {}) };
+    return {
+      ...buildStubProps({
+        selectedWorkspace: null,
+        workspaces: [workspace],
+        filteredWorkspaceList: [workspace],
+        ...overrides.props,
+      }),
+    };
+  }
+
+  it('renderiza "Vistoria: Abril/2026" quando o workspace aponta para uma inspection com dataInicio', async () => {
+    const props = renderCard({
+      workspace: { inspectionId: 'VS-01' },
+      props: {
+        inspections: [{ id: 'VS-01', projetoId: 'PRJ-01', dataInicio: '2026-04-10' }],
+      },
+    });
+
+    await act(async () => {
+      root.render(<WorkspacesTab {...props} />);
+    });
+
+    expect(container.textContent).toContain('Vistoria: Abril/2026');
+  });
+
+  it('renderiza "Sem vistoria" quando o workspace nao tem inspectionId', async () => {
+    const props = renderCard({ workspace: { inspectionId: null } });
+
+    await act(async () => {
+      root.render(<WorkspacesTab {...props} />);
+    });
+
+    expect(container.textContent).toContain('Sem vistoria');
+  });
+
+  it('usa o lookup global inspections mesmo quando projectInspections esta vazio', async () => {
+    const props = renderCard({
+      workspace: { inspectionId: 'VS-FAR' },
+      props: {
+        selectedProjectId: '',
+        projectInspections: [],
+        inspections: [{ id: 'VS-FAR', projetoId: 'PRJ-02', dataInicio: '2025-12-15T12:00:00Z' }],
+      },
+    });
+
+    await act(async () => {
+      root.render(<WorkspacesTab {...props} />);
+    });
+
+    expect(container.textContent).toContain('Vistoria: Dezembro/2025');
+  });
+
+  it('cai em "Sem vistoria" quando dataInicio da inspection eh invalida', async () => {
+    const props = renderCard({
+      workspace: { inspectionId: 'VS-BAD' },
+      props: {
+        inspections: [{ id: 'VS-BAD', projetoId: 'PRJ-01', dataInicio: 'data-ruim' }],
+      },
+    });
+
+    await act(async () => {
+      root.render(<WorkspacesTab {...props} />);
+    });
+
+    expect(container.textContent).toContain('Sem vistoria');
+    expect(container.textContent).not.toContain('Vistoria: NaN');
   });
 });
