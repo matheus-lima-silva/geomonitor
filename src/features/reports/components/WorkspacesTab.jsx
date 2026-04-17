@@ -982,7 +982,7 @@ export default function WorkspacesTab({
                       </div>
                     ) : (
                       <div className="px-3 pb-3">
-                        <div className="flex flex-col gap-3 mt-2" data-testid="trash-grouped">
+                        <div className="flex flex-col gap-3 mt-2 max-h-[50vh] overflow-y-auto pr-1" data-testid="trash-grouped">
                           {groupPhotosByTower(trashedPhotos, {}).map((group) => {
                             const towerKey = group.items[0]?.towerId || '__none__';
                             const restoringTower = busy === `restore-tower:${towerKey}`;

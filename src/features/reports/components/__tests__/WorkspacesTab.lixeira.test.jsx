@@ -270,6 +270,89 @@ describe('WorkspacesTab — modal expandido da lixeira', () => {
     expect(handleRestoreSelectedTrashedPhotos).toHaveBeenCalledWith(['RPH-1']);
   });
 
+  it('pagina a lixeira expandida e navega entre paginas', async () => {
+    const trashedPhotos = Array.from({ length: 30 }, (_, i) => ({
+      id: `RPH-${i + 1}`,
+      towerId: `T-${(i % 3) + 1}`,
+      caption: `Foto ${i + 1}`,
+      deletedAt: new Date(Date.now() - i * 1000).toISOString(),
+    }));
+
+    await openExpandedModal(trashedPhotos);
+
+    // Pagina 1 — 24 primeiros cards
+    let cards = document.querySelectorAll('[data-testid^="trash-card-"]');
+    expect(cards.length).toBe(24);
+
+    const indicator = document.querySelector('[data-testid="trash-page-indicator"]');
+    expect(indicator.textContent).toBe('1/2');
+
+    const nextBtn = document.querySelector('[data-testid="trash-page-next"]');
+    const prevBtn = document.querySelector('[data-testid="trash-page-prev"]');
+    expect(nextBtn.disabled).toBe(false);
+    expect(prevBtn.disabled).toBe(true);
+
+    await act(async () => {
+      nextBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    cards = document.querySelectorAll('[data-testid^="trash-card-"]');
+    expect(cards.length).toBe(6);
+    expect(document.querySelector('[data-testid="trash-page-indicator"]').textContent).toBe('2/2');
+    expect(document.querySelector('[data-testid="trash-page-next"]').disabled).toBe(true);
+  });
+
+  it('volta para pagina 1 quando o filtro muda', async () => {
+    const trashedPhotos = Array.from({ length: 30 }, (_, i) => ({
+      id: `RPH-${i + 1}`,
+      towerId: 'T-01',
+      caption: i === 29 ? 'unico-match' : `comum-${i + 1}`,
+      deletedAt: new Date().toISOString(),
+    }));
+
+    await openExpandedModal(trashedPhotos);
+
+    const nextBtn = document.querySelector('[data-testid="trash-page-next"]');
+    await act(async () => {
+      nextBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.querySelector('[data-testid="trash-page-indicator"]').textContent).toBe('2/2');
+
+    const searchInput = document.querySelector('#trash-expanded-search');
+    const inputSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    await act(async () => {
+      inputSetter.call(searchInput, 'unico-match');
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    // Apos filtrar para 1 resultado, deve voltar para pagina 1
+    expect(document.querySelector('[data-testid="trash-page-indicator"]').textContent).toBe('1/1');
+    expect(document.querySelectorAll('[data-testid^="trash-card-"]').length).toBe(1);
+  });
+
+  it('permite alterar o tamanho da pagina', async () => {
+    const trashedPhotos = Array.from({ length: 30 }, (_, i) => ({
+      id: `RPH-${i + 1}`,
+      towerId: 'T-01',
+      caption: `Foto ${i + 1}`,
+      deletedAt: new Date().toISOString(),
+    }));
+
+    await openExpandedModal(trashedPhotos);
+
+    expect(document.querySelectorAll('[data-testid^="trash-card-"]').length).toBe(24);
+
+    const sizeSelect = document.querySelector('#trash-page-size');
+    const selectSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+    await act(async () => {
+      selectSetter.call(sizeSelect, '48');
+      sizeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(document.querySelectorAll('[data-testid^="trash-card-"]').length).toBe(30);
+    expect(document.querySelector('[data-testid="trash-page-indicator"]').textContent).toBe('1/1');
+  });
+
   it('confirma exclusao permanente das fotos selecionadas', async () => {
     const handleHardDeleteSelectedTrashedPhotos = vi.fn();
     await openExpandedModal(

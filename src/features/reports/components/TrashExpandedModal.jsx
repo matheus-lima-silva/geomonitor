@@ -10,6 +10,9 @@ const SORT_OPTIONS = [
   ['tower_asc', 'Torre (A-Z)'],
 ];
 
+const PAGE_SIZE = 24;
+const PAGE_SIZE_OPTIONS = [12, 24, 48, 96];
+
 function sortTrashedPhotos(photos, sortMode) {
   const list = [...photos];
   switch (sortMode) {
@@ -57,6 +60,8 @@ export default function TrashExpandedModal({
   const [previewPhotoId, setPreviewPhotoId] = useState(null);
   const [confirmDeleteSelected, setConfirmDeleteSelected] = useState(false);
   const [confirmEmptyAll, setConfirmEmptyAll] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
   useEffect(() => {
     if (!open) {
@@ -65,6 +70,8 @@ export default function TrashExpandedModal({
       setPreviewPhotoId(null);
       setConfirmDeleteSelected(false);
       setConfirmEmptyAll(false);
+      setPage(1);
+      setPageSize(PAGE_SIZE);
     }
   }, [open]);
 
@@ -73,15 +80,30 @@ export default function TrashExpandedModal({
     return sortTrashedPhotos(filtered, sortMode);
   }, [trashedPhotos, search, sortMode]);
 
+  // Reseta para a primeira pagina quando o filtro/ordenacao mudam ou
+  // o total filtrado cai abaixo do offset atual.
+  useEffect(() => {
+    setPage(1);
+  }, [search, sortMode, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredPhotos.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageEnd = pageStart + pageSize;
+  const pagedPhotos = useMemo(
+    () => filteredPhotos.slice(pageStart, pageEnd),
+    [filteredPhotos, pageStart, pageEnd],
+  );
+
   const groups = useMemo(() => {
-    if (sortMode === 'tower_asc') return groupPhotosByTower(filteredPhotos, {});
-    return [{ label: null, items: filteredPhotos }];
-  }, [filteredPhotos, sortMode]);
+    if (sortMode === 'tower_asc') return groupPhotosByTower(pagedPhotos, {});
+    return [{ label: null, items: pagedPhotos }];
+  }, [pagedPhotos, sortMode]);
 
   useEffect(() => {
     if (!open || typeof ensurePhotoPreview !== 'function') return;
-    for (const photo of filteredPhotos) ensurePhotoPreview(photo);
-  }, [open, filteredPhotos, ensurePhotoPreview]);
+    for (const photo of pagedPhotos) ensurePhotoPreview(photo);
+  }, [open, pagedPhotos, ensurePhotoPreview]);
 
   const previewPhoto = previewPhotoId
     ? filteredPhotos.find((photo) => photo.id === previewPhotoId)
@@ -293,6 +315,59 @@ export default function TrashExpandedModal({
             </div>
           )}
         </div>
+
+        {/* Paginacao */}
+        {filteredPhotos.length > 0 && (
+          <div
+            className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-2"
+            data-testid="trash-pagination"
+          >
+            <span className="text-xs text-slate-500">
+              {filteredPhotos.length === 0
+                ? '0 fotos'
+                : `${pageStart + 1}-${Math.min(pageEnd, filteredPhotos.length)} de ${filteredPhotos.length}`}
+              {filteredPhotos.length !== totalTrash ? ` · ${totalTrash} no total` : ''}
+            </span>
+            <div className="flex items-center gap-2">
+              <label htmlFor="trash-page-size" className="text-xs text-slate-500">
+                Por pagina:
+              </label>
+              <Select
+                id="trash-page-size"
+                value={String(pageSize)}
+                onChange={(event) => setPageSize(Number(event.target.value) || PAGE_SIZE)}
+                className="w-auto"
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                data-testid="trash-page-prev"
+                aria-label="Pagina anterior"
+              >
+                <AppIcon name="chevron-left" size={14} />
+              </Button>
+              <span className="text-xs text-slate-600 font-mono" data-testid="trash-page-indicator">
+                {currentPage}/{totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                data-testid="trash-page-next"
+                aria-label="Proxima pagina"
+              >
+                <AppIcon name="chevron-right" size={14} />
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Rodapé de ações globais */}
         <div className="flex items-center justify-between border-t border-slate-200 pt-2">
