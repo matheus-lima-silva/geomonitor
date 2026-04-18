@@ -11,7 +11,8 @@ import {
   saveErosion,
   saveErosionManualFollowupEvent,
 } from '../../../services/erosionService';
-import { downloadMediaAsset } from '../../../services/mediaService';
+import { downloadMediaAsset, resolveMediaAccessUrl } from '../../../services/mediaService';
+import { normalizeFotosPrincipais } from '../models/erosionPhotosModel';
 import { triggerBlobDownload } from '../../reports/utils/reportUtils';
 import {
   getCriticalityCode,
@@ -261,17 +262,36 @@ function openReportPdfWindow({ projectId, rows, selectedYears }) {
   openPrintableWindow(documentHtml);
 }
 
-function openErosionDetailsPdfWindow({
+async function resolveFotosPrincipaisForPdf(erosion) {
+  const fotos = normalizeFotosPrincipais(erosion);
+  if (fotos.length === 0) return [];
+  const results = await Promise.allSettled(
+    fotos.map(async (foto) => {
+      const { accessUrl } = await resolveMediaAccessUrl(foto.mediaAssetId);
+      return { ...foto, signedUrl: accessUrl };
+    }),
+  );
+  return results
+    .map((result, index) => {
+      if (result.status === 'fulfilled') return result.value;
+      return { ...fotos[index], signedUrl: '' };
+    })
+    .filter(Boolean);
+}
+
+async function openErosionDetailsPdfWindow({
   erosion,
   project,
   history,
   relatedInspections,
 }) {
+  const fotosPrincipaisResolved = await resolveFotosPrincipaisForPdf(erosion);
   const documentHtml = buildSingleErosionFichaPdfDocument({
     erosion,
     project,
     history,
     relatedInspections,
+    fotosPrincipaisResolved,
   });
   openPrintableWindow(documentHtml);
 }
@@ -872,15 +892,19 @@ function ErosionsView({
     }
   }
 
-  function handleExportDetailsPdf() {
+  async function handleExportDetailsPdf() {
     if (!activeDetailsErosion) return;
-    openErosionDetailsPdfWindow({
-      erosion: activeDetailsErosion,
-      project: projects.find((project) => project.id === activeDetailsErosion.projetoId),
-      history: getSortedHistory(activeDetailsErosion),
-      relatedInspections: relatedInspectionsInDetails,
-    });
-    show('PDF de detalhes preparado para impressao.', 'success');
+    try {
+      await openErosionDetailsPdfWindow({
+        erosion: activeDetailsErosion,
+        project: projects.find((project) => project.id === activeDetailsErosion.projetoId),
+        history: getSortedHistory(activeDetailsErosion),
+        relatedInspections: relatedInspectionsInDetails,
+      });
+      show('PDF de detalhes preparado para impressao.', 'success');
+    } catch (error) {
+      show(error?.message || 'Erro ao preparar PDF de detalhes.', 'error');
+    }
   }
 
   function handleExportDetailsSimplificadaPdf() {

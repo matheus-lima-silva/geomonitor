@@ -4,6 +4,7 @@ import {
   deriveErosionTypeFromTechnicalFields,
   EROSION_TECHNICAL_OPTIONS,
   getLocalContextLabel,
+  isHistoricalErosionRecord,
   normalizeErosionTechnicalFields,
   normalizeFollowupEventType,
   normalizeFollowupHistory,
@@ -14,6 +15,15 @@ import {
 } from '../../shared/criticalitySummary';
 import { formatTowerLabel } from '../../projects/utils/kmlUtils';
 import { resolveErosionCriticality } from '../../../../shared/erosionHelpers';
+import {
+  CLASS_RANGE_LABELS,
+  deriveDepthClass,
+  deriveSlopeClass,
+  deriveExposureClass,
+  resolveClassCode,
+  formatClassWithRange,
+} from './erosionClassFormatters';
+import { normalizeFotosPrincipais } from '../models/erosionPhotosModel';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -130,6 +140,44 @@ function renderPhotoLinks(links = []) {
   return `<ul>${links.map((link) => `<li>${escapeHtml(link)}</li>`).join('')}</ul>`;
 }
 
+function renderCriticalityHistory(history = []) {
+  if (!Array.isArray(history) || history.length === 0) {
+    return '<div>Sem historico tecnico de criticidade.</div>';
+  }
+  return history
+    .slice()
+    .sort((a, b) => String(b?.timestamp || '').localeCompare(String(a?.timestamp || '')))
+    .map((item) => `
+      <div class="ficha-history-item">
+        <div class="ficha-history-item-head">
+          <strong>${escapeHtml(item?.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : '-')}</strong>
+          <span class="ficha-history-chip">${escapeHtml(item?.situacao || '-')}</span>
+        </div>
+        <div class="ficha-history-details">Data vistoria: ${escapeHtml(item?.data_vistoria || '-')} | Score anterior: ${escapeHtml(item?.score_anterior ?? '-')} | Score atual: ${escapeHtml(item?.score_atual ?? '-')}</div>
+        <div class="ficha-muted">Tendencia: ${escapeHtml(item?.tendencia || '-')} | Intervencao realizada: ${escapeHtml(item?.intervencao_realizada || '-')}</div>
+      </div>
+    `).join('');
+}
+
+function renderFotosPrincipaisGrid(fotosResolved = []) {
+  if (!Array.isArray(fotosResolved) || fotosResolved.length === 0) {
+    return '<div class="ficha-muted">Sem fotos principais selecionadas.</div>';
+  }
+  return `
+    <div class="ficha-photos-grid">
+      ${fotosResolved.map((foto, index) => `
+        <figure class="ficha-photo-cell">
+          <div class="ficha-photo-number">${index + 1}</div>
+          ${foto.signedUrl
+            ? `<img src="${escapeHtml(foto.signedUrl)}" alt="${escapeHtml(foto.caption || foto.photoId || '')}" />`
+            : '<div class="ficha-photo-missing">Foto indisponivel no momento da impressao.</div>'}
+          ${foto.caption ? `<figcaption>${escapeHtml(foto.caption)}</figcaption>` : ''}
+        </figure>
+      `).join('')}
+    </div>
+  `;
+}
+
 function parseTowerNumber(value) {
   const text = String(value || '').trim();
   if (!text) return null;
@@ -176,6 +224,7 @@ function renderFicha({
   history,
   relatedInspections,
   generatedAt,
+  fotosPrincipaisResolved = null,
 }) {
   const locationCoordinates = normalizeLocationCoordinates(erosion || {});
   const technical = normalizeErosionTechnicalFields(erosion || {});
@@ -185,71 +234,121 @@ function renderFicha({
   const derivedTipo = deriveErosionTypeFromTechnicalFields({ ...erosion, tiposFeicao: technical.tiposFeicao });
   const criticalitySummary = buildCriticalitySummaryFromErosion(erosion || {});
   const criticalidade = resolveErosionCriticality(erosion || {});
+  const isHistoricalRecord = isHistoricalErosionRecord(erosion || {});
+  const criticalityHistory = Array.isArray(erosion?.historicoCriticidade) ? erosion.historicoCriticidade : [];
+
+  const profundidadeClasse = resolveClassCode(
+    criticalidade?.profundidade_classe,
+    CLASS_RANGE_LABELS.profundidade,
+    deriveDepthClass(Number(technical.profundidadeMetros)),
+  );
+  const declividadeClasse = resolveClassCode(
+    criticalidade?.declividade_classe,
+    CLASS_RANGE_LABELS.declividade,
+    deriveSlopeClass(Number(technical.declividadeGraus)),
+  );
+  const exposicaoClasse = resolveClassCode(
+    criticalidade?.exposicao_classe,
+    CLASS_RANGE_LABELS.exposicao,
+    deriveExposureClass(Number(technical.distanciaEstruturaMetros)),
+  );
+
+  const fotosToRender = Array.isArray(fotosPrincipaisResolved) ? fotosPrincipaisResolved : [];
 
   return `
-    <h1>Ficha de Cadastro de Erosao ${escapeHtml(erosion?.id || '-')}</h1>
-    <div class="ficha-meta-line"><strong>Empreendimento:</strong> ${escapeHtml(erosion?.projetoId || '-')} ${project?.nome ? `(${escapeHtml(project.nome)})` : ''}</div>
-    <div class="ficha-meta-line"><strong>Gerado em:</strong> ${escapeHtml(generatedAt)}</div>
+    <div class="ficha-header">
+      <h1>Ficha de Cadastro de Erosao ${escapeHtml(erosion?.id || '-')}</h1>
+      <div class="ficha-header-meta">
+        <strong>Empreendimento:</strong> ${escapeHtml(erosion?.projetoId || '-')}${project?.nome ? ` (${escapeHtml(project.nome)})` : ''}
+        &nbsp;|&nbsp;
+        <strong>Gerado em:</strong> ${escapeHtml(generatedAt)}
+      </div>
+    </div>
 
     <section class="ficha-section">
       <h2>Resumo</h2>
       <div class="ficha-grid-two">
         <div><strong>ID:</strong> ${escapeHtml(erosion?.id || '-')}</div>
+        <div><strong>Empreendimento:</strong> ${escapeHtml(erosion?.projetoId || '-')}</div>
+        <div><strong>Nome:</strong> ${escapeHtml(project?.nome || '-')}</div>
         <div><strong>Torre:</strong> ${escapeHtml(erosion?.torreRef || '-')}</div>
-        <div><strong>Status:</strong> ${escapeHtml(normalizeErosionStatus(erosion?.status))}</div>
         <div><strong>Impacto:</strong> ${escapeHtml(erosion?.impacto || '-')}</div>
+        <div><strong>Registro:</strong> ${escapeHtml(isHistoricalRecord ? 'Historico de acompanhamento' : 'Cadastro tecnico completo')}</div>
+        <div><strong>Status:</strong> <span class="ficha-chip">${escapeHtml(normalizeErosionStatus(erosion?.status))}</span></div>
+        ${isHistoricalRecord ? `<div class="ficha-full"><strong>Intervencao ja realizada:</strong> ${escapeHtml(erosion?.intervencaoRealizada || erosion?.intervencao || '-')}</div>` : ''}
         <div><strong>Vistoria principal:</strong> ${escapeHtml(erosion?.vistoriaId || '-')}</div>
-        <div><strong>Vistorias vinculadas:</strong> ${escapeHtml(Array.isArray(erosion?.vistoriaIds) ? erosion.vistoriaIds.join(', ') : '-')}</div>
+        <div><strong>Vistorias vinculadas:</strong> ${escapeHtml(Array.isArray(erosion?.vistoriaIds) ? erosion.vistoriaIds.join(', ') || '-' : '-')}</div>
         <div class="ficha-full"><strong>Observacoes:</strong> ${escapeHtml(erosion?.obs || '-')}</div>
-      </div>
-    </section>
-
-    <section class="ficha-section">
-      <h2>Localizacao e referencia</h2>
-      <div class="ficha-grid-three">
-        <div><strong>Latitude:</strong> ${escapeHtml(locationCoordinates.latitude || '-')}</div>
-        <div><strong>Longitude:</strong> ${escapeHtml(locationCoordinates.longitude || '-')}</div>
-        <div><strong>Altitude:</strong> ${escapeHtml(locationCoordinates.altitude || '-')}</div>
-        <div><strong>UTM Easting:</strong> ${escapeHtml(locationCoordinates.utmEasting || '-')}</div>
-        <div><strong>UTM Northing:</strong> ${escapeHtml(locationCoordinates.utmNorthing || '-')}</div>
-        <div><strong>UTM Zona/Hemisferio:</strong> ${escapeHtml(`${locationCoordinates.utmZone || '-'} ${locationCoordinates.utmHemisphere || '-'}`)}</div>
-        <div><strong>Referencia:</strong> ${escapeHtml(locationCoordinates.reference || '-')}</div>
-        <div><strong>Exposicao:</strong> ${escapeHtml(labelText(localContexto.exposicao, exposicaoLabelMap))}</div>
-        <div><strong>Estrutura proxima:</strong> ${escapeHtml(labelText(localContexto.estruturaProxima, estruturaLabelMap))}</div>
       </div>
     </section>
 
     <section class="ficha-section">
       <h2>Classificacao e caracterizacao consolidada</h2>
       <div class="ficha-grid-two">
+        ${isHistoricalRecord ? `<div class="ficha-full ficha-warn">Este registro foi salvo como historico de acompanhamento. A criticidade tecnica pode nao existir porque a intervencao ja havia sido executada antes do cadastro.</div>` : ''}
         <div><strong>Tipo:</strong> ${escapeHtml(labelText(derivedTipo, feicaoLabelMap))}</div>
         <div><strong>Grau erosivo:</strong> ${escapeHtml(erosion?.estagio || '-')}</div>
         <div><strong>Local:</strong> ${escapeHtml(localTipoLabel)}</div>
-        ${String(localContexto.localTipo || '') === 'outros' ? `<div><strong>Detalhe local:</strong> ${escapeHtml(localContexto.localDescricao || '-')}</div>` : '<div><strong>Detalhe local:</strong> -</div>'}
-        <div><strong>Profundidade (m):</strong> ${escapeHtml(Number.isFinite(technical.profundidadeMetros) ? String(technical.profundidadeMetros) : (erosion?.profundidade || '-'))}</div>
-        <div><strong>Declividade (graus):</strong> ${escapeHtml(Number.isFinite(technical.declividadeGraus) ? `${technical.declividadeGraus}${criticalidade?.declividade_classe ? ` (${criticalidade.declividade_classe})` : ''}` : (erosion?.declividadeClassePdf || '-'))}</div>
-        <div><strong>Distancia estrutura (m):</strong> ${escapeHtml(Number.isFinite(technical.distanciaEstruturaMetros) ? `${technical.distanciaEstruturaMetros}${criticalidade?.exposicao_classe ? ` (${criticalidade.exposicao_classe})` : ''}` : '-')}</div>
-        <div><strong>Presenca de agua no fundo:</strong> ${escapeHtml(technical.presencaAguaFundo || '-')}</div>
-        <div><strong>Saturacao por agua:</strong> ${escapeHtml(saturacaoPorAgua || '-')}</div>
+        ${String(localContexto.localTipo || '') === 'outros' ? `<div class="ficha-full"><strong>Detalhe local:</strong> ${escapeHtml(localContexto.localDescricao || '-')}</div>` : ''}
+        <div><strong>Profundidade (faixa informada):</strong> ${escapeHtml(formatClassWithRange(profundidadeClasse, CLASS_RANGE_LABELS.profundidade))}</div>
+        <div><strong>Declividade (faixa informada):</strong> ${escapeHtml(formatClassWithRange(declividadeClasse, CLASS_RANGE_LABELS.declividade))}</div>
+        <div><strong>Distancia da estrutura (faixa informada):</strong> ${escapeHtml(formatClassWithRange(exposicaoClasse, CLASS_RANGE_LABELS.exposicao))}</div>
+        <div><strong>Presenca de agua no fundo:</strong> ${escapeHtml(labelText(technical.presencaAguaFundo))}</div>
+        <div><strong>Saturacao por agua:</strong> ${escapeHtml(labelText(saturacaoPorAgua))}</div>
+        <div><strong>Tipo de solo:</strong> ${escapeHtml(labelText(technical.tipoSolo, tipoSoloLabelMap))}</div>
+        <div><strong>Localizacao de exposicao:</strong> ${escapeHtml(labelText(localContexto.exposicao, exposicaoLabelMap))}</div>
+        <div><strong>Estrutura proxima:</strong> ${escapeHtml(labelText(localContexto.estruturaProxima, estruturaLabelMap))}</div>
+        <div><strong>Sinais de avanco:</strong> ${escapeHtml(boolLabel(technical.sinaisAvanco))}</div>
+        <div><strong>Vegetacao interior:</strong> ${escapeHtml(boolLabel(technical.vegetacaoInterior))}</div>
         <div class="ficha-full"><strong>Tipos de feicao:</strong> ${escapeHtml(listLabelText(technical.tiposFeicao, feicaoLabelMap))}</div>
         <div class="ficha-full"><strong>Usos do solo:</strong> ${escapeHtml(listLabelText(technical.usosSolo, usoSoloLabelMap))}</div>
         ${technical.usosSolo.includes('outro') ? `<div class="ficha-full"><strong>Uso do solo - outro:</strong> ${escapeHtml(technical.usoSoloOutro || '-')}</div>` : ''}
-        ${technical.usosSolo.length === 0 && String(erosion?.usoSolo || '').trim() ? `<div class="ficha-full"><strong>Uso do solo (legado):</strong> ${escapeHtml(erosion?.usoSolo || '-')}</div>` : ''}
-        <div><strong>Tipo de solo:</strong> ${escapeHtml(labelText(technical.tipoSolo, tipoSoloLabelMap))}</div>
-        <div><strong>Sinais de avanco:</strong> ${escapeHtml(boolLabel(technical.sinaisAvanco))}</div>
-        <div><strong>Vegetacao no interior:</strong> ${escapeHtml(boolLabel(technical.vegetacaoInterior))}</div>
+        ${technical.dimensionamento ? `<div class="ficha-full"><strong>Dimensionamento preliminar:</strong> ${escapeHtml(technical.dimensionamento)}</div>` : ''}
         ${(() => { const iv = erosion?.impactoVia || technical.impactoVia; const isVia = String(localContexto.localTipo || '').includes('acesso'); return (iv && isVia) ? `<div class="ficha-full"><strong>Impacto na via:</strong> Posicao: ${escapeHtml(labelText(iv.posicaoRelativaVia, posicaoViaLabelMap))} | Tipo: ${escapeHtml(labelText(iv.tipoImpactoVia, tipoImpactoViaLabelMap))} | Obstrucao: ${escapeHtml(labelText(iv.grauObstrucao, grauObstrucaoLabelMap))} | Estado: ${escapeHtml(labelText(iv.estadoVia, estadoViaLabelMap))} | Rota alternativa: ${escapeHtml(boolLabel(iv.rotaAlternativaDisponivel))}</div>` : ''; })()}
-        <div class="ficha-full"><strong>Resumo de criticidade calculada:</strong> ${escapeHtml(`Impacto: ${criticalitySummary.impacto} | Score: ${criticalitySummary.score} | Frequencia: ${criticalitySummary.frequencia}`)}</div>
+        <div class="ficha-full ficha-highlight">
+          <strong>Resumo de criticidade calculada:</strong>
+          Impacto: ${escapeHtml(criticalitySummary.impacto)} |
+          Score: ${escapeHtml(String(criticalitySummary.score))} |
+          Frequencia: ${escapeHtml(criticalitySummary.frequencia)}
+        </div>
         ${criticalitySummary.hasBreakdown ? `<div class="ficha-full"><strong>Criticidade:</strong> ${escapeHtml(criticalitySummary.criticidadeClasse)} (${escapeHtml(criticalitySummary.criticidadeCodigo)}) | Pontos T/P/D/S/E/A: ${escapeHtml(formatCriticalityPoints(criticalidade?.pontos))}${Number(criticalidade?.pontos?.V) > 0 ? ` + V: ${criticalidade.pontos.V}` : ''}</div>` : ''}
-        ${criticalitySummary.hasBreakdown ? `<div class="ficha-full"><strong>Classes:</strong> T=${escapeHtml(criticalidade?.tipo_classe || criticalidade?.tipo_erosao_classe || '-')} | P=${escapeHtml(criticalidade?.profundidade_classe || '-')} | D=${escapeHtml(criticalidade?.declividade_classe || '-')} | S=${escapeHtml(criticalidade?.solo_classe || '-')} | E=${escapeHtml(criticalidade?.exposicao_classe || '-')} | A=${escapeHtml(criticalidade?.atividade_classe || '-')}</div>` : ''}
         ${criticalitySummary.solucoesSugeridas.length > 0 ? `<div class="ficha-full"><strong>Solucoes sugeridas:</strong> ${escapeHtml(criticalitySummary.solucoesSugeridas.join(' | '))}</div>` : ''}
         ${criticalitySummary.sugestoesIntervencao.length > 0 ? `<div class="ficha-full"><strong>Sugestoes de intervencao (opcional):</strong> ${escapeHtml(criticalitySummary.sugestoesIntervencao.join(' | '))}</div>` : ''}
-        ${criticalidade?.tipo_medida_recomendada ? `<div class="ficha-full"><strong>Tipo de medida recomendada:</strong> ${escapeHtml(labelText(criticalidade.tipo_medida_recomendada))}</div>` : ''}
-        ${criticalitySummary.regraContextual ? `<div class="ficha-full"><strong>Regra contextual:</strong> ${escapeHtml(criticalitySummary.regraContextual)}</div>` : ''}
-        ${criticalitySummary.alertas.length > 0 ? `<div class="ficha-full"><strong>Alertas ativos:</strong> ${escapeHtml(criticalitySummary.alertas.join(' | '))}</div>` : ''}
+        ${criticalidade ? `
+          <div><strong>Classe tipo erosao:</strong> ${escapeHtml(criticalidade.tipo_erosao_classe || '-')}</div>
+          <div><strong>Classe profundidade:</strong> ${escapeHtml(criticalidade.profundidade_classe || '-')}</div>
+          <div><strong>Classe declividade:</strong> ${escapeHtml(criticalidade.declividade_classe || '-')}</div>
+          <div><strong>Classe solo:</strong> ${escapeHtml(criticalidade.solo_classe || '-')}</div>
+          <div><strong>Classe exposicao:</strong> ${escapeHtml(criticalidade.exposicao_classe || '-')}</div>
+          <div><strong>Classe atividade:</strong> ${escapeHtml(criticalidade.atividade_classe || '-')}</div>
+          <div><strong>Modificador de via:</strong> ${escapeHtml(String(criticalidade.pontos?.V ?? 0))}</div>
+          <div class="ficha-full ficha-highlight-alt">
+            <strong>Tipo de medida recomendada:</strong> ${escapeHtml(labelText(criticalidade.tipo_medida_recomendada))}
+          </div>
+          ${criticalitySummary.regraContextual ? `<div class="ficha-full"><strong>Regra contextual:</strong> ${escapeHtml(criticalitySummary.regraContextual)}</div>` : ''}
+        ` : ''}
+        ${criticalitySummary.alertas.length > 0 ? `<div class="ficha-full ficha-warn"><strong>Alertas ativos:</strong> ${escapeHtml(criticalitySummary.alertas.join(' | '))}</div>` : ''}
         <div class="ficha-full"><strong>Medida preventiva:</strong> ${escapeHtml(erosion?.medidaPreventiva || '-')}</div>
-        <div class="ficha-full"><strong>Fotos:</strong> ${renderPhotoLinks(erosion?.fotosLinks)}</div>
       </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Localizacao geografica</h2>
+      <div class="ficha-grid-four">
+        <div><strong>Latitude:</strong> ${escapeHtml(locationCoordinates.latitude || '-')}</div>
+        <div><strong>Longitude:</strong> ${escapeHtml(locationCoordinates.longitude || '-')}</div>
+        <div><strong>UTM Easting:</strong> ${escapeHtml(locationCoordinates.utmEasting || '-')}</div>
+        <div><strong>UTM Northing:</strong> ${escapeHtml(locationCoordinates.utmNorthing || '-')}</div>
+        <div><strong>UTM Zona:</strong> ${escapeHtml(locationCoordinates.utmZone || '-')}</div>
+        <div><strong>Hemisferio:</strong> ${escapeHtml(locationCoordinates.utmHemisphere || '-')}</div>
+        <div><strong>Altitude:</strong> ${escapeHtml(locationCoordinates.altitude || '-')}</div>
+        <div><strong>Referencia:</strong> ${escapeHtml(locationCoordinates.reference || '-')}</div>
+      </div>
+    </section>
+
+    <section class="ficha-section">
+      <h2>Historico tecnico de criticidade</h2>
+      ${renderCriticalityHistory(criticalityHistory)}
     </section>
 
     <section class="ficha-section">
@@ -261,6 +360,20 @@ function renderFicha({
       <h2>Historico de acompanhamento</h2>
       ${renderHistory(history)}
     </section>
+
+    ${fotosToRender.length > 0 ? `
+    <section class="ficha-section ficha-photos-section">
+      <h2>Fotos principais</h2>
+      ${renderFotosPrincipaisGrid(fotosToRender)}
+    </section>
+    ` : ''}
+
+    ${Array.isArray(erosion?.fotosLinks) && erosion.fotosLinks.length > 0 ? `
+    <section class="ficha-section">
+      <h2>Links legados de fotos</h2>
+      ${renderPhotoLinks(erosion.fotosLinks)}
+    </section>
+    ` : ''}
   `;
 }
 
@@ -282,29 +395,144 @@ function buildDocument(title, content) {
       <head>
         <title>${escapeHtml(title)}</title>
         <style>
-          body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; font-size: 12px; }
+          body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; font-size: 12px; background: #f8fafc; }
           h1 { margin: 0 0 8px; font-size: 18px; color: #1e293b; }
-          h2 { margin: 0 0 8px; font-size: 13px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #3b82f6; padding-bottom: 4px; }
+          h2 { margin: 0 0 10px; font-size: 13px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
           .ficha-meta-line { margin-bottom: 4px; font-size: 12px; }
           .ficha-muted { font-size: 10px; color: #64748b; }
-          .ficha-header { border-bottom: 3px solid #1e40af; padding-bottom: 8px; margin-bottom: 4px; }
-          .ficha-header h1 { color: #1e40af; margin-bottom: 4px; }
-          .ficha-header-meta { font-size: 12px; }
-          .ficha-section { margin-top: 10px; border: 1px solid #dbe4ee; border-radius: 8px; background: #fff; padding: 10px 12px; }
-          .ficha-grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
-          .ficha-grid-three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px 12px; }
+          .ficha-header {
+            border-radius: 12px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-top: 3px solid #0f766e;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+          }
+          .ficha-header h1 { color: #0f766e; margin-bottom: 4px; }
+          .ficha-header-meta { font-size: 12px; color: #475569; }
+          .ficha-section {
+            margin-top: 12px;
+            border: 1px solid #e2e8f0;
+            border-top: 3px solid #3b82f6;
+            border-radius: 12px;
+            background: #ffffff;
+            padding: 14px 16px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+          }
+          .ficha-grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+          .ficha-grid-three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px 14px; }
+          .ficha-grid-four { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px 14px; }
           .ficha-full { grid-column: 1 / -1; }
-          .ficha-checkbox-row { font-size: 12px; line-height: 1.8; }
           .ficha-section ul { margin: 6px 0 0; padding-left: 18px; }
-          .ficha-history-item { border: 1px solid #e2e8f0; border-left: 4px solid #94a3b8; border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+          .ficha-highlight {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-top: 4px;
+          }
+          .ficha-highlight-alt {
+            background: #eef2ff;
+            border: 1px solid #c7d2fe;
+            color: #3730a3;
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-top: 4px;
+          }
+          .ficha-warn {
+            background: #fef3c7;
+            border: 1px solid #fde68a;
+            color: #78350f;
+            border-radius: 8px;
+            padding: 8px 10px;
+          }
+          .ficha-chip {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 999px;
+            background: #e0f2fe;
+            color: #075985;
+            font-weight: 600;
+            font-size: 11px;
+          }
+          .ficha-history-item {
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #94a3b8;
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+            background: #ffffff;
+          }
           .ficha-history-item-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
           .ficha-history-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #e2e8f0; color: #334155; }
           .ficha-history-summary { font-weight: 600; color: #1f2937; margin-bottom: 2px; }
           .ficha-history-details { font-size: 11px; color: #334155; margin-bottom: 2px; }
           .pdf-group-head { border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; padding: 10px 12px; margin-bottom: 10px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
           .pdf-page-break { page-break-before: always; }
+          .ficha-photos-section { border-top-color: #0f766e; }
+          .ficha-photos-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8mm;
+          }
+          .ficha-photo-cell {
+            position: relative;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 4mm;
+            margin: 0;
+            background: #ffffff;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            text-align: center;
+          }
+          .ficha-photo-cell img {
+            width: 8cm;
+            height: 6cm;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+            display: block;
+            margin: 0 auto;
+          }
+          .ficha-photo-cell figcaption {
+            margin-top: 3mm;
+            font-size: 10px;
+            color: #334155;
+            text-align: center;
+            max-width: 8cm;
+            margin-left: auto;
+            margin-right: auto;
+          }
+          .ficha-photo-number {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            background: #0f766e;
+            color: #ffffff;
+            border-radius: 999px;
+            width: 20px;
+            height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 10px;
+          }
+          .ficha-photo-missing {
+            height: 6cm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            border: 1px dashed #cbd5e1;
+            border-radius: 4px;
+            font-size: 10px;
+          }
           @media print {
-            body { padding: 0; }
+            body { padding: 0; background: #ffffff; }
+            .ficha-section, .ficha-header { box-shadow: none; }
           }
         </style>
       </head>
@@ -321,6 +549,7 @@ export function buildSingleErosionFichaPdfDocument({
   history,
   relatedInspections,
   generatedAt = new Date().toLocaleString('pt-BR'),
+  fotosPrincipaisResolved = null,
 }) {
   const content = renderFicha({
     erosion,
@@ -328,6 +557,7 @@ export function buildSingleErosionFichaPdfDocument({
     history,
     relatedInspections,
     generatedAt,
+    fotosPrincipaisResolved,
   });
 
   return buildDocument(`Detalhes da Erosao ${erosion?.id || '-'}`, content);

@@ -102,6 +102,28 @@ export async function uploadMediaBinary(uploadDescriptor, file) {
   return response;
 }
 
+// Resolve a URL assinada diretamente consultando /access-url. Util quando
+// precisamos da URL externa (ex.: <img src=...> para Tigris/S3 ou PDF print).
+// Para backend local onde o navegador nao consegue passar Authorization no
+// <img>, prefira `downloadMediaAsset` + URL.createObjectURL.
+export async function resolveMediaAccessUrl(mediaId) {
+  const result = await requestMedia(`${API_BASE_URL}/media/${encodeURIComponent(mediaId)}/access-url`, {
+    method: 'GET',
+  });
+  const accessUrl = String(result?.data?.accessUrl || '').trim();
+  if (!accessUrl) {
+    throw new Error('URL de acesso da midia invalida.');
+  }
+  const expiresAtRaw = result?.data?.expiresAt;
+  const expiresAt = expiresAtRaw ? new Date(expiresAtRaw).getTime() : null;
+  return {
+    accessUrl,
+    expiresAt: Number.isFinite(expiresAt) ? expiresAt : null,
+    local: isLocalAccessUrl(accessUrl),
+    backend: result?.data?.backend || null,
+  };
+}
+
 export async function downloadMediaAsset(mediaId) {
   const result = await requestMedia(`${API_BASE_URL}/media/${encodeURIComponent(mediaId)}/access-url`, {
     method: 'GET',

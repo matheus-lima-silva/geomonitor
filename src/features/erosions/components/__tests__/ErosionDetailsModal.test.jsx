@@ -285,4 +285,48 @@ describe('ErosionDetailsModal', () => {
     expect(container.textContent).toContain('Usuario: outra.pessoa@example.com');
     expect(container.textContent).not.toContain('Usuario: tester@example.com');
   });
+
+  it('mostra secao "Fotos principais" com EmptyState quando erosao nao tem fotos selecionadas', () => {
+    renderModal(root, {
+      erosion: {
+        id: 'ERS-NO-FOTOS',
+        projetoId: 'P1',
+        torreRef: '10',
+        status: 'Ativo',
+        acompanhamentosResumo: [],
+        locationCoordinates: {},
+      },
+      hasCoordinates: () => false,
+      relatedInspections: [],
+    });
+    expect(container.textContent).toContain('Fotos principais');
+    expect(container.textContent).toContain('Sem fotos selecionadas');
+    const actionBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent.includes('Escolher fotos principais'),
+    );
+    expect(actionBtn).toBeTruthy();
+  });
+
+  it('renderiza thumbnails na ordem de sortOrder com badges numerados', () => {
+    renderModal(root, {
+      erosion: {
+        id: 'ERS-WITH-FOTOS',
+        projetoId: 'P1',
+        torreRef: '10',
+        status: 'Ativo',
+        fotosPrincipais: [
+          { photoId: 'RWP-B', workspaceId: 'RW', mediaAssetId: 'MA-B', sortOrder: 1, caption: 'Segunda' },
+          { photoId: 'RWP-A', workspaceId: 'RW', mediaAssetId: 'MA-A', sortOrder: 0, caption: 'Primeira' },
+        ],
+        acompanhamentosResumo: [],
+        locationCoordinates: {},
+      },
+      hasCoordinates: () => false,
+      relatedInspections: [],
+    });
+    const thumbs = container.querySelectorAll('button[aria-label^="Abrir foto"]');
+    expect(thumbs.length).toBe(2);
+    expect(thumbs[0].textContent).toContain('Primeira');
+    expect(thumbs[1].textContent).toContain('Segunda');
+  });
 });

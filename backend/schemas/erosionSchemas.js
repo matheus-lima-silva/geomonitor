@@ -22,6 +22,24 @@ const dimensionamentoSchema = z.object({
     profundidade: z.union([z.string(), z.number()]).optional(),
 }).passthrough().optional();
 
+const fotoPrincipalSchema = z.object({
+    photoId: z.string().trim().min(1),
+    workspaceId: z.string().trim().min(1),
+    mediaAssetId: z.string().trim().min(1),
+    caption: z.string().max(500).optional(),
+    sortOrder: z.number().int().min(0).max(5),
+});
+
+const fotosPrincipaisSchema = z.array(fotoPrincipalSchema)
+    .max(6, 'fotosPrincipais aceita no maximo 6 itens.')
+    .refine((list) => new Set(list.map((f) => f.sortOrder)).size === list.length, {
+        message: 'fotosPrincipais nao pode ter sortOrder duplicado.',
+    })
+    .refine((list) => new Set(list.map((f) => f.photoId)).size === list.length, {
+        message: 'fotosPrincipais nao pode ter photoId duplicado.',
+    })
+    .optional();
+
 const erosionDataSchema = z.object({
     id: z.string().trim().optional(),
     projetoId: z.string().trim().optional(),
@@ -47,6 +65,7 @@ const erosionDataSchema = z.object({
     dimensionamento: dimensionamentoSchema,
     medidaPreventiva: z.string().optional(),
     fotosLinks: z.array(z.string()).optional(),
+    fotosPrincipais: fotosPrincipaisSchema,
     backfillEstimado: z.boolean().optional(),
     latitude: z.union([z.string(), z.number()]).optional(),
     longitude: z.union([z.string(), z.number()]).optional(),

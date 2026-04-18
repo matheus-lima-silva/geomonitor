@@ -72,3 +72,11 @@ export function useToast() {
   if (!context) throw new Error('useToast deve ser usado em ToastProvider');
   return context;
 }
+
+// Variante nao-explosiva para testes que nao montam ToastProvider.
+// Retorna um stub com show() no-op quando o contexto nao esta presente.
+const NOOP_TOAST = { show: () => {} };
+export function useOptionalToast() {
+  const context = useContext(ToastContext);
+  return context || NOOP_TOAST;
+}

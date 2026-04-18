@@ -222,7 +222,16 @@ Body POST/PUT:
       "possibilidadeDesvio": false,
       "rotaAlternativaDisponivel": false
     },
-    "fotosLinks": ["https://storage.example.com/foto1.jpg"]
+    "fotosLinks": ["https://storage.example.com/foto1.jpg"],
+    "fotosPrincipais": [
+      {
+        "photoId": "RPH-abc",
+        "workspaceId": "RW-xyz",
+        "mediaAssetId": "MED-123",
+        "caption": "Vista montante",
+        "sortOrder": 0
+      }
+    ]
   },
   "meta": {
     "updatedBy": "engenharia@empresa.com",
@@ -245,6 +254,7 @@ Campos tecnicos V3 usados no calculo de criticidade:
 | `localContexto.localTipo` | string | faixa_servidao, via_acesso_exclusiva, base_torre, fora_faixa_servidao |
 | `localContexto.localizacaoExposicao` | string | faixa_servidao, area_terceiros |
 | `impactoVia` | object | Dados de impacto na via (condicional: quando `localTipo = via_acesso_exclusiva`) |
+| `fotosPrincipais` | object[] | Ate 6 referencias `{ photoId, workspaceId, mediaAssetId, caption?, sortOrder }` apontando para fotos de workspaces do mesmo projeto. Renderizadas no PDF completo e na galeria do modal de detalhes. Nao reutilizado pela ficha simplificada. |
 
 O endpoint executa:
 1. Validacao de campos tecnicos

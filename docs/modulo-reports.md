@@ -154,6 +154,20 @@ Middlewares de autorizacao: `requireWorkspaceRead` / `requireWorkspaceWrite` def
 
 ---
 
+## Workspaces como banco de fotos de erosao
+
+As fotos principais de uma erosao (campo `fotosPrincipais` no `payload` de `erosions` — ver [api-backend.md](api-backend.md)) sao referencias `{ photoId, workspaceId, mediaAssetId }` apontando para linhas de `report_photos`. A curadoria e feita no modal de detalhe da erosao, que reutiliza toda a infra de workspace:
+
+1. O modal lista fotos ativas de **todos** os workspaces cujo `project_id` coincide com o `projetoId` da erosao. Nao ha tabela nova — e agregacao client-side via [useErosionPhotoSources.js](../src/features/erosions/hooks/useErosionPhotoSources.js).
+2. Se o projeto nao tem nenhum workspace com foto, o modal oferece [EnsureErosionWorkspaceModal.jsx](../src/features/erosions/components/EnsureErosionWorkspaceModal.jsx) — cria um workspace dedicado com `draftState.purpose = 'erosion_photos'` e leva o usuario ao `DeliveryUploadModal` usual.
+3. O `purpose: 'erosion_photos'` e apenas uma etiqueta semantica dentro do `draftState`; nao altera `classification`, status ou filtros dos fluxos de relatorio. Um workspace criado por esse caminho continua funcional para qualquer uso.
+4. Ate 6 fotos podem ser marcadas como "principais" via [ErosionPhotosPickerModal.jsx](../src/features/erosions/components/ErosionPhotosPickerModal.jsx). A selecao e persistida no `payload` da erosao (sem migracao; validada por Zod).
+5. O PDF completo (`buildSingleErosionFichaPdfDocument`) embute essas 6 fotos em grid 2x3 (8 cm x 6 cm) no final da ficha. A **ficha simplificada nao muda** — nao contem imagens embutidas.
+
+**Permissao**: acesso a uma foto depende de membership no workspace de origem (ver `workspace_members`). O backend ja adiciona o criador de um workspace como `owner` automaticamente, entao quem cria o "banco de fotos" tem acesso imediato; demais usuarios precisam ser convidados via `WorkspaceMembersModal`.
+
+---
+
 ## Vinculo com vistoria (`inspection_id`)
 
 Adicionado em [0009_workspace_inspection_link.sql](../backend/migrations/0009_workspace_inspection_link.sql).

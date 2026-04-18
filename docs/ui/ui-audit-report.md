@@ -124,6 +124,44 @@ Member management for a workspace. Props: `open`, `onClose`, `workspaceId`, `wor
 - Role badges use Tailwind color tokens (`amber`, `sky`, `slate`) consistent with existing status chips elsewhere.
 - Delete uses `IconButton` with `canManage` gating; the API refuses to remove the last `owner`.
 
+## Components added after 2026-04-18 (erosion photo curation)
+
+### `src/features/erosions/components/ErosionPhotosPickerModal.jsx`
+
+Modal de 2xl para selecionar ate 6 fotos principais de uma erosao, agregando fotos de todos os workspaces do mesmo `projetoId`. Props: `open`, `erosion`, `project`, `userEmail`, `onClose`, `onSaved`, `onRequestCreateWorkspace`.
+
+- Reusa primitives `Modal`, `Button`, `IconButton`, `Select` (children-based), `EmptyState` e `AppIcon`.
+- Reordenacao via setinhas `arrow-up` / `arrow-down` (sem dnd-kit; setinhas sao `IconButton variant="outline" size="sm"`).
+- Grid de thumbnails usa `<button aria-pressed>` com borda/ring do token `brand-600` para indicar selecao — card-like clickable, padrao ja aceito no codebase para toggles visuais.
+- Persiste via `saveErosion({ id, fotosPrincipais }, { merge: true })` — nao cria rota nova.
+
+### `src/features/erosions/components/EnsureErosionWorkspaceModal.jsx`
+
+Cria um workspace dedicado para armazenar fotos quando o projeto nao tem nenhum. Props: `open`, `projectId`, `projectName`, `defaultName`, `userEmail`, `onClose`, `onCreated`.
+
+- Usa `Modal size="md"`, `Input`, `Button`.
+- Marca o workspace com `draftState.purpose = 'erosion_photos'` (sem impacto em `classification`).
+- Backend adiciona criador como `owner` automaticamente.
+
+### `src/features/erosions/components/ErosionPhotoLightbox.jsx`
+
+Preview read-only reutilizado pelo modal de detalhes (grid de thumbs). Props: `open`, `photo`, `index`, `total`, `onClose`, `onPrev`, `onNext`.
+
+- Reusa `Modal size="2xl"` e `MediaImage`.
+- Footer com navegacao prev/next (`Button outline` + icones chevron) quando `total > 1`.
+
+### `src/components/MediaImage.jsx` + `src/hooks/useMediaAccessUrl.js`
+
+Componente novo em `components/` (nao em `features/`) porque e util a qualquer parte da UI que precise renderizar um `<img>` a partir de um `mediaAssetId`. Resolve a URL via `downloadMediaAsset` + `URL.createObjectURL`, com cache global por id e revogacao no unmount. Fallback com icone `image-off` quando falha.
+
+### `src/context/ToastContext.jsx` (extensao)
+
+Adicionado `useOptionalToast()` que retorna um stub `{ show: () => {} }` quando nao ha `ToastProvider`. Padrao recomendado pelo CLAUDE.md para componentes instalados em telas testadas sem provider wrapping.
+
+### `src/components/AppIcon.jsx` (aliases novos)
+
+`camera`, `image`/`photo`, `image-off`, `arrow-up`, `arrow-down` — usados no picker, lightbox e fallback de `MediaImage`.
+
 ## Follow-up suggestions
 
 - Add regression tests for the paginated trash modal (cover page boundaries, empty pages, filter + sort interaction). Existing tests cover `WorkspacesTab.lixeira` but not the modal's pagination edge cases.

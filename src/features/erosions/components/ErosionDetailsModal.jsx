@@ -1,6 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Badge, Button, Input, Modal, Select } from '../../../components/ui';
+import MediaImage from '../../../components/MediaImage';
+import { Badge, Button, EmptyState, Input, Modal, Select } from '../../../components/ui';
+import ErosionPhotoLightbox from './ErosionPhotoLightbox';
+import ErosionPhotosPickerModal from './ErosionPhotosPickerModal';
+import EnsureErosionWorkspaceModal from './EnsureErosionWorkspaceModal';
+import { normalizeFotosPrincipais } from '../models/erosionPhotosModel';
+import {
+  CLASS_RANGE_LABELS,
+  deriveDepthClass,
+  deriveSlopeClass,
+  deriveExposureClass,
+  resolveClassCode,
+  formatClassWithRange,
+} from '../utils/erosionClassFormatters';
 import { erosionStatusClass, normalizeErosionStatus } from '../../shared/statusUtils';
 import {
   deriveErosionTypeFromTechnicalFields,
@@ -63,76 +76,6 @@ function listLabelValue(value, labelMap = {}) {
     .join(', ');
 }
 
-const CLASS_RANGE_LABELS = {
-  profundidade: {
-    P1: '<= 1 m',
-    P2: '> 1 a 10 m',
-    P3: '> 10 a 30 m',
-    P4: '> 30 m',
-  },
-  declividade: {
-    D1: '< 10 graus',
-    D2: '10 a 25 graus',
-    D3: '25 a 45 graus',
-    D4: '> 45 graus',
-  },
-  exposicao: {
-    E1: '> 50 m',
-    E2: '20 a 50 m',
-    E3: '5 a < 20 m',
-    E4: '< 5 m',
-  },
-};
-
-const LEGACY_CLASS_CODE_ALIASES = {
-  '<0.5': 'P1',
-  '0.5-1.5': 'P2',
-  '1.5-3.0': 'P3',
-  '>3.0': 'P4',
-  '<15': 'D1',
-  '15-30': 'D2',
-  '30-45': 'D3',
-  '>45': 'D4',
-};
-
-function deriveDepthClass(value) {
-  if (!Number.isFinite(value)) return '';
-  if (value <= 1) return 'P1';
-  if (value <= 10) return 'P2';
-  if (value <= 30) return 'P3';
-  return 'P4';
-}
-
-function deriveSlopeClass(value) {
-  if (!Number.isFinite(value)) return '';
-  if (value < 10) return 'D1';
-  if (value <= 25) return 'D2';
-  if (value <= 45) return 'D3';
-  return 'D4';
-}
-
-function deriveExposureClass(value) {
-  if (!Number.isFinite(value)) return '';
-  if (value > 50) return 'E1';
-  if (value >= 20) return 'E2';
-  if (value >= 5) return 'E3';
-  return 'E4';
-}
-
-function resolveClassCode(rawClassCode, rangeLabels, fallbackClassCode = '') {
-  const raw = String(rawClassCode || '').trim();
-  if (raw && rangeLabels[raw]) return raw;
-  if (raw && LEGACY_CLASS_CODE_ALIASES[raw]) return LEGACY_CLASS_CODE_ALIASES[raw];
-  return fallbackClassCode;
-}
-
-function formatClassWithRange(classCode, rangeLabels = {}) {
-  const code = String(classCode || '').trim();
-  if (!code) return '-';
-  const range = rangeLabels[code];
-  return range ? `${code} (${range})` : code;
-}
-
 function resolveHistoryUserLabel(usuario, currentUser) {
   const persistedValue = String(usuario || '').trim();
   if (!persistedValue) return '-';
@@ -163,6 +106,9 @@ function ErosionDetailsModal({
   const [savingEvent, setSavingEvent] = useState(false);
   const [eventForm, setEventForm] = useState(EMPTY_EVENT_FORM);
   const [showMap, setShowMap] = useState(false);
+  const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
+  const [ensureWorkspaceOpen, setEnsureWorkspaceOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(-1);
 
   useEffect(() => {
     if (!open) return;
@@ -183,6 +129,7 @@ function ErosionDetailsModal({
   }, [open, erosion?.criticalidade, erosion?.criticalidadeV2, erosion?.id]);
 
   const locationCoordinates = normalizeLocationCoordinates(erosion || {});
+  const fotosPrincipais = useMemo(() => normalizeFotosPrincipais(erosion), [erosion]);
   const sortedHistory = useMemo(
     () => normalizeFollowupHistory(erosion?.acompanhamentosResumo)
       .slice()
@@ -349,6 +296,7 @@ function ErosionDetailsModal({
   );
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
@@ -465,18 +413,63 @@ function ErosionDetailsModal({
             <div className="col-span-full whitespace-pre-wrap"><strong className="text-slate-900">Observacoes:</strong> {erosion.obs || '-'}</div>
           </div>
           <div className="mt-5 pt-4 border-t border-slate-100 text-sm">
-            <strong className="text-slate-900 block mb-2">Fotos (links):</strong>
-            {Array.isArray(erosion.fotosLinks) && erosion.fotosLinks.length > 0 ? (
-              <ul className="list-disc pl-5 m-0 space-y-1 text-brand-600">
-                {erosion.fotosLinks.map((link) => (
-                  <li key={link}>
-                    <a href={link} target="_blank" rel="noreferrer" className="hover:underline hover:text-brand-800 break-all">{link}</a>
-                  </li>
-                ))}
-              </ul>
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <strong className="text-slate-900 block">Fotos principais</strong>
+              <Button variant="outline" size="sm" onClick={() => setPhotoPickerOpen(true)}>
+                <AppIcon name="image" className="w-4 h-4" />
+                {fotosPrincipais.length > 0 ? 'Editar fotos' : 'Escolher fotos principais'}
+              </Button>
+            </div>
+            {fotosPrincipais.length === 0 ? (
+              <EmptyState
+                icon="camera"
+                title="Sem fotos selecionadas"
+                description="Escolha ate 6 fotos dos workspaces do empreendimento para acompanhar a ficha."
+              />
             ) : (
-              <p className="text-sm text-slate-500 m-0">Sem links de fotos.</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {fotosPrincipais.map((foto, index) => (
+                  <button
+                    key={foto.photoId}
+                    type="button"
+                    onClick={() => setLightboxIndex(index)}
+                    className="relative overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-sm transition-shadow hover:shadow-card focus-visible:ring-2 focus-visible:ring-brand-500"
+                    aria-label={`Abrir foto ${index + 1}`}
+                  >
+                    <div className="aspect-[4/3] w-full overflow-hidden bg-slate-950">
+                      <MediaImage
+                        mediaAssetId={foto.mediaAssetId}
+                        alt={foto.caption || foto.photoId}
+                        className="h-full w-full object-cover"
+                        fallbackClassName="h-full w-full"
+                      />
+                    </div>
+                    {foto.caption ? (
+                      <div className="px-2 py-1.5 text-xs text-slate-600 truncate" title={foto.caption}>
+                        {foto.caption}
+                      </div>
+                    ) : null}
+                    <span className="absolute top-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-600 text-white text-sm font-bold shadow">
+                      {index + 1}
+                    </span>
+                  </button>
+                ))}
+              </div>
             )}
+            {Array.isArray(erosion.fotosLinks) && erosion.fotosLinks.length > 0 ? (
+              <details className="mt-4 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                <summary className="cursor-pointer text-xs font-semibold text-slate-600">
+                  Links legados de fotos ({erosion.fotosLinks.length})
+                </summary>
+                <ul className="mt-2 list-disc pl-5 m-0 space-y-1 text-brand-600 text-xs">
+                  {erosion.fotosLinks.map((link) => (
+                    <li key={link}>
+                      <a href={link} target="_blank" rel="noreferrer" className="hover:underline hover:text-brand-800 break-all">{link}</a>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
           </div>
         </section>
 
@@ -722,6 +715,43 @@ function ErosionDetailsModal({
         </section>
       </div>
     </Modal>
+    {photoPickerOpen ? (
+      <ErosionPhotosPickerModal
+        open
+        erosion={erosion}
+        project={project}
+        userEmail={currentUser?.email}
+        onClose={() => setPhotoPickerOpen(false)}
+        onRequestCreateWorkspace={() => {
+          setPhotoPickerOpen(false);
+          setEnsureWorkspaceOpen(true);
+        }}
+      />
+    ) : null}
+    {ensureWorkspaceOpen ? (
+      <EnsureErosionWorkspaceModal
+        open
+        projectId={erosion?.projetoId}
+        projectName={project?.nome}
+        defaultName={`Fotos de erosoes - ${project?.nome || erosion?.projetoId || ''}`.trim()}
+        userEmail={currentUser?.email}
+        onClose={() => setEnsureWorkspaceOpen(false)}
+        onCreated={() => {
+          setEnsureWorkspaceOpen(false);
+          setPhotoPickerOpen(true);
+        }}
+      />
+    ) : null}
+    <ErosionPhotoLightbox
+      open={lightboxIndex >= 0 && lightboxIndex < fotosPrincipais.length}
+      photo={fotosPrincipais[lightboxIndex] || null}
+      index={lightboxIndex}
+      total={fotosPrincipais.length}
+      onClose={() => setLightboxIndex(-1)}
+      onPrev={lightboxIndex > 0 ? () => setLightboxIndex(lightboxIndex - 1) : undefined}
+      onNext={lightboxIndex < fotosPrincipais.length - 1 ? () => setLightboxIndex(lightboxIndex + 1) : undefined}
+    />
+    </>
   );
 }
 

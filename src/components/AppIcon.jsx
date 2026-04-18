@@ -1,6 +1,11 @@
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
+import ArrowDown from 'lucide-react/dist/esm/icons/arrow-down';
+import ArrowUp from 'lucide-react/dist/esm/icons/arrow-up';
 import Bell from 'lucide-react/dist/esm/icons/bell';
 import Bold from 'lucide-react/dist/esm/icons/bold';
+import Camera from 'lucide-react/dist/esm/icons/camera';
+import Image from 'lucide-react/dist/esm/icons/image';
+import ImageOff from 'lucide-react/dist/esm/icons/image-off';
 import Building2 from 'lucide-react/dist/esm/icons/building-2';
 import Check from 'lucide-react/dist/esm/icons/check';
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
@@ -106,6 +111,12 @@ const ICON_MAP = {
   loader: Loader2,
   mail: Mail,
   undo: Undo2,
+  camera: Camera,
+  image: Image,
+  photo: Image,
+  'image-off': ImageOff,
+  'arrow-up': ArrowUp,
+  'arrow-down': ArrowDown,
 };
 
 function AppIcon({
