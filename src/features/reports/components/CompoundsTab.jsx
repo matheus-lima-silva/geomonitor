@@ -76,8 +76,10 @@ export default function CompoundsTab({
 
   async function handleWizardCreate(draft) {
     // Passa draft completo para ReportsView, que ja sabe montar o payload.
+    // Retorna o compound criado (com .id) para que o wizard possa anexar os
+    // workspaces que o usuario selecionou no Step 3 durante a criacao.
     setCompoundDraft(draft);
-    await handleCreateCompound(draft);
+    return handleCreateCompound(draft);
   }
 
   async function handleWizardUpdate(compound, draft) {

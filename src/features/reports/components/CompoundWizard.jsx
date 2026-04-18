@@ -93,6 +93,9 @@ export default function CompoundWizard({
   const [restorePromptChecked, setRestorePromptChecked] = useState(false);
   const [pendingRestore, setPendingRestore] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  // Staging: em modo create o compound ainda nao existe, entao guardamos
+  // os workspaces escolhidos localmente e anexamos apos o POST de create.
+  const [pendingWorkspaceIds, setPendingWorkspaceIds] = useState([]);
 
   const enableAutoSave = mode === 'create';
   const { status: autoSaveStatus, savedAt, loadSaved, clearSaved } = useCompoundDraftAutoSave(
@@ -143,7 +146,13 @@ export default function CompoundWizard({
       if (mode === 'edit' && compound?.id) {
         await onUpdate?.(compound, draft);
       } else {
-        await onCreate?.(draft);
+        const created = await onCreate?.(draft);
+        // Anexa os workspaces staged agora que o compound existe.
+        if (created?.id && pendingWorkspaceIds.length > 0 && onAddWorkspace) {
+          for (const wsId of pendingWorkspaceIds) {
+            await onAddWorkspace(created, wsId);
+          }
+        }
         clearSaved();
       }
       onClose?.();
@@ -290,6 +299,8 @@ export default function CompoundWizard({
             onAddWorkspace={onAddWorkspace}
             onRemoveWorkspace={onRemoveWorkspace}
             onReorder={onReorder}
+            pendingWorkspaceIds={pendingWorkspaceIds}
+            setPendingWorkspaceIds={setPendingWorkspaceIds}
             busy={busy}
           />
         ) : null}

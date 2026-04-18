@@ -84,6 +84,67 @@ describe('CompoundWizard', () => {
     expect(step1.getAttribute('data-state')).toBe('complete');
   });
 
+  it('em modo create, permite selecionar workspaces antes de criar (staging) e anexa pos-create', async () => {
+    const onCreate = vi.fn().mockResolvedValue({ id: 'RC-NEW', nome: 'Relatório X' });
+    const onAddWorkspace = vi.fn().mockResolvedValue({ id: 'RC-NEW' });
+    const workspaces = [
+      { id: 'WS-A', nome: 'Workspace A' },
+      { id: 'WS-B', nome: 'Workspace B' },
+    ];
+    const workspaceLabelsById = new Map([['WS-A', 'Workspace A'], ['WS-B', 'Workspace B']]);
+    renderDefault({
+      workspaces,
+      workspaceLabelsById,
+      onCreate,
+      onAddWorkspace,
+    });
+
+    // Preenche nome (obrigatorio) no Step 1
+    const nameInput = container.querySelector('#wizard-nome');
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(nameInput, 'Relatório X');
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    // Navega para Step Workspaces
+    act(() => container.querySelector('[data-testid="wizard-step-bubble-workspaces"]').click());
+
+    // Confirma que o picker de staging apareceu (nao o aviso "vinculados depois")
+    const picker = container.querySelector('#wizard-workspace-pending');
+    expect(picker).not.toBeNull();
+
+    // SearchableSelect abre o dropdown ao receber foco e seleciona na mousedown
+    // da <li>. Simular esse fluxo exato.
+    act(() => {
+      picker.focus();
+    });
+    const optionA = Array.from(container.querySelectorAll('li'))
+      .find((el) => el.textContent?.trim() === 'Workspace A');
+    expect(optionA).toBeDefined();
+    act(() => {
+      optionA.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    });
+
+    // Confirma que o workspace staged apareceu na lista
+    expect(container.textContent).toContain('Workspaces selecionados (1)');
+
+    // Navega para Revisao e submete
+    act(() => container.querySelector('[data-testid="wizard-step-bubble-revisao"]').click());
+    const submitBtn = container.querySelector('[data-testid="wizard-submit"]');
+    await act(async () => {
+      submitBtn.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onCreate).toHaveBeenCalledTimes(1);
+    expect(onAddWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'RC-NEW' }),
+      'WS-A',
+    );
+  });
+
   it('em modo edit, submit vira "Salvar alterações"', () => {
     renderDefault({
       mode: 'edit',

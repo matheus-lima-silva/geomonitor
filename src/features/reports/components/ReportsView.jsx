@@ -1391,7 +1391,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
     try {
       setBusy('compound');
-      await createReportCompound({
+      const result = await createReportCompound({
         id: `RC-${Date.now()}`,
         nome: draft.nome.trim(),
         sharedTextsJson: buildSharedTextsPayload(draft),
@@ -1407,6 +1407,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       });
       await refreshCompounds();
       showToast('Relatório criado.', 'success');
+      return result?.data || null;
     } catch (error) {
       showToast(error?.message || 'Erro ao criar relatório.', 'error');
       throw error;
@@ -1438,19 +1439,25 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
-  async function handleCompoundAddWorkspace(compound) {
-    const workspaceId = String(compoundWorkspaceSelections[compound?.id] || '').trim();
-    if (!compound?.id || !workspaceId) { showToast('Selecione um workspace para adicionar ao relatorio composto.', 'error'); return; }
+  async function handleCompoundAddWorkspace(compound, workspaceIdArg) {
+    // Aceita workspaceId explícito (wizard passando stage a stage) ou cai para
+    // a selecao em compoundWorkspaceSelections (fluxo da lista).
+    const workspaceId = workspaceIdArg
+      ? String(workspaceIdArg).trim()
+      : String(compoundWorkspaceSelections[compound?.id] || '').trim();
+    if (!compound?.id || !workspaceId) { showToast('Selecione um workspace para adicionar ao relatorio composto.', 'error'); return null; }
     try {
       setBusy(`compound-add:${compound.id}`);
       const result = await addWorkspaceToReportCompound(compound.id, workspaceId, { updatedBy: userEmail || 'web' });
       const savedCompound = result?.data;
       if (savedCompound?.id) setCompounds((prev) => prev.map((item) => (item.id === savedCompound.id ? savedCompound : item)));
-      setCompoundWorkspaceSelections((prev) => ({ ...prev, [compound.id]: '' }));
+      if (!workspaceIdArg) setCompoundWorkspaceSelections((prev) => ({ ...prev, [compound.id]: '' }));
       setCompoundPreflights((prev) => { const next = { ...prev }; delete next[compound.id]; return next; });
       showToast('Workspace adicionado ao relatorio composto.', 'success');
+      return savedCompound || null;
     } catch (error) {
       showToast(error?.message || 'Erro ao adicionar workspace ao relatorio composto.', 'error');
+      return null;
     } finally {
       setBusy('');
     }
