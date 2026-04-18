@@ -4,7 +4,7 @@ export const TABS = [
   ['workspaces', 'Workspaces', 'file-text'],
   ['library', 'Biblioteca do Empreendimento', 'search'],
   ['dossier', 'Dossie do Empreendimento', 'clipboard'],
-  ['compounds', 'Relatorios Compostos', 'details'],
+  ['compounds', 'Relatório Final', 'file-text'],
 ];
 
 export const STEPS = [

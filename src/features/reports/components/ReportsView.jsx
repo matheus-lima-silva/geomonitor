@@ -1350,35 +1350,54 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
-  async function handleCreateCompound() {
-    if (!String(compoundDraft.nome || '').trim()) { showToast('Informe um nome para o relatorio composto.', 'error'); return; }
+  function buildSharedTextsPayload(draft) {
+    const trimField = (key) => String(draft[key] || '').trim();
+    const profLookup = Object.fromEntries(profissoes.map((p) => [p.id, p.nome]));
+    const elaboradoresArr = (draft.elaboradores || []).map((id) => {
+      const sig = signatariosCandidatos.find((s) => s.id === id);
+      return buildSignatarySnapshot(sig, profLookup);
+    }).filter(Boolean);
+    const revisoresArr = (draft.revisores || []).map((id) => {
+      const sig = signatariosCandidatos.find((s) => s.id === id);
+      return buildSignatarySnapshot(sig, profLookup);
+    }).filter(Boolean);
+    return {
+      nome_lt: trimField('nome_lt'),
+      titulo_programa: trimField('titulo_programa'),
+      codigo_documento: trimField('codigo_documento'),
+      revisao: trimField('revisao') || '00',
+      introducao: trimField('introducao'),
+      geologia: trimField('geologia'),
+      geotecnia: trimField('geotecnia'),
+      geomorfologia: trimField('geomorfologia'),
+      descricao_atividades: trimField('descricao_atividades'),
+      conclusoes: trimField('conclusoes'),
+      analise_evolucao: trimField('analise_evolucao'),
+      observacoes: trimField('observacoes'),
+      elaboradores: elaboradoresArr,
+      revisores: revisoresArr,
+      includeTowerCoordinates: !!draft.includeTowerCoordinates,
+      towerCoordinateFormat: draft.towerCoordinateFormat || 'decimal',
+    };
+  }
+
+  async function handleCreateCompound(draftArg) {
+    const draft = draftArg && typeof draftArg === 'object' && 'nome' in draftArg
+      ? draftArg
+      : compoundDraft;
+    if (!String(draft.nome || '').trim()) {
+      showToast('Informe um nome para o relatório.', 'error');
+      throw new Error('Nome obrigatório.');
+    }
     try {
       setBusy('compound');
-      const trimField = (key) => String(compoundDraft[key] || '').trim();
-      const profLookup = Object.fromEntries(profissoes.map((p) => [p.id, p.nome]));
-      const elaboradoresArr = (compoundDraft.elaboradores || []).map((id) => {
-        const sig = signatariosCandidatos.find((s) => s.id === id);
-        return buildSignatarySnapshot(sig, profLookup);
-      }).filter(Boolean);
-      const revisoresArr = (compoundDraft.revisores || []).map((id) => {
-        const sig = signatariosCandidatos.find((s) => s.id === id);
-        return buildSignatarySnapshot(sig, profLookup);
-      }).filter(Boolean);
       await createReportCompound({
         id: `RC-${Date.now()}`,
-        nome: compoundDraft.nome.trim(),
-        sharedTextsJson: {
-          nome_lt: trimField('nome_lt'), titulo_programa: trimField('titulo_programa'),
-          codigo_documento: trimField('codigo_documento'), revisao: trimField('revisao') || '00',
-          introducao: trimField('introducao'),
-          geologia: trimField('geologia'), geotecnia: trimField('geotecnia'), geomorfologia: trimField('geomorfologia'),
-          descricao_atividades: trimField('descricao_atividades'), conclusoes: trimField('conclusoes'),
-          analise_evolucao: trimField('analise_evolucao'), observacoes: trimField('observacoes'),
-          elaboradores: elaboradoresArr, revisores: revisoresArr,
-          includeTowerCoordinates: !!compoundDraft.includeTowerCoordinates,
-          towerCoordinateFormat: compoundDraft.towerCoordinateFormat || 'decimal',
-        },
-        status: 'draft', workspaceIds: [], orderJson: [],
+        nome: draft.nome.trim(),
+        sharedTextsJson: buildSharedTextsPayload(draft),
+        status: 'draft',
+        workspaceIds: [],
+        orderJson: [],
       }, { updatedBy: userEmail || 'web' });
       setCompoundDraft({
         nome: '', nome_lt: '', titulo_programa: '', codigo_documento: '', revisao: '00',
@@ -1387,9 +1406,33 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         includeTowerCoordinates: false, towerCoordinateFormat: 'decimal',
       });
       await refreshCompounds();
-      showToast('Relatorio composto criado.', 'success');
+      showToast('Relatório criado.', 'success');
     } catch (error) {
-      showToast(error?.message || 'Erro ao criar relatorio composto.', 'error');
+      showToast(error?.message || 'Erro ao criar relatório.', 'error');
+      throw error;
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleUpdateCompoundDraft(compound, draft) {
+    if (!compound?.id) return;
+    try {
+      setBusy(`compound-update:${compound.id}`);
+      const result = await updateReportCompound(compound.id, {
+        nome: String(draft.nome || '').trim() || compound.nome,
+        sharedTextsJson: buildSharedTextsPayload(draft),
+      }, { updatedBy: userEmail || 'web' });
+      const savedCompound = result?.data;
+      if (savedCompound?.id) {
+        setCompounds((prev) => prev.map((item) => (item.id === savedCompound.id ? savedCompound : item)));
+      } else {
+        await refreshCompounds();
+      }
+      showToast('Relatório atualizado.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao atualizar relatório.', 'error');
+      throw error;
     } finally {
       setBusy('');
     }
@@ -1831,12 +1874,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             compoundPreflights={compoundPreflights}
             busy={busy}
             handleCreateCompound={handleCreateCompound}
+            handleUpdateCompoundDraft={handleUpdateCompoundDraft}
             handleCompoundAddWorkspace={handleCompoundAddWorkspace}
             handleCompoundRemoveWorkspace={handleCompoundRemoveWorkspace}
             handleCompoundReorder={handleCompoundReorder}
-            handleCompoundPreflight={handleCompoundPreflight}
             handleCompoundGenerate={handleCompoundGenerate}
-            handleUpdateCompoundSignatures={handleUpdateCompoundSignatures}
             handleTrashCompound={handleTrashCompound}
             handleRestoreCompound={handleRestoreCompound}
             handleHardDeleteCompound={handleHardDeleteCompound}

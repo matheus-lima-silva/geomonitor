@@ -48,3 +48,6 @@ Thumbs.db
 .vscode/
 .idea/
 .claude/settings.local.json
+
+# Notas locais preservadas para Claude Code (escopo diferido)
+.claude-notes/

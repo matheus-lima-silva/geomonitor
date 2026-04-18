@@ -1,5 +1,6 @@
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
 import Bell from 'lucide-react/dist/esm/icons/bell';
+import Bold from 'lucide-react/dist/esm/icons/bold';
 import Building2 from 'lucide-react/dist/esm/icons/building-2';
 import Check from 'lucide-react/dist/esm/icons/check';
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
@@ -19,7 +20,9 @@ import FileSpreadsheet from 'lucide-react/dist/esm/icons/file-spreadsheet';
 import FileText from 'lucide-react/dist/esm/icons/file-text';
 import FolderOpen from 'lucide-react/dist/esm/icons/folder-open';
 import Info from 'lucide-react/dist/esm/icons/info';
+import Italic from 'lucide-react/dist/esm/icons/italic';
 import LayoutDashboard from 'lucide-react/dist/esm/icons/layout-dashboard';
+import List from 'lucide-react/dist/esm/icons/list';
 import ListChecks from 'lucide-react/dist/esm/icons/list-checks';
 import ListFilter from 'lucide-react/dist/esm/icons/list-filter';
 import Loader2 from 'lucide-react/dist/esm/icons/loader-2';
@@ -94,6 +97,9 @@ const ICON_MAP = {
   lock: Lock,
   license: FileCheck2,
   info: Info,
+  bold: Bold,
+  italic: Italic,
+  list: List,
   copy: Copy,
   eye: Eye,
   'eye-off': EyeOff,

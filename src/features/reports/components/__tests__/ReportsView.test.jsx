@@ -182,7 +182,7 @@ describe('ReportsView', () => {
     expect(container.textContent).toContain('Workspaces');
     expect(container.textContent).toContain('Biblioteca do Empreendimento');
     expect(container.textContent).toContain('Dossie do Empreendimento');
-    expect(container.textContent).toContain('Relatorios Compostos');
+    expect(container.textContent).toContain('Relatório Final');
     expect(container.textContent).toContain('Workspace 1');
   });
 
@@ -377,7 +377,11 @@ describe('ReportsView', () => {
     );
   });
 
-  it('adiciona workspace ao composto e expõe preflight e geracao na UI', async () => {
+  // UI antiga: tinha botoes "Rodar Preflight" e "Enfileirar Geracao" no card.
+  // Novo fluxo: preflight roda dentro do modal de confirmacao ao clicar em
+  // "Gerar Relatorio"; workspaces sao gerenciados dentro do CompoundWizard.
+  // Cobertura equivalente: CompoundCard.test.jsx + CompoundWizard.test.jsx.
+  it.skip('adiciona workspace ao composto e expõe preflight e geracao na UI', async () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
     });
@@ -780,7 +784,12 @@ describe('ReportsView', () => {
   });
 
   // ── Reordenacao de assinaturas (elaboradores/revisores) ──────────────────
-  describe('Reordenacao de assinaturas', () => {
+  // Testes originais abaixo validavam o form inline antigo de CompoundsTab.
+  // A criacao/edicao agora e feita via CompoundWizard — comportamento
+  // equivalente coberto em CompoundWizard.test.jsx e StepAssinaturas.
+  // Mantidos com .skip como referencia; remover quando houver cobertura
+  // equivalente de ponta-a-ponta no novo wizard dentro do ReportsView.
+  describe.skip('Reordenacao de assinaturas (UI antiga — substituida pelo CompoundWizard)', () => {
     const mockSignatarios = [
       { id: 'SIG-A', nome: 'Alice Silva', profissao_id: 'PROF-1', profissao_nome: 'Eng Civil', registro_conselho: 'CREA', registro_estado: 'RJ', registro_numero: '111', registro_sufixo: 'D' },
       { id: 'SIG-B', nome: 'Bruno Costa', profissao_id: 'PROF-2', profissao_nome: 'Geologo', registro_conselho: 'CREA', registro_estado: 'SP', registro_numero: '222', registro_sufixo: '' },
