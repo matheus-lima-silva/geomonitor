@@ -159,6 +159,58 @@ function renderCriticalityHistory(history = []) {
     `).join('');
 }
 
+// Renderiza um bloco estatico de mapa reutilizando tiles do OpenTopoMap
+// (mesmo provedor usado pelo modal com react-leaflet). Monta um grid 3x3 em
+// torno do tile que contem o ponto, posicionando a erosao no centro do
+// container visivel via offset calculado. Pin CSS marca a localizacao.
+function renderLocationMap(latitude, longitude, { zoom = 14, width = 560, height = 340 } = {}) {
+  const latRaw = typeof latitude === 'string' ? latitude.trim() : latitude;
+  const lngRaw = typeof longitude === 'string' ? longitude.trim() : longitude;
+  if (latRaw === '' || latRaw == null || lngRaw === '' || lngRaw == null) return '';
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
+  if (lat < -85 || lat > 85 || lng < -180 || lng > 180) return '';
+
+  const n = Math.pow(2, zoom);
+  const latRad = (lat * Math.PI) / 180;
+  const xExact = ((lng + 180) / 360) * n;
+  const yExact = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
+  const xTile = Math.floor(xExact);
+  const yTile = Math.floor(yExact);
+  const xPx = Math.floor((xExact - xTile) * 256);
+  const yPx = Math.floor((yExact - yTile) * 256);
+
+  const tiles = [];
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      const tx = xTile + dx;
+      const ty = yTile + dy;
+      if (ty < 0 || ty >= n) continue;
+      const tileX = ((tx % n) + n) % n;
+      tiles.push(
+        `<img src="https://a.tile.opentopomap.org/${zoom}/${tileX}/${ty}.png" alt="" style="position:absolute; left:${(dx + 1) * 256}px; top:${(dy + 1) * 256}px; width:256px; height:256px; display:block;" crossorigin="anonymous" />`,
+      );
+    }
+  }
+
+  const canvasSize = 768;
+  const erosionX = 256 + xPx;
+  const erosionY = 256 + yPx;
+  const offsetX = Math.round(width / 2 - erosionX);
+  const offsetY = Math.round(height / 2 - erosionY);
+
+  return `
+    <div class="ficha-map" style="position:relative; width:${width}px; height:${height}px; margin:12px auto 0; overflow:hidden; border:1px solid #cbd5e1; border-radius:12px; background:#e2e8f0;">
+      <div style="position:absolute; left:${offsetX}px; top:${offsetY}px; width:${canvasSize}px; height:${canvasSize}px;">
+        ${tiles.join('')}
+      </div>
+      <div class="ficha-map-pin" aria-hidden="true"></div>
+      <div class="ficha-map-attrib">Mapa: OpenTopoMap (CC-BY-SA) &middot; Dados: OpenStreetMap</div>
+    </div>
+  `;
+}
+
 function renderFotosPrincipaisGrid(fotosResolved = []) {
   if (!Array.isArray(fotosResolved) || fotosResolved.length === 0) {
     return '<div class="ficha-muted">Sem fotos principais selecionadas.</div>';
@@ -344,6 +396,7 @@ function renderFicha({
         <div><strong>Altitude:</strong> ${escapeHtml(locationCoordinates.altitude || '-')}</div>
         <div><strong>Referencia:</strong> ${escapeHtml(locationCoordinates.reference || '-')}</div>
       </div>
+      ${renderLocationMap(locationCoordinates.latitude, locationCoordinates.longitude)}
     </section>
 
     <section class="ficha-section">
@@ -395,82 +448,126 @@ function buildDocument(title, content) {
       <head>
         <title>${escapeHtml(title)}</title>
         <style>
-          body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; font-size: 12px; background: #f8fafc; }
-          h1 { margin: 0 0 8px; font-size: 18px; color: #1e293b; }
-          h2 { margin: 0 0 10px; font-size: 13px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
-          .ficha-meta-line { margin-bottom: 4px; font-size: 12px; }
-          .ficha-muted { font-size: 10px; color: #64748b; }
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            color: #334155;
+            padding: 20px;
+            font-size: 13px;
+            line-height: 1.45;
+            background: #ffffff;
+          }
+          strong { color: #0f172a; font-weight: 600; }
+          h1 { margin: 0 0 6px; font-size: 18px; color: #0f172a; font-weight: 700; }
+          h2 {
+            margin: 0 0 16px;
+            font-size: 15px;
+            color: #1e293b;
+            font-weight: 700;
+            text-transform: none;
+            letter-spacing: 0;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 8px;
+          }
+          .ficha-meta-line { margin-bottom: 4px; font-size: 12px; color: #475569; }
+          .ficha-muted { font-size: 11px; color: #64748b; }
           .ficha-header {
-            border-radius: 12px;
             background: #ffffff;
             border: 1px solid #e2e8f0;
-            border-top: 3px solid #0f766e;
-            padding: 14px 16px;
+            border-radius: 12px;
+            padding: 16px 20px;
             margin-bottom: 12px;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
           }
-          .ficha-header h1 { color: #0f766e; margin-bottom: 4px; }
+          .ficha-header h1 { color: #0f172a; margin-bottom: 6px; }
           .ficha-header-meta { font-size: 12px; color: #475569; }
           .ficha-section {
             margin-top: 12px;
             border: 1px solid #e2e8f0;
-            border-top: 3px solid #3b82f6;
             border-radius: 12px;
             background: #ffffff;
-            padding: 14px 16px;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+            padding: 20px;
           }
-          .ficha-grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
-          .ficha-grid-three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px 14px; }
-          .ficha-grid-four { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px 14px; }
+          .ficha-grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+          .ficha-grid-three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 16px; }
+          .ficha-grid-four { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px 16px; }
           .ficha-full { grid-column: 1 / -1; }
           .ficha-section ul { margin: 6px 0 0; padding-left: 18px; }
           .ficha-highlight {
-            background: #f1f5f9;
+            background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
-            padding: 8px 10px;
-            margin-top: 4px;
+            padding: 10px 12px;
           }
           .ficha-highlight-alt {
             background: #eef2ff;
             border: 1px solid #c7d2fe;
             color: #3730a3;
             border-radius: 8px;
-            padding: 8px 10px;
-            margin-top: 4px;
+            padding: 10px 12px;
           }
           .ficha-warn {
-            background: #fef3c7;
+            background: #fffbeb;
             border: 1px solid #fde68a;
             color: #78350f;
             border-radius: 8px;
-            padding: 8px 10px;
+            padding: 10px 12px;
           }
           .ficha-chip {
             display: inline-block;
             padding: 2px 10px;
             border-radius: 999px;
-            background: #e0f2fe;
-            color: #075985;
+            background: #f1f5f9;
+            color: #334155;
             font-weight: 600;
             font-size: 11px;
+            border: 1px solid #e2e8f0;
           }
           .ficha-history-item {
             border: 1px solid #e2e8f0;
-            border-left: 4px solid #94a3b8;
-            border-radius: 8px;
-            padding: 8px 10px;
+            border-radius: 10px;
+            padding: 10px 12px;
             margin-bottom: 8px;
             background: #ffffff;
           }
           .ficha-history-item-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
-          .ficha-history-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: #e2e8f0; color: #334155; }
-          .ficha-history-summary { font-weight: 600; color: #1f2937; margin-bottom: 2px; }
-          .ficha-history-details { font-size: 11px; color: #334155; margin-bottom: 2px; }
-          .pdf-group-head { border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; padding: 10px 12px; margin-bottom: 10px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+          .ficha-history-chip {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+          }
+          .ficha-history-summary { font-weight: 600; color: #1e293b; margin-bottom: 2px; }
+          .ficha-history-details { font-size: 12px; color: #475569; margin-bottom: 2px; }
+          .pdf-group-head { border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; padding: 10px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
           .pdf-page-break { page-break-before: always; }
-          .ficha-photos-section { border-top-color: #0f766e; }
+          .ficha-map { position: relative; }
+          .ficha-map-pin {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 14px;
+            height: 14px;
+            margin-left: -7px;
+            margin-top: -14px;
+            background: #0f766e;
+            border: 2px solid #ffffff;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.4);
+          }
+          .ficha-map-attrib {
+            position: absolute;
+            right: 6px;
+            bottom: 4px;
+            font-size: 9px;
+            color: #475569;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 1px 6px;
+            border-radius: 4px;
+          }
           .ficha-photos-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -478,8 +575,8 @@ function buildDocument(title, content) {
           }
           .ficha-photo-cell {
             position: relative;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
             padding: 4mm;
             margin: 0;
             background: #ffffff;
@@ -491,14 +588,14 @@ function buildDocument(title, content) {
             width: 8cm;
             height: 6cm;
             object-fit: cover;
-            border-radius: 4px;
+            border-radius: 6px;
             border: 1px solid #e2e8f0;
             display: block;
             margin: 0 auto;
           }
           .ficha-photo-cell figcaption {
             margin-top: 3mm;
-            font-size: 10px;
+            font-size: 11px;
             color: #334155;
             text-align: center;
             max-width: 8cm;
@@ -507,18 +604,18 @@ function buildDocument(title, content) {
           }
           .ficha-photo-number {
             position: absolute;
-            top: 6px;
-            left: 6px;
-            background: #0f766e;
+            top: 8px;
+            left: 8px;
+            background: #0f172a;
             color: #ffffff;
             border-radius: 999px;
-            width: 20px;
-            height: 20px;
+            width: 22px;
+            height: 22px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             font-weight: 700;
-            font-size: 10px;
+            font-size: 11px;
           }
           .ficha-photo-missing {
             height: 6cm;
@@ -527,12 +624,11 @@ function buildDocument(title, content) {
             justify-content: center;
             color: #94a3b8;
             border: 1px dashed #cbd5e1;
-            border-radius: 4px;
-            font-size: 10px;
+            border-radius: 6px;
+            font-size: 11px;
           }
           @media print {
-            body { padding: 0; background: #ffffff; }
-            .ficha-section, .ficha-header { box-shadow: none; }
+            body { padding: 0; }
           }
         </style>
       </head>

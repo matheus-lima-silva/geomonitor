@@ -122,6 +122,45 @@ describe('buildSingleErosionFichaPdfDocument', () => {
     expect(html).not.toContain('<figure class="ficha-photo-cell">');
   });
 
+  it('embute mapa estatico com tiles OpenTopoMap quando erosao tem latitude/longitude', () => {
+    const html = buildSingleErosionFichaPdfDocument({
+      erosion: baseErosion({ locationCoordinates: { latitude: '-21.1', longitude: '-42.1' } }),
+      project: {},
+      history: [],
+      relatedInspections: [],
+    });
+    expect(html).toContain('class="ficha-map"');
+    expect(html).toContain('tile.opentopomap.org/14/');
+    expect(html).toContain('ficha-map-pin');
+    expect(html).toContain('OpenStreetMap');
+  });
+
+  it('omite mapa quando erosao nao tem coordenadas', () => {
+    const html = buildSingleErosionFichaPdfDocument({
+      erosion: baseErosion({ locationCoordinates: {}, latitude: '', longitude: '' }),
+      project: {},
+      history: [],
+      relatedInspections: [],
+    });
+    expect(html).not.toContain('class="ficha-map"');
+    expect(html).not.toContain('tile.opentopomap.org/');
+  });
+
+  it('usa tipografia neutra sem bordas coloridas (paridade com o modal)', () => {
+    const html = buildSingleErosionFichaPdfDocument({
+      erosion: baseErosion(),
+      project: {},
+      history: [],
+      relatedInspections: [],
+    });
+    // h2 nao deve ser uppercase/letter-spacing — deve ficar como o modal
+    expect(html).toContain('text-transform: none;');
+    expect(html).toContain('letter-spacing: 0;');
+    // ficha-section nao deve ter border-top colorido
+    expect(html).not.toMatch(/\.ficha-section\s*\{[^}]*border-top:\s*3px solid #3b82f6/);
+    expect(html).not.toMatch(/border-top:\s*3px solid #0f766e/);
+  });
+
   it('renderiza placeholder quando signedUrl e vazia (foto orfa)', () => {
     const html = buildSingleErosionFichaPdfDocument({
       erosion: baseErosion(),
