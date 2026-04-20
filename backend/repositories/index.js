@@ -18,8 +18,10 @@ const mediaAssetRepository = require('./mediaAssetRepository');
 const reportTemplateRepository = require('./reportTemplateRepository');
 const rulesConfigRepository = require('./rulesConfigRepository');
 const workspaceMemberRepository = require('./workspaceMemberRepository');
+const adminSqlAuditRepository = require('./adminSqlAuditRepository');
 
 module.exports = {
+    adminSqlAuditRepository,
     reportDefaultsRepository,
     reportWorkspaceRepository,
     reportPhotoRepository,

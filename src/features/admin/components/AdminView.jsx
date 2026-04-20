@@ -14,6 +14,7 @@ import { normalizeUserStatus } from '../../shared/statusUtils';
 import SignaturesSection from './SignaturesSection';
 import WorkspacesAccessSection from './WorkspacesAccessSection';
 import UsageStatsSection from './UsageStatsSection';
+import SqlExecutorPanel from './SqlExecutorPanel';
 
 function AdminView({
   users,
@@ -197,6 +198,9 @@ function AdminView({
         <Button variant={section === 'rules' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('rules')}><AppIcon name="shield" />Criticidade</Button>
         <Button variant={section === 'retencao' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('retencao')}><AppIcon name="clock" />Retencao</Button>
         <Button variant={section === 'stats' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('stats')}><AppIcon name="dashboard-nav" />Estatisticas</Button>
+        {user?.role === 'admin' && (
+          <Button variant={section === 'sql' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('sql')}><AppIcon name="database" />Console SQL</Button>
+        )}
       </div>
 
       {section === 'users' && (
@@ -281,6 +285,10 @@ function AdminView({
 
       {section === 'stats' && (
         <UsageStatsSection />
+      )}
+
+      {section === 'sql' && user?.role === 'admin' && (
+        <SqlExecutorPanel />
       )}
 
       {section === 'retencao' && (

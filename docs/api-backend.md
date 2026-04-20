@@ -652,6 +652,30 @@ Endpoints de observabilidade agregada (somente Admin).
 
 ---
 
+## Admin SQL Executor (`/api/admin/sql`)
+
+Console SQL ad-hoc somente leitura para administradores. Defesa em camadas:
+
+1. `isReadOnlySql()` em [../backend/utils/sqlReadOnlyGuard.js](../backend/utils/sqlReadOnlyGuard.js) — rejeita multi-statement, aceita so primeiro token em `{SELECT, WITH, EXPLAIN, SHOW, VALUES, TABLE}`, lista negra de keywords (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `GRANT`, `REVOKE`, `VACUUM`, `COPY`, `CALL`, `DO`, `MERGE`, ...).
+2. Transacao `BEGIN READ ONLY` + `SET LOCAL statement_timeout = 5000` + `ROLLBACK` garantido no Postgres.
+3. Rate limit dedicado: 20 req / 5 min (em [../backend/server.js](../backend/server.js)).
+4. Truncamento do resultado em `MAX_ROWS = 1000` (flag `truncated` no envelope).
+5. Audit log persistente na tabela `admin_sql_audit` (migration `0012_admin_sql_audit.sql`) — cada execucao (`success`, `error`, `blocked`) vira uma linha com quem, quando, SQL, linhas, duracao, mensagem.
+
+| Metodo | Rota | Permissao | Descricao |
+|---|---|---|---|
+| POST | `/api/admin/sql/execute` | `requireAdmin` | Executa SQL read-only; body `{ data: { sql: string(1..5000) } }`. Retorna `{ columns, rows, rowCount, truncated, durationMs }` |
+| GET | `/api/admin/sql/audit?page=&limit=` | `requireAdmin` | Lista paginada do audit log (mais recente primeiro) |
+
+Codigos de erro especificos do `/execute`:
+- `400 SQL_NOT_READ_ONLY` — guard bloqueou (audita `status='blocked'`)
+- `400 SQL_EXECUTION_ERROR` — Postgres retornou erro (audita `status='error'`)
+- `400 VALIDATION_ERROR` — body nao passou no Zod
+
+Integracao no frontend: aba "Console SQL" dentro de `AdminView` ([../src/features/admin/components/SqlExecutorPanel.jsx](../src/features/admin/components/SqlExecutorPanel.jsx)), visivel so para `user.role === 'admin'`.
+
+---
+
 ## Workers e integracao interna
 
 Alguns endpoints aceitam um header alternativo `x-worker-token` (valor em `WORKER_API_TOKEN`) no lugar do JWT de usuario, para permitir que o worker consuma a API sem uma sessao humana. Usado em:

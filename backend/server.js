@@ -66,9 +66,20 @@ const authLimiter = rateLimit({
   message: { status: 'error', code: 'RATE_LIMITED', message: 'Muitas tentativas. Tente novamente em alguns minutos.' },
 });
 
+// Limiter dedicado para o console SQL admin — 20 req / 5 min. Mesmo que
+// requireAdmin ja proteja, previne loop acidental de execucao.
+const adminSqlLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { status: 'error', code: 'RATE_LIMITED', message: 'Limite de execucoes SQL excedido. Aguarde alguns minutos.' },
+});
+
 // Aplicar rate limiter apenas em rotas da API
 app.use('/api', apiLimiter);
 app.use('/api/auth', authLimiter);
+app.use('/api/admin/sql/execute', adminSqlLimiter);
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', service: 'geomonitor-api' });
@@ -95,6 +106,7 @@ const reportTemplatesRouter = require('./routes/reportTemplates');
 const authRouter = require('./routes/auth');
 const profissoesRouter = require('./routes/profissoes');
 const adminMetricsRouter = require('./routes/adminMetrics');
+const adminSqlExecutorRouter = require('./routes/adminSqlExecutor');
 
 app.use('/api/auth', authRouter);
 app.use('/api/profissoes', profissoesRouter);
@@ -116,6 +128,7 @@ app.use('/api/report-delivery-tracking', reportDeliveryTrackingRouter);
 app.use('/api/report-templates', reportTemplatesRouter);
 app.use('/api/rules', rulesRouter);
 app.use('/api/admin/metrics', adminMetricsRouter);
+app.use('/api/admin/sql', adminSqlExecutorRouter);
 
 // Global Error Handler para não expor erros ao cliente em prod
 const { logError } = require('./utils/asyncHandler');

@@ -15,6 +15,7 @@ import ChevronUp from 'lucide-react/dist/esm/icons/chevron-up';
 import ClipboardCheck from 'lucide-react/dist/esm/icons/clipboard-check';
 import ClipboardList from 'lucide-react/dist/esm/icons/clipboard-list';
 import Copy from 'lucide-react/dist/esm/icons/copy';
+import Database from 'lucide-react/dist/esm/icons/database';
 import Download from 'lucide-react/dist/esm/icons/download';
 import Eye from 'lucide-react/dist/esm/icons/eye';
 import EyeOff from 'lucide-react/dist/esm/icons/eye-off';
@@ -106,6 +107,7 @@ const ICON_MAP = {
   italic: Italic,
   list: List,
   copy: Copy,
+  database: Database,
   eye: Eye,
   'eye-off': EyeOff,
   loader: Loader2,
