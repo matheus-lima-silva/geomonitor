@@ -70,6 +70,10 @@ async function query(text, params = []) {
     return getPool().query(text, params);
 }
 
+async function connect() {
+    return getPool().connect();
+}
+
 function wrapDoc(docId, payload) {
     return {
         exists: payload !== undefined,
@@ -168,6 +172,7 @@ module.exports = {
     buildMigrationRecord,
     buildPgConnectionOptions,
     query,
+    connect,
     listDocs,
     getDoc,
     setDoc,
