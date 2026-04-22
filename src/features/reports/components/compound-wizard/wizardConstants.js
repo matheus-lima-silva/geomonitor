@@ -1,12 +1,15 @@
 // Estrutura dos steps do wizard de criacao/edicao do relatorio final.
-// Ordem: Cabecalho -> Textos -> Workspaces -> Assinaturas -> Revisao.
+// Ordem: Cabecalho -> Textos -> Workspaces -> Assinaturas -> Fichas -> Revisao.
 export const WIZARD_STEPS = [
   { id: 'cabecalho', label: 'Cabeçalho' },
   { id: 'textos', label: 'Textos' },
   { id: 'workspaces', label: 'Workspaces' },
   { id: 'assinaturas', label: 'Assinaturas' },
+  { id: 'fichas', label: 'Fichas de erosão' },
   { id: 'revisao', label: 'Revisão' },
 ];
+
+export const ANEXO_FICHAS_MODES = Object.freeze(['none', 'all', 'selected']);
 
 export const DEFAULT_DRAFT = Object.freeze({
   nome: '',
@@ -26,6 +29,8 @@ export const DEFAULT_DRAFT = Object.freeze({
   revisores: [],
   includeTowerCoordinates: false,
   towerCoordinateFormat: 'decimal',
+  anexoFichasMode: 'none',
+  anexoFichasErosionIds: [],
 });
 
 // Campos do draft considerados obrigatorios. Hoje so 'nome' (alinhado com a

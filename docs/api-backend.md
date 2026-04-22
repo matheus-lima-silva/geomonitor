@@ -496,6 +496,12 @@ Tabela Postgres: `report_compounds`. Composto = agrupamento de varios workspaces
 | POST | `/api/report-compounds/:id/preflight` | `requireEditor` | Valida composto pre-geracao |
 | POST | `/api/report-compounds/:id/generate` | `requireEditor` | Enfileira geracao DOCX (resposta 202) |
 
+Campos relevantes de `sharedTextsJson`:
+- `elaboradores`, `revisores`: arrays de snapshots de signatarios `{ nome, profissao, registro }`.
+- `includeTowerCoordinates` / `towerCoordinateFormat`: habilita e formata coordenadas de torre nas fotos.
+- `anexoFichasMode`: `none` (default) | `all` | `selected` — controla o anexo de fichas de erosao simplificada apos as assinaturas.
+- `anexoFichasErosionIds`: array de `erosion.id` usado quando `anexoFichasMode = 'selected'`. As fichas sempre saem ordenadas pelo numero da torre (crescente).
+
 ---
 
 ## Report Archives (`/api/report-archives`)

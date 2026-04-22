@@ -8,6 +8,7 @@ import StepCabecalho from './compound-wizard/StepCabecalho';
 import StepTextos from './compound-wizard/StepTextos';
 import StepWorkspaces from './compound-wizard/StepWorkspaces';
 import StepAssinaturas from './compound-wizard/StepAssinaturas';
+import StepFichasErosao from './compound-wizard/StepFichasErosao';
 import StepRevisao from './compound-wizard/StepRevisao';
 import {
   DEFAULT_DRAFT,
@@ -52,6 +53,12 @@ function draftFromCompound(compound, signatariosCandidatos = []) {
     revisores: revisoresIds,
     includeTowerCoordinates: !!shared.includeTowerCoordinates,
     towerCoordinateFormat: shared.towerCoordinateFormat || 'decimal',
+    anexoFichasMode: ['none', 'all', 'selected'].includes(shared.anexoFichasMode)
+      ? shared.anexoFichasMode
+      : 'none',
+    anexoFichasErosionIds: Array.isArray(shared.anexoFichasErosionIds)
+      ? shared.anexoFichasErosionIds.filter(Boolean).map(String)
+      : [],
   };
 }
 
@@ -316,6 +323,15 @@ export default function CompoundWizard({
             onChange={setDraft}
             signatariosCandidatos={signatariosCandidatos}
             profissoes={profissoes}
+          />
+        ) : null}
+        {currentStep?.id === 'fichas' ? (
+          <StepFichasErosao
+            draft={draft}
+            onChange={setDraft}
+            compound={compound}
+            workspaces={workspaces}
+            pendingWorkspaceIds={pendingWorkspaceIds}
           />
         ) : null}
         {currentStep?.id === 'revisao' ? (

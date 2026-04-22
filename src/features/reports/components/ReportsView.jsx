@@ -1378,6 +1378,12 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       revisores: revisoresArr,
       includeTowerCoordinates: !!draft.includeTowerCoordinates,
       towerCoordinateFormat: draft.towerCoordinateFormat || 'decimal',
+      anexoFichasMode: ['none', 'all', 'selected'].includes(draft.anexoFichasMode)
+        ? draft.anexoFichasMode
+        : 'none',
+      anexoFichasErosionIds: Array.isArray(draft.anexoFichasErosionIds)
+        ? draft.anexoFichasErosionIds.map((id) => String(id || '').trim()).filter(Boolean)
+        : [],
     };
   }
 

@@ -202,6 +202,54 @@ async function buildProjectDossierContext(job) {
     };
 }
 
+function parseTowerNumberForSort(value) {
+    const text = normalizeText(value).toLowerCase();
+    if (!text) return Number.POSITIVE_INFINITY;
+    if (/^t-?\d+$/.test(text)) {
+        const parsed = Number(text.slice(1).replace(/^-/, ''));
+        return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+    }
+    if (/^-?\d+$/.test(text)) {
+        const parsed = Number(text);
+        return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+    }
+    const match = text.match(/-?\d+/);
+    if (!match) return Number.POSITIVE_INFINITY;
+    const parsed = Number(match[0]);
+    return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+}
+
+function sortErosionsByTower(erosions) {
+    return [...erosions].sort((a, b) => {
+        const tA = parseTowerNumberForSort(a?.torreRef);
+        const tB = parseTowerNumberForSort(b?.torreRef);
+        if (tA !== tB) return tA - tB;
+        return normalizeText(a?.id).localeCompare(normalizeText(b?.id), undefined, { numeric: true });
+    });
+}
+
+async function collectAnexoFichasErosions(shared, uniqueProjectIds) {
+    const mode = normalizeText(shared?.anexoFichasMode).toLowerCase();
+    if (!mode || mode === 'none') return [];
+
+    if (mode === 'selected') {
+        const ids = Array.isArray(shared?.anexoFichasErosionIds)
+            ? shared.anexoFichasErosionIds.map((id) => normalizeText(id)).filter(Boolean)
+            : [];
+        if (ids.length === 0) return [];
+        const fetched = await Promise.all(ids.map((id) => erosionRepository.getById(id)));
+        return fetched.filter(Boolean);
+    }
+
+    if (mode === 'all') {
+        const projectIds = Array.isArray(uniqueProjectIds) ? uniqueProjectIds : [];
+        const chunks = await Promise.all(projectIds.map((pid) => erosionRepository.listByProject(pid)));
+        return chunks.flat();
+    }
+
+    return [];
+}
+
 async function buildReportCompoundContext(job) {
     const compound = await reportCompoundRepository.getById(job.compoundId);
     if (!compound) {
@@ -249,6 +297,19 @@ async function buildReportCompoundContext(job) {
         });
     }
 
+    // 4) Anexo de fichas de erosao simplificada (apos assinaturas).
+    const sharedForFichas = compound.sharedTextsJson && typeof compound.sharedTextsJson === 'object'
+        ? compound.sharedTextsJson
+        : {};
+    const rawAnexoErosions = await collectAnexoFichasErosions(sharedForFichas, uniqueProjectIds);
+    const anexoErosions = sortErosionsByTower(rawAnexoErosions.map((erosion) => enrichErosionWithUtm(erosion)));
+    const anexoProjectName = uniqueProjectIds.length > 0
+        ? (normalizeText(projectMap.get(uniqueProjectIds[0])?.nome) || uniqueProjectIds[0])
+        : '';
+    const anexoFichas = anexoErosions.length > 0
+        ? { erosions: anexoErosions, projectName: anexoProjectName }
+        : null;
+
     return {
         job,
         project: null,
@@ -257,14 +318,13 @@ async function buildReportCompoundContext(job) {
             compound: {
                 id: compound.id,
                 nome: compound.nome,
-                sharedTextsJson: compound.sharedTextsJson && typeof compound.sharedTextsJson === 'object'
-                    ? compound.sharedTextsJson
-                    : {},
+                sharedTextsJson: sharedForFichas,
                 orderJson: normalizeCompoundOrder(compound.workspaceIds, compound.orderJson),
                 workspaceIds: Array.isArray(compound.workspaceIds) ? compound.workspaceIds : [],
                 lastJobId: compound.lastJobId || job.id,
                 outputDocxMediaId: compound.outputDocxMediaId || '',
                 lastError: compound.lastError || '',
+                ...(anexoFichas ? { anexoFichas } : {}),
             },
             workspaces,
         },

@@ -218,6 +218,18 @@ Testes: [src/features/reports/utils/__tests__/towerCurationStatus.test.js](../sr
 
 ---
 
+## Anexo de fichas de erosao simplificada
+
+O wizard de criacao/edicao do compound tem uma etapa dedicada a anexar fichas de erosao simplificada **apos as assinaturas** no DOCX final. O conteudo aparece sob o heading `ANEXO - FICHAS DE EROSÃO SIMPLIFICADA`, com uma pagina por erosao e ordenacao crescente pelo numero da torre.
+
+Persistencia no `sharedTextsJson` do compound:
+- `anexoFichasMode`: `none` (default) | `all` | `selected`.
+- `anexoFichasErosionIds`: usado quando `anexoFichasMode = 'selected'`; array de ids de `erosions` (uma entrada por ficha).
+
+O backend monta `renderModel.compound.anexoFichas = { erosions, projectName }` em [buildReportCompoundContext](../backend/utils/reportJobContext.js) quando o modo nao e `none`, reaproveitando `enrichErosionWithUtm`. O worker usa o helper `append_fichas_cadastro_to_document` ([worker/ficha_cadastro_renderer.py](../worker/ficha_cadastro_renderer.py)) — o mesmo codigo que a rota standalone `POST /api/erosions/fichas-cadastro/generate`.
+
+---
+
 ## Jobs e worker
 
 A geracao de DOCX, o processamento de KMZ grande e o export ZIP de fotos rodam no worker para nao bloquear a API. Flow basico:

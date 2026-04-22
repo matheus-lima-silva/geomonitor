@@ -1081,6 +1081,19 @@ def render_report_compound_docx(context, output_path, image_loader):
     if elaboradores or revisores:
         add_signature_block(document, elaboradores, revisores)
 
+    anexo_fichas = ensure_dict(compound.get("anexoFichas"))
+    anexo_erosions = safe_list(anexo_fichas.get("erosions"))
+    if anexo_erosions:
+        from worker.ficha_cadastro_renderer import append_fichas_cadastro_to_document
+
+        document.add_page_break()
+        add_heading_paragraph(document, "ANEXO - FICHAS DE EROSÃO SIMPLIFICADA", ilvl=0)
+        append_fichas_cadastro_to_document(
+            document,
+            anexo_erosions,
+            normalize_text(anexo_fichas.get("projectName")) or lt_name,
+        )
+
     if used_template:
         insert_content_section_break(document, content_sectpr)
 

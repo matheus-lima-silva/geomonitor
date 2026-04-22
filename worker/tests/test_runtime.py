@@ -582,6 +582,68 @@ class WorkerRuntimeTests(unittest.TestCase):
             ),
         )
 
+    def test_report_compound_anexo_fichas_appended_after_signatures(self):
+        """Anexo de fichas de erosao simplificada aparece apos assinaturas."""
+        ctx = build_compound_context()
+        ctx["renderModel"]["compound"]["sharedTextsJson"] = {
+            "introducao": "Introducao global",
+            "elaboradores": [{"nome": "Fulano", "profissao": "Geotecnico", "registro": "123"}],
+            "revisores": [],
+        }
+        ctx["renderModel"]["compound"]["anexoFichas"] = {
+            "projectName": "Projeto Alfa",
+            "erosions": [
+                {
+                    "id": "EROS-1",
+                    "torreRef": "T-01",
+                    "criticalityCode": "C2",
+                    "locationCoordinates": {"utmEasting": "500000", "utmNorthing": "7000000"},
+                },
+            ],
+        }
+        docx = self._run_compound(ctx, job_id="JOB-ANEXO")
+        plain = read_docx_plain_text(docx)
+        idx_sig = plain.find("Fulano")
+        idx_anexo = plain.find("ANEXO")
+        self.assertGreaterEqual(idx_sig, 0, "assinatura deveria estar no DOCX")
+        self.assertGreaterEqual(idx_anexo, 0, "heading ANEXO deveria estar no DOCX")
+        self.assertGreater(idx_anexo, idx_sig, "ANEXO deve vir apos as assinaturas")
+        self.assertIn("FICHAS DE EROS", plain)
+
+    def test_report_compound_without_anexo_fichas(self):
+        """Sem anexoFichas, o heading ANEXO nao deve aparecer."""
+        ctx = build_compound_context()
+        ctx["renderModel"]["compound"]["sharedTextsJson"] = {"introducao": "Introducao"}
+        docx = self._run_compound(ctx, job_id="JOB-NO-ANEXO")
+        plain = read_docx_plain_text(docx)
+        self.assertNotIn("ANEXO - FICHAS DE EROS", plain)
+
+    def test_append_fichas_helper_adds_one_table_per_erosion(self):
+        """Helper gera uma tabela por erosao, respeitando o template."""
+        from docx import Document
+        from worker.ficha_cadastro_renderer import append_fichas_cadastro_to_document
+
+        document = Document()
+        document.add_paragraph("Assinaturas ficticias")
+        tables_before = len(document.tables)
+        erosions = [
+            {"id": "EROS-A", "torreRef": "T-02", "criticalityCode": "C3"},
+            {"id": "EROS-B", "torreRef": "T-05", "criticalityCode": "C1"},
+            {"id": "EROS-C", "torreRef": "T-09", "criticalityCode": "C4"},
+        ]
+        append_fichas_cadastro_to_document(document, erosions, "Projeto X")
+        self.assertEqual(len(document.tables) - tables_before, 3)
+
+    def test_append_fichas_helper_handles_empty_list(self):
+        """Lista vazia e no-op (nao adiciona nada ao documento)."""
+        from docx import Document
+        from worker.ficha_cadastro_renderer import append_fichas_cadastro_to_document
+
+        document = Document()
+        body_len_before = len(document._element.body.getchildren())
+        append_fichas_cadastro_to_document(document, [], "Projeto X")
+        self.assertEqual(len(document._element.body.getchildren()), body_len_before)
+
     def test_project_dossier_photo_numbering_sequential(self):
         """T8 — multiple photos produce sequential 'Foto N' captions."""
         context = build_dossier_context()

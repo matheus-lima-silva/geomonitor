@@ -448,6 +448,39 @@ def _add_page_break(document):
     document._element.body.append(p)
 
 
+def append_fichas_cadastro_to_document(document, erosions, project_name):
+    """Append erosion cadastro fichas to an existing document.
+
+    Clones the ficha template table once per erosion, fills it, and inserts
+    it into the document body with a page break between fichas. The caller
+    is responsible for any heading/page break before the first ficha — this
+    helper only emits the fichas themselves.
+    """
+    from docx.table import Table
+
+    if not erosions:
+        return
+
+    template_doc = Document(FICHA_TEMPLATE_PATH)
+    template_table = template_doc.tables[0]
+    body = document._element.body
+
+    for idx, erosion in enumerate(erosions):
+        if idx > 0:
+            _add_page_break(document)
+
+        cloned_tbl = _clone_table(template_table)
+
+        sect_pr = body.find(qn("w:sectPr"))
+        if sect_pr is not None:
+            sect_pr.addprevious(cloned_tbl)
+        else:
+            body.append(cloned_tbl)
+
+        cloned_table = Table(cloned_tbl, document)
+        _fill_ficha_table(cloned_table, erosion, project_name)
+
+
 def render_ficha_cadastro_docx(context, output_path, image_loader):
     """Render ficha de cadastro de erosao DOCX from database context."""
     render_model = ensure_dict(context.get("renderModel"))
@@ -457,54 +490,25 @@ def render_ficha_cadastro_docx(context, output_path, image_loader):
     project_name = normalize_text(project.get("nome")) or normalize_text(project.get("id"))
 
     if not erosions:
-        # Create empty document with a message
         doc = Document()
         doc.add_paragraph("Nenhuma erosao encontrada para gerar fichas de cadastro.")
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         doc.save(output_path)
         return output_path
 
-    # Load template
-    template_doc = Document(FICHA_TEMPLATE_PATH)
-    template_table = template_doc.tables[0]
-
-    # Create output document preserving template page setup
     output_doc = Document(FICHA_TEMPLATE_PATH)
     body = output_doc._element.body
 
-    # Remove original table from output
     original_tbl = output_doc.tables[0]._tbl
     body.remove(original_tbl)
 
-    # Also remove any existing paragraphs (template may have a blank one)
     for p in list(body.findall(qn("w:p"))):
-        # Keep sectPr paragraphs
         pPr = p.find(qn("w:pPr"))
         if pPr is not None and pPr.find(qn("w:sectPr")) is not None:
             continue
         body.remove(p)
 
-    # For each erosion, clone the template table, fill it, and append
-    for idx, erosion in enumerate(erosions):
-        if idx > 0:
-            _add_page_break(output_doc)
-
-        # Clone template table
-        cloned_tbl = _clone_table(template_table)
-
-        # Insert cloned table before the sectPr (if exists)
-        sect_pr = body.find(qn("w:sectPr"))
-        if sect_pr is not None:
-            sect_pr.addprevious(cloned_tbl)
-        else:
-            body.append(cloned_tbl)
-
-        # Access the cloned table via python-docx Table wrapper
-        from docx.table import Table
-        cloned_table = Table(cloned_tbl, output_doc)
-
-        # Fill the cloned table
-        _fill_ficha_table(cloned_table, erosion, project_name)
+    append_fichas_cadastro_to_document(output_doc, erosions, project_name)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     output_doc.save(output_path)

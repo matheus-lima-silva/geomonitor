@@ -109,6 +109,21 @@ export default function StepRevisao({
             : (draft.revisores || []).map((id) => sigLookup[id]?.nome || id).join(', ')}
         />
       </SummarySection>
+
+      <SummarySection title="Fichas de erosão" onEdit={() => onJumpToStep?.('fichas')}>
+        <SummaryRow
+          label="Anexo"
+          value={(() => {
+            const mode = draft.anexoFichasMode || 'none';
+            if (mode === 'none') return 'Nenhuma ficha anexada';
+            if (mode === 'all') return 'Todas as erosões dos projetos vinculados';
+            const count = Array.isArray(draft.anexoFichasErosionIds) ? draft.anexoFichasErosionIds.length : 0;
+            return count > 0
+              ? `${count} ficha(s) selecionada(s)`
+              : <span className="italic text-amber-700">Selecionar ativo, mas nenhuma ficha marcada</span>;
+          })()}
+        />
+      </SummarySection>
     </div>
   );
 }
