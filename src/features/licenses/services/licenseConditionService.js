@@ -1,45 +1,75 @@
-import { fetchWithHateoas } from '../../../utils/apiClient';
+import { API_BASE_URL, getAuthToken } from '../../../utils/serviceFactory';
 
-// Service de condicionantes de LO. Nao usa createCrudService porque as rotas
-// mais usadas sao nested (/api/licenses/:id/conditions) e bulkReplace.
-// Tudo passa por fetchWithHateoas respeitando o contrato HATEOAS.
+// Service de condicionantes de LO. Usa API_BASE_URL + fetch direto (mesmo
+// padrao de licenseAttachmentService.js). Nao usa fetchWithHateoas porque
+// construiamos href relativo sem preferredBaseUrl, o que fazia o navegador
+// resolver contra window.location.origin (o dominio do frontend) e receber
+// o index.html do SPA — erro "Unexpected token '<', '<!doctype '...".
 
-function makeLink(href, method) {
-    return { href, method };
-}
-
-function getBaseUrl() {
-    // Mesma estrategia de outros services: o fetchWithHateoas usa preferredBaseUrl
-    // ou cai em FALLBACK_PROD_API_BASE_URL. Aqui passamos href relativo e deixamos
-    // o client resolver.
-    return '';
+async function request(url, options = {}) {
+  const token = await getAuthToken();
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const err = new Error(data?.message || 'Erro na API de condicionantes da LO.');
+    err.status = response.status;
+    err.code = data?.code;
+    throw err;
+  }
+  if (response.status === 204) return null;
+  return response.json();
 }
 
 export async function listConditions(licenseId) {
-    const link = makeLink(`/api/licenses/${encodeURIComponent(licenseId)}/conditions`, 'GET');
-    const res = await fetchWithHateoas(link, null, getBaseUrl());
-    return Array.isArray(res?.data) ? res.data : [];
+  const id = String(licenseId || '').trim();
+  if (!id) return [];
+  const res = await request(`${API_BASE_URL}/licenses/${encodeURIComponent(id)}/conditions`, {
+    method: 'GET',
+  });
+  return Array.isArray(res?.data) ? res.data : [];
 }
 
 export async function createCondition(licenseId, data) {
-    const link = makeLink(`/api/licenses/${encodeURIComponent(licenseId)}/conditions`, 'POST');
-    const res = await fetchWithHateoas(link, { data }, getBaseUrl());
-    return res?.data || null;
+  const id = String(licenseId || '').trim();
+  if (!id) throw new Error('licenseId obrigatorio.');
+  const res = await request(`${API_BASE_URL}/licenses/${encodeURIComponent(id)}/conditions`, {
+    method: 'POST',
+    body: JSON.stringify({ data }),
+  });
+  return res?.data || null;
 }
 
 export async function bulkReplaceConditions(licenseId, items) {
-    const link = makeLink(`/api/licenses/${encodeURIComponent(licenseId)}/conditions`, 'PUT');
-    const res = await fetchWithHateoas(link, { data: items }, getBaseUrl());
-    return Array.isArray(res?.data) ? res.data : [];
+  const id = String(licenseId || '').trim();
+  if (!id) throw new Error('licenseId obrigatorio.');
+  const res = await request(`${API_BASE_URL}/licenses/${encodeURIComponent(id)}/conditions`, {
+    method: 'PUT',
+    body: JSON.stringify({ data: Array.isArray(items) ? items : [] }),
+  });
+  return Array.isArray(res?.data) ? res.data : [];
 }
 
 export async function updateCondition(condition, patch) {
-    const link = condition?._links?.update || makeLink(`/api/license-conditions/${encodeURIComponent(condition?.id || '')}`, 'PUT');
-    const res = await fetchWithHateoas(link, { data: patch }, getBaseUrl());
-    return res?.data || null;
+  const condId = String(condition?.id || '').trim();
+  if (!condId) throw new Error('condition.id obrigatorio.');
+  const res = await request(`${API_BASE_URL}/license-conditions/${encodeURIComponent(condId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ data: patch }),
+  });
+  return res?.data || null;
 }
 
 export async function deleteCondition(condition) {
-    const link = condition?._links?.delete || makeLink(`/api/license-conditions/${encodeURIComponent(condition?.id || '')}`, 'DELETE');
-    await fetchWithHateoas(link, null, getBaseUrl());
+  const condId = String(condition?.id || '').trim();
+  if (!condId) throw new Error('condition.id obrigatorio.');
+  await request(`${API_BASE_URL}/license-conditions/${encodeURIComponent(condId)}`, {
+    method: 'DELETE',
+  });
 }
