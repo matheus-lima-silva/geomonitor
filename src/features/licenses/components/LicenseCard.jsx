@@ -1,85 +1,103 @@
 import AppIcon from '../../../components/AppIcon';
-import { Badge, Button } from '../../../components/ui';
+import { Badge, IconButton } from '../../../components/ui';
 import {
   buildLicenseChips,
   buildLicenseSubtitle,
   buildLicenseTitle,
 } from '../utils/licenseCardFormat';
 
-// Card individual de LO no grid. Extrai titulacao e chips para helpers puros
-// (src/features/licenses/utils/licenseCardFormat.js), reaproveitados tambem
-// pela pagina de detalhe.
+// Card individual de LO. Otimizado para propor\u00e7\u00f5es consistentes no grid:
+// altura uniforme (h-full), corpo compacto de 2 linhas + footer de a\u00e7\u00f5es
+// icon-only. Click no corpo abre o detalhe (\u00e1rea grande de alvo).
+
+function formatVigencia(license) {
+  const ini = license.inicioVigencia || '';
+  const fim = license.fimVigencia || '';
+  if (ini && fim) return `${ini} \u2192 ${fim}`;
+  if (ini) return `Desde ${ini}`;
+  if (fim) return `At\u00e9 ${fim}`;
+  return 'Vig\u00eancia n\u00e3o informada';
+}
 
 export default function LicenseCard({ license, projectsById, onOpen, onEdit, onDelete }) {
   const title = buildLicenseTitle(license);
   const subtitle = buildLicenseSubtitle(license);
   const chips = buildLicenseChips(license);
   const cobertura = Array.isArray(license?.cobertura) ? license.cobertura : [];
+  const firstScope = cobertura[0];
+  const firstScopeLabel = firstScope
+    ? (projectsById?.get?.(firstScope.projetoId)?.nome || firstScope.descricaoEscopo || firstScope.projetoId)
+    : '';
 
   return (
-    <article className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+    <article className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
       <button
         type="button"
         onClick={() => onOpen?.(license)}
-        className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+        className="flex-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset"
       >
-        <header className="flex flex-col gap-2 px-4 py-3 bg-slate-50 border-b border-slate-200">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h3 className="text-base font-bold text-slate-800 m-0 truncate" title={title}>{title}</h3>
-              {subtitle && <p className="text-xs text-slate-500 m-0 mt-0.5">{subtitle}</p>}
-            </div>
-            <span className="text-2xs font-semibold text-slate-400 shrink-0 tabular-nums">{license.id}</span>
+        <header className="px-4 pt-3 pb-2">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="text-sm font-bold text-slate-800 m-0 leading-tight line-clamp-2" title={title}>
+              {title}
+            </h3>
+            <span className="text-2xs font-semibold text-slate-400 shrink-0 tabular-nums mt-0.5">{license.id}</span>
           </div>
+          {subtitle && (
+            <p className="text-xs text-slate-500 m-0 mt-1 truncate" title={subtitle}>{subtitle}</p>
+          )}
           {chips.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1 mt-2">
               {chips.map((chip, idx) => (
                 <Badge key={`${chip.label}-${idx}`} tone={chip.tone} size="sm">{chip.label}</Badge>
               ))}
             </div>
           )}
         </header>
+
+        <div className="px-4 py-2 text-xs text-slate-600 flex flex-col gap-1 border-t border-slate-100">
+          <div className="flex items-center gap-1.5 tabular-nums">
+            <AppIcon name="clipboard" className="w-3.5 h-3.5 text-slate-400" />
+            <span className="truncate" title={formatVigencia(license)}>{formatVigencia(license)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <AppIcon name="building" className="w-3.5 h-3.5 text-slate-400" />
+            <span className="truncate" title={firstScopeLabel}>
+              {cobertura.length === 0 ? 'Sem cobertura' : firstScopeLabel}
+              {cobertura.length > 1 && (
+                <span className="text-slate-400 font-semibold"> +{cobertura.length - 1}</span>
+              )}
+            </span>
+          </div>
+        </div>
       </button>
 
-      <div className="px-4 py-3 text-sm text-slate-600 flex flex-col gap-1 flex-1">
-        <div>
-          <strong className="text-slate-700">Vigência:</strong>{' '}
-          {license.inicioVigencia || '-'}{' '}até{' '}
-          {license.fimVigencia || 'indeterminada'}
-        </div>
-        <div>
-          <strong className="text-slate-700">Cobertura:</strong> {cobertura.length} escopo(s)
-          {cobertura.length > 0 && (
-            <ul className="mt-1 ml-4 list-disc text-xs text-slate-500">
-              {cobertura.slice(0, 3).map((cob, ci) => {
-                const proj = projectsById?.get?.(cob.projetoId);
-                const nome = proj ? `${proj.id} - ${proj.nome}` : cob.projetoId;
-                const torreCount = (cob.torres || []).length;
-                return <li key={ci} className="truncate" title={nome}>{nome} ({torreCount} torres)</li>;
-              })}
-              {cobertura.length > 3 && (
-                <li className="list-none text-slate-400">+ {cobertura.length - 3} mais</li>
-              )}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      <footer className="flex items-center gap-2 px-4 py-2 border-t border-slate-100 bg-white">
-        <Button variant="ghost" size="sm" onClick={() => onOpen?.(license)} aria-label="Abrir detalhe">
+      <footer className="flex items-center justify-end gap-1 px-3 py-2 border-t border-slate-100 bg-slate-50">
+        <IconButton
+          variant="ghost"
+          size="sm"
+          onClick={() => onOpen?.(license)}
+          aria-label={`Abrir detalhes de ${title}`}
+        >
           <AppIcon name="details" />
-          Detalhes
-        </Button>
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => onEdit?.(license)}>
-            <AppIcon name="edit" />
-            Editar
-          </Button>
-          <Button variant="danger" size="sm" onClick={() => onDelete?.(license)}>
-            <AppIcon name="trash" />
-            Excluir
-          </Button>
-        </div>
+        </IconButton>
+        <IconButton
+          variant="ghost"
+          size="sm"
+          onClick={() => onEdit?.(license)}
+          aria-label={`Editar ${title}`}
+        >
+          <AppIcon name="edit" />
+        </IconButton>
+        <IconButton
+          variant="ghost"
+          size="sm"
+          onClick={() => onDelete?.(license)}
+          aria-label={`Excluir ${title}`}
+          className="text-slate-400 hover:text-danger hover:bg-danger-light"
+        >
+          <AppIcon name="trash" />
+        </IconButton>
       </footer>
     </article>
   );
