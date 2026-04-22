@@ -162,7 +162,33 @@ Adicionado `useOptionalToast()` que retorna um stub `{ show: () => {} }` quando 
 
 `camera`, `image`/`photo`, `image-off`, `arrow-up`, `arrow-down` — usados no picker, lightbox e fallback de `MediaImage`.
 
+## Novo primitive `Tabs` (abril/2026, feature de LOs)
+
+Adicionado `src/components/ui/Tabs.jsx` como primeiro primitive de tabs do projeto — nao existia anteriormente. Consumido inicialmente pelo redesign do modulo de Licencas (modal de LO segmentado em 7 abas e pagina de detalhe com 4 abas).
+
+- **API**: `<Tabs items={[{key, label, icon?, badge?}]} activeKey onChange ariaLabel className? />`. Controlled: o caller guarda o `activeKey`.
+- **Acessibilidade**: `role="tablist"`/`role="tab"`/`aria-selected`. Setas Left/Right + Home/End movem selecao com foco e atualizam `activeKey` automaticamente.
+- **Visual**: linha inferior `border-b-2` no item ativo, cor `brand-600`. Itens inativos em `text-slate-500` com hover `text-slate-800`. Sem hex literal — tudo via tokens.
+- **Fallback**: se `activeKey` nao pertencer a `items`, o primitive chama `onChange(items[0].key)` no primeiro efeito.
+- **Testes**: `src/components/ui/__tests__/Tabs.test.jsx` (4 casos: render, click, keyboard nav, activeKey invalido).
+
+Usar sempre que um container precise alternar entre paineis sem criar componentes separados. Nao criar mais abas ad-hoc com `<button className="border-b">` no projeto.
+
+## Redesign do modulo de Licencas de Operacao (abril/2026)
+
+PR grande que refatorou `src/features/licenses/components/LicensesView.jsx` em cima dos primitives do barrel. Itens introduzidos:
+
+- **`LicenseCard`** (`src/features/licenses/components/LicenseCard.jsx`) — card enriquecido com titulo contextual (`LO Nº X — Empreendimento`), subtitulo `orgao · esfera · UF` e chips de status (periodicidade, proximo vencimento com tone warning/danger, flag erosiva) via `Badge`. Deprecia o header `<h3>{numero}</h3>` solto do card antigo.
+- **`LicenseDetailView`** (`src/features/licenses/components/LicenseDetailView.jsx`) — painel full-screen ativado por URL param `?license=ID`. Quatro abas: Resumo (dois `<section>` grid), Condicionantes (reusa `LicenseConditionsSection`), Documentos (reusa `LicenseFilesSection`), Historico. Usa `Tabs` primitive.
+- **`LicenseFiltersBar`** (`src/features/licenses/components/LicenseFiltersBar.jsx`) — barra de filtros composta (busca texto, multi-select de orgaos em popover, select esfera, date input de vencimento, checkbox "so com acomp. erosivo"). Segue o padrao flat + reset de `BibliotecaTab`.
+- **`useLicensesFilters`** (`src/features/licenses/hooks/useLicensesFilters.js`) — hook que encapsula estado + aplicacao dos filtros. Retorna `{ filters, setFilter, reset, apply(licenses, projectsById), isEmpty }`. Testado com 7 casos em `__tests__/useLicensesFilters.test.jsx`.
+- **`LicenseFormModal` em abas** — o modal antigo de ~30 campos em scroll unico agora se divide em 7 abas (Identificacao, Vigencia, Cronograma, Cobertura, Condicionantes, Documentos, Observacoes). Cada aba sub-componente proprio. Campos reusam `Input`, `Select`, `SearchableSelect`, `Textarea`, `RangeSlider` — zero controle ad-hoc novo.
+- **Helpers puros** em `src/features/licenses/utils/licenseCardFormat.js` (`buildLicenseTitle`, `buildLicenseSubtitle`, `buildLicenseChips`, `daysUntil`) testados em `__tests__/licenseCardFormat.test.js` (11 casos).
+
+A secao "exige acompanhamento erosivo" permanece como callout amber (alinhado ao warning do projeto). Roteamento por URL param (`?license=ID`) foi escolhido por fidelidade ao projeto — o app nao usa React Router; seguimos o padrao ja presente em `App.jsx:8` (`?uiReview=sidebar`) e `?token` do reset-password.
+
 ## Follow-up suggestions
 
 - Add regression tests for the paginated trash modal (cover page boundaries, empty pages, filter + sort interaction). Existing tests cover `WorkspacesTab.lixeira` but not the modal's pagination edge cases.
 - Consider extracting the "status machine button" pattern from `DeliveryUploadModal` into a primitive, as similar step state flows exist in the KMZ import UI.
+- Migrar as abas ad-hoc que ainda sobrevivem em outros modulos (ex.: `ReportsView` subtabs internas) para o primitive `Tabs`.

@@ -15,3 +15,4 @@ export { default as SearchableSelect } from './SearchableSelect';
 export { default as Skeleton, PhotoCardSkeleton, ListItemSkeleton } from './Skeleton';
 export { default as PageHeader } from './PageHeader';
 export { default as EmptyState } from './EmptyState';
+export { default as Tabs } from './Tabs';
