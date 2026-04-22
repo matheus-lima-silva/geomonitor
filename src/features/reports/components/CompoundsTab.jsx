@@ -5,6 +5,8 @@ import Modal from '../../../components/ui/Modal';
 import CompoundCard from './CompoundCard';
 import CompoundWizard from './CompoundWizard';
 import DeliveryUploadModal from './DeliveryUploadModal';
+import DraftResumeCard from './DraftResumeCard';
+import { useStoredCompoundDraft } from '../hooks/useCompoundDraftAutoSave';
 import { fmt } from '../utils/reportUtils';
 
 // Orquestrador do modulo "Relatorio Final" (antes "Relatorios Compostos").
@@ -47,11 +49,16 @@ export default function CompoundsTab({
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardMode, setWizardMode] = useState('create');
   const [wizardCompound, setWizardCompound] = useState(null);
+  const [wizardAutoRestore, setWizardAutoRestore] = useState(false);
 
   const [confirmHardDelete, setConfirmHardDelete] = useState(null);
+  const [confirmDiscardDraft, setConfirmDiscardDraft] = useState(false);
   const [deliveryCompound, setDeliveryCompound] = useState(null);
   const [archiveRefreshToken, setArchiveRefreshToken] = useState(0);
   const [showTrash, setShowTrash] = useState(false);
+
+  const { draft: storedDraft, savedAt: storedDraftSavedAt, reload: reloadStoredDraft, clear: clearStoredDraft } =
+    useStoredCompoundDraft(userEmail);
 
   const activeCompounds = compounds.filter((c) => !c.deletedAt);
   const trashedCompounds = compounds.filter((c) => c.deletedAt);
@@ -59,12 +66,21 @@ export default function CompoundsTab({
   function openCreate() {
     setWizardCompound(null);
     setWizardMode('create');
+    setWizardAutoRestore(false);
     setWizardOpen(true);
   }
 
   function openEdit(compound) {
     setWizardCompound(compound);
     setWizardMode('edit');
+    setWizardAutoRestore(false);
+    setWizardOpen(true);
+  }
+
+  function openDraftResume() {
+    setWizardCompound(null);
+    setWizardMode('create');
+    setWizardAutoRestore(true);
     setWizardOpen(true);
   }
 
@@ -72,6 +88,14 @@ export default function CompoundsTab({
     setWizardOpen(false);
     setWizardCompound(null);
     setWizardMode('create');
+    setWizardAutoRestore(false);
+    reloadStoredDraft();
+  }
+
+  function handleDiscardDraft() {
+    clearStoredDraft();
+    setConfirmDiscardDraft(false);
+    showToast('Rascunho descartado', 'info');
   }
 
   async function handleWizardCreate(draft) {
@@ -92,15 +116,24 @@ export default function CompoundsTab({
   return (
     <>
       {!wizardOpen ? (
-        <div className="flex justify-end">
-          <Button onClick={openCreate} data-testid="compounds-create-new">
-            <AppIcon name="plus" /> Criar novo relatório
-          </Button>
-        </div>
+        <>
+          <DraftResumeCard
+            draft={storedDraft}
+            savedAt={storedDraftSavedAt}
+            onResume={openDraftResume}
+            onDiscard={() => setConfirmDiscardDraft(true)}
+          />
+          <div className="flex justify-end">
+            <Button onClick={openCreate} data-testid="compounds-create-new">
+              <AppIcon name="plus" /> Criar novo relatório
+            </Button>
+          </div>
+        </>
       ) : (
         <CompoundWizard
           mode={wizardMode}
           initialCompound={wizardCompound}
+          autoRestoreDraft={wizardAutoRestore}
           compounds={compounds}
           signatariosCandidatos={signatariosCandidatos}
           profissoes={profissoes}
@@ -227,6 +260,27 @@ export default function CompoundsTab({
           Deseja excluir permanentemente o relatório{' '}
           <strong>{confirmHardDelete?.nome || confirmHardDelete?.id}</strong>? Essa ação não pode
           ser desfeita.
+        </p>
+      </Modal>
+
+      <Modal
+        open={confirmDiscardDraft}
+        onClose={() => setConfirmDiscardDraft(false)}
+        title="Descartar rascunho"
+        size="sm"
+        footer={(
+          <>
+            <Button variant="outline" onClick={() => setConfirmDiscardDraft(false)}>
+              <AppIcon name="close" /> Cancelar
+            </Button>
+            <Button variant="danger" onClick={handleDiscardDraft} data-testid="compound-draft-discard-confirm">
+              <AppIcon name="trash-2" /> Descartar
+            </Button>
+          </>
+        )}
+      >
+        <p className="m-0 text-sm text-slate-700">
+          Deseja descartar o rascunho em andamento? Essa ação não pode ser desfeita.
         </p>
       </Modal>
 

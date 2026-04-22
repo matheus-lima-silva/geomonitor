@@ -91,3 +91,45 @@ export default function useCompoundDraftAutoSave(draft, { userEmail, enabled = t
     clearSaved,
   };
 }
+
+// Leitura reativa do rascunho salvo — usado pelo banner de "Rascunho em
+// andamento" na aba Relatorio Final. Atualiza via evento 'storage' (outras
+// abas) e via reload() manual apos fechar o wizard.
+export function useStoredCompoundDraft(userEmail) {
+  const key = storageKeyFor(userEmail);
+  const [entry, setEntry] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    return readStorage(key);
+  });
+
+  const reload = useCallback(() => {
+    if (typeof window === 'undefined') {
+      setEntry(null);
+      return;
+    }
+    setEntry(readStorage(key));
+  }, [key]);
+
+  const clear = useCallback(() => {
+    if (typeof window !== 'undefined') removeStorage(key);
+    setEntry(null);
+  }, [key]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    function handleStorage(event) {
+      if (event.key !== key) return;
+      setEntry(event.newValue ? readStorage(key) : null);
+    }
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [key]);
+
+  const draft = entry?.draft || null;
+  const savedAt = entry?.savedAt || null;
+  return { draft, savedAt, reload, clear };
+}

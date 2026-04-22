@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CompoundWizard from '../CompoundWizard';
+import { storageKeyFor } from '../../hooks/useCompoundDraftAutoSave';
 
 describe('CompoundWizard', () => {
   let container;
@@ -143,6 +144,32 @@ describe('CompoundWizard', () => {
       expect.objectContaining({ id: 'RC-NEW' }),
       'WS-A',
     );
+  });
+
+  it('autoRestoreDraft=true aplica rascunho sem mostrar modal', () => {
+    const key = storageKeyFor('user@exemplo.com');
+    window.localStorage.setItem(key, JSON.stringify({
+      draft: { nome: 'Rascunho AR', nome_lt: 'LT Beta' },
+      savedAt: new Date().toISOString(),
+    }));
+    renderDefault({ userEmail: 'user@exemplo.com', autoRestoreDraft: true });
+    // Nao deve aparecer o modal legado "Recuperar rascunho anterior?"
+    expect(container.textContent).not.toContain('Recuperar rascunho anterior');
+    // O draft foi aplicado: input de nome ja vem preenchido
+    const nameInput = container.querySelector('#wizard-nome');
+    expect(nameInput.value).toBe('Rascunho AR');
+  });
+
+  it('sem autoRestoreDraft, continua abrindo o modal legado de recuperacao', () => {
+    const key = storageKeyFor('user2@exemplo.com');
+    window.localStorage.setItem(key, JSON.stringify({
+      draft: { nome: 'Rascunho Legado' },
+      savedAt: new Date().toISOString(),
+    }));
+    renderDefault({ userEmail: 'user2@exemplo.com' });
+    expect(container.textContent).toContain('Recuperar rascunho anterior');
+    const nameInput = container.querySelector('#wizard-nome');
+    expect(nameInput.value).toBe('');
   });
 
   it('em modo edit, submit vira "Salvar alterações"', () => {

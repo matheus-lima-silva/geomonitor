@@ -65,6 +65,7 @@ function stepBubbleClass(state) {
 export default function CompoundWizard({
   mode: initialMode = 'create',
   initialCompound = null,
+  autoRestoreDraft = false,
   compounds = [],
   signatariosCandidatos = [],
   profissoes = [],
@@ -104,15 +105,20 @@ export default function CompoundWizard({
   );
 
   // Oferece recuperar rascunho apenas uma vez, ao entrar em modo create com storage.
+  // Se autoRestoreDraft=true (usuario ja escolheu retomar via banner do
+  // CompoundsTab), aplica o draft direto sem modal.
   useEffect(() => {
     if (restorePromptChecked) return;
     setRestorePromptChecked(true);
     if (mode !== 'create') return;
     const saved = loadSaved();
-    if (saved?.draft && String(saved.draft.nome || '').trim()) {
+    if (!saved?.draft || !String(saved.draft.nome || '').trim()) return;
+    if (autoRestoreDraft) {
+      setDraft({ ...DEFAULT_DRAFT, ...saved.draft });
+    } else {
       setPendingRestore(saved);
     }
-  }, [loadSaved, mode, restorePromptChecked]);
+  }, [autoRestoreDraft, loadSaved, mode, restorePromptChecked]);
 
   const currentStep = WIZARD_STEPS[stepIndex];
   const missingRequired = useMemo(() => getMissingRequired(draft), [draft]);
