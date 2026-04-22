@@ -97,6 +97,7 @@ app.get('/health', (req, res) => {
 const erosionsRouter = require('./routes/erosions');
 const projectsRouter = require('./routes/projects');
 const licensesRouter = require('./routes/licenses');
+const { nestedRouter: licenseConditionsNestedRouter, flatRouter: licenseConditionsFlatRouter } = require('./routes/licenseConditions');
 const inspectionsRouter = require('./routes/inspections');
 const usersRouter = require('./routes/users');
 const reportDeliveryTrackingRouter = require('./routes/reportDeliveryTracking');
@@ -124,7 +125,9 @@ app.use('/api/projects', projectsRouter);
 app.use('/api/projects', projectReportDefaultsRouter);
 app.use('/api/projects', projectPhotosRouter);
 app.use('/api/projects', projectDossiersRouter);
+app.use('/api/licenses', licenseConditionsNestedRouter);
 app.use('/api/licenses', licensesRouter);
+app.use('/api/license-conditions', licenseConditionsFlatRouter);
 app.use('/api/inspections', inspectionsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/media', mediaRouter);

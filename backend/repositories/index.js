@@ -3,6 +3,7 @@ const reportWorkspaceRepository = require('./reportWorkspaceRepository');
 const reportPhotoRepository = require('./reportPhotoRepository');
 const projectRepository = require('./projectRepository');
 const operatingLicenseRepository = require('./operatingLicenseRepository');
+const licenseConditionRepository = require('./licenseConditionRepository');
 const inspectionRepository = require('./inspectionRepository');
 const userRepository = require('./userRepository');
 const erosionRepository = require('./erosionRepository');
@@ -31,6 +32,7 @@ module.exports = {
     reportPhotoRepository,
     projectRepository,
     operatingLicenseRepository,
+    licenseConditionRepository,
     inspectionRepository,
     userRepository,
     erosionRepository,

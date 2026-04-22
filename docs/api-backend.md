@@ -151,6 +151,23 @@ Gerado via `crudFactory` com CRUD padrao.
 | PUT | `/api/licenses/:id` | `requireEditor` | Atualiza licenca (ID via URL) |
 | DELETE | `/api/licenses/:id` | `requireAdmin` | Remove licenca |
 
+### Condicionantes (`/api/licenses/:id/conditions` + `/api/license-conditions`)
+
+Tabela Postgres: `license_conditions` (relacional; migration 0015). FK virtual via `license_id`.
+
+Rotas manuais em `backend/routes/licenseConditions.js` (nested + flat).
+
+| Metodo | Rota | Permissao | Descricao |
+|---|---|---|---|
+| GET | `/api/licenses/:licenseId/conditions` | `requireActiveUser` | Lista condicionantes da LO (ordenadas por `ordem`, `numero`) |
+| POST | `/api/licenses/:licenseId/conditions` | `requireEditor` | Cria nova condicionante; `id` = `COND-<licenseId>-<numero>` (derivado se ausente) |
+| PUT | `/api/licenses/:licenseId/conditions` | `requireEditor` | Bulk replace atomico da lista (DELETE nao-presentes + UPSERT) |
+| GET | `/api/license-conditions/:id` | `requireActiveUser` | Item individual com `_links.license` e `_links.licenseConditions` |
+| PUT | `/api/license-conditions/:id` | `requireEditor` | Atualiza campos; `licenseId` e `id` preservados |
+| DELETE | `/api/license-conditions/:id` | `requireEditor` | Remove item |
+
+Campos do payload (`data`): `numero` (obrigatorio), `texto` (obrigatorio), `titulo`, `tipo` (enum: `processos_erosivos`, `prad`, `supressao`, `fauna`, `emergencia`, `comunicacao`, `compensacao`, `geral`, `outro`), `prazo`, `periodicidadeRelatorio` (`Mensal|Trimestral|Semestral|Anual|Bienal`), `mesesEntrega` (int[]), `ordem`, `parecerTecnicoRef`.
+
 ---
 
 ## Inspections (`/api/inspections`)

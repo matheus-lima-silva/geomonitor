@@ -20,6 +20,7 @@ import {
 import { parseTowerInput } from '../../../utils/parseTowerInput';
 import { deleteOperatingLicense, saveOperatingLicense } from '../../../services/licenseService';
 import { getProjectTowerList, getNumericTowerRange, hasNumericRange, towersInRange } from '../../../utils/getProjectTowerList';
+import LicenseConditionsSection, { persistConditions } from './LicenseConditionsSection';
 
 function buildLicenseId(formData) {
   const explicit = String(formData?.id || '').trim().toUpperCase();
@@ -72,6 +73,9 @@ function LicenseFormModal({
   agencyOptions,
   onSave,
   onCancel,
+  conditionsDraft,
+  onConditionsChange,
+  showToast,
 }) {
   if (!open) return null;
 
@@ -454,6 +458,12 @@ function LicenseFormModal({
         <strong>Condicionante:</strong> exige acompanhamento de processos erosivos.
       </div>
 
+      <LicenseConditionsSection
+        licenseId={isEditing ? formData.id : ''}
+        onChange={onConditionsChange}
+        showToast={showToast}
+      />
+
       <textarea
         rows="3"
         placeholder="Observações"
@@ -470,6 +480,7 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(createEmptyOperatingLicense());
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [conditionsDraft, setConditionsDraft] = useState([]);
 
   const agencyOptions = useMemo(
     () => getAgencyOptions({ licenses, erosions }),
@@ -509,6 +520,12 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
     }
     const id = buildLicenseId(normalized);
     await saveOperatingLicense(id, { ...normalized, id }, { merge: true, updatedBy: userEmail });
+    try {
+      await persistConditions(id, conditionsDraft);
+    } catch (err) {
+      showToast?.(err?.message || 'Falha ao salvar condicionantes.', 'error');
+      // nao reverte a LO — condicionantes podem ser ajustadas depois
+    }
     setOpen(false);
     showToast?.('LO salva com sucesso.', 'success');
   }
@@ -525,6 +542,7 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
 
   function openNew() {
     setFormData(createEmptyOperatingLicense());
+    setConditionsDraft([]);
     setIsEditing(false);
     setOpen(true);
   }
@@ -538,6 +556,7 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
         torresInput: (Array.isArray(row.torres) ? row.torres : []).join(', '),
       })),
     });
+    setConditionsDraft([]);
     setIsEditing(true);
     setOpen(true);
   }
@@ -625,6 +644,9 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
         agencyOptions={agencyOptions}
         onSave={handleSave}
         onCancel={() => setOpen(false)}
+        conditionsDraft={conditionsDraft}
+        onConditionsChange={setConditionsDraft}
+        showToast={showToast}
       />
     </section>
   );
