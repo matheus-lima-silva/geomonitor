@@ -21,6 +21,7 @@ import { parseTowerInput } from '../../../utils/parseTowerInput';
 import { deleteOperatingLicense, saveOperatingLicense } from '../../../services/licenseService';
 import { getProjectTowerList, getNumericTowerRange, hasNumericRange, towersInRange } from '../../../utils/getProjectTowerList';
 import LicenseConditionsSection, { persistConditions } from './LicenseConditionsSection';
+import LicenseFilesSection from './LicenseFilesSection';
 
 function buildLicenseId(formData) {
   const explicit = String(formData?.id || '').trim().toUpperCase();
@@ -461,6 +462,11 @@ function LicenseFormModal({
       <LicenseConditionsSection
         licenseId={isEditing ? formData.id : ''}
         onChange={onConditionsChange}
+        showToast={showToast}
+      />
+
+      <LicenseFilesSection
+        licenseId={isEditing ? formData.id : ''}
         showToast={showToast}
       />
 

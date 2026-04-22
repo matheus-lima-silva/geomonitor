@@ -168,6 +168,25 @@ Rotas manuais em `backend/routes/licenseConditions.js` (nested + flat).
 
 Campos do payload (`data`): `numero` (obrigatorio), `texto` (obrigatorio), `titulo`, `tipo` (enum: `processos_erosivos`, `prad`, `supressao`, `fauna`, `emergencia`, `comunicacao`, `compensacao`, `geral`, `outro`), `prazo`, `periodicidadeRelatorio` (`Mensal|Trimestral|Semestral|Anual|Bienal`), `mesesEntrega` (int[]), `ordem`, `parecerTecnicoRef`.
 
+### Anexos (`/api/licenses/:id/attachments`)
+
+Dois slots fixos por LO: `documentoLO` (PDF original da licenca) e `planoGerenciamento` (PDF do PGA). Cada slot referencia um `mediaAssetId` criado pelo fluxo padrao em `/api/media/upload-url`. Os metadados ficam em `operating_licenses.payload.arquivos`.
+
+| Metodo | Rota | Permissao | Descricao |
+|---|---|---|---|
+| GET | `/api/licenses/:id/attachments` | `requireActiveUser` | Lista slots preenchidos |
+| POST | `/api/licenses/:id/attachments` | `requireEditor` | Vincula `mediaAssetId` a um `slot`. Se ja havia outro asset no slot, remove o anterior (cleanup). Rejeita nao-PDF com 415 |
+| GET | `/api/licenses/:id/attachments/:slot/download` | `requireActiveUser` | 302 para signed URL (Tigris) ou `/api/media/:id/content` (local) |
+| DELETE | `/api/licenses/:id/attachments/:slot` | `requireEditor` | Desvincula slot e remove o asset subjacente |
+
+Slots aceitos: `documentoLO`, `planoGerenciamento`. Body do POST: `{ data: { slot, mediaAssetId }, meta? }`.
+
+**Fluxo de upload ponta-a-ponta:**
+1. `POST /api/media/upload-url` — cliente pede URL assinada com `contentType: 'application/pdf'`.
+2. `PUT <signed-url>` — sobe o arquivo direto pro Tigris.
+3. `POST /api/media/complete` — marca `ready`.
+4. `POST /api/licenses/:id/attachments` — vincula ao slot.
+
 ---
 
 ## Inspections (`/api/inspections`)
