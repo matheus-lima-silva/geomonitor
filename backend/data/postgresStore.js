@@ -1,6 +1,37 @@
 const crypto = require('crypto');
+const { incrementQueryCount } = require('../utils/queryCounter');
 
 let poolInstance = null;
+
+// Wrappa pool.query e pool.connect para registrar cada query no contador
+// de request (AsyncLocalStorage). Idempotente — se chamarmos getPool multiplas
+// vezes, a flag __queryCounterPatched evita wrap duplicado.
+function instrumentPool(pool) {
+    if (!pool || pool.__queryCounterPatched) return pool;
+
+    const originalQuery = pool.query.bind(pool);
+    pool.query = function patchedPoolQuery(...args) {
+        incrementQueryCount();
+        return originalQuery(...args);
+    };
+
+    const originalConnect = pool.connect.bind(pool);
+    pool.connect = async function patchedPoolConnect(...args) {
+        const client = await originalConnect(...args);
+        if (client && !client.__queryCounterPatched) {
+            const originalClientQuery = client.query.bind(client);
+            client.query = function patchedClientQuery(...queryArgs) {
+                incrementQueryCount();
+                return originalClientQuery(...queryArgs);
+            };
+            client.__queryCounterPatched = true;
+        }
+        return client;
+    };
+
+    pool.__queryCounterPatched = true;
+    return pool;
+}
 
 function normalizeEnv(value) {
     return String(value || '').trim();
@@ -31,7 +62,7 @@ function buildPgConnectionOptions() {
 function getPool() {
     if (poolInstance) return poolInstance;
     const { Pool } = require('pg');
-    poolInstance = new Pool(buildPgConnectionOptions());
+    poolInstance = instrumentPool(new Pool(buildPgConnectionOptions()));
     return poolInstance;
 }
 

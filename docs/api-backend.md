@@ -682,6 +682,25 @@ Integracao no frontend: aba "Console SQL" dentro de `AdminView` ([../src/feature
 
 ---
 
+## Admin Alerts (`/api/admin/alerts`)
+
+Fila de alertas de sistema persistidos em `system_alerts` (migration `0014_system_alerts.sql`). Por enquanto ha um unico `type` emitido automaticamente: `query_count_exceeded`, gerado pelo middleware em [../backend/middleware/queryCounter.js](../backend/middleware/queryCounter.js) quando uma request produz mais queries Postgres que `QUERY_COUNT_ALERT_THRESHOLD` (default 15). O log correspondente tambem vai pro stdout como linha JSON `{"level":"warn","type":"query_count_alert",...}`.
+
+O `payload` de `query_count_exceeded` contem `{ method, url, status, count, threshold, durationMs, userId }`.
+
+| Metodo | Rota | Permissao | Descricao |
+|---|---|---|---|
+| GET | `/api/admin/alerts?status=pending\|all&page=&limit=` | `requireAdmin` | Lista paginada (default `status=pending`, mais recente primeiro) |
+| POST | `/api/admin/alerts/:id/ack` | `requireAdmin` | Marca como revisado (`acknowledged_at = NOW()`, `acknowledged_by = req.user.email`). 404 se inexistente; 409 `ALERT_ALREADY_ACKNOWLEDGED` se ja marcado |
+
+Integracao no frontend: painel "Alertas do sistema" embutido ao fim da aba "Estatisticas" do `AdminView` ([../src/features/admin/components/SystemAlertsPanel.jsx](../src/features/admin/components/SystemAlertsPanel.jsx) montado dentro de [../src/features/admin/components/UsageStatsSection.jsx](../src/features/admin/components/UsageStatsSection.jsx)).
+
+Configuracao (env vars opcionais):
+- `QUERY_COUNT_ALERT_THRESHOLD` — limite de queries por request antes de disparar o alerta (default `15`).
+- `DEBUG_QUERY_COUNT=1` — loga contagem de TODA request (default so loga quando excede). Util em dev.
+
+---
+
 ## Workers e integracao interna
 
 Alguns endpoints aceitam um header alternativo `x-worker-token` (valor em `WORKER_API_TOKEN`) no lugar do JWT de usuario, para permitir que o worker consuma a API sem uma sessao humana. Usado em:

@@ -78,6 +78,18 @@ Todo save inclui `updatedAt` (ISO) e `updatedBy` (de `req.user?.email` ou `meta.
 
 Triggers vao por [utils/workerTrigger.js](utils/workerTrigger.js) (webhook → worker). Contexto compartilhado em [utils/reportJobContext.js](utils/reportJobContext.js). Nunca invocar subprocess Python direto da rota Express.
 
+## 12b. Observabilidade: contador de queries por request
+
+Todo request passa pelo middleware [middleware/queryCounter.js](middleware/queryCounter.js), que usa `AsyncLocalStorage` ([utils/queryCounter.js](utils/queryCounter.js)) pra contar quantas queries Postgres a rota produziu. A instrumentacao mora em [data/postgresStore.js](data/postgresStore.js), patchando `pool.query` e `pool.connect` — cobre todos os repositories e o `adminSqlExecutor` (transacao).
+
+Quando a contagem passa de `QUERY_COUNT_ALERT_THRESHOLD` (default 15), o middleware:
+1. Emite `console.warn(JSON.stringify({level:'warn', type:'query_count_alert', ...}))` — linha unica, parse-friendly pro Fly log drain.
+2. Persiste o alerta em `system_alerts` via [repositories/systemAlertsRepository.js](repositories/systemAlertsRepository.js). Falha no insert nao quebra a response (fica so em `console.error`).
+
+O painel "Alertas do sistema" (aba Estatisticas do admin) consome `/api/admin/alerts` pra listar e marcar como revisado.
+
+Nao tente incrementar o contador manualmente — o patch do pool cuida de tudo. Nao ha header de resposta exposto (evita leak em prod). Pra desligar temporariamente em prod, suba `QUERY_COUNT_ALERT_THRESHOLD` pra um numero alto; pra debug local, `DEBUG_QUERY_COUNT=1` loga contagem em toda request.
+
 ## 13. Testes sao obrigatorios
 
 Jest + supertest. Toda rota nova, alteracao de rota ou novo util precisa de teste.

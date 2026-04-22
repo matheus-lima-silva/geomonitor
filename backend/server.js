@@ -38,6 +38,14 @@ app.use(express.json({ limit: '10mb' }));
 // Formato 'tiny' para manter os logs do Fly leves.
 app.use(morgan(isProd ? 'tiny' : 'dev'));
 
+// Contador de queries por request (AsyncLocalStorage). Emite log WARN e
+// persiste alerta em `system_alerts` quando uma request passa de N queries
+// (default 15, configuravel via QUERY_COUNT_ALERT_THRESHOLD). Ver painel
+// "Alertas do sistema" na aba Estatisticas do gerenciamento.
+const { createQueryCounterMiddleware } = require('./middleware/queryCounter');
+const systemAlertsRepository = require('./repositories/systemAlertsRepository');
+app.use(createQueryCounterMiddleware({ repository: systemAlertsRepository }));
+
 // Rotas que participam de importações em lote (775+ fotos num único clique).
 // Essas rotas recebem rajadas legítimas que estouram o rate limit padrão de 600/15min,
 // então ficam fora do limiter global. Elas continuam protegidas por auth + RBAC.
@@ -107,6 +115,7 @@ const authRouter = require('./routes/auth');
 const profissoesRouter = require('./routes/profissoes');
 const adminMetricsRouter = require('./routes/adminMetrics');
 const adminSqlExecutorRouter = require('./routes/adminSqlExecutor');
+const adminAlertsRouter = require('./routes/adminAlerts');
 
 app.use('/api/auth', authRouter);
 app.use('/api/profissoes', profissoesRouter);
@@ -129,6 +138,7 @@ app.use('/api/report-templates', reportTemplatesRouter);
 app.use('/api/rules', rulesRouter);
 app.use('/api/admin/metrics', adminMetricsRouter);
 app.use('/api/admin/sql', adminSqlExecutorRouter);
+app.use('/api/admin/alerts', adminAlertsRouter);
 
 // Global Error Handler para não expor erros ao cliente em prod
 const { logError } = require('./utils/asyncHandler');

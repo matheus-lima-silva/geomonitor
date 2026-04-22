@@ -20,10 +20,12 @@ const rulesConfigRepository = require('./rulesConfigRepository');
 const workspaceMemberRepository = require('./workspaceMemberRepository');
 const adminSqlAuditRepository = require('./adminSqlAuditRepository');
 const adminSqlSnippetsRepository = require('./adminSqlSnippetsRepository');
+const systemAlertsRepository = require('./systemAlertsRepository');
 
 module.exports = {
     adminSqlAuditRepository,
     adminSqlSnippetsRepository,
+    systemAlertsRepository,
     reportDefaultsRepository,
     reportWorkspaceRepository,
     reportPhotoRepository,

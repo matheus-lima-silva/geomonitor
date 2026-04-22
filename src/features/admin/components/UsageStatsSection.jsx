@@ -9,6 +9,7 @@ import {
   getAdminHealth,
   getAdminRecentLogins,
 } from '../../../services/adminMetricsService';
+import SystemAlertsPanel from './SystemAlertsPanel';
 
 function KpiCard({ label, value, icon }) {
   return (
@@ -201,6 +202,9 @@ function UsageStatsSection() {
           <KpiCard label="Falhas (24h)" value={health?.failedLast24h} icon="alert" />
         </div>
       </section>
+
+      {/* Alertas do sistema (requests com queries acima do threshold) */}
+      <SystemAlertsPanel />
     </div>
   );
 }

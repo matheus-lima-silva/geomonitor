@@ -70,6 +70,7 @@ const ICON_MAP = {
   map: MapIcon,
   route: Route,
   reset: RefreshCw,
+  refresh: RefreshCw,
   check: Check,
   pause: Pause,
   user: User,
