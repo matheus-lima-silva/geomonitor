@@ -6,11 +6,19 @@ const { asyncHandler } = require('../utils/asyncHandler');
 const {
     createSingletonHateoasResponse,
     createPaginatedHateoasResponse,
+    createHateoasResponse,
 } = require('../utils/hateoas');
-const { sqlExecuteSchema } = require('../schemas/adminSqlSchemas');
+const {
+    sqlExecuteSchema,
+    sqlSnippetCreateSchema,
+    sqlSnippetUpdateSchema,
+} = require('../schemas/adminSqlSchemas');
 const { isReadOnlySql } = require('../utils/sqlReadOnlyGuard');
 const postgresStore = require('../data/postgresStore');
-const { adminSqlAuditRepository } = require('../repositories');
+const {
+    adminSqlAuditRepository,
+    adminSqlSnippetsRepository,
+} = require('../repositories');
 
 const adminGuards = Array.isArray(requireAdmin) ? requireAdmin : [requireAdmin];
 
@@ -144,6 +152,115 @@ router.get(
             status: 'success',
             ...response,
         });
+    }),
+);
+
+// =============================================================================
+// CRUD de snippets SQL salvos (globais/compartilhados entre admins).
+// Mesma policy de guards (requireAdmin) do /execute e /audit. Sem validacao
+// read-only aqui — o SQL so e executado quando o usuario clica Executar no
+// editor, onde o guard isReadOnlySql ja age.
+// =============================================================================
+
+router.get(
+    '/snippets',
+    verifyToken,
+    ...adminGuards,
+    asyncHandler(async (req, res) => {
+        const items = await adminSqlSnippetsRepository.list();
+
+        const response = createPaginatedHateoasResponse(req, items, {
+            entityType: 'admin/sql/snippets',
+            page: 1,
+            limit: items.length || 1,
+            total: items.length,
+        });
+
+        return res.status(200).json({
+            status: 'success',
+            ...response,
+        });
+    }),
+);
+
+router.post(
+    '/snippets',
+    verifyToken,
+    ...adminGuards,
+    validateBody(sqlSnippetCreateSchema),
+    asyncHandler(async (req, res) => {
+        const createdBy = req.user?.email || req.user?.uid || 'unknown';
+        try {
+            const snippet = await adminSqlSnippetsRepository.create({
+                name: req.body.data.name,
+                sqlText: req.body.data.sqlText,
+                description: req.body.data.description ?? null,
+                createdBy,
+            });
+
+            return res.status(201).json({
+                status: 'success',
+                data: createHateoasResponse(req, snippet, 'admin/sql/snippets', snippet.id),
+            });
+        } catch (error) {
+            if (error && error.code === 'SNIPPET_NAME_CONFLICT') {
+                return res.status(409).json({
+                    status: 'error',
+                    code: 'SNIPPET_NAME_CONFLICT',
+                    message: error.message,
+                });
+            }
+            throw error;
+        }
+    }),
+);
+
+router.put(
+    '/snippets/:id',
+    verifyToken,
+    ...adminGuards,
+    validateBody(sqlSnippetUpdateSchema),
+    asyncHandler(async (req, res) => {
+        const updatedBy = req.user?.email || req.user?.uid || 'unknown';
+        try {
+            const snippet = await adminSqlSnippetsRepository.update(req.params.id, {
+                name: req.body.data.name,
+                sqlText: req.body.data.sqlText,
+                description: req.body.data.description,
+                updatedBy,
+            });
+
+            if (!snippet) {
+                return res.status(404).json({ status: 'error', message: 'Snippet nao encontrado.' });
+            }
+
+            return res.status(200).json({
+                status: 'success',
+                data: createHateoasResponse(req, snippet, 'admin/sql/snippets', snippet.id),
+            });
+        } catch (error) {
+            if (error && error.code === 'SNIPPET_NAME_CONFLICT') {
+                return res.status(409).json({
+                    status: 'error',
+                    code: 'SNIPPET_NAME_CONFLICT',
+                    message: error.message,
+                });
+            }
+            throw error;
+        }
+    }),
+);
+
+router.delete(
+    '/snippets/:id',
+    verifyToken,
+    ...adminGuards,
+    asyncHandler(async (req, res) => {
+        const removed = await adminSqlSnippetsRepository.remove(req.params.id);
+        if (!removed) {
+            return res.status(404).json({ status: 'error', message: 'Snippet nao encontrado.' });
+        }
+        return res.status(204).send();
     }),
 );
 

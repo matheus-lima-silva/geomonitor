@@ -666,11 +666,17 @@ Console SQL ad-hoc somente leitura para administradores. Defesa em camadas:
 |---|---|---|---|
 | POST | `/api/admin/sql/execute` | `requireAdmin` | Executa SQL read-only; body `{ data: { sql: string(1..5000) } }`. Retorna `{ columns, rows, rowCount, truncated, durationMs }` |
 | GET | `/api/admin/sql/audit?page=&limit=` | `requireAdmin` | Lista paginada do audit log (mais recente primeiro) |
+| GET | `/api/admin/sql/snippets` | `requireAdmin` | Lista snippets salvos (ordenados por nome). Globais entre admins — `created_by` apenas para audit |
+| POST | `/api/admin/sql/snippets` | `requireAdmin` | Cria snippet; body `{ data: { name, sqlText, description? } }`. 409 `SNIPPET_NAME_CONFLICT` se nome duplicado (case-insensitive) |
+| PUT | `/api/admin/sql/snippets/:id` | `requireAdmin` | Atualiza snippet existente (partial update de `name`/`sqlText`/`description`) |
+| DELETE | `/api/admin/sql/snippets/:id` | `requireAdmin` | Remove snippet (204) |
 
 Codigos de erro especificos do `/execute`:
 - `400 SQL_NOT_READ_ONLY` — guard bloqueou (audita `status='blocked'`)
 - `400 SQL_EXECUTION_ERROR` — Postgres retornou erro (audita `status='error'`)
 - `400 VALIDATION_ERROR` — body nao passou no Zod
+
+Snippets (tabela `admin_sql_snippets`, migration `0013_admin_sql_snippets.sql`): armazenam queries reutilizaveis (ex.: "torres com lat/lng por linha"). Globais — qualquer admin pode criar/editar/deletar qualquer snippet; coluna `created_by` serve apenas para audit. Nenhuma validacao de read-only no CRUD de snippets — o guard `isReadOnlySql` age so no momento da execucao via `/execute`.
 
 Integracao no frontend: aba "Console SQL" dentro de `AdminView` ([../src/features/admin/components/SqlExecutorPanel.jsx](../src/features/admin/components/SqlExecutorPanel.jsx)), visivel so para `user.role === 'admin'`.
 

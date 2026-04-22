@@ -19,9 +19,11 @@ const reportTemplateRepository = require('./reportTemplateRepository');
 const rulesConfigRepository = require('./rulesConfigRepository');
 const workspaceMemberRepository = require('./workspaceMemberRepository');
 const adminSqlAuditRepository = require('./adminSqlAuditRepository');
+const adminSqlSnippetsRepository = require('./adminSqlSnippetsRepository');
 
 module.exports = {
     adminSqlAuditRepository,
+    adminSqlSnippetsRepository,
     reportDefaultsRepository,
     reportWorkspaceRepository,
     reportPhotoRepository,
