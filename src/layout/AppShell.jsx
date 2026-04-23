@@ -109,7 +109,7 @@ function AppShell({
       {/* Mobile Overlay */}
       <button
         type="button"
-        className={`fixed inset-0 bg-slate-850/60 z-40 transition-opacity duration-300 md:hidden ${isMobileNavOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`}
+        className={`fixed inset-0 bg-slate-850/60 z-40 transition-opacity duration-300 min-[961px]:hidden ${isMobileNavOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`}
         onClick={() => setIsMobileNavOpen(false)}
         aria-label="Fechar menu lateral"
       />
@@ -118,8 +118,8 @@ function AppShell({
       <aside
         id="app-side-nav"
         ref={sideNavRef}
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col pt-3 pb-3 bg-gradient-to-b from-slate-900 via-slate-850 to-slate-800 text-slate-300 border-r border-slate-800 transition-all duration-300 
-          md:relative md:translate-x-0
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col pt-3 pb-3 bg-gradient-to-b from-slate-900 via-slate-850 to-slate-800 text-slate-300 border-r border-slate-800 transition-all duration-300
+          min-[961px]:relative min-[961px]:translate-x-0
           ${isCollapsedViewport ? 'w-[88px]' : 'w-[260px]'}
           ${isMobileNavOpen ? 'translate-x-0' : '-translate-x-full'}
         `}

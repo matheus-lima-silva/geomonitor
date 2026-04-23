@@ -324,6 +324,31 @@ describe('DashboardView monitoring top notice', () => {
     expect(container.querySelector('div[id^="monitor-month-details"]')).toBeNull();
   });
 
+  it('renders the delivery timeline card with pills and makes KPI cards clickable', async () => {
+    await act(async () => {
+      root.render(<DashboardView />);
+      await Promise.resolve();
+    });
+
+    // Timeline card heading replaces "Acompanhamento mensal de entregas"
+    expect(container.textContent).toContain('Linha do tempo de entregas');
+    expect(container.textContent).not.toContain('Acompanhamento mensal de entregas');
+
+    // KPIs are now actionable buttons (e.g. "Críticas" drill-down).
+    const criticalKpi = [...container.querySelectorAll('button')]
+      .find((button) => (button.getAttribute('aria-label') || '').includes('erosões criticas'));
+    expect(criticalKpi).toBeTruthy();
+
+    await act(async () => {
+      criticalKpi.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Clicking the Críticas KPI switches to the erosions tab (lazy-loaded mock).
+    expect(container.textContent).toContain('Erosions View');
+  });
+
   it('shows default and relief base layers in the dashboard map', async () => {
     await act(async () => {
       root.render(<DashboardView />);

@@ -45,6 +45,7 @@ import {
   getCriticalityChartColor,
   getHeatChartColor,
 } from '../features/monitoring/utils/monitoringColors';
+import { MONTH_STATUS, deriveMonthStatus } from '../features/monitoring/utils/monthTimeline';
 
 const ProjectsView = lazy(() => import('../features/projects/components/ProjectsView'));
 const LicensesView = lazy(() => import('../features/licenses/components/LicensesView'));
@@ -257,7 +258,214 @@ function PendingProjectsPanel({ pendingProjects, onFixSchedule, onFixLO }) {
   );
 }
 
-function DashboardMonitoring({ viewModel, pendingProjects, onCriticalityBarClick, onFixSchedule, onFixLO }) {
+function MonthDetailsPanel({ monthKey, details }) {
+  const [year, monthNumber] = String(monthKey).split('-');
+  const id = `monitor-month-details-${String(monthKey).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+  const safeDetails = Array.isArray(details) ? details : [];
+
+  return (
+    <div
+      id={id}
+      role="region"
+      aria-label={`Detalhes de ${formatMonitoringMonthLabel(monthNumber)}/${year}`}
+      className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-200 rounded-lg"
+    >
+      {safeDetails.map((item) => {
+        const projectId = String(item?.projectId || '').trim();
+        const projectName = String(item?.projectName || '').trim();
+        const projectLabel = projectName && projectName !== projectId
+          ? `${projectId} - ${projectName}`
+          : (projectId || projectName || '-');
+        return (
+          <article key={`${monthKey}-${projectId || projectLabel}`} className="flex flex-col gap-1 p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+            <strong className="text-sm font-bold text-slate-800 mb-1">{projectLabel}</strong>
+            <span className="text-xs text-slate-600 flex justify-between"><strong>Origem:</strong> {item?.sourceSummary || '-'}</span>
+            <span className="text-xs text-slate-600 flex justify-between"><strong>Escopo:</strong> {item?.scopeSummary || '-'}</span>
+            <span className="text-xs text-slate-600 flex justify-between"><strong>Prazo:</strong> {formatReportDueDays(item?.dueInDays)}</span>
+            <span className="text-xs text-slate-600 flex justify-between items-center mt-1 pt-1 border-t border-slate-50">
+              <strong>Status prazo:</strong>{' '}
+              <Badge tone={item?.deadlineStatusTone}>{item?.deadlineStatusLabel || 'Sem prazo'}</Badge>
+            </span>
+            <span className="text-xs text-slate-600 flex justify-between items-center mt-1 pt-1 border-t border-slate-50">
+              <strong>Status operacional:</strong>{' '}
+              <Badge tone={item?.operationalStatusTone}>{item?.operationalStatusLabel || 'Não iniciado'}</Badge>
+            </span>
+          </article>
+        );
+      })}
+      {safeDetails.length === 0 && (
+        <p className="text-sm text-slate-500 italic m-0">Nenhum empreendimento encontrado para este mês.</p>
+      )}
+    </div>
+  );
+}
+
+function monthPillClasses(status, isExpanded) {
+  const base = 'shrink-0 inline-flex items-center gap-2 rounded-full border font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500';
+  const expandedRing = isExpanded ? ' ring-2 ring-offset-1 ring-brand-500' : '';
+  switch (status) {
+    case MONTH_STATUS.PAST_OK:
+      return `${base} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-3 py-1.5 text-xs${expandedRing}`;
+    case MONTH_STATUS.PAST_LATE:
+      return `${base} border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 px-3 py-1.5 text-xs${expandedRing}`;
+    case MONTH_STATUS.CURRENT:
+      return `${base} border-brand-500 bg-brand-50 text-brand-800 hover:bg-brand-100 px-4 py-2 text-sm shadow-sm${expandedRing}`;
+    case MONTH_STATUS.NEXT:
+      return `${base} border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 px-3 py-1.5 text-xs${expandedRing}`;
+    default:
+      return `${base} border-slate-200 bg-white text-slate-600 hover:bg-slate-50 px-3 py-1.5 text-xs${expandedRing}`;
+  }
+}
+
+function monthPillLabel(status) {
+  switch (status) {
+    case MONTH_STATUS.PAST_OK:
+      return 'Entregue';
+    case MONTH_STATUS.PAST_LATE:
+      return 'Atrasado';
+    case MONTH_STATUS.CURRENT:
+      return 'Mes atual';
+    case MONTH_STATUS.NEXT:
+      return 'Proximo';
+    default:
+      return 'Futuro';
+  }
+}
+
+function DeliveryTimeline({ reportMonthRows, reportMonthDetailsByKey, now }) {
+  const enrichedRows = useMemo(() => {
+    return (reportMonthRows || []).map(([monthKey, count]) => {
+      const details = reportMonthDetailsByKey?.[monthKey] || [];
+      const { status, lateCount, offset } = deriveMonthStatus(monthKey, details, now);
+      return { monthKey, count, status, lateCount, offset, details };
+    });
+  }, [reportMonthRows, reportMonthDetailsByKey, now]);
+
+  const currentKey = useMemo(() => {
+    const current = enrichedRows.find((row) => row.status === MONTH_STATUS.CURRENT);
+    return current ? current.monthKey : null;
+  }, [enrichedRows]);
+
+  const [expandedKey, setExpandedKey] = useState(currentKey);
+  const [showPastOk, setShowPastOk] = useState(false);
+
+  useEffect(() => {
+    if (currentKey && expandedKey === null) {
+      setExpandedKey(currentKey);
+    }
+  }, [currentKey, expandedKey]);
+
+  const pastOkRows = enrichedRows.filter((row) => row.status === MONTH_STATUS.PAST_OK);
+  const visibleRows = enrichedRows
+    .filter((row) => row.status !== MONTH_STATUS.PAST_OK || showPastOk)
+    .sort((a, b) => a.offset - b.offset);
+
+  const expandedRow = expandedKey
+    ? enrichedRows.find((row) => row.monthKey === expandedKey) || null
+    : null;
+
+  if (enrichedRows.length === 0) {
+    return (
+      <Card variant="nested" className="flex flex-col">
+        <h3 className="text-sm font-bold text-slate-800 m-0 mb-2">Linha do tempo de entregas</h3>
+        <p className="text-sm text-slate-500 italic m-0">Sem entregas por mes para acompanhar.</p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card variant="nested" className="flex flex-col">
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+        <div>
+          <h3 className="text-sm font-bold text-slate-800 m-0">Linha do tempo de entregas</h3>
+          <p className="text-xs text-slate-500 mt-1 m-0">
+            Meses em atraso em vermelho, mes atual em destaque. Clique para ver os empreendimentos.
+          </p>
+        </div>
+        {pastOkRows.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowPastOk((value) => !value)}
+            className="text-xs font-semibold text-slate-600 hover:text-slate-800 underline decoration-dotted underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded"
+            aria-expanded={showPastOk ? 'true' : 'false'}
+          >
+            {showPastOk ? 'Ocultar' : 'Mostrar'} meses resolvidos ({pastOkRows.length})
+          </button>
+        )}
+      </div>
+
+      <div className="w-full overflow-x-auto">
+        <div className="flex items-center gap-2 pb-2 min-w-max">
+          {visibleRows.map((row) => {
+            const isExpanded = expandedKey === row.monthKey;
+            const [year, monthNumber] = row.monthKey.split('-');
+            const detailsId = `monitor-month-details-${row.monthKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+            const pillTitle = `${monthPillLabel(row.status)} - ${formatMonitoringMonthLabel(monthNumber)}/${year}`;
+
+            return (
+              <button
+                key={row.monthKey}
+                type="button"
+                className={monthPillClasses(row.status, isExpanded)}
+                onClick={() => setExpandedKey((prev) => (prev === row.monthKey ? null : row.monthKey))}
+                aria-expanded={isExpanded ? 'true' : 'false'}
+                aria-controls={detailsId}
+                title={pillTitle}
+              >
+                <span className="font-bold">
+                  {formatMonitoringMonthLabel(monthNumber)}/{year}
+                </span>
+                <span className="inline-flex items-center justify-center rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold text-slate-700">
+                  {row.count}
+                </span>
+                {row.status === MONTH_STATUS.PAST_LATE && (
+                  <Badge tone="danger">{row.lateCount} atrasad{row.lateCount === 1 ? 'o' : 'os'}</Badge>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {expandedRow && (
+        <div className="mt-3">
+          <MonthDetailsPanel monthKey={expandedRow.monthKey} details={expandedRow.details} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function KpiCard({ label, value, icon, accent, onClick, actionLabel }) {
+  const content = (
+    <>
+      <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold uppercase tracking-wide">
+        <AppIcon name={icon} />
+        {label}
+      </div>
+      <div className={`text-2xl font-bold ${accent}`}>{value}</div>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={actionLabel || `Ir para ${label}`}
+        className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 flex flex-col gap-1 text-left w-full transition-colors hover:border-brand-300 hover:bg-brand-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Card className="flex flex-col gap-1 p-4 shadow-sm border border-slate-200">{content}</Card>
+  );
+}
+
+function DashboardMonitoring({ viewModel, pendingProjects, now, onCriticalityBarClick, onFixSchedule, onFixLO, onNavigate }) {
   const {
     searchTermApplied,
     reportOccurrences,
@@ -277,7 +485,6 @@ function DashboardMonitoring({ viewModel, pendingProjects, onCriticalityBarClick
     inspectionCount,
     erosionCount,
   } = viewModel || EMPTY_MONITORING_VIEW_MODEL;
-  const [expandedMonthKey, setExpandedMonthKey] = useState(null);
   const [expandedReportRowKey, setExpandedReportRowKey] = useState('');
   const [isHeatMapExpanded, setIsHeatMapExpanded] = useState(false);
   const upcomingScopeCount = reportOccurrences.length;
@@ -285,6 +492,46 @@ function DashboardMonitoring({ viewModel, pendingProjects, onCriticalityBarClick
   const hasSearchFilter = Boolean(searchTermApplied);
   const heatMapHeight = isHeatMapExpanded ? EXPANDED_HEATMAP_HEIGHT : DEFAULT_HEATMAP_HEIGHT;
   const heatMapInstanceKey = isHeatMapExpanded ? 'expanded' : 'collapsed';
+  const hasPendingProjects = Array.isArray(pendingProjects) && pendingProjects.length > 0;
+
+  const kpiItems = [
+    {
+      key: 'critical',
+      label: 'Críticas',
+      value: criticalCount,
+      icon: 'alert',
+      accent: 'text-red-700',
+      actionLabel: 'Ver erosões criticas C4',
+      onClick: () => onNavigate?.('erosions', { criticality: 'C4' }),
+    },
+    {
+      key: 'erosions',
+      label: 'Erosões',
+      value: erosionCount,
+      icon: 'alert',
+      accent: 'text-slate-700',
+      actionLabel: 'Ver todas as erosões',
+      onClick: () => onNavigate?.('erosions'),
+    },
+    {
+      key: 'inspections',
+      label: 'Vistorias',
+      value: inspectionCount,
+      icon: 'clipboard',
+      accent: 'text-slate-700',
+      actionLabel: 'Ver vistorias',
+      onClick: () => onNavigate?.('inspections'),
+    },
+    {
+      key: 'projects',
+      label: 'Empreendimentos',
+      value: projectCount,
+      icon: 'building',
+      accent: 'text-slate-700',
+      actionLabel: 'Ver empreendimentos',
+      onClick: () => onNavigate?.('projects'),
+    },
+  ];
 
   return (
     <section className="flex flex-col gap-5 p-2">
@@ -293,21 +540,25 @@ function DashboardMonitoring({ viewModel, pendingProjects, onCriticalityBarClick
         <p className="text-sm text-slate-500 mt-1">Resumo de entregas, riscos, obras em curso e evolução recente das erosões.</p>
       </div>
 
-      {/* KPI Cards — tamanho compacto e proporcional */}
+      {hasPendingProjects && (
+        <PendingProjectsPanel
+          pendingProjects={pendingProjects}
+          onFixSchedule={onFixSchedule}
+          onFixLO={onFixLO}
+        />
+      )}
+
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: 'Críticas', value: criticalCount, icon: 'alert', accent: 'text-red-700' },
-          { label: 'Erosões', value: erosionCount, icon: 'alert', accent: 'text-slate-700' },
-          { label: 'Vistorias', value: inspectionCount, icon: 'clipboard', accent: 'text-slate-700' },
-          { label: 'Empreendimentos', value: projectCount, icon: 'building', accent: 'text-slate-700' },
-        ].map(({ label, value, icon, accent }) => (
-          <Card key={label} className="flex flex-col gap-1 p-4 shadow-sm border border-slate-200">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold uppercase tracking-wide">
-              <AppIcon name={icon} />
-              {label}
-            </div>
-            <div className={`text-2xl font-bold ${accent}`}>{value}</div>
-          </Card>
+        {kpiItems.map((item) => (
+          <KpiCard
+            key={item.key}
+            label={item.label}
+            value={item.value}
+            icon={item.icon}
+            accent={item.accent}
+            onClick={item.onClick}
+            actionLabel={item.actionLabel}
+          />
         ))}
       </div>
 
@@ -317,7 +568,13 @@ function DashboardMonitoring({ viewModel, pendingProjects, onCriticalityBarClick
         </p>
       ) : null}
 
-      <div className="grid gap-5 grid-cols-1 xl:grid-cols-2 items-start mt-4">
+      <DeliveryTimeline
+        reportMonthRows={reportMonthRows}
+        reportMonthDetailsByKey={reportMonthDetailsByKey}
+        now={now}
+      />
+
+      <div className="grid gap-5 grid-cols-1 xl:grid-cols-2 items-start">
         {/* Coluna esquerda */}
         <div className="flex flex-col gap-4">
           <Card variant="nested">
@@ -454,138 +711,6 @@ function DashboardMonitoring({ viewModel, pendingProjects, onCriticalityBarClick
 
         {/* Coluna direita */}
         <div className="flex flex-col gap-4">
-          <Card variant="nested">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-bold text-slate-800 m-0">Mapa de calor (coordenadas)</h3>
-              <button
-                type="button"
-                className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                aria-expanded={isHeatMapExpanded ? 'true' : 'false'}
-                aria-controls="dashboard-heatmap-container"
-                onClick={() => setIsHeatMapExpanded((value) => !value)}
-                title="Alternar tamanho do mapa de calor"
-              >
-                {isHeatMapExpanded ? 'Recolher mapa' : 'Expandir mapa'}
-              </button>
-            </div>
-            <div
-              id="dashboard-heatmap-container"
-              data-testid="dashboard-heatmap-container"
-              style={{ width: '100%', height: heatMapHeight, borderRadius: 10, overflow: 'hidden' }}
-            >
-              <MapContainer
-                key={heatMapInstanceKey}
-                center={heatPoints.length > 0 ? [heatPoints[0].latitude, heatPoints[0].longitude] : [-15.793889, -47.882778]}
-                zoom={heatPoints.length > 0 ? 10 : 4}
-                scrollWheelZoom={false}
-                style={{ width: '100%', height: '100%' }}
-              >
-                <DashboardHeatMapViewport heatPoints={heatPoints} mapHeight={heatMapHeight} />
-                <LayersControl position="topright">
-                  <LayersControl.BaseLayer checked name="Mapa padrão">
-                    <TileLayer
-                      attribution="&copy; OpenStreetMap contributors"
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
-                  </LayersControl.BaseLayer>
-                  <LayersControl.BaseLayer name="Relevo">
-                    <TileLayer
-                      attribution="Map data: &copy; OpenTopoMap contributors, SRTM | &copy; OpenStreetMap contributors"
-                      url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-                    />
-                  </LayersControl.BaseLayer>
-                </LayersControl>
-                {heatPoints.map((point) => (
-                  <CircleMarker
-                    key={`heat-point-${point.id}-${point.latitude}-${point.longitude}`}
-                    center={[point.latitude, point.longitude]}
-                    radius={6 + (point.peso * 8)}
-                    pathOptions={{
-                      color: getHeatChartColor(point.peso),
-                      fillColor: getHeatChartColor(point.peso),
-                      fillOpacity: 0.55 + (point.peso * 0.35),
-                    }}
-                  >
-                    <Popup>
-                      <strong>{point.id || '-'}</strong>
-                      <br />
-                      Projeto: {point.projetoId || '-'}
-                      <br />
-                      Torre: {formatTowerLabel(point.towerRef)}
-                      <br />
-                      Criticidade: {point.criticidade || '-'}
-                      <br />
-                      Score: {point.score}
-                    </Popup>
-                  </CircleMarker>
-                ))}
-              </MapContainer>
-            </div>
-            <p className="text-xs text-slate-500 mt-2">
-              Pontos no mapa: {heatPoints.length} | Erosões sem coordenadas: {heatPointsWithoutCoordinates}
-            </p>
-          </Card>
-
-          <Card variant="nested" className="flex flex-col">
-            <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Acompanhamento mensal de entregas</h3>
-            <p className="text-xs text-slate-500 mt-0 mb-3">Contagem mensal por projeto e competência.</p>
-            <div className="flex flex-col gap-2 mt-4">
-              {reportMonthRows.map(([monthKey, count]) => {
-                const [year, monthNumber] = monthKey.split('-');
-                const detailsId = `monitor-month-details-${monthKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
-                const isExpanded = expandedMonthKey === monthKey;
-                const details = Array.isArray(reportMonthDetailsByKey?.[monthKey]) ? reportMonthDetailsByKey[monthKey] : [];
-                return (
-                  <div key={monthKey} className="flex flex-col border border-slate-200 rounded-lg overflow-hidden">
-                    <button
-                      type="button"
-                      className={`flex items-center justify-between w-full px-4 py-3 transition-colors focus:outline-none ${isExpanded ? 'bg-slate-50 border-b border-slate-200' : 'bg-white hover:bg-slate-50'}`}
-                      aria-expanded={isExpanded ? 'true' : 'false'}
-                      aria-controls={detailsId}
-                      onClick={() => setExpandedMonthKey((prev) => (prev === monthKey ? null : monthKey))}
-                    >
-                      <span className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-slate-800">{formatMonitoringMonthLabel(monthNumber)}/{year}</span>
-                      </span>
-                      <strong className="text-xs font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">{count}</strong>
-                    </button>
-                    {isExpanded ? (
-                      <div id={detailsId} className="flex flex-col p-4 bg-slate-50 gap-4" role="region" aria-label={`Detalhes de ${formatMonitoringMonthLabel(monthNumber)}/${year}`}>
-                        {details.map((item) => {
-                          const projectId = String(item?.projectId || '').trim();
-                          const projectName = String(item?.projectName || '').trim();
-                          const projectLabel = projectName && projectName !== projectId
-                            ? `${projectId} - ${projectName}`
-                            : (projectId || projectName || '-');
-                          return (
-                            <article key={`${monthKey}-${projectId || projectLabel}`} className="flex flex-col gap-1 p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
-                              <strong className="text-sm font-bold text-slate-800 mb-1">{projectLabel}</strong>
-                              <span className="text-xs text-slate-600 flex justify-between"><strong>Origem:</strong> {item?.sourceSummary || '-'}</span>
-                              <span className="text-xs text-slate-600 flex justify-between"><strong>Escopo:</strong> {item?.scopeSummary || '-'}</span>
-                              <span className="text-xs text-slate-600 flex justify-between"><strong>Prazo:</strong> {formatReportDueDays(item?.dueInDays)}</span>
-                              <span className="text-xs text-slate-600 flex justify-between items-center mt-1 pt-1 border-t border-slate-50">
-                                <strong>Status prazo:</strong>{' '}
-                                <Badge tone={item?.deadlineStatusTone}>{item?.deadlineStatusLabel || 'Sem prazo'}</Badge>
-                              </span>
-                              <span className="text-xs text-slate-600 flex justify-between items-center mt-1 pt-1 border-t border-slate-50">
-                                <strong>Status operacional:</strong>{' '}
-                                <Badge tone={item?.operationalStatusTone}>{item?.operationalStatusLabel || 'Não iniciado'}</Badge>
-                              </span>
-                            </article>
-                          );
-                        })}
-                        {details.length === 0 && (
-                          <p className="text-sm text-slate-500 italic">Nenhum empreendimento encontrado para este mês.</p>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-              {reportMonthRows.length === 0 && <p className="text-sm text-slate-500">Sem entregas por mês para acompanhar.</p>}
-            </div>
-          </Card>
-
           <Card variant="nested" className="flex flex-col">
             <h3 className="text-sm font-bold text-slate-800 m-0 mb-3">Acompanhamento de Obras</h3>
             <div className="w-full overflow-x-auto rounded-lg border border-slate-200">
@@ -660,13 +785,77 @@ function DashboardMonitoring({ viewModel, pendingProjects, onCriticalityBarClick
         </div>
       </div>
 
-      {pendingProjects && pendingProjects.length > 0 && (
-        <PendingProjectsPanel
-          pendingProjects={pendingProjects}
-          onFixSchedule={onFixSchedule}
-          onFixLO={onFixLO}
-        />
-      )}
+      <Card variant="nested">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-bold text-slate-800 m-0">Mapa de calor (coordenadas)</h3>
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            aria-expanded={isHeatMapExpanded ? 'true' : 'false'}
+            aria-controls="dashboard-heatmap-container"
+            onClick={() => setIsHeatMapExpanded((value) => !value)}
+            title="Alternar tamanho do mapa de calor"
+          >
+            {isHeatMapExpanded ? 'Recolher mapa' : 'Expandir mapa'}
+          </button>
+        </div>
+        <div
+          id="dashboard-heatmap-container"
+          data-testid="dashboard-heatmap-container"
+          style={{ width: '100%', height: heatMapHeight, borderRadius: 10, overflow: 'hidden' }}
+        >
+          <MapContainer
+            key={heatMapInstanceKey}
+            center={heatPoints.length > 0 ? [heatPoints[0].latitude, heatPoints[0].longitude] : [-15.793889, -47.882778]}
+            zoom={heatPoints.length > 0 ? 10 : 4}
+            scrollWheelZoom={false}
+            style={{ width: '100%', height: '100%' }}
+          >
+            <DashboardHeatMapViewport heatPoints={heatPoints} mapHeight={heatMapHeight} />
+            <LayersControl position="topright">
+              <LayersControl.BaseLayer checked name="Mapa padrão">
+                <TileLayer
+                  attribution="&copy; OpenStreetMap contributors"
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+              </LayersControl.BaseLayer>
+              <LayersControl.BaseLayer name="Relevo">
+                <TileLayer
+                  attribution="Map data: &copy; OpenTopoMap contributors, SRTM | &copy; OpenStreetMap contributors"
+                  url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+                />
+              </LayersControl.BaseLayer>
+            </LayersControl>
+            {heatPoints.map((point) => (
+              <CircleMarker
+                key={`heat-point-${point.id}-${point.latitude}-${point.longitude}`}
+                center={[point.latitude, point.longitude]}
+                radius={6 + (point.peso * 8)}
+                pathOptions={{
+                  color: getHeatChartColor(point.peso),
+                  fillColor: getHeatChartColor(point.peso),
+                  fillOpacity: 0.55 + (point.peso * 0.35),
+                }}
+              >
+                <Popup>
+                  <strong>{point.id || '-'}</strong>
+                  <br />
+                  Projeto: {point.projetoId || '-'}
+                  <br />
+                  Torre: {formatTowerLabel(point.towerRef)}
+                  <br />
+                  Criticidade: {point.criticidade || '-'}
+                  <br />
+                  Score: {point.score}
+                </Popup>
+              </CircleMarker>
+            ))}
+          </MapContainer>
+        </div>
+        <p className="text-xs text-slate-500 mt-2">
+          Pontos no mapa: {heatPoints.length} | Erosões sem coordenadas: {heatPointsWithoutCoordinates}
+        </p>
+      </Card>
     </section>
   );
 }
@@ -961,6 +1150,7 @@ function DashboardView() {
         <DashboardMonitoring
           viewModel={dashboardViewModel}
           pendingProjects={pendingProjects}
+          now={Date.now()}
           onCriticalityBarClick={(level) => {
             setCriticalityFilter(level);
             setActiveTab('erosions');
@@ -972,6 +1162,12 @@ function DashboardView() {
           onFixLO={(projectId) => {
             setSearchTerm(projectId);
             setActiveTab('licenses');
+          }}
+          onNavigate={(tab, options = {}) => {
+            if (options.criticality) {
+              setCriticalityFilter(options.criticality);
+            }
+            setActiveTab(tab);
           }}
         />
       );

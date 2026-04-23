@@ -195,6 +195,28 @@ describe('AppShell', () => {
     expect(sideNav.classList.contains('-translate-x-full')).toBe(true);
   });
 
+  it('hides sidebar as a mobile drawer in mid-size viewport (half-screen desktop, 900px)', () => {
+    act(() => {
+      window.innerWidth = 900;
+      window.dispatchEvent(new Event('resize'));
+    });
+    renderShell(buildProps());
+
+    const sideNav = container.querySelector('#app-side-nav');
+    const mobileToggle = container.querySelector('#mobile-nav-toggle');
+
+    // Below 961px the shell must treat the viewport as non-desktop:
+    // sidebar is hidden off-canvas and the hamburger is available.
+    expect(mobileToggle).toBeTruthy();
+    expect(sideNav.classList.contains('-translate-x-full')).toBe(true);
+
+    act(() => {
+      mobileToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(sideNav.classList.contains('translate-x-0')).toBe(true);
+  });
+
   it('forces sidebar collapse when switching from mobile to desktop viewport', () => {
     act(() => {
       window.innerWidth = 768;
