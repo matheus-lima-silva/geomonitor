@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Badge, Button, Card, Modal, Select } from '../../../components/ui';
 import { buildFeriadosIndex, getFeriadoForDate } from '../../shared/rulesConfig';
+import { estimateWorkdaysForTowers, getProjectInspectionStats } from '../../projects/utils/projectStats';
 import { buildPlanningGuideRows, exportPlanningGuideCsv } from '../utils/planningGuideExport';
 import {
   computeVisitPlanning,
@@ -77,6 +78,13 @@ function VisitPlanningView({ projects, inspections, erosions, feriados = [], onA
       year,
     });
   }, [selectedProject, inspections, erosions, year]);
+
+  const inspectionStats = useMemo(
+    () => selectedProject
+      ? getProjectInspectionStats(selectedProject.id, inspections, { feriadosIndex, globalInspections: inspections })
+      : null,
+    [selectedProject, inspections, feriadosIndex],
+  );
 
   useEffect(() => {
     setSelectedTowers([
@@ -266,19 +274,45 @@ function VisitPlanningView({ projects, inspections, erosions, feriados = [], onA
       {selectedProject && (
         <>
           {/* Stats Info Box */}
-          <div className="bg-brand-50 border border-brand-100 rounded-lg p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-sm">
+          <div className="bg-brand-50 border border-brand-100 rounded-lg p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 text-sm">
             <div><strong className="text-slate-700">Total torres:</strong> <span className="text-slate-600">{planning.totalTorres}</span></div>
             <div><strong className="text-slate-700">Meta anual:</strong> <span className="text-slate-600">{planning.metaAmostragem}</span></div>
             <div><strong className="text-slate-700">Obrigatórias:</strong> <span className="text-slate-600">{planning.obrigatorias.length}</span></div>
             <div><strong className="text-slate-700">Amostragem (auto):</strong> <span className="text-slate-600">{planning.amostragemSelecionada.length}</span></div>
             <div><strong className="text-slate-700">Não priorizar:</strong> <span className="text-slate-600">{planning.naoPriorizar.length}</span></div>
             <div><strong className="text-slate-700">Seed:</strong> <span className="text-slate-600">{planning.seed}</span></div>
+            <div className="col-span-2">
+              <strong className="text-slate-700">Ritmo historico:</strong>{' '}
+              <span className="text-slate-600">
+                {inspectionStats?.rhythm?.towersPerWorkday
+                  ? `${inspectionStats.rhythm.towersPerWorkday.toFixed(1)} torres/dia util`
+                  : 'S/D'}
+              </span>
+              {inspectionStats?.rhythm?.towersPerWorkday ? (
+                <span className="text-xs text-slate-400 ml-1">
+                  {inspectionStats.rhythm.source === 'project'
+                    ? `(${inspectionStats.rhythm.sampleSize} vistoria${inspectionStats.rhythm.sampleSize !== 1 ? 's' : ''} deste projeto)`
+                    : `(media global, ${inspectionStats.rhythm.sampleSize} vistoria${inspectionStats.rhythm.sampleSize !== 1 ? 's' : ''})`}
+                </span>
+              ) : null}
+            </div>
           </div>
 
           {/* Selection Summary */}
           <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col gap-3">
             <div className="text-sm">
               <strong className="text-slate-700">Seleção atual:</strong> <span className="text-slate-600">{selectedItems.length} torre(s)</span>
+              {(() => {
+                if (!selectedItems.length || !inspectionStats?.rhythm) return null;
+                const est = estimateWorkdaysForTowers(selectedItems.length, inspectionStats.rhythm);
+                if (!est.workdays) return null;
+                const fonte = est.source === 'project' ? '(baseado no proprio projeto)' : '(baseado na media global)';
+                return (
+                  <span className="text-slate-400 ml-2 text-xs">
+                    Estimativa: ~{est.workdays} dia{est.workdays !== 1 ? 's' : ''} util{est.workdays !== 1 ? 'eis' : ''} {fonte}
+                  </span>
+                );
+              })()}
             </div>
             <div className="text-sm">
               <strong className="text-slate-700">Torre-alvo (última da sequência):</strong> <span className="text-slate-600">{targetTower || 'N/D'}</span>

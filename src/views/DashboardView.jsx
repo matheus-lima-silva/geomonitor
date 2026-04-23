@@ -1045,6 +1045,7 @@ function DashboardView() {
           projects={projects}
           inspections={inspections}
           operatingLicenses={operatingLicenses}
+          feriados={rulesConfig?.feriados || []}
           userEmail={user?.email}
           showToast={show}
           reloadProjects={async () => null}

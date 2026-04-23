@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, EmptyState, IconButton, Input, ListItemSkeleton, Select } from '../../../components/ui';
+import { buildFeriadosIndex } from '../../shared/rulesConfig';
 import { useProjectsFeatureState } from '../hooks/useProjectsFeatureState';
 import { formatReportMonths, getProjectReportConfig } from '../utils/reportSchedule';
 import { validateTowerCoordinatesAsString } from '../utils/kmlUtils';
@@ -12,12 +13,14 @@ import KmlLinePickerModal from './KmlLinePickerModal';
 import RoutePlannerModal from './RoutePlannerModal';
 import { ConfirmDeleteModal } from '../../../components/ui';
 
-function ProjectsView({ projects, inspections, operatingLicenses, userEmail, showToast, reloadProjects, onOpenProjectInspections, searchTerm, editProjectId, onEditProjectHandled, loading = false }) {
+function ProjectsView({ projects, inspections, operatingLicenses, feriados = [], userEmail, showToast, reloadProjects, onOpenProjectInspections, searchTerm, editProjectId, onEditProjectHandled, loading = false }) {
   const mergeInputRef = useRef(null);
   const createInputRef = useRef(null);
   const mergeTargetProjectRef = useRef(null);
   const [localSearch, setLocalSearch] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
+
+  const feriadosIndex = useMemo(() => buildFeriadosIndex(feriados), [feriados]);
 
   const projectsWithLO = useMemo(() => {
     const coveredIds = new Set();
@@ -148,7 +151,7 @@ function ProjectsView({ projects, inspections, operatingLicenses, userEmail, sho
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => <ListItemSkeleton key={i} />)
         ) : filtered.map((p) => {
-          const stats = getProjectInspectionStats(p.id, inspections);
+          const stats = getProjectInspectionStats(p.id, inspections, { feriadosIndex, globalInspections: inspections });
           const reportConfig = getProjectReportConfig(p);
           const gpsCount = validateTowerCoordinatesAsString(p.torresCoordenadas || []).rows.filter((r) => !r.error).length;
           const lineCount = Array.isArray(p.linhaCoordenadas) ? p.linhaCoordenadas.length : 0;
@@ -216,6 +219,19 @@ function ProjectsView({ projects, inspections, operatingLicenses, userEmail, sho
                 <div><strong className="text-slate-800">Vistorias:</strong> {stats.count}</div>
                 <div><strong className="text-slate-800">Tempo de vistoria:</strong> {stats.spanDays ? `${stats.spanDays} dia(s)` : 'S/D'}</div>
                 <div><strong className="text-slate-800">Dias efetivamente vistoriados:</strong> {stats.visitedDays}</div>
+                <div>
+                  <strong className="text-slate-800">Ritmo:</strong>{' '}
+                  {stats.rhythm?.towersPerWorkday
+                    ? `${stats.rhythm.towersPerWorkday.toFixed(1)} torres/dia util`
+                    : 'S/D'}
+                  {stats.rhythm?.towersPerWorkday ? (
+                    <span className="text-xs text-slate-400 ml-1">
+                      {stats.rhythm.source === 'project'
+                        ? `(${stats.rhythm.sampleSize} vistoria${stats.rhythm.sampleSize !== 1 ? 's' : ''} deste projeto)`
+                        : `(media global, ${stats.rhythm.sampleSize} vistoria${stats.rhythm.sampleSize !== 1 ? 's' : ''})`}
+                    </span>
+                  ) : null}
+                </div>
                 <div><strong className="text-slate-800">Torres com GPS:</strong> {gpsCount}</div>
                 <div><strong className="text-slate-800">Periodicidade:</strong> {reportConfig.periodicidadeRelatorio}</div>
                 <div><strong className="text-slate-800">Meses de entrega:</strong> {formatReportMonths(reportConfig.mesesEntregaRelatorio)}</div>
