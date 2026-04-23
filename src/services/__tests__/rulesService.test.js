@@ -7,7 +7,7 @@ vi.mock('../../utils/tokenStorage', () => ({
   clearTokens: vi.fn(),
   hasStoredSession: vi.fn(() => true),
 }));
-import { saveRulesConfig, subscribeRulesConfig } from '../rulesService';
+import { importarFeriadosNacionais, saveRulesConfig, subscribeRulesConfig } from '../rulesService';
 
 async function flushPromises() {
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -55,6 +55,47 @@ describe('rulesService', () => {
 
     expect(onData).toHaveBeenCalledWith(null);
     unsub();
+  });
+
+  it('importarFeriadosNacionais usa _links quando presente', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        data: { ano: 2026, feriados: [{ data: '2026-04-21', nome: 'Tiradentes', tipo: 'nacional' }] },
+      }),
+    });
+
+    const rulesConfig = {
+      _links: {
+        importarFeriados: { href: 'http://api.local/api/rules/feriados/importar', method: 'GET' },
+      },
+    };
+
+    const result = await importarFeriadosNacionais(2026, rulesConfig);
+
+    expect(result).toEqual({
+      ano: 2026,
+      feriados: [{ data: '2026-04-21', nome: 'Tiradentes', tipo: 'nacional' }],
+    });
+    expect(fetchMock.mock.calls[0][0]).toContain('/rules/feriados/importar?ano=2026');
+    expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+  });
+
+  it('importarFeriadosNacionais monta URL por fallback quando _links ausente', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ data: { ano: 2026, feriados: [] } }),
+    });
+
+    const result = await importarFeriadosNacionais(2026, null);
+
+    expect(result).toEqual({ ano: 2026, feriados: [] });
+    expect(fetchMock.mock.calls[0][0]).toContain('/rules/feriados/importar?ano=2026');
+  });
+
+  it('importarFeriadosNacionais rejeita ano invalido sem chamar fetch', async () => {
+    await expect(importarFeriadosNacionais(1800, null)).rejects.toThrow(/ano/i);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('saveRulesConfig envia PUT e mantém merge true', async () => {

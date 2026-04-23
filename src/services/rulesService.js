@@ -20,15 +20,16 @@ export async function importarFeriadosNacionais(ano, rulesConfig = null) {
     throw new Error('Ano invalido para importacao de feriados.');
   }
 
-  const link = rulesConfig?._links?.importarFeriados;
-  if (!link?.href) {
-    throw new Error('Link HATEOAS de importacao de feriados indisponivel. Recarregue a configuracao de regras.');
-  }
+  // Prefer HATEOAS link exposed pelo GET /api/rules; se indisponivel (config ainda
+  // nao criada no banco, resposta antiga em cache), monta via API_BASE_URL como fallback.
+  const baseHref = rulesConfig?._links?.importarFeriados?.href
+    || `${API_BASE_URL}/rules/feriados/importar`;
+  const method = rulesConfig?._links?.importarFeriados?.method || 'GET';
 
-  const separator = link.href.includes('?') ? '&' : '?';
+  const separator = baseHref.includes('?') ? '&' : '?';
   const importLink = {
-    ...link,
-    href: `${link.href}${separator}ano=${encodeURIComponent(String(yearNumber))}`,
+    href: `${baseHref}${separator}ano=${encodeURIComponent(String(yearNumber))}`,
+    method,
   };
 
   const response = await fetchWithHateoas(importLink, null, API_BASE_URL);
