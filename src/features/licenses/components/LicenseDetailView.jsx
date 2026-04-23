@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Badge, Button, Tabs } from '../../../components/ui';
+import { Badge, Button, Modal, Tabs } from '../../../components/ui';
 import {
   buildLicenseChips,
   buildLicenseSubtitle,
@@ -9,6 +9,10 @@ import {
 import LicenseConditionsSection from './LicenseConditionsSection';
 import LicenseFilesSection from './LicenseFilesSection';
 import { MONTH_OPTIONS_PT } from '../../projects/utils/reportSchedule';
+
+// Detalhe de LO apresentado em Modal xl (padrao ErosionDetailsModal /
+// InspectionDetailsModal). 4 abas: Resumo, Condicionantes, Documentos,
+// Historico. Fechamento via Escape, backdrop ou botao "Fechar" no footer.
 
 function ResumoTab({ license, projectsById }) {
   const cobertura = Array.isArray(license?.cobertura) ? license.cobertura : [];
@@ -22,6 +26,7 @@ function ResumoTab({ license, projectsById }) {
         <h4 className="text-sm font-bold text-slate-800 m-0 mb-2">Identificação</h4>
         <dl className="text-sm text-slate-700 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
           <dt className="text-slate-500">Número</dt><dd>{license.numero || '-'}</dd>
+          {license.apelido && (<><dt className="text-slate-500">Apelido</dt><dd>{license.apelido}</dd></>)}
           <dt className="text-slate-500">Órgão</dt><dd>{license.orgaoAmbiental || '-'}</dd>
           <dt className="text-slate-500">Esfera</dt><dd>{license.esfera || '-'}</dd>
           {license.esfera === 'Estadual' && (<><dt className="text-slate-500">UF</dt><dd>{license.uf || '-'}</dd></>)}
@@ -91,18 +96,15 @@ function HistoricoTab({ license }) {
 }
 
 export default function LicenseDetailView({
+  open,
   license,
   projectsById,
-  onBack,
+  onClose,
   onEdit,
   onDelete,
   showToast,
 }) {
   const [tab, setTab] = useState('resumo');
-
-  const title = buildLicenseTitle(license);
-  const subtitle = buildLicenseSubtitle(license);
-  const chips = buildLicenseChips(license);
 
   const tabs = useMemo(() => [
     { key: 'resumo', label: 'Resumo' },
@@ -111,15 +113,39 @@ export default function LicenseDetailView({
     { key: 'historico', label: 'Histórico' },
   ], []);
 
+  if (!license) return null;
+
+  const title = buildLicenseTitle(license);
+  const subtitle = buildLicenseSubtitle(license);
+  const chips = buildLicenseChips(license);
+
+  const header = (
+    <span className="flex items-center gap-2">
+      <AppIcon name="license" /> {title}
+    </span>
+  );
+
+  const footer = (
+    <>
+      <Button variant="outline" size="md" onClick={onClose}>
+        <AppIcon name="close" />
+        Fechar
+      </Button>
+      <Button variant="outline" size="md" onClick={() => onEdit?.(license)}>
+        <AppIcon name="edit" />
+        Editar
+      </Button>
+      <Button variant="danger" size="md" onClick={() => onDelete?.(license)}>
+        <AppIcon name="trash" />
+        Excluir
+      </Button>
+    </>
+  );
+
   return (
-    <section className="flex flex-col gap-6 p-4 md:p-8 max-w-screen-2xl w-full">
-      <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="flex flex-col gap-2 min-w-0">
-          <Button variant="ghost" size="sm" onClick={onBack} className="self-start">
-            <AppIcon name="chevron-left" />
-            Voltar para a lista
-          </Button>
-          <h2 className="text-xl md:text-2xl font-bold text-slate-800 m-0 truncate" title={title}>{title}</h2>
+    <Modal open={open} onClose={onClose} title={header} size="xl" footer={footer}>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1 pb-2 border-b border-slate-100">
           {subtitle && <p className="text-sm text-slate-500 m-0">{subtitle}</p>}
           {chips.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-1">
@@ -127,30 +153,20 @@ export default function LicenseDetailView({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={() => onEdit?.(license)}>
-            <AppIcon name="edit" />
-            Editar
-          </Button>
-          <Button variant="danger" size="sm" onClick={() => onDelete?.(license)}>
-            <AppIcon name="trash" />
-            Excluir
-          </Button>
+
+        <Tabs items={tabs} activeKey={tab} onChange={setTab} ariaLabel="Seções do detalhe da licença" />
+
+        <div>
+          {tab === 'resumo' && <ResumoTab license={license} projectsById={projectsById} />}
+          {tab === 'condicionantes' && (
+            <LicenseConditionsSection licenseId={license.id} showToast={showToast} />
+          )}
+          {tab === 'documentos' && (
+            <LicenseFilesSection licenseId={license.id} showToast={showToast} />
+          )}
+          {tab === 'historico' && <HistoricoTab license={license} />}
         </div>
-      </header>
-
-      <Tabs items={tabs} activeKey={tab} onChange={setTab} ariaLabel="Seções do detalhe da licença" />
-
-      <div>
-        {tab === 'resumo' && <ResumoTab license={license} projectsById={projectsById} />}
-        {tab === 'condicionantes' && (
-          <LicenseConditionsSection licenseId={license.id} showToast={showToast} />
-        )}
-        {tab === 'documentos' && (
-          <LicenseFilesSection licenseId={license.id} showToast={showToast} />
-        )}
-        {tab === 'historico' && <HistoricoTab license={license} />}
       </div>
-    </section>
+    </Modal>
   );
 }

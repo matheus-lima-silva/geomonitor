@@ -708,19 +708,6 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
     setLicenseParam(id);
   }
 
-  if (detailLicense) {
-    return (
-      <LicenseDetailView
-        license={detailLicense}
-        projectsById={projectsById}
-        onBack={() => openDetail('')}
-        onEdit={(l) => { openDetail(''); openEdit(l); }}
-        onDelete={(l) => handleDelete(l)}
-        showToast={showToast}
-      />
-    );
-  }
-
   const noLicenses = (licenses || []).length === 0;
   const noResults = filteredLicenses.length === 0 && !loading;
 
@@ -795,6 +782,16 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
         onSave={handleSave}
         onCancel={() => setOpen(false)}
         onConditionsChange={setConditionsDraft}
+        showToast={showToast}
+      />
+
+      <LicenseDetailView
+        open={Boolean(detailLicense)}
+        license={detailLicense}
+        projectsById={projectsById}
+        onClose={() => openDetail('')}
+        onEdit={(l) => { openDetail(''); openEdit(l); }}
+        onDelete={(l) => handleDelete(l)}
         showToast={showToast}
       />
     </section>
