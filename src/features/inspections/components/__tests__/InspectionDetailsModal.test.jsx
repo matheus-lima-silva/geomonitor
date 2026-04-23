@@ -112,6 +112,80 @@ describe('InspectionDetailsModal', () => {
     expect(onNavigate).toHaveBeenNthCalledWith(2, inspections[2]);
   });
 
+  it('exibe badge Feriado no card quando a data cai em feriado', () => {
+    const { inspection, inspections, erosions, project } = buildData();
+    act(() => {
+      root.render(
+        <InspectionDetailsModal
+          inspection={inspection}
+          project={project}
+          erosions={erosions}
+          inspections={inspections}
+          feriados={[{ data: '2026-01-10', nome: 'Feriado de Teste', tipo: 'nacional' }]}
+          onClose={() => {}}
+          onNavigate={() => {}}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain('Feriado - Feriado de Teste');
+  });
+
+  it('nao mostra badge quando a data do dia nao e feriado', () => {
+    const { inspection, inspections, erosions, project } = buildData();
+    act(() => {
+      root.render(
+        <InspectionDetailsModal
+          inspection={inspection}
+          project={project}
+          erosions={erosions}
+          inspections={inspections}
+          feriados={[{ data: '2026-12-25', nome: 'Natal', tipo: 'nacional' }]}
+          onClose={() => {}}
+          onNavigate={() => {}}
+        />,
+      );
+    });
+
+    expect(container.textContent).not.toContain('Feriado -');
+  });
+
+  it('inclui feriado no HTML do PDF exportado', () => {
+    vi.useFakeTimers();
+    const { inspection, inspections, erosions, project } = buildData();
+    const documentWrite = vi.fn();
+    const documentClose = vi.fn();
+    const print = vi.fn();
+    vi.spyOn(window, 'open').mockReturnValue({
+      document: { write: documentWrite, close: documentClose },
+      print,
+    });
+
+    act(() => {
+      root.render(
+        <InspectionDetailsModal
+          inspection={inspection}
+          project={project}
+          erosions={erosions}
+          inspections={inspections}
+          feriados={[{ data: '2026-01-10', nome: 'Feriado de Teste', tipo: 'nacional' }]}
+          onClose={() => {}}
+          onNavigate={() => {}}
+        />,
+      );
+    });
+
+    const footerButtons = [...container.querySelectorAll('[role="dialog"] div.border-t button')];
+    const pdfButton = footerButtons.find((button) => /Gerar PDF/i.test(button.textContent || ''));
+    act(() => { pdfButton.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    act(() => { vi.runAllTimers(); });
+
+    const htmlArg = documentWrite.mock.calls[0]?.[0] || '';
+    expect(htmlArg).toContain('chip amber');
+    expect(htmlArg).toContain('Feriado - Feriado de Teste');
+    vi.useRealTimers();
+  });
+
   it('exporta PDF abrindo nova janela e chamando print', () => {
     vi.useFakeTimers();
     const { inspection, inspections, erosions, project } = buildData();

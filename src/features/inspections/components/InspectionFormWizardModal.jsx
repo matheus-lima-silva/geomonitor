@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import AppIcon from '../../../components/AppIcon';
-import { Button, IconButton, Input, Modal, Select, Textarea } from '../../../components/ui';
+import { Badge, Button, IconButton, Input, Modal, Select, Textarea } from '../../../components/ui';
 import { saveInspection } from '../../../services/inspectionService';
 import { postCalculoErosao, saveErosion } from '../../../services/erosionService';
 import { useLocalStorageDraft } from '../../../hooks/useLocalStorageDraft';
@@ -26,6 +26,7 @@ import {
 } from '../../shared/erosionCoordinates';
 import ErosionTechnicalFields from '../../erosions/components/ErosionTechnicalFields';
 import { buildHotelHistory, extractHotelFields, findPreviousDayHotel } from '../utils/hotelHistory';
+import { buildFeriadosIndex, getFeriadoForDate } from '../../shared/rulesConfig';
 import {
   buildInspectionId,
   compareTowerNumbers,
@@ -274,6 +275,7 @@ function InspectionFormWizardModal({
   erosions,
   actorName,
   suggestedTowerInput,
+  feriados = [],
   onOpenErosionDraft,
   onCancel,
   onSaved,
@@ -307,6 +309,18 @@ function InspectionFormWizardModal({
     () => (projects || []).find((item) => item.id === formData.projetoId) || null,
     [projects, formData.projetoId],
   );
+
+  const feriadosIndex = useMemo(() => buildFeriadosIndex(feriados), [feriados]);
+
+  const feriadosNoPeriodo = useMemo(() => {
+    const days = Array.isArray(formData?.detalhesDias) ? formData.detalhesDias : [];
+    return days
+      .map((day) => {
+        const feriado = getFeriadoForDate(day?.data, feriadosIndex);
+        return feriado ? { data: day.data, nome: feriado.nome, tipo: feriado.tipo } : null;
+      })
+      .filter(Boolean);
+  }, [formData?.detalhesDias, feriadosIndex]);
 
   const hotelHistory = useMemo(
     () => buildHotelHistory({
@@ -1339,6 +1353,7 @@ function InspectionFormWizardModal({
                   const dayKey = String(day?.data || `dia-${dayIndex}`);
                   const isTowerPickerCollapsed = !!collapsedTowerPickerDays[dayKey];
                   const isHotelPickerOpen = openHotelPickerDayKey === dayKey;
+                  const feriadoDia = getFeriadoForDate(day?.data, feriadosIndex);
                   const selectedDayTowers = [...(day.torresDetalhadas || [])]
                     .filter((tower) => String(tower?.numero || '').trim())
                     .sort((a, b) => compareTowerNumbers(a.numero, b.numero));
@@ -1359,7 +1374,10 @@ function InspectionFormWizardModal({
                     <article key={day.data || dayIndex} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm transition-shadow hover:shadow-md">
                       <div className="flex items-center justify-between p-4 bg-white cursor-pointer select-none" onClick={() => setExpandedDay((prev) => (prev === day.data ? '' : day.data))}>
                         <div>
-                          <strong className="text-slate-800 text-lg">{day.data ? new Date(`${day.data}T00:00:00`).toLocaleDateString('pt-BR') : `Dia ${dayIndex + 1}`}</strong>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <strong className="text-slate-800 text-lg">{day.data ? new Date(`${day.data}T00:00:00`).toLocaleDateString('pt-BR') : `Dia ${dayIndex + 1}`}</strong>
+                            {feriadoDia ? <Badge tone="warning" size="sm">Feriado - {feriadoDia.nome}</Badge> : null}
+                          </div>
                           <div className="text-sm text-slate-500">{(day.torresDetalhadas || []).length} torre(s) detalhada(s)</div>
                         </div>
                         <Button type="button" size="sm" variant="outline" className="px-3 py-1.5" onClick={(e) => { e.stopPropagation(); setExpandedDay((prev) => (prev === day.data ? '' : day.data)); }}>
@@ -1693,6 +1711,19 @@ function InspectionFormWizardModal({
                   <div><strong className="text-slate-700">Torres sinalizadas com erosao:</strong> {summary.towersWithErosion}</div>
                 </div>
               </div>
+
+              {feriadosNoPeriodo.length > 0 ? (
+                <div
+                  className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-100 text-sm"
+                  data-testid="inspection-wizard-feriados-alert"
+                >
+                  <strong>Feriados no periodo ({feriadosNoPeriodo.length}):</strong>{' '}
+                  {feriadosNoPeriodo.map((f) => {
+                    const [yyyy, mm, dd] = f.data.split('-');
+                    return `${dd}/${mm} ${f.nome}`;
+                  }).join(' - ')}
+                </div>
+              ) : null}
 
               {findDuplicateTowersAcrossDays(formData.detalhesDias).length > 0 ? (
                 <div className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-100 text-sm">

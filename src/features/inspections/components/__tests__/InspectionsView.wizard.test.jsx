@@ -416,4 +416,31 @@ describe('InspectionsView wizard flow', () => {
     await clickElement(toggleButton);
     expect(getTowerPickerButton('Portico (T0)', document.body)).toBeTruthy();
   });
+
+  it('sinaliza feriados nos cards do dia e no resumo final', async () => {
+    renderView(root, {
+      feriados: [{ data: '2026-04-21', nome: 'Tiradentes', tipo: 'nacional' }],
+    });
+
+    await clickByText('Nova Vistoria');
+
+    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
+    const dateInputs = document.querySelectorAll('input[type="date"]');
+    changeInput(projectSelect, 'P1');
+    changeInput(dateInputs[0], '2026-04-20');
+    changeInput(dateInputs[1], '2026-04-22');
+    await flush();
+
+    await clickByText('Avancar');
+
+    expect(document.body.textContent).toContain('Feriado - Tiradentes');
+
+    await clickElement(getTowerPickerButton('Torre 1', document.body));
+    await clickByText('Avancar');
+
+    const alerta = document.querySelector('[data-testid="inspection-wizard-feriados-alert"]');
+    expect(alerta).toBeTruthy();
+    expect(alerta.textContent).toContain('Tiradentes');
+  });
 });

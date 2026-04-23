@@ -37,6 +37,12 @@ const retencaoSchema = z.object({
     lixeira_para_arquivo_dias: z.number().int().min(1).max(3650).optional(),
 }).passthrough();
 
+const feriadoSchema = z.object({
+    data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    nome: z.string().min(1).max(200),
+    tipo: z.enum(['nacional', 'estadual', 'municipal', 'personalizado']).optional(),
+}).passthrough();
+
 // TOP LEVEL strict-ish: whitelist dos campos editaveis. Qualquer campo fora daqui
 // e rejeitado pelo .strict() — previne mass assignment com campos tipo isAdmin.
 const rulesDataSchema = z.object({
@@ -48,6 +54,7 @@ const rulesDataSchema = z.object({
     pontos: z.record(z.string(), pontoGroupSchema).optional(),
     solucoes_por_criticidade: z.record(z.string(), solucaoSchema).optional(),
     retencao: retencaoSchema.optional(),
+    feriados: z.array(feriadoSchema).optional(),
     updatedAt: z.string().optional(),
     updatedBy: z.string().optional(),
 }).strict();

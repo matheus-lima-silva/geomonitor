@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Modal, Select } from '../../../components/ui';
+import { Badge, Button, Card, Modal, Select } from '../../../components/ui';
+import { buildFeriadosIndex, getFeriadoForDate } from '../../shared/rulesConfig';
 import { buildPlanningGuideRows, exportPlanningGuideCsv } from '../utils/planningGuideExport';
 import {
   computeVisitPlanning,
@@ -35,13 +36,28 @@ function formatHotelDistance(value) {
   return `${num}`;
 }
 
-function VisitPlanningView({ projects, inspections, erosions, onApplySelection }) {
+function VisitPlanningView({ projects, inspections, erosions, feriados = [], onApplySelection }) {
   const [projectId, setProjectId] = useState('');
   const [selectedTowers, setSelectedTowers] = useState([]);
   const [showGuidePreview, setShowGuidePreview] = useState(false);
+  const [feriadosAlertDismissed, setFeriadosAlertDismissed] = useState(false);
 
   const selectedProject = projects.find((item) => item.id === projectId) || null;
   const year = new Date().getFullYear();
+
+  const feriadosIndex = useMemo(() => buildFeriadosIndex(feriados), [feriados]);
+
+  const feriadosDoAno = useMemo(() => {
+    const prefix = `${year}-`;
+    return (Array.isArray(feriados) ? feriados : [])
+      .filter((item) => typeof item?.data === 'string' && item.data.startsWith(prefix))
+      .slice()
+      .sort((a, b) => a.data.localeCompare(b.data));
+  }, [feriados, year]);
+
+  useEffect(() => {
+    setFeriadosAlertDismissed(false);
+  }, [projectId, year]);
 
   const planning = useMemo(() => {
     if (!selectedProject) {
@@ -159,11 +175,15 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
         )}
         {item.comentariosAnteriores?.length > 0 && (
           <div className="pl-6 flex flex-col gap-0.5">
-            {item.comentariosAnteriores.map((comment, idx) => (
-              <div key={`${item.torre}-${idx}`} className="text-xs text-slate-500">
-                {comment.data || '-'} {comment.inspectionId ? `(${comment.inspectionId})` : ''}: {comment.obs}
-              </div>
-            ))}
+            {item.comentariosAnteriores.map((comment, idx) => {
+              const feriado = getFeriadoForDate(comment?.data, feriadosIndex);
+              return (
+                <div key={`${item.torre}-${idx}`} className="text-xs text-slate-500 flex items-center gap-1.5 flex-wrap">
+                  <span>{comment.data || '-'} {comment.inspectionId ? `(${comment.inspectionId})` : ''}: {comment.obs}</span>
+                  {feriado ? <Badge tone="warning" size="sm">Feriado - {feriado.nome}</Badge> : null}
+                </div>
+              );
+            })}
           </div>
         )}
         {item.hotelSugeridoNome ? (
@@ -206,6 +226,42 @@ function VisitPlanningView({ projects, inspections, erosions, onApplySelection }
           ))}
         </Select>
       </div>
+
+      {feriadosDoAno.length > 0 && !feriadosAlertDismissed ? (
+        <Card
+          variant="flat"
+          className="bg-amber-50 border border-amber-200 text-amber-800"
+          data-testid="visit-planning-feriados-alert"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-sm font-bold">
+                <AppIcon name="calendar" />
+                Feriados em {year} ({feriadosDoAno.length})
+              </div>
+              <p className="text-sm m-0">
+                Evite agendar visitas nestas datas. E possivel marca-las, mas o sistema ira sinalizar no diario da vistoria.
+              </p>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {feriadosDoAno.map((f) => {
+                  const [, mm, dd] = f.data.split('-');
+                  return (
+                    <Badge key={f.data} tone="warning" size="sm">{`${dd}/${mm} ${f.nome}`}</Badge>
+                  );
+                })}
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setFeriadosAlertDismissed(true)}
+              aria-label="Dispensar alerta de feriados"
+            >
+              <AppIcon name="close" />
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       {selectedProject && (
         <>

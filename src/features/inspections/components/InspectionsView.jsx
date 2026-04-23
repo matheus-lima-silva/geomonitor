@@ -22,6 +22,7 @@ function InspectionsView({
   inspections = [],
   projects = [],
   erosions = [],
+  feriados = [],
   forcedProjectFilterId,
   onClearForcedProjectFilter,
   searchTerm,
@@ -217,6 +218,7 @@ function InspectionsView({
           projects={projects}
           inspections={inspections}
           erosions={erosions}
+          feriados={feriados}
           actorName={actorName}
           suggestedTowerInput={suggestedTowerInput}
           onOpenErosionDraft={onOpenErosionDraft}
@@ -237,6 +239,7 @@ function InspectionsView({
           project={projects.find((project) => project.id === detailsModal.projetoId)}
           erosions={erosions}
           inspections={filtered}
+          feriados={feriados}
           onClose={() => setDetailsModal(null)}
           onNavigate={(nextInspection) => setDetailsModal(nextInspection)}
         />

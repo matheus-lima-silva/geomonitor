@@ -2,6 +2,8 @@ import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
 import ArrowDown from 'lucide-react/dist/esm/icons/arrow-down';
 import ArrowUp from 'lucide-react/dist/esm/icons/arrow-up';
 import Bell from 'lucide-react/dist/esm/icons/bell';
+import Calendar from 'lucide-react/dist/esm/icons/calendar';
+import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days';
 import Bold from 'lucide-react/dist/esm/icons/bold';
 import Camera from 'lucide-react/dist/esm/icons/camera';
 import Image from 'lucide-react/dist/esm/icons/image';
@@ -79,6 +81,8 @@ const ICON_MAP = {
   clipboard: ClipboardList,
   alert: AlertTriangle,
   bell: Bell,
+  calendar: Calendar,
+  'calendar-days': CalendarDays,
   planning: ListFilter,
   'route-plan': Waypoints,
   shield: ShieldCheck,

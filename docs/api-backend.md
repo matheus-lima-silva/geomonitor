@@ -376,12 +376,13 @@ Seed inclui: Engenheiro Civil, Eletricista, Ambiental, Mecanico; Geologo; Biolog
 
 Tabela Postgres: `rules_config` (singleton, `id = 'default'`).
 
-Armazena configuracao de regras de criticidade: `pontos`, `faixas` e `solucoes`.
+Armazena configuracao de regras de criticidade (`pontos`, `faixas`, `solucoes`), retencao (`lixeira_para_arquivo_dias`) e lista de feriados (`feriados: [{ data, nome, tipo }]`).
 
 | Metodo | Rota | Permissao | Descricao |
 |---|---|---|---|
 | GET | `/api/rules` | `requireActiveUser` | Busca configuracao |
 | PUT | `/api/rules` | `requireEditor` | Atualiza configuracao |
+| GET | `/api/rules/feriados/importar?ano=YYYY` | `requireAdmin` | Proxy da [BrasilAPI](https://brasilapi.com.br/api/feriados/v1) — retorna feriados nacionais do ano sem persistir. O frontend faz merge com a lista atual e chama PUT para salvar. |
 
 Body (PUT):
 

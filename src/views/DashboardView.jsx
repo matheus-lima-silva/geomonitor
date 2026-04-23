@@ -1077,6 +1077,7 @@ function DashboardView() {
           inspections={inspections}
           projects={projects}
           erosions={erosions}
+          feriados={rulesConfig?.feriados || []}
           searchTerm={searchTerm}
           forcedProjectFilterId={inspectionProjectFilterId}
           onClearForcedProjectFilter={() => setInspectionProjectFilterId(null)}
@@ -1128,6 +1129,7 @@ function DashboardView() {
           projects={projects}
           inspections={inspections}
           erosions={erosions}
+          feriados={rulesConfig?.feriados || []}
           onApplySelection={(payload) => {
             setInspectionPlanningDraft(payload);
             setInspectionProjectFilterId(payload.projectId || null);

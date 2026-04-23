@@ -133,10 +133,52 @@ export function mergeCriticalityConfig(rawConfig) {
   };
 }
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const VALID_FERIADO_TIPOS = new Set(['nacional', 'estadual', 'municipal', 'personalizado']);
+
+export function normalizeFeriados(rawFeriados) {
+  if (!Array.isArray(rawFeriados)) return [];
+  return rawFeriados
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const data = String(item.data || '').trim();
+      const nome = String(item.nome || '').trim();
+      if (!ISO_DATE_RE.test(data) || !nome) return null;
+      const tipoRaw = String(item.tipo || '').trim();
+      const tipo = VALID_FERIADO_TIPOS.has(tipoRaw) ? tipoRaw : 'personalizado';
+      return { data, nome, tipo };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.data.localeCompare(b.data));
+}
+
+export function buildFeriadosIndex(feriados) {
+  const index = new Map();
+  const list = Array.isArray(feriados) ? feriados : [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    const data = String(item.data || '').trim();
+    const nome = String(item.nome || '').trim();
+    if (!ISO_DATE_RE.test(data) || !nome) continue;
+    const tipoRaw = String(item.tipo || '').trim();
+    const tipo = VALID_FERIADO_TIPOS.has(tipoRaw) ? tipoRaw : 'personalizado';
+    index.set(data, { nome, tipo });
+  }
+  return index;
+}
+
+export function getFeriadoForDate(dateIso, feriadosIndex) {
+  if (!feriadosIndex || typeof feriadosIndex.get !== 'function') return null;
+  const key = String(dateIso || '').trim();
+  if (!key) return null;
+  return feriadosIndex.get(key) || null;
+}
+
 export function normalizeRulesConfig(rawRules) {
   const source = rawRules && typeof rawRules === 'object' ? rawRules : {};
   return {
     ...source,
     criticalidade: mergeCriticalityConfig(source),
+    feriados: normalizeFeriados(source.feriados),
   };
 }

@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Badge, Button, IconButton, Modal } from '../../../components/ui';
 import { formatHotelNote, hasHotelData } from '../utils/inspectionWorkflow';
+import { buildFeriadosIndex, getFeriadoForDate } from '../../shared/rulesConfig';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -60,9 +62,11 @@ function InspectionDetailsModal({
   project,
   erosions = [],
   inspections = [],
+  feriados = [],
   onClose,
   onNavigate,
 }) {
+  const feriadosIndex = useMemo(() => buildFeriadosIndex(feriados), [feriados]);
   const relatedErosions = (erosions || [])
     .filter((item) => String(item?.vistoriaId || '').trim() === String(inspection?.id || '').trim());
   const currentIndex = (inspections || []).findIndex((item) => item?.id === inspection?.id);
@@ -103,10 +107,12 @@ function InspectionDetailsModal({
         </div>
       ` : '';
 
+      const feriadoDia = getFeriadoForDate(dia?.data, feriadosIndex);
       return `
         <div class="day-card avoid-break">
           <div class="day-head">
             <span class="date">${escapeHtml(dateLabel)}</span>
+            ${feriadoDia ? `<span class="chip amber">Feriado - ${escapeHtml(feriadoDia.nome)}</span>` : ''}
             ${dia?.clima ? `<span class="chip sky">${escapeHtml(dia.clima)}</span>` : ''}
             ${(dia?.torresInput || dia?.torres) ? `<span class="chip gray">Torres: ${escapeHtml(Array.isArray(dia.torres) ? dia.torres.join(', ') : (dia.torresInput || dia.torres))}</span>` : ''}
           </div>
@@ -150,6 +156,7 @@ function InspectionDetailsModal({
             .chip { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 999px; }
             .chip.sky { background: #e0f2fe; color: #0369a1; }
             .chip.gray { background: #f1f5f9; color: #334155; }
+            .chip.amber { background: #fef3c7; color: #92400e; font-weight: 700; }
             .day-subtitle { font-weight: 700; color: #334155; margin: 4px 0 6px; }
             .tower-list { display: grid; gap: 5px; }
             .tower-row { border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; padding: 6px; }
@@ -272,10 +279,13 @@ function InspectionDetailsModal({
           <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex flex-col gap-4">
             <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2">Diario de Campo Detalhado</h4>
             <div className="flex flex-col gap-3">
-              {inspection.detalhesDias.map((day, idx) => (
+              {inspection.detalhesDias.map((day, idx) => {
+                const feriadoDia = getFeriadoForDate(day?.data, feriadosIndex);
+                return (
                 <article key={`${day?.data || idx}`} className="border border-slate-200 rounded-xl bg-slate-50 p-4">
                   <div className="flex flex-wrap items-center gap-2 mb-3 text-slate-800">
                     <strong>{day?.data ? new Date(`${day.data}T00:00:00`).toLocaleDateString('pt-BR') : 'Data nao informada'}</strong>
+                    {feriadoDia ? <Badge tone="warning" size="sm">Feriado - {feriadoDia.nome}</Badge> : null}
                     {day?.clima ? <Badge tone="ok" size="sm">{day.clima}</Badge> : null}
                     {(day?.torresInput || day?.torres) ? (
                       <Badge tone="neutral" size="sm">Torres: {Array.isArray(day.torres) ? day.torres.join(', ') : (day.torresInput || day.torres)}</Badge>
@@ -306,7 +316,8 @@ function InspectionDetailsModal({
                     </div>
                   ) : null}
                 </article>
-              ))}
+                );
+              })}
             </div>
           </div>
         ) : null}

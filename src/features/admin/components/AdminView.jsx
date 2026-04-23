@@ -15,6 +15,7 @@ import SignaturesSection from './SignaturesSection';
 import WorkspacesAccessSection from './WorkspacesAccessSection';
 import UsageStatsSection from './UsageStatsSection';
 import SqlExecutorPanel from './SqlExecutorPanel';
+import FeriadosSection from './FeriadosSection';
 
 function AdminView({
   users,
@@ -197,6 +198,7 @@ function AdminView({
         <Button variant={section === 'workspaces-access' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('workspaces-access')}><AppIcon name="projects-nav" />Acessos a Workspaces</Button>
         <Button variant={section === 'rules' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('rules')}><AppIcon name="shield" />Criticidade</Button>
         <Button variant={section === 'retencao' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('retencao')}><AppIcon name="clock" />Retencao</Button>
+        <Button variant={section === 'feriados' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('feriados')}><AppIcon name="calendar" />Feriados</Button>
         <Button variant={section === 'stats' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('stats')}><AppIcon name="dashboard-nav" />Estatisticas</Button>
         {user?.role === 'admin' && (
           <Button variant={section === 'sql' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('sql')}><AppIcon name="database" />Console SQL</Button>
@@ -326,6 +328,10 @@ function AdminView({
             </div>
           </div>
         </div>
+      )}
+
+      {section === 'feriados' && (
+        <FeriadosSection rulesConfig={rulesConfig} />
       )}
 
       {section === 'rules' && (
