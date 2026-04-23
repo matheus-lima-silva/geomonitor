@@ -144,7 +144,7 @@ export default function LicenseDetailView({
       <div>
         {tab === 'resumo' && <ResumoTab license={license} projectsById={projectsById} />}
         {tab === 'condicionantes' && (
-          <LicenseConditionsSection licenseId={license.id} onChange={() => {}} showToast={showToast} />
+          <LicenseConditionsSection licenseId={license.id} showToast={showToast} />
         )}
         {tab === 'documentos' && (
           <LicenseFilesSection licenseId={license.id} showToast={showToast} />

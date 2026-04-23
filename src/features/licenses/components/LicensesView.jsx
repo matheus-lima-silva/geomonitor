@@ -650,10 +650,14 @@ function LicensesView({ licenses, projects, erosions, userEmail, showToast, sear
     }
     const id = buildLicenseId(normalized);
     await saveOperatingLicense(id, { ...normalized, id }, { merge: true, updatedBy: userEmail });
-    try {
-      await persistConditions(id, conditionsDraft);
-    } catch (err) {
-      showToast?.(err?.message || 'Falha ao salvar condicionantes.', 'error');
+    // Draft de condicionantes so existe quando a LO foi criada agora (!isEditing).
+    // Em edicao o componente e autonomo e ja persistiu cada mudanca.
+    if (!isEditing && Array.isArray(conditionsDraft) && conditionsDraft.length > 0) {
+      try {
+        await persistConditions(id, conditionsDraft);
+      } catch (err) {
+        showToast?.(err?.message || 'Falha ao salvar condicionantes.', 'error');
+      }
     }
     setOpen(false);
     showToast?.('LO salva com sucesso.', 'success');
