@@ -143,9 +143,7 @@ describe('FeriadosSection', () => {
     await flush();
 
     expect(saveRulesConfig).toHaveBeenCalledWith(
-      expect.objectContaining({
-        feriados: [{ data: '2026-04-21', nome: 'Tiradentes', tipo: 'nacional' }],
-      }),
+      { feriados: [{ data: '2026-04-21', nome: 'Tiradentes', tipo: 'nacional' }] },
       expect.objectContaining({ updatedBy: 'admin@test.local', merge: true }),
     );
   });

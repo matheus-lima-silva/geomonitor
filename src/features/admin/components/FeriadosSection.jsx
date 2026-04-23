@@ -93,8 +93,11 @@ function FeriadosSection({ rulesConfig }) {
   async function handleSave() {
     setIsSaving(true);
     try {
+      // Envia somente a fatia `feriados` — o backend usa `merge: true` e preserva
+      // `criticalidade`/`retencao`. Enviar `...rulesConfig` junto leva `_links` no
+      // payload, que e rejeitado pelo schema Zod `.strict()`.
       await saveRulesConfig(
-        { ...rulesConfig, feriados: draftFeriados },
+        { feriados: draftFeriados },
         { updatedBy: user?.email, merge: true },
       );
       show('Feriados salvos com sucesso.', 'success');
