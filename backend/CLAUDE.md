@@ -107,6 +107,30 @@ Jest + supertest. Toda rota nova, alteracao de rota ou novo util precisa de test
 
 Comando: `cd backend && npm test`. Deve passar antes de considerar a tarefa concluida.
 
+## 13b. Testes property-based de race conditions (opt-in)
+
+Suite separada para caçar race conditions em fluxos check-then-act (ex.: `countOwners()` + `removeMember()` fora de transacao em `routes/reportWorkspaces.js`). Usa [`fast-check`](https://fast-check.dev/) com `fc.asyncProperty` + `Promise.allSettled` contra Postgres real para reproduzir intercalacoes nao-deterministicas.
+
+- **Opt-in por env**: sem `PBT_POSTGRES_URL` (ou `DATABASE_URL`) setada, os `describe` viram `describe.skip` — `npm test` padrao segue intacto.
+- **Sufixo de arquivo**: `*.pbt.test.js`. Config dedicada: [jest.pbt.config.js](jest.pbt.config.js) + setup [jest.pbt.setup.js](jest.pbt.setup.js) + [jest.pbt.globalSetup.js](jest.pbt.globalSetup.js) (aplica migracoes).
+- **Helpers**: [__tests__/helpers/pbtDb.js](__tests__/helpers/pbtDb.js), [pbtArbitraries.js](__tests__/helpers/pbtArbitraries.js), [concurrencyRunner.js](__tests__/helpers/concurrencyRunner.js), [workspaceFactory.js](__tests__/helpers/workspaceFactory.js), [fcDefaults.js](__tests__/helpers/fcDefaults.js).
+- **Template**: [__tests__/integration/workspaceOwners.race.pbt.test.js](__tests__/integration/workspaceOwners.race.pbt.test.js) — deve falhar hoje com contra-exemplo; passa depois do fix (`SELECT ... FOR UPDATE` + transacao).
+
+Rodar:
+```bash
+docker run --rm -d -p 5432:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=geomonitor_test postgres:16-alpine
+export PBT_POSTGRES_URL=postgres://postgres:test@localhost:5432/geomonitor_test
+export POSTGRES_SSL=disable
+cd backend && npm run test:pbt
+```
+
+Proximos alvos para replicar o padrao (todos com race concreta mapeada):
+1. **Numeracao de versao de archives** — `repositories/reportArchiveRepository.js:73-75` (`MAX(version)+1` sem lock).
+2. **Trash <-> archive de fotos** — `repositories/reportPhotoRepository.js:409-459` (UPDATEs concorrentes em `archived_at`/`deleted_at`).
+3. **Rotacao de refresh token JWT** — `routes/auth.js:162-190` (sem invalidacao do token anterior).
+
+CI nao roda `test:pbt` por enquanto — sera adicionado em follow-up junto com o fix da race alvo, quando a suite rodar verde como gate.
+
 ## 14. Checklist ao criar rota nova
 
 - [ ] Registra a rota em `server.js`

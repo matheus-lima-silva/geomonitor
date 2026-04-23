@@ -307,9 +307,10 @@ function VisitPlanningView({ projects, inspections, erosions, feriados = [], onA
                 const est = estimateWorkdaysForTowers(selectedItems.length, inspectionStats.rhythm);
                 if (!est.workdays) return null;
                 const fonte = est.source === 'project' ? '(baseado no proprio projeto)' : '(baseado na media global)';
+                const label = est.workdays === 1 ? '1 dia util' : `${est.workdays} dias uteis`;
                 return (
                   <span className="text-slate-400 ml-2 text-xs">
-                    Estimativa: ~{est.workdays} dia{est.workdays !== 1 ? 's' : ''} util{est.workdays !== 1 ? 'eis' : ''} {fonte}
+                    Estimativa: ~{label} {fonte}
                   </span>
                 );
               })()}
