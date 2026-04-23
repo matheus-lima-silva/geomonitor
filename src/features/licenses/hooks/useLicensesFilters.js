@@ -22,6 +22,7 @@ function matchesSearch(license, projectsById, term) {
   const haystack = [
     license.numero,
     license.id,
+    license.apelido,
     license.orgaoAmbiental,
     license.descricao,
   ].map(norm).join(' | ');

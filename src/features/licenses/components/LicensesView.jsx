@@ -142,6 +142,14 @@ function IdentificacaoTab({ formData, setFormData, agencyOptions }) {
         placeholder="Número da LO"
       />
       <Input
+        id="license-apelido"
+        label="Apelido (opcional)"
+        value={formData.apelido || ''}
+        onChange={(e) => setFormData((prev) => ({ ...prev, apelido: e.target.value }))}
+        placeholder="Ex.: Lote 1 Furnas"
+        hint="Usado no título do card em vez da primeira cobertura."
+      />
+      <Input
         id="license-descricao"
         label="Descrição"
         value={formData.descricao || ''}

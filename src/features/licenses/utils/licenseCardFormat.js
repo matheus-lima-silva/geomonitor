@@ -3,6 +3,10 @@
 
 export function buildLicenseTitle(license = {}) {
   const numero = String(license.numero || license.id || '').trim();
+  const apelido = String(license.apelido || '').trim();
+  if (apelido) {
+    return numero ? `LO Nº ${numero} — ${apelido}` : apelido;
+  }
   const cobertura = Array.isArray(license.cobertura) ? license.cobertura : [];
   const firstScope = cobertura[0] && (cobertura[0].descricaoEscopo || cobertura[0].projetoId);
   if (firstScope) return `LO Nº ${numero} — ${firstScope}`;

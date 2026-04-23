@@ -43,6 +43,18 @@ describe('useLicensesFilters.apply', () => {
     });
   });
 
+  it('busca textual encontra por apelido', () => {
+    const licensesComApelido = [
+      ...LICENSES,
+      { id: 'LO-LOTE1', numero: '1656/2023', apelido: 'Lote 1 Furnas', orgaoAmbiental: 'IBAMA', esfera: 'Federal', cobertura: [] },
+    ];
+    exerciseHook((bag) => {
+      reactAct(() => bag.current.setFilter('searchTerm', 'lote 1'));
+      const out = bag.current.apply(licensesComApelido, new Map()).map((l) => l.id);
+      expect(out).toEqual(['LO-LOTE1']);
+    });
+  });
+
   it('multi-select de orgaos', () => {
     exerciseHook((bag) => {
       reactAct(() => bag.current.setFilter('orgaos', ['IBAMA', 'INEA']));

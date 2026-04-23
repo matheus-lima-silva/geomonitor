@@ -45,6 +45,7 @@ export function createEmptyOperatingLicense() {
   return {
     id: '',
     numero: '',
+    apelido: '',
     orgaoAmbiental: '',
     esfera: 'Federal',
     uf: '',
@@ -76,6 +77,7 @@ export function normalizeOperatingLicensePayload(input = {}) {
     ...input,
     id: String(input?.id || '').trim().toUpperCase(),
     numero: String(input?.numero || '').trim(),
+    apelido: String(input?.apelido || '').trim(),
     orgaoAmbiental: String(input?.orgaoAmbiental || '').trim(),
     esfera,
     uf,

@@ -23,6 +23,18 @@ describe('buildLicenseTitle', () => {
   it('so mostra numero sem sufixo quando nao ha cobertura', () => {
     expect(buildLicenseTitle({ numero: '90/2021' })).toBe('LO Nº 90/2021');
   });
+
+  it('apelido tem precedencia sobre cobertura', () => {
+    expect(buildLicenseTitle({
+      numero: '1656/2023',
+      apelido: 'Lote 1 Furnas',
+      cobertura: [{ descricaoEscopo: 'Rocha Leão - Magé' }],
+    })).toBe('LO Nº 1656/2023 — Lote 1 Furnas');
+  });
+
+  it('apelido sozinho (sem numero) vira o titulo', () => {
+    expect(buildLicenseTitle({ apelido: 'Lote 2 Furnas' })).toBe('Lote 2 Furnas');
+  });
 });
 
 describe('buildLicenseSubtitle', () => {
