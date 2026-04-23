@@ -121,9 +121,8 @@ export function validateOperatingLicensePayload(payload, { projectsById } = {}) 
   for (let i = 0; i < normalized.cobertura.length; i += 1) {
     const item = normalized.cobertura[i];
     if (!item.projetoId) return { ok: false, message: `Cobertura ${i + 1}: empreendimento obrigatório.` };
-    if (!Array.isArray(item.torres) || item.torres.length === 0) {
-      return { ok: false, message: `Cobertura ${i + 1}: selecione ao menos uma torre.` };
-    }
+    // torres=[] e valido: significa cobertura do empreendimento inteiro.
+    // Backend tambem aceita (torres default=[] em licenseSchemas.js).
     if (projectsById && projectsById.has(item.projetoId)) {
       const project = projectsById.get(item.projetoId);
       const validTowers = getProjectTowerList(project);

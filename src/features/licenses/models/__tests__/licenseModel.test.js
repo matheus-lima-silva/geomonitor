@@ -40,4 +40,21 @@ describe('licenseModel', () => {
     });
     expect(payload.uf).toBe('');
   });
+
+  it('aceita cobertura com torres vazias (cobre empreendimento inteiro)', () => {
+    const payload = normalizeOperatingLicensePayload({
+      numero: 'LO-3',
+      orgaoAmbiental: 'IBAMA',
+      esfera: 'Federal',
+      inicioVigencia: '2026-01-01',
+      periodicidadeRelatorio: 'Anual',
+      mesesEntregaRelatorio: [6],
+      cobertura: [
+        { projetoId: 'P1', torres: [] },
+        { projetoId: 'P2', torres: [] },
+      ],
+    });
+    const validation = validateOperatingLicensePayload(payload, { projectsById: new Map() });
+    expect(validation.ok).toBe(true);
+  });
 });

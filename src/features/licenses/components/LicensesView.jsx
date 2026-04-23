@@ -283,8 +283,33 @@ function CoberturaTab({ formData, setFormData, projects }) {
         const towersSelected = showSlider ? towersInRange(towerList, currentMin, currentMax) : currentParsed;
         const selectedCount = towersSelected.length;
 
+        const emptyTorresWarn = item.projetoId && towerList.length > 0 && selectedCount === 0;
+
         return (
           <div key={`coverage-${idx}`} className="flex flex-col gap-3 mb-4 pb-4 border-b border-slate-200 last:border-b-0 last:pb-0 last:mb-0">
+            {emptyTorresWarn && (
+              <div className="flex items-center justify-between gap-2 bg-warning-light border border-warning-border rounded px-3 py-2 text-xs text-yellow-900">
+                <span className="inline-flex items-center gap-2">
+                  <AppIcon name="alert" className="w-4 h-4" />
+                  Sem torres selecionadas — cobrindo o empreendimento inteiro.
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFormData((prev) => ({
+                    ...prev,
+                    cobertura: prev.cobertura.map((row, rowIndex) => (
+                      rowIndex === idx
+                        ? { ...row, torresInput: showSlider ? `${towerRange.min}-${towerRange.max}` : towerList.join(', ') }
+                        : row
+                    )),
+                  }))}
+                >
+                  <AppIcon name="check" />
+                  Selecionar todas
+                </Button>
+              </div>
+            )}
             <SearchableSelect
               id={`coverage-project-${idx}`}
               label="Empreendimento"
