@@ -3,13 +3,6 @@ import { buildCriticalityInputFromErosion } from '../features/shared/viewUtils';
 import { extractApiErrorMessage, isNetworkFailureError, normalizeRequestError } from '../utils/apiClient';
 import { API_BASE_URL, createCrudService, getAuthToken } from '../utils/serviceFactory';
 
-// O fallback hardcoded para a Fly.io foi removido com a migracao pro homelab
-// (maio/2026). Mantemos o helper como ponto de extensao caso queiramos
-// reintroduzir candidatos no futuro.
-function getApiBaseCandidates() {
-  return [API_BASE_URL];
-}
-
 const erosionCrudService = createCrudService({
   resourcePath: 'erosions',
   itemName: 'Erosao',
@@ -80,27 +73,19 @@ export async function postCalculoErosao(payload = {}, options = {}) {
       body: JSON.stringify({ data: payload })
     };
 
-    let result = null;
-    let lastNetworkError = null;
-
-    for (const apiBase of getApiBaseCandidates()) {
-      try {
-        const response = await fetch(`${apiBase}/erosions/simulate`, requestOptions);
-        if (!response.ok) {
-          const message = await extractApiErrorMessage(response, 'Erro ao simular calculo via API.');
-          throw new Error(message);
-        }
-        result = await response.json();
-        lastNetworkError = null;
-        break;
-      } catch (error) {
-        if (!isNetworkFailureError(error)) throw error;
-        lastNetworkError = error;
+    let result;
+    try {
+      const response = await fetch(`${API_BASE_URL}/erosions/simulate`, requestOptions);
+      if (!response.ok) {
+        const message = await extractApiErrorMessage(response, 'Erro ao simular calculo via API.');
+        throw new Error(message);
       }
-    }
-
-    if (!result) {
-      throw lastNetworkError || new Error('Erro ao simular calculo via API.');
+      result = await response.json();
+    } catch (error) {
+      if (isNetworkFailureError(error)) {
+        throw normalizeRequestError(error, 'Erro ao simular calculo via API.');
+      }
+      throw error;
     }
 
     const calculation = result.data;
@@ -200,34 +185,26 @@ export async function generateFichaCadastroDocx({ projectId, erosionIds } = {}) 
     body.erosionIds = erosionIds;
   }
 
-  let result = null;
-  let lastNetworkError = null;
-
-  for (const apiBase of getApiBaseCandidates()) {
-    try {
-      const response = await fetch(`${apiBase}/erosions/fichas-cadastro/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) {
-        const message = await extractApiErrorMessage(response, 'Erro ao gerar fichas de cadastro.');
-        throw new Error(message);
-      }
-      result = await response.json();
-      lastNetworkError = null;
-      break;
-    } catch (error) {
-      if (!isNetworkFailureError(error)) throw error;
-      lastNetworkError = error;
+  let result;
+  try {
+    const response = await fetch(`${API_BASE_URL}/erosions/fichas-cadastro/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const message = await extractApiErrorMessage(response, 'Erro ao gerar fichas de cadastro.');
+      throw new Error(message);
     }
-  }
-
-  if (!result) {
-    throw lastNetworkError || new Error('Erro ao gerar fichas de cadastro.');
+    result = await response.json();
+  } catch (error) {
+    if (isNetworkFailureError(error)) {
+      throw normalizeRequestError(error, 'Erro ao gerar fichas de cadastro.');
+    }
+    throw error;
   }
 
   return result?.data || result;
@@ -236,30 +213,22 @@ export async function generateFichaCadastroDocx({ projectId, erosionIds } = {}) 
 export async function getReportJobStatus(jobId) {
   const token = await getAuthToken();
 
-  let result = null;
-  let lastNetworkError = null;
-
-  for (const apiBase of getApiBaseCandidates()) {
-    try {
-      const response = await fetch(`${apiBase}/report-jobs/${encodeURIComponent(jobId)}`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        const message = await extractApiErrorMessage(response, 'Erro ao buscar status do job.');
-        throw new Error(message);
-      }
-      result = await response.json();
-      lastNetworkError = null;
-      break;
-    } catch (error) {
-      if (!isNetworkFailureError(error)) throw error;
-      lastNetworkError = error;
+  let result;
+  try {
+    const response = await fetch(`${API_BASE_URL}/report-jobs/${encodeURIComponent(jobId)}`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      const message = await extractApiErrorMessage(response, 'Erro ao buscar status do job.');
+      throw new Error(message);
     }
-  }
-
-  if (!result) {
-    throw lastNetworkError || new Error('Erro ao buscar status do job.');
+    result = await response.json();
+  } catch (error) {
+    if (isNetworkFailureError(error)) {
+      throw normalizeRequestError(error, 'Erro ao buscar status do job.');
+    }
+    throw error;
   }
 
   return result?.data || result;

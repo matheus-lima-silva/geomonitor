@@ -172,10 +172,6 @@ export function createCrudService({
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
 }) {
   const baseUrl = `${API_BASE_URL}/${resourcePath}`;
-  // Fallback URL desativado (era usado para tentar Fly.io quando o homelab
-  // estava fora do ar antes do cutover). Mantido como string vazia para o
-  // bloco de retry abaixo virar no-op sem precisar reescrever o fluxo.
-  const fallbackBaseUrl = '';
 
   const getToken = getAuthToken;
 
@@ -204,29 +200,6 @@ export function createCrudService({
     } catch (error) {
       if (error?.name === 'AbortError') {
         throw new Error('Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.');
-      }
-      if (isNetworkFailureError(error) && fallbackBaseUrl && typeof url === 'string' && url.startsWith(baseUrl)) {
-        const retryUrl = `${fallbackBaseUrl}${url.slice(baseUrl.length)}`;
-        try {
-          const retryResponse = await fetch(retryUrl, {
-            ...options,
-            cache: 'no-store',
-          });
-          if (!retryResponse.ok) {
-            let retryMessage = `Erro na operação (${itemName}).`;
-            try {
-              const retryErrorData = await retryResponse.json();
-              if (retryErrorData?.message) retryMessage = retryErrorData.message;
-            } catch { /* ignore */ }
-            throw new Error(retryMessage);
-          }
-          return retryResponse.json();
-        } catch (retryError) {
-          throw normalizeRequestError(
-            retryError,
-            'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
-          );
-        }
       }
 
       throw normalizeRequestError(
@@ -438,10 +411,6 @@ export function createCrudService({
 
 export function createSingletonService({ resourcePath, itemName, pollIntervalMs = DEFAULT_POLL_INTERVAL_MS }) {
   const baseUrl = `${API_BASE_URL}/${resourcePath}`;
-  // Fallback URL desativado (era usado para tentar Fly.io quando o homelab
-  // estava fora do ar antes do cutover). Mantido como string vazia para o
-  // bloco de retry abaixo virar no-op sem precisar reescrever o fluxo.
-  const fallbackBaseUrl = '';
 
   async function fetchWithToken(url, options) {
     const controller = new AbortController();
@@ -468,29 +437,6 @@ export function createSingletonService({ resourcePath, itemName, pollIntervalMs 
     } catch (error) {
       if (error?.name === 'AbortError') {
         throw new Error('Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.');
-      }
-      if (isNetworkFailureError(error) && fallbackBaseUrl && typeof url === 'string' && url.startsWith(baseUrl)) {
-        const retryUrl = `${fallbackBaseUrl}${url.slice(baseUrl.length)}`;
-        try {
-          const retryResponse = await fetch(retryUrl, {
-            ...options,
-            cache: 'no-store',
-          });
-          if (!retryResponse.ok) {
-            let retryMessage = `Erro na operação (${itemName}).`;
-            try {
-              const retryErrorData = await retryResponse.json();
-              if (retryErrorData?.message) retryMessage = retryErrorData.message;
-            } catch { /* ignore */ }
-            throw new Error(retryMessage);
-          }
-          return retryResponse.json();
-        } catch (retryError) {
-          throw normalizeRequestError(
-            retryError,
-            'Nao foi possivel conectar ao servidor. Verifique se o backend esta rodando e se a URL da API esta correta.',
-          );
-        }
       }
 
       throw normalizeRequestError(
