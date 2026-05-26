@@ -126,7 +126,29 @@ function getS3Client() {
     return s3ClientInstance;
 }
 
-async function createSignedUploadUrl({ storageKey, contentType }) {
+// MEDIA_PUBLIC_ENDPOINT permite que o backend use um endpoint interno (ex. http://minio:9000)
+// para PutObject/GetObject diretos, mas devolva signed URLs apontando para um endpoint publico
+// alcancavel pelo browser (ex. https://geomonitor.tail-xxxx.ts.net). Sem ele, retorna o href original.
+function rewriteSignedUrlHost(href) {
+    const publicEndpoint = normalizeText(process.env.MEDIA_PUBLIC_ENDPOINT);
+    if (!publicEndpoint) return href;
+    try {
+        const signedUrl = new URL(href);
+        const publicUrl = new URL(publicEndpoint);
+        signedUrl.protocol = publicUrl.protocol;
+        signedUrl.hostname = publicUrl.hostname;
+        signedUrl.port = publicUrl.port;
+        const basePath = publicUrl.pathname.replace(/\/+$/, '');
+        if (basePath) {
+            signedUrl.pathname = `${basePath}${signedUrl.pathname}`;
+        }
+        return signedUrl.toString();
+    } catch {
+        return href;
+    }
+}
+
+async function createSignedUploadUrl({ storageKey, contentType, internal = false }) {
     const expiresIn = getPresignTtlSeconds();
     const command = new PutObjectCommand({
         Bucket: getBucketName(),
@@ -134,7 +156,11 @@ async function createSignedUploadUrl({ storageKey, contentType }) {
         ContentType: normalizeText(contentType) || 'application/octet-stream',
     });
 
-    const href = await getSignedUrl(getS3Client(), command, { expiresIn });
+    const signedHref = await getSignedUrl(getS3Client(), command, { expiresIn });
+    // Quando o caller eh interno (ex.: worker Python rodando no docker network), nao
+    // reescrever para o endpoint publico — o container nao consegue resolver o hostname
+    // Tailscale/MagicDNS e quebraria o upload com gaierror.
+    const href = internal ? signedHref : rewriteSignedUrlHost(signedHref);
 
     return {
         href,
@@ -146,14 +172,15 @@ async function createSignedUploadUrl({ storageKey, contentType }) {
     };
 }
 
-async function createSignedAccessUrl({ storageKey }) {
+async function createSignedAccessUrl({ storageKey, internal = false }) {
     const expiresIn = getPresignTtlSeconds();
     const command = new GetObjectCommand({
         Bucket: getBucketName(),
         Key: normalizeText(storageKey),
     });
 
-    const href = await getSignedUrl(getS3Client(), command, { expiresIn });
+    const signedHref = await getSignedUrl(getS3Client(), command, { expiresIn });
+    const href = internal ? signedHref : rewriteSignedUrlHost(signedHref);
     return {
         href,
         method: 'GET',

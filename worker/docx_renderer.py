@@ -721,6 +721,19 @@ def add_photos_section(
             },
         )
 
+        # Diagnostico: se todas as fotos caem em "Fotos sem agrupamento", nenhuma
+        # tinha towerId preenchido — o relatorio nao tera subtopicos por torre.
+        # Geralmente significa que o KMZ original nao tinha estrutura de pastas
+        # ou placemarks por torre, ou as fotos foram subidas sem associacao.
+        if len(grouped) == 1 and grouped[0][0] == "Fotos sem agrupamento":
+            logger.warning(
+                "photos_missing_tower_id",
+                extra={
+                    "sectionTitle": section_title,
+                    "photoCount": len(grouped[0][1]),
+                },
+            )
+
         photo_index = 1
         for group_label, items in grouped:
             add_heading_paragraph(document, group_label, ilvl=1)
@@ -1045,14 +1058,18 @@ def render_report_compound_docx(context, output_path, image_loader):
         photos = safe_list(bundle.get("photos"))
         if not photos:
             continue
-        sort_mode = normalize_text(bundle.get("photoSortMode")) or "tower_asc"
-        use_tower_grouping = sort_mode.startswith("tower")
+        # Agrupamento por torre eh independente do modo de ordenacao escolhido
+        # pelo usuario. O sort_mode controla apenas a ordem das fotos DENTRO de
+        # cada grupo de torre. Antes acoplado a sort_mode.startswith('tower'), o
+        # que escondia o subtopico 'Torre X' quando o usuario escolhia ordem
+        # manual ou por data/legenda — ver issue do BOM DESPACHO em 26/05/2026.
+        use_tower_grouping = True
         ws = ensure_dict(bundle.get("workspace"))
         ws_name = normalize_text(ws.get("nome")) or normalize_text(ws.get("id"))
         section_title = f"ILUSTRAÇÃO FOTOGRÁFICA - {ws_name}" if len(workspaces) > 1 and ws_name else "ILUSTRAÇÃO FOTOGRÁFICA"
 
         tower_lookup = None
-        if include_tower_coords and use_tower_grouping:
+        if include_tower_coords:
             project = ensure_dict(bundle.get("project"))
             tower_lookup = build_tower_lookup(project) or None
 

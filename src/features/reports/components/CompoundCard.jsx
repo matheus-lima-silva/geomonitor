@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Select } from '../../../components/ui';
+import { Button, HintText, Select } from '../../../components/ui';
 import Modal from '../../../components/ui/Modal';
 import ArchivedDeliveriesPanel from './ArchivedDeliveriesPanel';
 import DeliveryCallout from './DeliveryCallout';
@@ -36,16 +36,19 @@ export default function CompoundCard({
   showToast = () => {},
 }) {
   const [confirmGenerate, setConfirmGenerate] = useState(null);
+  // Default da geracao: incluir coordenadas (UTM) marcado. So fica desligado
+  // se o compound tiver `includeTowerCoordinates: false` explicito (regeracao
+  // de relatorio em que o usuario optou previamente por nao incluir).
   const [genWithCoords, setGenWithCoords] = useState(
-    !!compound?.sharedTextsJson?.includeTowerCoordinates,
+    compound?.sharedTextsJson?.includeTowerCoordinates !== false,
   );
   const [genCoordFormat, setGenCoordFormat] = useState(
-    compound?.sharedTextsJson?.towerCoordinateFormat || 'decimal',
+    compound?.sharedTextsJson?.towerCoordinateFormat || 'utm',
   );
 
   function openGenerateModal() {
-    setGenWithCoords(!!compound?.sharedTextsJson?.includeTowerCoordinates);
-    setGenCoordFormat(compound?.sharedTextsJson?.towerCoordinateFormat || 'decimal');
+    setGenWithCoords(compound?.sharedTextsJson?.includeTowerCoordinates !== false);
+    setGenCoordFormat(compound?.sharedTextsJson?.towerCoordinateFormat || 'utm');
     setConfirmGenerate(true);
   }
 
@@ -261,7 +264,12 @@ export default function CompoundCard({
               <option value="dms">Sexagesimal / GMS</option>
               <option value="utm">UTM</option>
             </Select>
-          ) : null}
+          ) : (
+            <HintText>
+              Sem coordenadas, o relatorio agrupa as fotos por torre mas nao mostra a
+              localizacao (latitude/longitude) de cada uma.
+            </HintText>
+          )}
         </div>
       </Modal>
     </article>
