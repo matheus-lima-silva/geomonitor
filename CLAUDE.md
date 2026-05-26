@@ -18,7 +18,7 @@ src/              Frontend React (feature-first em src/features/)
 worker/           Worker Python (DOCX)
 shared/           Helpers compartilhados
 docs/             Documentacao canonica do sistema
-deploy/           Configs de deploy (Fly/Docker)
+deploy/           Configs de deploy homelab (Docker Compose)
 ```
 
 ## Regras de orientacao (leia antes de editar)
@@ -70,10 +70,10 @@ Detalhes por camada nos CLAUDE.md especificos.
 | [docs/modulo-reports.md](docs/modulo-reports.md) | Ao tocar workspaces/lixeira/archives/membros |
 | [docs/visao-geral-sistema.md](docs/visao-geral-sistema.md) | Contexto nao-tecnico |
 | [docs/metodologia-criticidade-v3.md](docs/metodologia-criticidade-v3.md) | Engine de criticidade V3 (fonte canonica) |
-| [docs/testing/ci-cd-fly-ops.md](docs/testing/ci-cd-fly-ops.md) | Checklist de deploy |
+| [docs/testing/ci-cd-homelab-ops.md](docs/testing/ci-cd-homelab-ops.md) | Checklist de deploy (workflow homelab-deploy + Tailscale OAuth + troubleshooting) |
 
 ## Manutencao deste documento
 
 Revisar a cada trimestre ou sempre que houver migracao de stack, modulo novo ou nova convencao global. Ao atualizar, bumpar a data do rodape. PR que muda comportamento documentado deve atualizar o doc correspondente no mesmo PR.
 
-> Ultima revisao: 2026-04-17.
+> Ultima revisao: 2026-05-26.
