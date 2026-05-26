@@ -277,7 +277,7 @@ router.post('/:id/generate', verifyToken, requireEditor, async (req, res) => {
                 : {};
             const resolvedFormat = towerCoordinateFormat
                 || normalizeText(currentShared.towerCoordinateFormat).toLowerCase()
-                || 'decimal';
+                || 'utm';
             const mergedShared = {
                 ...currentShared,
                 includeTowerCoordinates: true,

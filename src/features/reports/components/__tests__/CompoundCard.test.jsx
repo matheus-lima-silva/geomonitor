@@ -122,4 +122,91 @@ describe('CompoundCard', () => {
       .find((el) => el.parentElement?.textContent?.includes('Incluir coordenadas'));
     expect(checkbox).toBeDefined();
   });
+
+  it('por padrao o toggle de coordenadas vem marcado e formato eh UTM', () => {
+    act(() => {
+      root.render(
+        <CompoundCard
+          compound={baseCompound}
+          workspaceLabelsById={labels}
+          onTrash={vi.fn()}
+          onGenerate={vi.fn()}
+          onOpenEdit={vi.fn()}
+          onDownloadDocx={vi.fn()}
+          onUploadDelivery={vi.fn()}
+          compoundDownloadFileName="rel.docx"
+        />,
+      );
+    });
+    act(() => container.querySelector('[data-testid="compound-generate-RC-1"]').click());
+
+    const checkbox = Array.from(document.querySelectorAll('input[type="checkbox"]'))
+      .find((el) => el.parentElement?.textContent?.includes('Incluir coordenadas'));
+    expect(checkbox).toBeDefined();
+    expect(checkbox.checked).toBe(true);
+
+    const formatSelect = document.getElementById('compound-gen-coord-format');
+    expect(formatSelect).not.toBeNull();
+    expect(formatSelect.value).toBe('utm');
+  });
+
+  it('respeita includeTowerCoordinates=false explicito do compound', () => {
+    const compoundOptOut = {
+      ...baseCompound,
+      sharedTextsJson: {
+        ...baseCompound.sharedTextsJson,
+        includeTowerCoordinates: false,
+      },
+    };
+    act(() => {
+      root.render(
+        <CompoundCard
+          compound={compoundOptOut}
+          workspaceLabelsById={labels}
+          onTrash={vi.fn()}
+          onGenerate={vi.fn()}
+          onOpenEdit={vi.fn()}
+          onDownloadDocx={vi.fn()}
+          onUploadDelivery={vi.fn()}
+          compoundDownloadFileName="rel.docx"
+        />,
+      );
+    });
+    act(() => container.querySelector('[data-testid="compound-generate-RC-1"]').click());
+
+    const checkbox = Array.from(document.querySelectorAll('input[type="checkbox"]'))
+      .find((el) => el.parentElement?.textContent?.includes('Incluir coordenadas'));
+    expect(checkbox.checked).toBe(false);
+  });
+
+  it('confirmar envia ensureTowerCoordinates:true e towerCoordinateFormat:utm por padrao', () => {
+    const onGenerate = vi.fn();
+    act(() => {
+      root.render(
+        <CompoundCard
+          compound={baseCompound}
+          workspaceLabelsById={labels}
+          onTrash={vi.fn()}
+          onGenerate={onGenerate}
+          onOpenEdit={vi.fn()}
+          onDownloadDocx={vi.fn()}
+          onUploadDelivery={vi.fn()}
+          compoundDownloadFileName="rel.docx"
+        />,
+      );
+    });
+    act(() => container.querySelector('[data-testid="compound-generate-RC-1"]').click());
+
+    const confirmButton = Array.from(document.querySelectorAll('button'))
+      .find((el) => el.textContent?.trim().includes('Confirmar'));
+    expect(confirmButton).toBeDefined();
+    act(() => confirmButton.click());
+
+    expect(onGenerate).toHaveBeenCalledTimes(1);
+    const [, options] = onGenerate.mock.calls[0];
+    expect(options).toEqual({
+      ensureTowerCoordinates: true,
+      towerCoordinateFormat: 'utm',
+    });
+  });
 });

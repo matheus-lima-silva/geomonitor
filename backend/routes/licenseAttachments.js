@@ -198,7 +198,10 @@ router.get(
         const apiBaseUrl = resolveApiBaseUrl(req);
         // Delega para /api/media/:id/content (que ja trata Tigris/local).
         const target = isTigrisAsset(asset)
-            ? (await createSignedAccessUrl({ storageKey: asset.storageKey })).href
+            ? (await createSignedAccessUrl({
+                storageKey: asset.storageKey,
+                internal: req.user?.service === 'worker',
+            })).href
             : `${apiBaseUrl}/media/${encodeURIComponent(asset.id)}/content`;
         return res.redirect(302, target);
     }),

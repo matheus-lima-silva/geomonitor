@@ -82,6 +82,7 @@ router.post('/upload-url', requireEditorOrWorker, async (req, res) => {
             ? await createSignedUploadUrl({
                 storageKey: asset.storageKey,
                 contentType: asset.contentType,
+                internal: req.user?.service === 'worker',
             })
             : {
                 href: `${apiBaseUrl}/media/${mediaId}/upload`,
@@ -199,7 +200,10 @@ router.get('/:id/access-url', verifyToken, requireActiveUser, async (req, res) =
         }
 
         const access = isTigrisAsset(asset)
-            ? await createSignedAccessUrl({ storageKey: asset.storageKey })
+            ? await createSignedAccessUrl({
+                storageKey: asset.storageKey,
+                internal: req.user?.service === 'worker',
+            })
             : {
                 href: `${resolveApiBaseUrl(req)}/media/${req.params.id}/content`,
                 method: 'GET',
@@ -230,7 +234,10 @@ router.get('/:id/content', requireActiveUserOrWorker, async (req, res) => {
         }
 
         if (isTigrisAsset(asset)) {
-            const access = await createSignedAccessUrl({ storageKey: asset.storageKey });
+            const access = await createSignedAccessUrl({
+                storageKey: asset.storageKey,
+                internal: req.user?.service === 'worker',
+            });
             return res.redirect(302, access.href);
         }
 
