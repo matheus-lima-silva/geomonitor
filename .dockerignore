@@ -9,3 +9,8 @@ docs
 *.log
 serviceAccountKey.json
 backend/serviceAccountKey.json
+# Dados runtime do stack homelab — nao devem entrar em build context
+deploy/homelab/data/
+deploy/homelab/.env
+.claude/
+.claude-notes/

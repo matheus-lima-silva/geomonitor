@@ -1,0 +1,45 @@
+# Caddy roda em HTTP plano dentro do compose (porta 8080).
+# A TLS publica fica a cargo do `tailscale serve` na VM host:
+#   sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
+# Tailscale termina TLS com cert auto-renovavel e proxa pra ca.
+
+:8080 {
+	# /api/* -> backend Node. Usa `handle` (nao `handle_path`) para preservar o
+	# prefixo /api que o Express espera nos mounts (app.use('/api/...', router)).
+	handle /api/* {
+		reverse_proxy api:8080
+	}
+
+	# Endpoint /health do backend (sem prefixo /api) para Tailscale healthcheck simples.
+	handle /health {
+		reverse_proxy api:8080
+	}
+
+	# Signed URLs do MinIO vem como /<BUCKET_NAME>/<key>?<assinatura>.
+	# Caddy roteia direto para o MinIO. IMPORTANTE: o backend assina a URL com
+	# `Host: minio:9000` (endpoint interno do SDK) e o Caddy 2 preserva o Host
+	# original do cliente por default. Precisamos reescrever Host=minio:9000 no
+	# upstream pra signature S3 bater. Sem isso: SignatureDoesNotMatch (403).
+	handle /{$BUCKET_NAME}/* {
+		reverse_proxy minio:9000 {
+			header_up Host minio:9000
+			# O SPA roda no mesmo origem das signed URLs (graças ao MEDIA_PUBLIC_ENDPOINT),
+			# entao o fetch dele anexa Authorization: Bearer <JWT> em toda request. O MinIO
+			# ve esse header e interpreta como SigV4 via header (em vez de presigned via QS),
+			# tenta validar o JWT como assinatura S3 e rejeita com SignatureDoesNotMatch (400).
+			# A autenticacao real esta na query string (X-Amz-Signature) — strip aqui.
+			header_up -Authorization
+		}
+	}
+
+	# Tudo o mais cai no SPA (nginx servindo dist/).
+	handle {
+		reverse_proxy web:8080
+	}
+
+	# Logs JSON estruturados; util pra debug com docker compose logs caddy.
+	log {
+		output stdout
+		format json
+	}
+}

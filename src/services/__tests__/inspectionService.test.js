@@ -77,7 +77,7 @@ describe('inspectionService', () => {
         projetoId: 'P-1',
         _links: {
           update: {
-            href: 'https://geomonitor-api.fly.dev/api/inspections/VS-1',
+            href: 'https://api.example.com/api/inspections/VS-1',
             method: 'PUT'
           }
         }
@@ -126,7 +126,7 @@ describe('inspectionService', () => {
       id: 'VS-1',
       _links: {
         delete: {
-          href: 'https://geomonitor-api.fly.dev/api/inspections/VS-1',
+          href: 'https://api.example.com/api/inspections/VS-1',
           method: 'DELETE'
         }
       }

@@ -1,0 +1,184 @@
+# GeoMonitor — stack self-hosted para Proxmox + Tailscale.
+# Pre-requisitos: Docker Engine + Docker Compose v2 numa VM Debian 12 com Tailscale ativo.
+# Antes de subir: copiar .env.example -> .env e preencher.
+# Ver README.md desta pasta para o passo-a-passo completo.
+
+name: geomonitor
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [internal]
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address :9001
+    volumes:
+      - ./data/minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [internal]
+
+  # Cria o bucket na primeira subida; idempotente.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    env_file:
+      - .env
+    entrypoint: >
+      sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/$${BUCKET_NAME} &&
+      echo 'bucket pronto'
+      "
+    restart: "no"
+    networks: [internal]
+
+  # Aplica migrations Postgres; equivale ao release_command da Fly.
+  migrate:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      POSTGRES_SSL: disable
+    # A imagem do backend usa distroless com ENTRYPOINT=node. Aqui sobrescrevemos
+    # apenas o CMD para apontar pro script de migrations em vez do server.js.
+    command: ["/app/scripts/runMigrations.js"]
+    working_dir: /app
+    restart: "no"
+    networks: [internal]
+
+  api:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      TRUST_PROXY: "1"
+      POSTGRES_SSL: disable
+      REPORT_EXECUTION_BACKEND: python
+      MEDIA_BACKEND: tigris
+      AWS_S3_FORCE_PATH_STYLE: "true"
+      AWS_REGION: auto
+      AWS_ENDPOINT_URL_S3: http://minio:9000
+      WORKER_URL: http://worker:8080
+    networks: [internal]
+    expose:
+      - "8080"
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: worker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      PORT: "8080"
+      WORKER_ENV: homelab
+      WORKER_NAME: geomonitor-worker
+      GEOMONITOR_API_URL: http://api:8080
+      WORKER_AUTO_POLL: "true"
+      WORKER_POLL_INTERVAL_SECONDS: "15"
+      AWS_S3_FORCE_PATH_STYLE: "true"
+      AWS_REGION: auto
+      AWS_ENDPOINT_URL_S3: http://minio:9000
+    networks: [internal]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${PUBLIC_BASE_URL}/api
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
+        VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID}
+        VITE_FIREBASE_MEASUREMENT_ID: ${VITE_FIREBASE_MEASUREMENT_ID}
+    restart: unless-stopped
+    networks: [internal]
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+      web:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME}
+      BUCKET_NAME: ${BUCKET_NAME}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy/data:/data
+      - ./data/caddy/config:/config
+    ports:
+      # Caddy escuta plain HTTP no host (127.0.0.1) e a TLS quem termina e o
+      # `tailscale serve` rodando na VM (https://<hostname>.ts.net -> 127.0.0.1:8080).
+      # Ver README.md secao "Tailscale Serve".
+      - "127.0.0.1:8080:8080"
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge

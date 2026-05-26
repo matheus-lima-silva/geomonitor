@@ -120,7 +120,7 @@ describe('reportDeliveryTrackingService', () => {
         notes: 'obs',
         _links: {
           update: {
-            href: 'https://geomonitor-api.fly.dev/api/report-delivery-tracking/P-1__2026-03',
+            href: 'https://api.example.com/api/report-delivery-tracking/P-1__2026-03',
             method: 'PUT'
           }
         }
@@ -140,7 +140,7 @@ describe('reportDeliveryTrackingService', () => {
         notes: 'obs',
         _links: {
           update: {
-            href: 'https://geomonitor-api.fly.dev/api/report-delivery-tracking/P-1__2026-03',
+            href: 'https://api.example.com/api/report-delivery-tracking/P-1__2026-03',
             method: 'PUT'
           }
         }

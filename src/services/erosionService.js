@@ -3,11 +3,11 @@ import { buildCriticalityInputFromErosion } from '../features/shared/viewUtils';
 import { extractApiErrorMessage, isNetworkFailureError, normalizeRequestError } from '../utils/apiClient';
 import { API_BASE_URL, createCrudService, getAuthToken } from '../utils/serviceFactory';
 
-const FALLBACK_PROD_API_BASE_URL = 'https://geomonitor-api.fly.dev/api';
-
+// O fallback hardcoded para a Fly.io foi removido com a migracao pro homelab
+// (maio/2026). Mantemos o helper como ponto de extensao caso queiramos
+// reintroduzir candidatos no futuro.
 function getApiBaseCandidates() {
-  if (API_BASE_URL === FALLBACK_PROD_API_BASE_URL) return [API_BASE_URL];
-  return [API_BASE_URL, FALLBACK_PROD_API_BASE_URL];
+  return [API_BASE_URL];
 }
 
 const erosionCrudService = createCrudService({

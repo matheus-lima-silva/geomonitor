@@ -69,7 +69,7 @@ describe('userService', () => {
       nome: 'Ana',
       _links: {
         update: {
-          href: 'https://geomonitor-api.fly.dev/api/users/U-1',
+          href: 'https://api.example.com/api/users/U-1',
           method: 'PUT'
         }
       }
@@ -104,7 +104,7 @@ describe('userService', () => {
       id: 'U-1',
       _links: {
         delete: {
-          href: 'https://geomonitor-api.fly.dev/api/users/U-1',
+          href: 'https://api.example.com/api/users/U-1',
           method: 'DELETE'
         }
       }

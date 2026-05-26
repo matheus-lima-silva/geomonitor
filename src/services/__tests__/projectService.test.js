@@ -153,7 +153,7 @@ describe('projectService', () => {
         nome: 'Projeto por link',
         _links: {
           update: {
-            href: 'https://geomonitor-api.fly.dev/api/projects/P-1',
+            href: 'https://api.example.com/api/projects/P-1',
             method: 'PUT'
           }
         }
@@ -187,7 +187,7 @@ describe('projectService', () => {
       id: 'P-1',
       _links: {
         delete: {
-          href: 'https://geomonitor-api.fly.dev/api/projects/P-1',
+          href: 'https://api.example.com/api/projects/P-1',
           method: 'DELETE'
         }
       }
