@@ -1,0 +1,137 @@
+name: homelab-deploy
+
+# CI/CD para o stack self-hosted em Proxmox + Tailscale.
+# Gate de testes (web + backend) e deploy via SSH na VM (deploy@geomonitor.tail4ac97b.ts.net)
+# usando Tailscale OAuth pra conectar o runner na tailnet sem chave permanente.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: homelab-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEPLOY_USER: deploy
+  DEPLOY_HOST: geomonitor.tail4ac97b.ts.net
+  DEPLOY_PATH: /srv/geomonitor
+
+jobs:
+  test-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run test:ci:strict
+
+  test-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [test-web, test-backend]
+    # Trava deploy automatico ate o user setar a variavel ENABLE_HOMELAB_DEPLOY=true.
+    # Permite mergear o workflow sem ele rodar enquanto OAuth/secrets nao estiverem prontos.
+    if: ${{ vars.ENABLE_HOMELAB_DEPLOY == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Resolve VM Tailscale IP
+        id: vm
+        run: |
+          # MagicDNS nao popula o /etc/resolv.conf do runner; usamos
+          # `tailscale ip -4 <hostname>` que conversa direto com o tailscaled
+          # local pra resolver sem depender de DNS. Tentamos algumas vezes
+          # porque o peer pode demorar segundos pra aparecer apos o `up`.
+          IP=""
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            IP=$(sudo tailscale ip -4 geomonitor 2>/dev/null | tr -d '[:space:]')
+            if [ -n "$IP" ]; then
+              break
+            fi
+            echo "[$i] aguardando peer 'geomonitor' aparecer..."
+            sleep 2
+          done
+          if [ -z "$IP" ]; then
+            echo "Falha ao resolver IP do peer 'geomonitor'" >&2
+            sudo tailscale status >&2 || true
+            exit 1
+          fi
+          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+          echo "IP resolvido: $IP"
+
+      - name: Configure SSH
+        env:
+          VM_IP: ${{ steps.vm.outputs.ip }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # O known_hosts entry foi gerado com o hostname; criamos um novo
+          # apontando pro IP da tailnet (mesma chave do host).
+          HOSTKEY=$(printf '%s' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" | awk '{print $2" "$3}')
+          printf '%s %s\n' "$VM_IP" "$HOSTKEY" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Pull latest code on the VM
+        env:
+          VM_IP: ${{ steps.vm.outputs.ip }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$VM_IP" \
+            "cd $DEPLOY_PATH && git fetch origin && git checkout ${{ github.ref_name }} && git reset --hard origin/${{ github.ref_name }}"
+
+      - name: Build and restart stack
+        env:
+          VM_IP: ${{ steps.vm.outputs.ip }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$VM_IP" \
+            "cd $DEPLOY_PATH/deploy/homelab && docker compose up -d --build"
+
+      - name: Run migrations
+        env:
+          VM_IP: ${{ steps.vm.outputs.ip }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$VM_IP" \
+            "cd $DEPLOY_PATH/deploy/homelab && docker compose run --rm migrate"
+
+      - name: Health check
+        env:
+          VM_IP: ${{ steps.vm.outputs.ip }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$VM_IP" \
+            "curl -fsS http://127.0.0.1:8080/health"
+
+      - name: Show containers state
+        if: always() && steps.vm.outputs.ip != ''
+        env:
+          VM_IP: ${{ steps.vm.outputs.ip }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$VM_IP" \
+            "cd $DEPLOY_PATH/deploy/homelab && docker compose ps"

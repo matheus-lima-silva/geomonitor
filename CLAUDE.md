@@ -5,10 +5,10 @@ Aplicacao web para gestao de empreendimentos, vistorias, licencas, erosoes e rel
 ## Stack
 
 - **Frontend**: React 18 + Vite 5 + Tailwind CSS + Vitest. Entry: `src/App.jsx`, `index.html`.
-- **Backend**: Node 18 + Express 5 sobre **PostgreSQL** (via `pg`, migracoes versionadas em `backend/migrations/`). Storage de midia em **S3/Tigris** (abstraido em `backend/utils/mediaStorage.js`). Testes com Jest + supertest.
+- **Backend**: Node 18 + Express 5 sobre **PostgreSQL** (via `pg`, migracoes versionadas em `backend/migrations/`). Storage de midia em **S3-compatible** (abstraido em `backend/utils/mediaStorage.js`, hoje apontando para MinIO self-hosted). Testes com Jest + supertest.
 - **Autenticacao**: **JWT proprio** (access + refresh) com `bcrypt` para credenciais. **Nao e mais Firebase/Firestore** — a migracao foi concluida em abril/2026.
 - **Worker**: servico Python isolado (`worker/`) que processa jobs de geracao de DOCX (relatorios compostos). Triggado via webhook por `backend/utils/workerTrigger.js`.
-- **Infra**: Docker + Fly.io (apps `geomonitor-web`, `geomonitor-api`, `geomonitor-worker`). Fly Managed Postgres + Tigris por ambiente.
+- **Infra**: Docker Compose em homelab Proxmox + Tailscale (ver `deploy/homelab/`). PostgreSQL e MinIO self-hosted na mesma VM. Acesso externo apenas via tailnet (`https://geomonitor.tail4ac97b.ts.net`). CI/CD em `.github/workflows/homelab-deploy.yml`. **Saiu do Fly.io em maio/2026.**
 
 ## Estrutura
 

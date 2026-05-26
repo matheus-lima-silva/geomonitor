@@ -1,8 +1,6 @@
 import { getAccessToken, refreshAccessToken } from './tokenStorage';
 import { fetchWithHateoas, isNetworkFailureError, normalizeRequestError } from './apiClient';
 
-const FALLBACK_PROD_API_BASE_URL = 'https://geomonitor-api.fly.dev/api';
-
 const CACHE_PREFIX = '__geocache_v1_';
 const CACHE_TTL_MS = 20 * 60 * 1000;
 const ACTIVE_REFRESHERS = new Map();
@@ -133,14 +131,20 @@ function resolveApiBaseUrl() {
   const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
 
   if (configured) {
-    const pointsToLocal = /localhost|127\.0\.0\.1/i.test(configured);
-    if (!isLocalHost && pointsToLocal) {
-      return 'https://geomonitor-api.fly.dev/api';
-    }
     return configured;
   }
 
-  return isLocalHost ? 'http://localhost:8080/api' : 'https://geomonitor-api.fly.dev/api';
+  // Sem VITE_API_BASE_URL no build: deriva do origin do browser pra producao
+  // (mesmo dominio que o SPA, prefixo /api) e usa localhost:8080 em dev.
+  // Antes havia fallback hardcoded pra Fly.io, removido com a migracao pro
+  // homelab — ver deploy/homelab/docker-compose.yml.
+  if (isLocalHost) {
+    return 'http://localhost:8080/api';
+  }
+  if (hasWindow) {
+    return `${window.location.origin}/api`;
+  }
+  throw new Error('VITE_API_BASE_URL nao foi definido em build-time e o ambiente nao tem window. Verifique o build da imagem web.');
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
@@ -168,9 +172,10 @@ export function createCrudService({
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
 }) {
   const baseUrl = `${API_BASE_URL}/${resourcePath}`;
-  const fallbackBaseUrl = API_BASE_URL === FALLBACK_PROD_API_BASE_URL
-    ? ''
-    : `${FALLBACK_PROD_API_BASE_URL}/${resourcePath}`;
+  // Fallback URL desativado (era usado para tentar Fly.io quando o homelab
+  // estava fora do ar antes do cutover). Mantido como string vazia para o
+  // bloco de retry abaixo virar no-op sem precisar reescrever o fluxo.
+  const fallbackBaseUrl = '';
 
   const getToken = getAuthToken;
 
@@ -433,9 +438,10 @@ export function createCrudService({
 
 export function createSingletonService({ resourcePath, itemName, pollIntervalMs = DEFAULT_POLL_INTERVAL_MS }) {
   const baseUrl = `${API_BASE_URL}/${resourcePath}`;
-  const fallbackBaseUrl = API_BASE_URL === FALLBACK_PROD_API_BASE_URL
-    ? ''
-    : `${FALLBACK_PROD_API_BASE_URL}/${resourcePath}`;
+  // Fallback URL desativado (era usado para tentar Fly.io quando o homelab
+  // estava fora do ar antes do cutover). Mantido como string vazia para o
+  // bloco de retry abaixo virar no-op sem precisar reescrever o fluxo.
+  const fallbackBaseUrl = '';
 
   async function fetchWithToken(url, options) {
     const controller = new AbortController();

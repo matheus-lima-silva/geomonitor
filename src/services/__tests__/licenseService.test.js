@@ -73,7 +73,7 @@ describe('licenseService', () => {
         numero: '123/2026',
         _links: {
           update: {
-            href: 'https://geomonitor-api.fly.dev/api/licenses/LO-1',
+            href: 'https://api.example.com/api/licenses/LO-1',
             method: 'PUT'
           }
         }
@@ -106,7 +106,7 @@ describe('licenseService', () => {
       id: 'LO-1',
       _links: {
         delete: {
-          href: 'https://geomonitor-api.fly.dev/api/licenses/LO-1',
+          href: 'https://api.example.com/api/licenses/LO-1',
           method: 'DELETE'
         }
       }

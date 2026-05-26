@@ -83,7 +83,7 @@ Triggers vao por [utils/workerTrigger.js](utils/workerTrigger.js) (webhook → w
 Todo request passa pelo middleware [middleware/queryCounter.js](middleware/queryCounter.js), que usa `AsyncLocalStorage` ([utils/queryCounter.js](utils/queryCounter.js)) pra contar quantas queries Postgres a rota produziu. A instrumentacao mora em [data/postgresStore.js](data/postgresStore.js), patchando `pool.query` e `pool.connect` — cobre todos os repositories e o `adminSqlExecutor` (transacao).
 
 Quando a contagem passa de `QUERY_COUNT_ALERT_THRESHOLD` (default 15), o middleware:
-1. Emite `console.warn(JSON.stringify({level:'warn', type:'query_count_alert', ...}))` — linha unica, parse-friendly pro Fly log drain.
+1. Emite `console.warn(JSON.stringify({level:'warn', type:'query_count_alert', ...}))` — linha unica, parse-friendly pra centralizacao de logs (`docker compose logs api` hoje).
 2. Persiste o alerta em `system_alerts` via [repositories/systemAlertsRepository.js](repositories/systemAlertsRepository.js). Falha no insert nao quebra a response (fica so em `console.error`).
 
 O painel "Alertas do sistema" (aba Estatisticas do admin) consome `/api/admin/alerts` pra listar e marcar como revisado.

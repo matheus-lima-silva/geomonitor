@@ -44,9 +44,11 @@ Capacidades atuais:
 - Jest + supertest (testes do backend)
 
 **Infra**
-- Docker (imagens para `api` e `worker`)
-- Fly.io (apps `geomonitor-web`, `geomonitor-api`, `geomonitor-worker` por ambiente)
-- Fly Managed Postgres e bucket Tigris por ambiente
+- Docker Compose self-hosted em VM Debian no Proxmox (ver `deploy/homelab/`)
+- 6 servicos no mesmo compose: `postgres`, `minio`, `caddy`, `api`, `worker`, `web` + jobs one-shot `migrate` e `minio-init`
+- Acesso externo via Tailscale (`https://geomonitor.tail4ac97b.ts.net`) com TLS automatico
+- Storage S3-compatible em MinIO local; bucket `geomonitor-media`
+- CI/CD via GitHub Actions (`.github/workflows/homelab-deploy.yml`): roda gate de testes, conecta na tailnet via Tailscale OAuth, SSH na VM, `docker compose up -d --build`
 
 ## Requisitos
 
