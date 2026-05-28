@@ -128,7 +128,7 @@ function getS3Client() {
 
 // MEDIA_PUBLIC_ENDPOINT permite que o backend use um endpoint interno (ex. http://minio:9000)
 // para PutObject/GetObject diretos, mas devolva signed URLs apontando para um endpoint publico
-// alcancavel pelo browser (ex. https://geomonitor.tail-xxxx.ts.net). Sem ele, retorna o href original.
+// alcancavel pelo browser (ex. https://geo.lima.rio.br). Sem ele, retorna o href original.
 function rewriteSignedUrlHost(href) {
     const publicEndpoint = normalizeText(process.env.MEDIA_PUBLIC_ENDPOINT);
     if (!publicEndpoint) return href;

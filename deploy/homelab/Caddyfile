@@ -1,16 +1,25 @@
-# Caddy roda em HTTP plano dentro do compose (porta 8080).
-# A TLS publica fica a cargo do `tailscale serve` na VM host:
-#   sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
-# Tailscale termina TLS com cert auto-renovavel e proxa pra ca.
+# Caddy termina TLS para os dominios amigaveis (geo.lima.rio.br, futuramente
+# relat.lima.rio.br) usando certs Let's Encrypt emitidos via desafio ACME DNS-01
+# pelo plugin caddy-dns/cloudflare. Os nomes resolvem (registros DNS-only no
+# Cloudflare) para o IP Tailscale 100.x da VM, entao so conectam dentro da tailnet.
+# O `tailscale serve` foi desativado; o Caddy escuta 80/443 na interface Tailscale.
 
-:8080 {
+{
+	email {$ACME_EMAIL}
+	# DNS-01 e obrigatorio: o IP de destino e tailnet-only, entao HTTP-01/TLS-ALPN
+	# nao alcancam o host. O token Cloudflare precisa de escopo Zone:DNS:Edit.
+	acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+}
+
+# Roteamento da aplicacao GeoMonitor, reutilizavel por hostname.
+(geomonitor_routes) {
 	# /api/* -> backend Node. Usa `handle` (nao `handle_path`) para preservar o
 	# prefixo /api que o Express espera nos mounts (app.use('/api/...', router)).
 	handle /api/* {
 		reverse_proxy api:8080
 	}
 
-	# Endpoint /health do backend (sem prefixo /api) para Tailscale healthcheck simples.
+	# Endpoint /health do backend (sem prefixo /api) para healthcheck simples.
 	handle /health {
 		reverse_proxy api:8080
 	}
@@ -43,3 +52,27 @@
 		format json
 	}
 }
+
+# App principal. TLS via DNS-01 (config global acima).
+{$GEO_HOSTNAME} {
+	import geomonitor_routes
+}
+
+# Healthcheck interno do CI/CD (curl http://127.0.0.1:8080/health na VM).
+# Plain HTTP em 127.0.0.1:8080; nao emite cert.
+:8080 {
+	handle /health {
+		reverse_proxy api:8080
+	}
+}
+
+# Feature futura: relat.lima.rio.br -> container novo separado.
+# Para ativar: definir RELAT_HOSTNAME no .env, subir o container `relat` no
+# compose, adicionar o registro DNS-only no Cloudflare e descomentar o bloco.
+#{$RELAT_HOSTNAME} {
+#	reverse_proxy relat:8080
+#	log {
+#		output stdout
+#		format json
+#	}
+#}

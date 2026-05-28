@@ -46,7 +46,7 @@ Capacidades atuais:
 **Infra**
 - Docker Compose self-hosted em VM Debian no Proxmox (ver `deploy/homelab/`)
 - 6 servicos no mesmo compose: `postgres`, `minio`, `caddy`, `api`, `worker`, `web` + jobs one-shot `migrate` e `minio-init`
-- Acesso externo via Tailscale (`https://geomonitor.tail4ac97b.ts.net`) com TLS automatico
+- Acesso via tailnet pelo dominio amigavel `https://geo.lima.rio.br`; Caddy termina TLS (Let's Encrypt via DNS-01 Cloudflare) e o registro DNS-only aponta para o IP Tailscale da VM
 - Storage S3-compatible em MinIO local; bucket `geomonitor-media`
 - CI/CD via GitHub Actions (`.github/workflows/homelab-deploy.yml`): roda gate de testes, conecta na tailnet via Tailscale OAuth, SSH na VM, `docker compose up -d --build`
 

@@ -8,7 +8,7 @@ Aplicacao web para gestao de empreendimentos, vistorias, licencas, erosoes e rel
 - **Backend**: Node 18 + Express 5 sobre **PostgreSQL** (via `pg`, migracoes versionadas em `backend/migrations/`). Storage de midia em **S3-compatible** (abstraido em `backend/utils/mediaStorage.js`, hoje apontando para MinIO self-hosted). Testes com Jest + supertest.
 - **Autenticacao**: **JWT proprio** (access + refresh) com `bcrypt` para credenciais. **Nao e mais Firebase/Firestore** — a migracao foi concluida em abril/2026.
 - **Worker**: servico Python isolado (`worker/`) que processa jobs de geracao de DOCX (relatorios compostos). Triggado via webhook por `backend/utils/workerTrigger.js`.
-- **Infra**: Docker Compose em homelab Proxmox + Tailscale (ver `deploy/homelab/`). PostgreSQL e MinIO self-hosted na mesma VM. Acesso externo apenas via tailnet (`https://geomonitor.tail4ac97b.ts.net`). CI/CD em `.github/workflows/homelab-deploy.yml`. **Saiu do Fly.io em maio/2026.**
+- **Infra**: Docker Compose em homelab Proxmox + Tailscale (ver `deploy/homelab/`). PostgreSQL e MinIO self-hosted na mesma VM. Acesso apenas via tailnet pelo dominio amigavel `https://geo.lima.rio.br` — o Caddy termina TLS (Let's Encrypt via DNS-01 Cloudflare) e o registro DNS-only aponta para o IP Tailscale da VM. CI/CD em `.github/workflows/homelab-deploy.yml`. **Saiu do Fly.io em maio/2026.**
 
 ## Estrutura
 
@@ -76,4 +76,4 @@ Detalhes por camada nos CLAUDE.md especificos.
 
 Revisar a cada trimestre ou sempre que houver migracao de stack, modulo novo ou nova convencao global. Ao atualizar, bumpar a data do rodape. PR que muda comportamento documentado deve atualizar o doc correspondente no mesmo PR.
 
-> Ultima revisao: 2026-05-26.
+> Ultima revisao: 2026-05-28.

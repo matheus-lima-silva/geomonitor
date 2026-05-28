@@ -154,7 +154,9 @@ services:
       - "8080"
 
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: ./caddy
+      dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
       api:
@@ -168,14 +170,20 @@ services:
     environment:
       PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME}
       BUCKET_NAME: ${BUCKET_NAME}
+      GEO_HOSTNAME: ${GEO_HOSTNAME}
+      ACME_EMAIL: ${ACME_EMAIL}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./data/caddy/data:/data
       - ./data/caddy/config:/config
     ports:
-      # Caddy escuta plain HTTP no host (127.0.0.1) e a TLS quem termina e o
-      # `tailscale serve` rodando na VM (https://<hostname>.ts.net -> 127.0.0.1:8080).
-      # Ver README.md secao "Tailscale Serve".
+      # Caddy termina TLS para os dominios amigaveis e escuta 80/443 na interface
+      # Tailscale (IP 100.x da VM). Os nomes so resolvem/conectam dentro da tailnet.
+      # Ver README.md secao "Expor via dominio proprio".
+      - "${TAILSCALE_IP}:80:80"
+      - "${TAILSCALE_IP}:443:443"
+      # Plain HTTP em 127.0.0.1:8080 mantido apenas para o healthcheck interno do CI.
       - "127.0.0.1:8080:8080"
     networks: [internal]
 

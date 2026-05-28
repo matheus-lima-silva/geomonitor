@@ -7,8 +7,8 @@ servicos (api, worker, web, postgres, minio, caddy) e Tailscale para acesso TLS 
 
 - VM no Proxmox: 2 vCPU, 4 GB RAM, 40 GB disco (Debian 12 ou Ubuntu 24.04 LTS).
 - Docker Engine + Docker Compose v2 instalados.
-- Tailscale instalado, autenticado, com **MagicDNS** e **HTTPS** habilitados na admin console.
-- Nome da maquina na tailnet (algo como `geomonitor.tail-xxxx.ts.net`) — necessario antes do build.
+- Tailscale instalado e autenticado na VM. O IP Tailscale da VM (`tailscale ip -4`, algo como `100.x.y.z`) e usado no `.env` (`TAILSCALE_IP`) e no DNS.
+- Dominio proprio (`lima.rio.br`) com a zona no **Cloudflare** (plano Free) e um **API token** com escopo `Zone:DNS:Edit` para o Caddy emitir o cert via DNS-01.
 
 ## Setup inicial
 
@@ -32,19 +32,42 @@ docker compose up -d --build
 docker compose logs -f migrate api worker
 ```
 
-## Expor via Tailscale
+## Expor via dominio proprio (Cloudflare DNS-01 + Caddy)
 
-O Caddy escuta plain HTTP em `127.0.0.1:8080` (so o host alcanca). Tailscale termina TLS
-para o mundo da tailnet:
+O Caddy termina TLS direto para o dominio amigavel `geo.lima.rio.br`, escutando 80/443
+na interface Tailscale (`${TAILSCALE_IP}`). O cert e Let's Encrypt emitido via desafio
+**DNS-01** pelo plugin `caddy-dns/cloudflare` — funciona mesmo o host sendo tailnet-only,
+porque a validacao e por registro TXT, nao por conexao ao IP.
 
 ```bash
-# Roda uma vez; persiste entre reboots
-sudo tailscale serve --bg --https=443 http://127.0.0.1:8080
-sudo tailscale serve status   # confirma o mapping
+# 1. Garanta que o tailscale serve NAO esta ocupando o 443 (migramos pra fora dele):
+sudo tailscale serve reset
+
+# 2. Pegue o IP Tailscale da VM e coloque em TAILSCALE_IP no .env:
+tailscale ip -4
+
+# 3. No Cloudflare (zona lima.rio.br):
+#    - registro A `geo` -> <IP Tailscale da VM>, DNS-only (nuvem CINZA, nao laranja)
+#    - API token com escopo Zone:DNS:Edit -> CLOUDFLARE_API_TOKEN no .env
+#    Preencha tambem ACME_EMAIL e GEO_HOSTNAME no .env.
+
+# 4. Suba o Caddy (build inclui o plugin Cloudflare):
+docker compose up -d --build caddy
+docker compose logs -f caddy   # confirma emissao do cert via DNS-01
 ```
 
-A partir dai, qualquer dispositivo na sua tailnet abre `https://geomonitor.tail-xxxx.ts.net`.
-TLS automatico, cert renovado pelo Tailscale.
+A partir dai, qualquer dispositivo na sua tailnet abre `https://geo.lima.rio.br` com cert
+valido. Fora da tailnet o nome resolve mas nao conecta (o IP `100.x` so roteia na tailnet).
+
+Dica: para nao gastar rate-limit do Let's Encrypt nos primeiros testes, use o CA de staging
+adicionando `acme_ca https://acme-staging-v02.api.letsencrypt.org/directory` no bloco global
+do Caddyfile, valide, e remova depois.
+
+### Feature futura: relat.lima.rio.br
+
+Sera um container separado. Para ativar quando existir: definir `RELAT_HOSTNAME` no `.env`,
+adicionar o servico `relat` no compose, criar o registro DNS-only `relat` no Cloudflare e
+descomentar o bloco `{$RELAT_HOSTNAME}` no Caddyfile.
 
 ## Sync de midia do Tigris (Fly) para o MinIO
 
@@ -100,7 +123,7 @@ rclone sync tigris:<bucket-fly> minio:geomonitor-media
 docker compose up -d
 
 # 7. Smoke test
-curl https://geomonitor.tail-xxxx.ts.net/api/health
+curl https://geo.lima.rio.br/api/health
 # Abra a SPA e teste login, criacao de vistoria, upload de foto, geracao de DOCX.
 
 # 8. Avise os usuarios da nova URL.
@@ -149,5 +172,6 @@ docker compose run --rm migrate   # se houver migration nova
 | `api` em loop crash | `docker compose logs api` — geralmente falta env (JWT_SECRET, DATABASE_URL) ou DB nao alcancavel |
 | Signed URL retorna 404 no browser | Confirmar Caddyfile esta roteando `/<BUCKET_NAME>/*` para minio; confirmar `MEDIA_PUBLIC_ENDPOINT` aponta para o Caddy publico |
 | Worker nao pega job | `docker compose logs worker` — verificar `WORKER_API_TOKEN` igual entre api e worker, `GEOMONITOR_API_URL=http://api:8080` |
-| Tailscale Serve volta a 502 | `tailscale serve status` — confirmar mapping para `http://127.0.0.1:8080`; ver se Caddy esta up (`docker compose ps caddy`) |
+| `geo.lima.rio.br` nao abre / 502 | `docker compose ps caddy` e `docker compose logs caddy`; confirmar bind em `${TAILSCALE_IP}:443` e que `tailscale serve` foi desligado (`tailscale serve reset`) |
+| Caddy nao emite cert | `docker compose logs caddy` — checar `CLOUDFLARE_API_TOKEN` (escopo Zone:DNS:Edit) e o registro `_acme-challenge`; testar no ACME staging primeiro |
 | `migrate` falha em "wal_level" | Postgres recem criado precisa de `docker compose down postgres` e remover `data/postgres/` para resetar (so na primeira subida) |

@@ -44,13 +44,14 @@ A tag `tag:ci` é aplicada aos nós efêmeros criados pela action a cada run.
 - `/srv/geomonitor` clonado e ownership `deploy:docker`.
 - Dados em `/srv/geomonitor/deploy/homelab/data/{postgres,minio,caddy}/` com owner UID 70 para `postgres/` (postgres alpine roda como UID 70).
 - `tailscale up --ssh=false` (Tailscale SSH desligado pra OpenSSH responder na porta 22).
-- `tailscale serve --bg --https=443 http://127.0.0.1:8080` configurado (TLS automático via Tailscale, certs Let's Encrypt em background).
+- `tailscale serve` **desligado** (`tailscale serve reset`) — o Caddy agora e dono de 80/443 na interface Tailscale. TLS para `geo.lima.rio.br` e emitido pelo proprio Caddy via Let's Encrypt DNS-01 (Cloudflare); ver `deploy/homelab/README.md`.
 
 ## Smoke pós-deploy
 
 ```bash
-curl -fsS https://geomonitor.tail4ac97b.ts.net/health
+curl -fsS https://geo.lima.rio.br/health
 # Esperado: {"status":"ok","service":"geomonitor-api"}
+# (o pipeline de CI valida o health interno via curl http://127.0.0.1:8080/health na VM)
 ```
 
 E no browser: login + listagem de projetos + download de DOCX gerado.
