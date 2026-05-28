@@ -13,10 +13,8 @@ backend/.storage/
 .env.*.local
 serviceAccountKey.json
 backend/serviceAccountKey.json
-# Excecao: .env do homelab e versionado como template com placeholders.
-# Apos editar com valores reais na VM, rodar:
-#   git update-index --skip-worktree deploy/homelab/.env
-!deploy/homelab/.env
+# O template do homelab e versionado como deploy/homelab/.env.example (placeholders).
+# O .env real (com segredos) fica ignorado pela regra .env acima.
 
 # Python virtual environments
 .venv/

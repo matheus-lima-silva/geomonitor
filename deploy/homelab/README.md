@@ -16,19 +16,19 @@ servicos (api, worker, web, postgres, minio, caddy) e Tailscale para acesso TLS 
 # 1. Clone na VM e entre na pasta do compose
 git clone <repo> /srv/geomonitor && cd /srv/geomonitor/deploy/homelab
 
-# 2. Edite o .env com valores reais (hostnames Tailscale, senhas, JWT secrets)
+# 2. Crie o .env real a partir do template versionado e preencha os valores
+#    (hostnames Tailscale, senhas, JWT secrets, token Cloudflare). O .env e
+#    ignorado pelo git; o template .env.example fica versionado com placeholders.
+cp .env.example .env
 $EDITOR .env
 
-# 3. Marque o .env como skip-worktree para nao trackear suas edicoes
-git update-index --skip-worktree .env
-
-# 4. Crie a estrutura de dados (volumes bind)
+# 3. Crie a estrutura de dados (volumes bind)
 mkdir -p data/postgres data/minio data/caddy/{data,config}
 
-# 5. Suba o stack — primeira build leva alguns minutos
+# 4. Suba o stack — primeira build leva alguns minutos
 docker compose up -d --build
 
-# 6. Acompanhe os logs ate ver "migrate" terminar e api/worker subirem
+# 5. Acompanhe os logs ate ver "migrate" terminar e api/worker subirem
 docker compose logs -f migrate api worker
 ```
 
