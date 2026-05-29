@@ -1,6 +1,6 @@
 /**
  * Módulo compartilhado entre frontend e backend.
- * Contém funções puras de lógica de erosão — sem dependências de Firebase.
+ * Contém funções puras de lógica de erosão — sem dependências externas.
  *
  * Frontend: importa diretamente via Vite (ESM)
  * Backend:  importa via esbuild bundle (CJS)

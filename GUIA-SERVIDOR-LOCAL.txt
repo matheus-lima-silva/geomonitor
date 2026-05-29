@@ -20,7 +20,7 @@ GUIA RAPIDO - GEO MONITOR EM SERVIDOR LOCAL (WINDOWS/POWERSHELL)
 
 OPCAO COM DOCKER (RECOMENDADO PARA EXECUCAO ISOLADA)
 
-1) Preencha o arquivo .env com as variaveis VITE_FIREBASE_*.
+1) Preencha o arquivo .env com a variavel VITE_API_BASE_URL.
 
 2) Construa e suba o container:
    docker compose up --build -d

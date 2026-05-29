@@ -7,31 +7,16 @@ RUN npm ci
 
 COPY . .
 
-ARG VITE_FIREBASE_API_KEY
-ARG VITE_FIREBASE_AUTH_DOMAIN
-ARG VITE_FIREBASE_PROJECT_ID
-ARG VITE_FIREBASE_STORAGE_BUCKET
-ARG VITE_FIREBASE_MESSAGING_SENDER_ID
-ARG VITE_FIREBASE_APP_ID
-ARG VITE_FIREBASE_MEASUREMENT_ID
 ARG VITE_API_BASE_URL
 
-# Keep Fly/GitHub deploys compatible with --build-arg while still allowing
-# local secure builds with an optional secret file:
+# Allow local secure builds with an optional secret file:
 # docker build --secret id=env,src=.env .
 RUN --mount=type=secret,id=env,target=/run/secrets/env,required=false \
     if [ -f /run/secrets/env ]; then \
       set -a; . /run/secrets/env; set +a; \
     fi && \
-    export VITE_FIREBASE_API_KEY="${VITE_FIREBASE_API_KEY}" \
-      VITE_FIREBASE_AUTH_DOMAIN="${VITE_FIREBASE_AUTH_DOMAIN}" \
-      VITE_FIREBASE_PROJECT_ID="${VITE_FIREBASE_PROJECT_ID}" \
-      VITE_FIREBASE_STORAGE_BUCKET="${VITE_FIREBASE_STORAGE_BUCKET}" \
-      VITE_FIREBASE_MESSAGING_SENDER_ID="${VITE_FIREBASE_MESSAGING_SENDER_ID}" \
-      VITE_FIREBASE_APP_ID="${VITE_FIREBASE_APP_ID}" \
-      VITE_FIREBASE_MEASUREMENT_ID="${VITE_FIREBASE_MEASUREMENT_ID}" \
-      VITE_API_BASE_URL="${VITE_API_BASE_URL}" && \
-    node -e "const required = ['VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_PROJECT_ID', 'VITE_FIREBASE_STORAGE_BUCKET', 'VITE_FIREBASE_MESSAGING_SENDER_ID', 'VITE_FIREBASE_APP_ID', 'VITE_API_BASE_URL']; const missing = required.filter((key) => !process.env[key]); if (missing.length) { console.error('Missing required web build vars: ' + missing.join(', ')); process.exit(1); }" && \
+    export VITE_API_BASE_URL="${VITE_API_BASE_URL}" && \
+    node -e "const required = ['VITE_API_BASE_URL']; const missing = required.filter((key) => !process.env[key]); if (missing.length) { console.error('Missing required web build vars: ' + missing.join(', ')); process.exit(1); }" && \
     npm run build
 
 FROM nginx:stable-alpine@sha256:5b4900b042ccfa8b0a73df622c3a60f2322faeb2be800cbee5aa7b44d241649e AS runtime
