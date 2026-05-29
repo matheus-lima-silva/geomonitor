@@ -114,6 +114,23 @@ Endpoints de autenticacao e gestao de credenciais. Body validado por Zod (`backe
 
 ---
 
+## Relatorios Mensais (`/api/monthly-reports`)
+
+Modulo do portal relat.lima.rio.br (Relatorio Mensal de Atividades). Modelo relacional: `monthly_reports` (header + `version` + `status`) + `monthly_report_projects` + `monthly_report_activities` (migration `0016`). Pessoal por dono (`owner_user_id = req.user.uid`); unico por `(owner, ano, mes)`. Save **full-sync transacional** com concorrencia otimista. Body validado por `backend/schemas/monthlyReportSchemas.js` (envelope `{ data, meta }`).
+
+| Metodo | Rota | Permissao | Descricao |
+|---|---|---|---|
+| GET | `/api/monthly-reports` | `requireActiveUser` | Lista resumida (sem filhos) dos relatorios do dono |
+| GET | `/api/monthly-reports/by-period?year=&month=` | `requireActiveUser` | Garante (cria vazio se faltar) o relatorio do mes |
+| GET | `/api/monthly-reports/:id` | `requireActiveUser` | Relatorio completo (header + projetos + atividades) |
+| POST | `/api/monthly-reports` | `requireActiveUser` | Cria a partir de dados completos; 409 `PERIOD_EXISTS` se o mes ja existe |
+| PUT | `/api/monthly-reports/:id` | `requireActiveUser` | Full-sync transacional; 409 `VERSION_CONFLICT` (com `currentVersion`) se `data.version` divergir |
+| DELETE | `/api/monthly-reports/:id` | `requireActiveUser` | Remove o relatorio (cascata nos filhos) |
+
+`data`: `{ refYear, refMonth, authorName, status('draft'|'final'), version?, projects[], activities[], holidayOverrides[] }`. `category` da atividade e enum (`vistoria|doc|relatorio|geo|reuniao|outro`). Feriados oficiais sao computados no cliente; so overrides sao persistidos (em `holidayOverrides`). A geracao do DOCX (`POST /:id/generate` via worker) entra na Fase 4.
+
+---
+
 ## Projects (`/api/projects`)
 
 Tabela Postgres: `projects` (payload JSONB).
