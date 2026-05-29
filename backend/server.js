@@ -23,12 +23,16 @@ const trustProxyValue = trustProxyRaw === 'true'
 app.set('trust proxy', trustProxyValue);
 
 const corsOriginEnv = process.env.FRONTEND_URL;
+// Em dev refletimos a origin (era '*') para permitir credentials (cookies SSO):
+// o browser rejeita ACAO:* em requests com credentials. Em prod, FRONTEND_URL
+// pode listar multiplas origens (geo + relat) separadas por virgula.
 const corsOrigin = corsOriginEnv
   ? corsOriginEnv.split(',').map(o => o.trim()).filter(Boolean)
-  : (isProd ? false : '*');
+  : (isProd ? false : true);
 
 app.use(cors({
   origin: corsOrigin,
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));

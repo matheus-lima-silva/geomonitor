@@ -22,6 +22,15 @@ Authorization: Bearer <access-token>
 
 Senhas sao armazenadas em `auth_credentials` (bcrypt, salt rounds 12). Tokens de reset de senha expiram em 1 hora.
 
+### SSO entre subdominios (cookies)
+
+Para compartilhar a sessao entre `geo.*` e `relat.*`, `login` e `refresh` tambem setam dois cookies (`backend/utils/authCookies.js`):
+
+- `gm_refresh` — httpOnly, `Path=/api/auth`, `Domain` de `AUTH_COOKIE_DOMAIN` (ex.: `.lima.rio.br`), `SameSite=Lax`, `Secure` em prod. Carrega o refresh token.
+- `gm_session` — nao-httpOnly, `Path=/`, mesmo `Domain`. Apenas um flag para o frontend saber que ha sessao e tentar `refresh` no load (o httpOnly nao e legivel por JS).
+
+`POST /api/auth/refresh` le o refresh token **do cookie `gm_refresh` com prioridade**, caindo para `body.refreshToken` (fluxo localStorage / fallback dev). `POST /api/auth/logout` limpa ambos os cookies. O fluxo localStorage do frontend e mantido como fallback (dev cross-port), entao o cookie e **aditivo**.
+
 ### Middlewares de autorizacao (`backend/utils/authMiddleware.js`)
 
 | Middleware | Descricao |
@@ -97,8 +106,9 @@ Endpoints de autenticacao e gestao de credenciais. Body validado por Zod (`backe
 | Metodo | Rota | Permissao | Descricao |
 |---|---|---|---|
 | POST | `/api/auth/register` | publico | Cria conta nova (gera UUID, hash bcrypt) |
-| POST | `/api/auth/login` | publico | Autentica e retorna `{ accessToken, refreshToken, user }` |
-| POST | `/api/auth/refresh` | publico | Renova access token a partir de refresh token |
+| POST | `/api/auth/login` | publico | Autentica, retorna `{ accessToken, refreshToken, user }` e seta cookies `gm_refresh` + `gm_session` |
+| POST | `/api/auth/refresh` | publico | Renova access token a partir do cookie `gm_refresh` ou `body.refreshToken` |
+| POST | `/api/auth/logout` | publico | Limpa os cookies de sessao (`gm_refresh`, `gm_session`) |
 | POST | `/api/auth/reset-password` | publico | Solicita token de reset (sempre retorna 200 para evitar enumeracao) |
 | POST | `/api/auth/reset-password/confirm` | publico | Confirma reset com token valido |
 
