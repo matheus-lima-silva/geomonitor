@@ -125,9 +125,10 @@ Modulo do portal relat.lima.rio.br (Relatorio Mensal de Atividades). Modelo rela
 | GET | `/api/monthly-reports/:id` | `requireActiveUser` | Relatorio completo (header + projetos + atividades) |
 | POST | `/api/monthly-reports` | `requireActiveUser` | Cria a partir de dados completos; 409 `PERIOD_EXISTS` se o mes ja existe |
 | PUT | `/api/monthly-reports/:id` | `requireActiveUser` | Full-sync transacional; 409 `VERSION_CONFLICT` (com `currentVersion`) se `data.version` divergir |
+| POST | `/api/monthly-reports/:id/generate` | `requireActiveUser` | Enfileira `report_job` (`kind=monthly_report`, `monthlyReportId`+`ownerUserId` no payload) e dispara o worker; 202 com link `self` para `GET /report-jobs/:id` |
 | DELETE | `/api/monthly-reports/:id` | `requireActiveUser` | Remove o relatorio (cascata nos filhos) |
 
-`data`: `{ refYear, refMonth, authorName, status('draft'|'final'), version?, projects[], activities[], holidayOverrides[] }`. `category` da atividade e enum (`vistoria|doc|relatorio|geo|reuniao|outro`). Feriados oficiais sao computados no cliente; so overrides sao persistidos (em `holidayOverrides`). A geracao do DOCX (`POST /:id/generate` via worker) entra na Fase 4.
+`data`: `{ refYear, refMonth, authorName, status('draft'|'final'), version?, projects[], activities[], holidayOverrides[] }`. `category` da atividade e enum (`vistoria|doc|relatorio|geo|reuniao|outro`). Feriados oficiais sao computados (cliente e worker); so overrides sao persistidos (em `holidayOverrides`). O DOCX institucional e renderizado pelo worker Python (`worker/monthly_report_renderer.py`, `kind=monthly_report`); o contexto cru vem de `GET /report-jobs/:id/context` (`buildMonthlyReportContext`).
 
 ---
 

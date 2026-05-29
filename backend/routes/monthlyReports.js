@@ -1,9 +1,11 @@
+const crypto = require('crypto');
 const express = require('express');
 const { verifyToken, requireActiveUser } = require('../utils/authMiddleware');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { validateBody, validateQuery } = require('../middleware/validate');
-const { createResourceHateoasResponse, generateHateoasLinks } = require('../utils/hateoas');
-const { monthlyReportRepository } = require('../repositories');
+const { createResourceHateoasResponse, generateHateoasLinks, resolveApiBaseUrl } = require('../utils/hateoas');
+const { monthlyReportRepository, reportJobRepository } = require('../repositories');
+const { triggerWorkerRun } = require('../utils/workerTrigger');
 const { saveMonthlyReportSchema, byPeriodQuerySchema } = require('../schemas/monthlyReportSchemas');
 
 const router = express.Router();
@@ -11,6 +13,9 @@ const router = express.Router();
 function reportResource(req, report) {
     return createResourceHateoasResponse(req, report, `monthly-reports/${report.id}`, {
         collectionPath: 'monthly-reports',
+        extraLinks: {
+            generate: { href: `${resolveApiBaseUrl(req)}/monthly-reports/${report.id}/generate`, method: 'POST' },
+        },
     });
 }
 
@@ -80,6 +85,41 @@ router.put('/:id', verifyToken, requireActiveUser, validateBody(saveMonthlyRepor
         });
     }
     return res.status(200).json({ status: 'success', data: reportResource(req, result.report) });
+}));
+
+// POST /:id/generate — enfileira a geracao do DOCX no worker (kind=monthly_report).
+// O worker recebe monthlyReportId + ownerUserId pelo payload do job e busca o
+// relatorio via /report-jobs/:id/context. O frontend acompanha por GET /report-jobs/:id.
+router.post('/:id/generate', verifyToken, requireActiveUser, asyncHandler(async (req, res) => {
+    const report = await monthlyReportRepository.getFull(req.params.id, req.user.uid);
+    if (!report) {
+        return res.status(404).json({ status: 'error', message: 'Relatorio nao encontrado.' });
+    }
+
+    const jobId = `JOB-${crypto.randomUUID()}`;
+    const job = await reportJobRepository.save({
+        id: jobId,
+        kind: 'monthly_report',
+        statusExecucao: 'queued',
+        monthlyReportId: report.id,
+        ownerUserId: req.user.uid,
+        createdAt: new Date().toISOString(),
+        updatedBy: req.user.email,
+    });
+
+    triggerWorkerRun();
+
+    const apiBaseUrl = resolveApiBaseUrl(req);
+    return res.status(202).json({
+        status: 'success',
+        data: {
+            ...job,
+            _links: {
+                self: { href: `${apiBaseUrl}/report-jobs/${jobId}`, method: 'GET' },
+                report: { href: `${apiBaseUrl}/monthly-reports/${report.id}`, method: 'GET' },
+            },
+        },
+    });
 }));
 
 // DELETE /:id

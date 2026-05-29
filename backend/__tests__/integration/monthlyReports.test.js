@@ -60,10 +60,12 @@ jest.mock('../../repositories', () => {
 
 jest.mock('../../repositories/authCredentialsRepository', () => ({ getByEmail: jest.fn(async () => null) }));
 jest.mock('../../utils/mailer', () => ({ getMailTransport: () => null, sendResetEmail: jest.fn(async () => {}) }));
+jest.mock('../../utils/workerTrigger', () => ({ triggerWorkerRun: jest.fn() }));
 
 const request = require('supertest');
 const app = require('../../server');
-const { monthlyReportRepository } = require('../../repositories');
+const { monthlyReportRepository, reportJobRepository } = require('../../repositories');
+const { triggerWorkerRun } = require('../../utils/workerTrigger');
 
 function sampleReport(overrides = {}) {
     return {
@@ -208,6 +210,35 @@ describe('PUT /api/monthly-reports/:id', () => {
         expect(res.status).toBe(409);
         expect(res.body.code).toBe('VERSION_CONFLICT');
         expect(res.body.currentVersion).toBe(5);
+    });
+});
+
+describe('POST /api/monthly-reports/:id/generate', () => {
+    it('enfileira job monthly_report e dispara o worker (202)', async () => {
+        monthlyReportRepository.getFull.mockResolvedValueOnce(sampleReport());
+        reportJobRepository.save.mockImplementationOnce(async (job) => ({ ...job }));
+
+        const res = await request(app)
+            .post('/api/monthly-reports/MR-1/generate')
+            .set('Authorization', 'Bearer t');
+
+        expect(res.status).toBe(202);
+        const savedArg = reportJobRepository.save.mock.calls[0][0];
+        expect(savedArg).toEqual(
+            expect.objectContaining({ kind: 'monthly_report', monthlyReportId: 'MR-1', ownerUserId: 'owner-1', statusExecucao: 'queued' }),
+        );
+        expect(savedArg.id).toMatch(/^JOB-/);
+        expect(res.body.data._links.self.href).toContain(`report-jobs/${savedArg.id}`);
+        expect(triggerWorkerRun).toHaveBeenCalled();
+    });
+
+    it('404 quando o relatorio nao existe', async () => {
+        monthlyReportRepository.getFull.mockResolvedValueOnce(null);
+        const res = await request(app)
+            .post('/api/monthly-reports/MR-x/generate')
+            .set('Authorization', 'Bearer t');
+        expect(res.status).toBe(404);
+        expect(reportJobRepository.save).not.toHaveBeenCalled();
     });
 });
 
