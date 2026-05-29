@@ -56,11 +56,23 @@ Geracao/verificacao em [utils/jwt.js](utils/jwt.js); credenciais em `auth_creden
 - Aplicar com `npm run migrate` antes de rodar testes que dependam do novo schema.
 - `ALTER TABLE` ad-hoc e anti-padrao.
 
-## 9. Storage de midia (S3/Tigris)
+## 9. Storage de midia (S3/Tigris/MinIO)
 
 Nunca invocar SDK S3 diretamente da rota. Use [utils/mediaStorage.js](utils/mediaStorage.js) (signed URLs, upload/download, `MEDIA_BACKEND=local|tigris`). Valide uploads com [utils/uploadValidation.js](utils/uploadValidation.js) (tipos MIME + tamanho).
 
 Retencao de fotos da lixeira/archive: [utils/retentionConfig.js](utils/retentionConfig.js).
+
+### 9a. Endpoint interno vs publico (MinIO/Tailscale)
+
+No homelab o backend (Node) e o worker (Python) falam com o MinIO pelo hostname interno do docker network (`http://minio:9000`), mas o browser do usuario so alcanca o bucket pelo endpoint publico via Tailscale (`https://geo.lima.rio.br/<BUCKET_NAME>/...`, roteado pelo Caddy). Para resolver esse split:
+
+- `AWS_ENDPOINT_URL_S3` aponta para o endpoint **interno** (o SDK usa esse pra assinar e pra PUT/GET diretos do server).
+- `MEDIA_PUBLIC_ENDPOINT` aponta para o endpoint **publico** (Tailscale). Quando setado, [utils/mediaStorage.js:132](utils/mediaStorage.js) (`rewriteSignedUrlHost`) reescreve a URL assinada trocando protocol+host+port+pathPrefix antes de devolver pro client.
+- Sem `MEDIA_PUBLIC_ENDPOINT`, a URL volta crua (cenario Tigris/Fly antigo, onde endpoint ja era publico).
+
+**Flag `internal: true`** em `createSignedUploadUrl({ internal })` / `createSignedAccessUrl({ internal })`: pula o rewrite. Use **somente** quando o consumidor da URL roda dentro do docker network — tipicamente o worker Python que faz PUT do DOCX direto no bucket via webhook. Se passar `internal:true` em URL que vai pro browser, o usuario recebe `http://minio:9000/...` que so resolve dentro da rede docker. Se omitir em URL do worker, ele tenta resolver o hostname Tailscale/MagicDNS de dentro do container e quebra com `gaierror`.
+
+Regra pratica: rotas que devolvem URL pro frontend → omitir flag (default `false`). Rotas chamadas pelo worker (`requireEditorOrWorker` + `x-worker-token`) → passar `internal: true` quando o destinatario for o worker.
 
 ## 10. Async handlers + formato de resposta
 
@@ -161,4 +173,4 @@ CI nao roda `test:pbt` por enquanto — sera adicionado em follow-up junto com o
 
 Ao introduzir novo util em `utils/`, novo middleware, nova convencao ou mudar contrato de envelope, **atualizar este arquivo no mesmo PR** e bumpar a data do rodape. Revisar integralmente a cada trimestre (audit comparando com estado do codigo). Ver secao "Manutencao dos documentos" do plano arquitetural em `.claude/plans/jazzy-tinkering-cocke.md`.
 
-> Ultima revisao: 2026-04-17.
+> Ultima revisao: 2026-05-26.
