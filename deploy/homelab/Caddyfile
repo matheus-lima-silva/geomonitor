@@ -11,8 +11,11 @@
 	acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
 }
 
-# Roteamento da aplicacao GeoMonitor, reutilizavel por hostname.
-(geomonitor_routes) {
+# Roteamento de um app do monorepo, reutilizavel por hostname.
+# Recebe o upstream do SPA como argumento: `import app_routes <web|relat>`.
+# /api, /health e a rota do MinIO sao compartilhados (mesmo backend) — e isso
+# que da ao relat o mesmo-origem (relat.lima.rio.br/api -> api:8080).
+(app_routes) {
 	# /api/* -> backend Node. Usa `handle` (nao `handle_path`) para preservar o
 	# prefixo /api que o Express espera nos mounts (app.use('/api/...', router)).
 	handle /api/* {
@@ -41,9 +44,9 @@
 		}
 	}
 
-	# Tudo o mais cai no SPA (nginx servindo dist/).
+	# Tudo o mais cai no SPA do app indicado (nginx servindo dist/).
 	handle {
-		reverse_proxy web:8080
+		reverse_proxy {args[0]}:8080
 	}
 
 	# Logs JSON estruturados; util pra debug com docker compose logs caddy.
@@ -55,7 +58,7 @@
 
 # App principal. TLS via DNS-01 (config global acima).
 {$GEO_HOSTNAME} {
-	import geomonitor_routes
+	import app_routes web
 }
 
 # Healthcheck interno do CI/CD (curl http://127.0.0.1:8080/health na VM).
@@ -66,13 +69,12 @@
 	}
 }
 
-# Feature futura: relat.lima.rio.br -> container novo separado.
-# Para ativar: definir RELAT_HOSTNAME no .env, subir o container `relat` no
-# compose, adicionar o registro DNS-only no Cloudflare e descomentar o bloco.
-#{$RELAT_HOSTNAME} {
-#	reverse_proxy relat:8080
-#	log {
-#		output stdout
-#		format json
-#	}
-#}
+# Portal de Relatorios: relat.lima.rio.br -> container `relat` (segundo SPA),
+# compartilhando /api + /health + MinIO com o geo (mesmo-origem).
+# Quando RELAT_HOSTNAME nao esta setado no .env, o compose injeta o default
+# seguro `relat.localhost` (cert interno do Caddy, sem ACME) — assim subir o
+# stack sem configurar o relat NAO derruba o geo. Para ativar de verdade:
+# setar RELAT_HOSTNAME=relat.lima.rio.br no .env + registro DNS-only no Cloudflare.
+{$RELAT_HOSTNAME} {
+	import app_routes relat
+}
