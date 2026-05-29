@@ -618,6 +618,77 @@ class WorkerRuntimeTests(unittest.TestCase):
         plain = read_docx_plain_text(docx)
         self.assertNotIn("ANEXO - FICHAS DE EROS", plain)
 
+    def test_report_compound_tower_grouping_independent_of_input_order(self):
+        # Regressao BOM DESPACHO 26/05/2026: agrupamento por torre era acoplado
+        # ao sort_mode upstream ("tower*" => grouping). Quando o usuario escolhia
+        # ordem manual/data/legenda, os subtopicos "Torre X" sumiam. Hoje
+        # group_by_tower=True e fixo em render_report_compound_docx; este teste
+        # protege contra re-acoplamento.
+        ctx = build_compound_context()
+        ctx["renderModel"]["compound"]["sharedTextsJson"] = {"introducao": "Intro"}
+        ctx["renderModel"]["workspaces"] = [
+            {
+                "workspace": {"id": "RW-1", "nome": "Workspace 1", "status": "draft"},
+                "project": {"id": "PRJ-01", "nome": "Projeto 1"},
+                "photos": [
+                    {"id": "RPH-1", "caption": "X1", "towerId": "T-02",
+                     "includeInReport": True, "mediaAssetId": "MED-A"},
+                    {"id": "RPH-2", "caption": "X2", "towerId": "T-01",
+                     "includeInReport": True, "mediaAssetId": "MED-B"},
+                    {"id": "RPH-3", "caption": "X3", "towerId": "T-02",
+                     "includeInReport": True, "mediaAssetId": "MED-C"},
+                    {"id": "RPH-4", "caption": "X4", "towerId": "T-01",
+                     "includeInReport": True, "mediaAssetId": "MED-D"},
+                ],
+            },
+        ]
+        ctx["renderModel"]["compound"]["orderJson"] = ["RW-1"]
+        ctx["renderModel"]["compound"]["workspaceIds"] = ["RW-1"]
+        docx = self._run_compound(ctx, job_id="JOB-TOWER-GROUP")
+        plain = read_docx_plain_text(docx)
+        self.assertIn("Torre T-01", plain, "subtopico 'Torre T-01' deve existir mesmo com fotos intercaladas")
+        self.assertIn("Torre T-02", plain, "subtopico 'Torre T-02' deve existir mesmo com fotos intercaladas")
+        # As duas torres devem aparecer na ordem de primeira ocorrencia das fotos:
+        # T-02 vem antes de T-01 no input -> esperado no output tambem.
+        idx_t02 = plain.find("Torre T-02")
+        idx_t01 = plain.find("Torre T-01")
+        self.assertGreaterEqual(idx_t02, 0)
+        self.assertGreaterEqual(idx_t01, 0)
+        self.assertLess(idx_t02, idx_t01, "ordem dos grupos segue primeira ocorrencia no input")
+
+    def test_report_compound_photos_without_tower_id_fall_into_fallback_group(self):
+        # Quando nenhuma foto tem towerId, todas caem em "Fotos sem agrupamento"
+        # — caso de KMZ sem pastas por torre. O subtopico de torre nao deve
+        # aparecer, mas o agrupamento (heading nivel 1) ainda eh aplicado.
+        ctx = build_compound_context()
+        ctx["renderModel"]["compound"]["sharedTextsJson"] = {"introducao": "Intro"}
+        ctx["renderModel"]["workspaces"] = [
+            {
+                "workspace": {"id": "RW-1", "nome": "Workspace 1", "status": "draft"},
+                "project": {"id": "PRJ-01", "nome": "Projeto 1"},
+                "photos": [
+                    {"id": "RPH-1", "caption": "Y1",
+                     "includeInReport": True, "mediaAssetId": "MED-X"},
+                    {"id": "RPH-2", "caption": "Y2",
+                     "includeInReport": True, "mediaAssetId": "MED-Y"},
+                ],
+            },
+        ]
+        ctx["renderModel"]["compound"]["orderJson"] = ["RW-1"]
+        ctx["renderModel"]["compound"]["workspaceIds"] = ["RW-1"]
+        docx = self._run_compound(ctx, job_id="JOB-NO-TOWER")
+        plain = read_docx_plain_text(docx)
+        # O heading nivel 1 de fallback aparece...
+        self.assertIn("Fotos sem agrupamento", plain)
+        # ...e vem depois da secao de ilustracao, junto com as fotos.
+        idx_section = plain.find("ILUSTRA")
+        idx_fallback = plain.find("Fotos sem agrupamento")
+        idx_foto1 = plain.find("Foto 1 - Y1")
+        idx_foto2 = plain.find("Foto 2 - Y2")
+        self.assertGreater(idx_fallback, idx_section)
+        self.assertGreater(idx_foto1, idx_fallback)
+        self.assertGreater(idx_foto2, idx_foto1)
+
     def test_append_fichas_helper_adds_one_table_per_erosion(self):
         """Helper gera uma tabela por erosao, respeitando o template."""
         from docx import Document
