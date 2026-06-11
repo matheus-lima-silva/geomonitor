@@ -3,6 +3,7 @@ import os
 import tempfile
 
 from docx import Document
+from docx.shared import Pt
 
 from worker.monthly_report_renderer import (
     easter_date,
@@ -11,6 +12,29 @@ from worker.monthly_report_renderer import (
     holiday_map_for_report,
     render_context_to_docx,
 )
+
+
+def _build_context():
+    return {
+        "job": {"id": "JOB-1", "kind": "monthly_report"},
+        "renderModel": {
+            "monthlyReport": {
+                "id": "MR-1",
+                "refYear": 2026,
+                "refMonth": 4,
+                "authorName": "Ana Lima",
+                "status": "final",
+                "projects": [
+                    {"id": "P1", "name": "LT 500 kV Bom Despacho", "description": "Atividade de gabinete e campo.", "collapsed": False, "sortOrder": 0},
+                ],
+                "activities": [
+                    {"id": "1", "projectId": "P1", "category": "vistoria", "description": "Vistoria torre T-10", "startDate": "2026-04-16", "endDate": "2026-04-16"},
+                    {"id": "2", "projectId": "P1", "category": "relatorio", "description": "Redacao do relatorio", "startDate": "2026-04-20", "endDate": "2026-04-21"},
+                ],
+                "holidayOverrides": [],
+            },
+        },
+    }
 
 
 def _all_text(path):
@@ -45,26 +69,7 @@ def test_computed_meta_paridade_com_frontend():
 
 
 def test_render_produces_docx_with_expected_content():
-    context = {
-        "job": {"id": "JOB-1", "kind": "monthly_report"},
-        "renderModel": {
-            "monthlyReport": {
-                "id": "MR-1",
-                "refYear": 2026,
-                "refMonth": 4,
-                "authorName": "Ana Lima",
-                "status": "final",
-                "projects": [
-                    {"id": "P1", "name": "LT 500 kV Bom Despacho", "description": "Atividade de gabinete e campo.", "collapsed": False, "sortOrder": 0},
-                ],
-                "activities": [
-                    {"id": "1", "projectId": "P1", "category": "vistoria", "description": "Vistoria torre T-10", "startDate": "2026-04-16", "endDate": "2026-04-16"},
-                    {"id": "2", "projectId": "P1", "category": "relatorio", "description": "Redacao do relatorio", "startDate": "2026-04-20", "endDate": "2026-04-21"},
-                ],
-                "holidayOverrides": [],
-            },
-        },
-    }
+    context = _build_context()
 
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "out.docx")
@@ -79,3 +84,45 @@ def test_render_produces_docx_with_expected_content():
     assert "Vistoria torre T-10" in text
     assert "Tiradentes" in text  # feriado 21/04 dentro do periodo
     assert "DIAS ÚTEIS" in text  # meta computada do projeto
+
+
+def test_render_uses_named_styles_with_dm_sans_14():
+    context = _build_context()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "out.docx")
+        render_context_to_docx(context, out)
+        doc = Document(out)
+
+        # Base: texto normal em DM Sans 14pt.
+        normal = doc.styles["Normal"]
+        assert normal.font.name == "DM Sans"
+        assert normal.font.size == Pt(14)
+
+        # Estilos nomeados com escala proporcional ao corpo.
+        expected = {
+            "GM Title": Pt(20),
+            "GM Heading": Pt(16),
+            "GM Meta": Pt(12),
+            "GM Small": Pt(10.5),
+            "GM Tiny": Pt(9.5),
+        }
+        for name, size in expected.items():
+            style = doc.styles[name]
+            assert style.font.size == size
+            assert style.base_style.name == "Normal"
+
+        # Paragrafos de papel recorrente usam estilo nomeado, nao formatacao ad-hoc.
+        headings = [p for p in doc.paragraphs if p.text.startswith("1. Distribuição")]
+        assert headings and headings[0].style.name == "GM Heading"
+
+        # Nenhum run carrega fonte explicita: tudo herda de Normal.
+        all_paragraphs = list(doc.paragraphs)
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    all_paragraphs.extend(cell.paragraphs)
+        assert all_paragraphs
+        for p in all_paragraphs:
+            for r in p.runs:
+                assert r.font.name is None

@@ -8,10 +8,24 @@ montando um .docx institucional AXIA com python-docx. Sem fotos.
 import datetime
 
 from docx import Document
+from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
+
+# DM Sans is not bundled with Windows/Office; viewers without it installed see
+# a substituted fallback font (python-docx cannot embed fonts).
+BODY_FONT_NAME = "DM Sans"
+BODY_FONT_SIZE_PT = 14
+
+# Estilos de paragrafo nomeados: o estilo carrega fonte/tamanho; runs carregam
+# apenas bold/italic/cor. Tamanhos escalados de forma proporcional ao corpo 14pt.
+STYLE_TITLE = "GM Title"      # titulo do documento
+STYLE_HEADING = "GM Heading"  # secoes e titulos de projeto
+STYLE_META = "GM Meta"        # subtitulos, intros, legenda, numeros de dia
+STYLE_SMALL = "GM Small"      # header/rodape de identificacao, celulas do calendario
+STYLE_TINY = "GM Tiny"        # nota de feriado nas celulas
 
 MONTHS = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -213,16 +227,35 @@ def _set_cell_background(cell, hex_color):
     cell._tc.get_or_add_tcPr().append(shd)
 
 
-def _run(paragraph, text, size=None, bold=False, color=None, italic=False):
+def _run(paragraph, text, bold=False, color=None, italic=False):
+    # Fonte e tamanho vem do estilo do paragrafo (herdados de Normal).
     r = paragraph.add_run(text)
-    r.font.name = "Calibri"
-    if size is not None:
-        r.font.size = Pt(size)
     r.bold = bold
     r.italic = italic
     if color:
         r.font.color.rgb = RGBColor.from_string(color)
     return r
+
+
+def _setup_styles(document):
+    """Configura Normal (DM Sans 14pt) e cria os estilos nomeados do relatorio."""
+    normal = document.styles["Normal"]
+    normal.font.name = BODY_FONT_NAME
+    normal.font.size = Pt(BODY_FONT_SIZE_PT)
+
+    spec = [
+        (STYLE_TITLE, 20, True),
+        (STYLE_HEADING, 16, True),
+        (STYLE_META, 12, False),
+        (STYLE_SMALL, 10.5, False),
+        (STYLE_TINY, 9.5, False),
+    ]
+    for name, size, bold in spec:
+        style = document.styles.add_style(name, WD_STYLE_TYPE.PARAGRAPH)
+        style.base_style = normal
+        style.font.size = Pt(size)
+        if bold:
+            style.font.bold = True
 
 
 # ----------------------------------------------------------------------------
@@ -246,29 +279,33 @@ def render_context_to_docx(context, output_path):
     doc_id = f"REL.ATV.MENSAL.{ref_month + 1:02d}.{ref_year}"
 
     document = Document()
+    _setup_styles(document)
     document.sections[0].page_height = Cm(29.7)
     document.sections[0].page_width = Cm(21.0)
 
     # Cabecalho
     header = document.add_table(rows=1, cols=2)
     left, right = header.rows[0].cells
-    p = left.paragraphs[0]
-    _run(p, "AXIA ENERGIA · GESTÃO AMBIENTAL\n", size=8, color=MUTED_COLOR)
-    _run(p, "Relatório de atividades mensais", size=15, bold=True, color=TEXT_COLOR)
-    sub = left.add_paragraph()
-    _run(sub, f"{author} · {periodo}", size=9, color="6B6B6B")
-    rng = left.add_paragraph()
-    _run(rng, f"Período: {start.strftime('%d/%m/%Y')} a {end.strftime('%d/%m/%Y')}", size=8, color=MUTED_COLOR)
+    brand = left.paragraphs[0]
+    brand.style = document.styles[STYLE_SMALL]
+    _run(brand, "AXIA ENERGIA · GESTÃO AMBIENTAL", color=MUTED_COLOR)
+    title = left.add_paragraph(style=STYLE_TITLE)
+    _run(title, "Relatório de atividades mensais", color=TEXT_COLOR)
+    sub = left.add_paragraph(style=STYLE_META)
+    _run(sub, f"{author} · {periodo}", color="6B6B6B")
+    rng = left.add_paragraph(style=STYLE_SMALL)
+    _run(rng, f"Período: {start.strftime('%d/%m/%Y')} a {end.strftime('%d/%m/%Y')}", color=MUTED_COLOR)
     rp = right.paragraphs[0]
+    rp.style = document.styles[STYLE_SMALL]
     rp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    _run(rp, f"{doc_id}\n", size=8, bold=True, color="6B6B6B")
-    _run(rp, "Rev. 00", size=8, color=MUTED_COLOR)
+    _run(rp, f"{doc_id}\n", bold=True, color="6B6B6B")
+    _run(rp, "Rev. 00", color=MUTED_COLOR)
 
     # Secao 1
-    s1 = document.add_paragraph()
-    _run(s1, "1. Distribuição de atividades", size=12, bold=True, color=TEXT_COLOR)
-    intro1 = document.add_paragraph()
-    _run(intro1, "Visão diária das atividades no período. Atividades multi-dia pulam fins de semana e feriados.", size=9, color="6B6B6B")
+    s1 = document.add_paragraph(style=STYLE_HEADING)
+    _run(s1, "1. Distribuição de atividades", color=TEXT_COLOR)
+    intro1 = document.add_paragraph(style=STYLE_META)
+    _run(intro1, "Visão diária das atividades no período. Atividades multi-dia pulam fins de semana e feriados.", color="6B6B6B")
 
     # Grade do calendario (semanas iniciando no domingo)
     def js_get_day(d):
@@ -290,8 +327,9 @@ def render_context_to_docx(context, output_path):
     for i, wd in enumerate(weekdays):
         cell = cal.rows[0].cells[i]
         para = cell.paragraphs[0]
+        para.style = document.styles[STYLE_SMALL]
         para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        _run(para, wd, size=8, bold=True, color=MUTED_COLOR)
+        _run(para, wd, bold=True, color=MUTED_COLOR)
 
     for idx, d in enumerate(days_list):
         row = 1 + idx // 7
@@ -307,46 +345,47 @@ def render_context_to_docx(context, output_path):
             _set_cell_background(cell, "FAF9F5")
 
         para = cell.paragraphs[0]
-        _run(para, str(d.day), size=9, bold=True, color=(TEXT_COLOR if in_range else MUTED_COLOR))
+        para.style = document.styles[STYLE_META]
+        _run(para, str(d.day), bold=True, color=(TEXT_COLOR if in_range else MUTED_COLOR))
 
         if in_range and key in holiday_keys:
-            hp = cell.add_paragraph()
-            _run(hp, f"★ {hmap[key]}", size=7, color=HOLIDAY_COLOR)
+            hp = cell.add_paragraph(style=STYLE_TINY)
+            _run(hp, f"★ {hmap[key]}", color=HOLIDAY_COLOR)
 
         if in_range:
             for a in activities_visible_on_date(activities, key, holiday_keys):
                 cat = CATEGORIES.get(a.get("category"), {})
                 color = cat.get("color", "888888")
                 prefix = "●" if is_first_visible_day(a, key, holiday_keys) else "↳"
-                ap = cell.add_paragraph()
-                _run(ap, f"{prefix} ", size=8, bold=True, color=color)
-                _run(ap, _norm(a.get("description")), size=8, color=TEXT_COLOR)
+                ap = cell.add_paragraph(style=STYLE_SMALL)
+                _run(ap, f"{prefix} ", bold=True, color=color)
+                _run(ap, _norm(a.get("description")), color=TEXT_COLOR)
 
     # Legenda
-    legend = document.add_paragraph()
+    legend = document.add_paragraph(style=STYLE_META)
     for key, cat in CATEGORIES.items():
-        _run(legend, "● ", size=9, bold=True, color=cat["color"])
-        _run(legend, f"{cat['label']}    ", size=9, color=TEXT_COLOR)
-    _run(legend, "★ ", size=9, bold=True, color=HOLIDAY_COLOR)
-    _run(legend, "Feriado", size=9, color=TEXT_COLOR)
+        _run(legend, "● ", bold=True, color=cat["color"])
+        _run(legend, f"{cat['label']}    ", color=TEXT_COLOR)
+    _run(legend, "★ ", bold=True, color=HOLIDAY_COLOR)
+    _run(legend, "Feriado", color=TEXT_COLOR)
 
     # Secao 2
-    s2 = document.add_paragraph()
-    _run(s2, "2. Resumo por projeto", size=12, bold=True, color=TEXT_COLOR)
-    intro2 = document.add_paragraph()
-    _run(intro2, "Descrição das atividades desenvolvidas em cada empreendimento no período.", size=9, color="6B6B6B")
+    s2 = document.add_paragraph(style=STYLE_HEADING)
+    _run(s2, "2. Resumo por projeto", color=TEXT_COLOR)
+    intro2 = document.add_paragraph(style=STYLE_META)
+    _run(intro2, "Descrição das atividades desenvolvidas em cada empreendimento no período.", color="6B6B6B")
 
     visible_projects = [p for p in projects if _norm(p.get("name")) or _norm(p.get("description"))]
     for idx, p in enumerate(visible_projects):
-        title = document.add_paragraph()
-        _run(title, f"{idx + 1}. {_norm(p.get('name')) or 'Projeto sem nome'}", size=12, bold=True, color=TEXT_COLOR)
+        title = document.add_paragraph(style=STYLE_HEADING)
+        _run(title, f"{idx + 1}. {_norm(p.get('name')) or 'Projeto sem nome'}", color=TEXT_COLOR)
         meta = computed_meta_for_project(activities, p.get("id"), ref_year, ref_month, holiday_keys)
         if meta:
-            mp = document.add_paragraph()
-            _run(mp, meta, size=8, color=MUTED_COLOR)
+            mp = document.add_paragraph(style=STYLE_SMALL)
+            _run(mp, meta, color=MUTED_COLOR)
         body = document.add_paragraph()
         body.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        _run(body, _norm(p.get("description")), size=10.5, color=TEXT_COLOR)
+        _run(body, _norm(p.get("description")), color=TEXT_COLOR)
 
     document.save(output_path)
     return output_path
