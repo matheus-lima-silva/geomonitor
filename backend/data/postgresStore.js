@@ -50,11 +50,18 @@ function buildPgConnectionOptions() {
     const sslMode = normalizeEnv(process.env.POSTGRES_SSL || process.env.PGSSLMODE).toLowerCase();
     const shouldDisableSsl = ['false', '0', 'disable', 'disabled', 'off'].includes(sslMode);
 
+    const statementTimeoutMs = Number.isFinite(Number(process.env.POSTGRES_STATEMENT_TIMEOUT_MS))
+        ? Number(process.env.POSTGRES_STATEMENT_TIMEOUT_MS)
+        : 15000;
+
     return {
         connectionString,
         ssl: shouldDisableSsl ? false : { rejectUnauthorized: false },
         max: Number.isFinite(Number(process.env.POSTGRES_POOL_MAX)) ? Number(process.env.POSTGRES_POOL_MAX) : 10,
         idleTimeoutMillis: Number.isFinite(Number(process.env.POSTGRES_IDLE_TIMEOUT_MS)) ? Number(process.env.POSTGRES_IDLE_TIMEOUT_MS) : 30000,
+        // Aborta queries presas para nao segurar conexao do pool. Migracoes longas
+        // desligam isso por transacao via SET LOCAL (ver scripts/runMigrations.js).
+        statement_timeout: statementTimeoutMs,
         application_name: normalizeEnv(process.env.POSTGRES_APP_NAME) || 'geomonitor-backend',
     };
 }
