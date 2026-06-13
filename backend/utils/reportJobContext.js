@@ -12,6 +12,7 @@ const {
     reportJobRepository,
     workspaceKmzRequestRepository,
     monthlyReportRepository,
+    monthlyReportSettingsRepository,
 } = require('../repositories');
 
 const { convertDecimalToUtm, normalizeLocationCoordinates } = require('./erosionCoordinates_dist');
@@ -437,7 +438,11 @@ async function buildMonthlyReportContext(job) {
         throw createMissingResourceError(`Relatorio mensal '${reportId}' nao encontrado para o job.`);
     }
 
-    // Envia dados crus; o renderer Python computa feriados/calendario/meta.
+    // Envia dados crus; o renderer Python monta calendario/quadros. O contrato
+    // vem das settings globais do dono (texto-modelo ja embute na intro, mas o
+    // renderer pode precisar em capa/cabecalho).
+    const settings = await monthlyReportSettingsRepository.getByOwner(ownerUserId);
+
     return {
         job,
         project: null,
@@ -449,9 +454,12 @@ async function buildMonthlyReportContext(job) {
                 refMonth: report.refMonth,
                 authorName: report.authorName,
                 status: report.status,
-                projects: report.projects,
-                activities: report.activities,
-                holidayOverrides: report.holidayOverrides,
+                intro: report.intro,
+                conclusao: report.conclusao,
+                quadroStyle: report.quadroStyle,
+                holidays: report.holidays,
+                engineers: report.engineers,
+                contrato: settings ? settings.contrato : { numero: '', objeto: '', contratante: '', contratada: '' },
             },
         },
     };
