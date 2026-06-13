@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '@app/components/AppIcon';
-import { Button, Input, Modal } from '@app/components/ui';
+import { Button, IconButton, Input, Modal } from '@app/components/ui';
 import { useToast } from '@app/context/ToastContext';
 import QuadroTable, { QuadroLegend } from '../preview/QuadroTable';
 import { QUADRO_STYLES } from '../../utils/constants';
@@ -8,6 +8,7 @@ import { genId, ID_PREFIX } from '../../utils/ids';
 import { getDateRange, fmtDate } from '../../utils/calendar';
 import { dateKey, officialHolidaysForPeriod } from '../../utils/holidays';
 import { buildQuadroWeeks } from '../../utils/docModel';
+import { avatarColor, initials } from '../../utils/avatars';
 
 const TABS = [
   { key: 'equipe', label: 'Equipe', icon: 'users' },
@@ -15,14 +16,6 @@ const TABS = [
   { key: 'contrato', label: 'Contrato', icon: 'file-text' },
   { key: 'quadro', label: 'Quadro', icon: 'table' },
 ];
-
-const AVATAR_COLORS = ['bg-brand-600', 'bg-success', 'bg-warning', 'bg-critical', 'bg-slate-600'];
-
-function initials(name) {
-  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase();
-}
 
 // Mescla as edicoes de feriados do periodo com os feriados fora do periodo
 // (que o painel nao mostra e nao deve apagar).
@@ -146,6 +139,8 @@ export default function SettingsModal({ open, onClose, settings, onSaveSettings,
       open={open}
       onClose={onClose}
       title="Configurações"
+      subtitle="Equipe e contrato valem para todos os meses."
+      icon="settings"
       size="2xl"
       footer={(
         <div className="flex items-center justify-end gap-2 w-full">
@@ -156,8 +151,6 @@ export default function SettingsModal({ open, onClose, settings, onSaveSettings,
         </div>
       )}
     >
-      <p className="m-0 mb-3 text-sm text-slate-500">Equipe e contrato valem para todos os meses.</p>
-
       <div className="grid grid-cols-[176px_1fr] min-h-[380px] -mx-1">
         <nav className="flex flex-col gap-0.5 bg-app-surfaceMuted border-r border-slate-200 rounded-l-[10px] p-3">
           {TABS.map((t) => (
@@ -187,7 +180,7 @@ export default function SettingsModal({ open, onClose, settings, onSaveSettings,
                 {team.map((member, idx) => (
                   <div key={member.id} data-testid="team-row" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-slate-50">
                     <span
-                      className={`flex items-center justify-center w-[22px] h-[22px] rounded-full text-white text-2xs font-bold shrink-0 ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}
+                      className={`flex items-center justify-center w-[22px] h-[22px] rounded-full text-white text-2xs font-bold shrink-0 ${avatarColor(idx)}`}
                       aria-hidden="true"
                     >
                       {initials(member.name)}
@@ -208,14 +201,14 @@ export default function SettingsModal({ open, onClose, settings, onSaveSettings,
                       />
                       Neste relatório
                     </label>
-                    <button
-                      type="button"
+                    <IconButton
+                      variant="dangerGhost"
+                      size="sm"
                       aria-label={`Excluir ${member.name || 'funcionário'}`}
-                      className="p-1 rounded text-slate-400 hover:text-danger hover:bg-danger-light transition-colors"
                       onClick={() => setTeam((prev) => prev.filter((m) => m.id !== member.id))}
                     >
                       <AppIcon name="trash-2" className="w-3.5 h-3.5" />
-                    </button>
+                    </IconButton>
                   </div>
                 ))}
               </div>
@@ -243,31 +236,32 @@ export default function SettingsModal({ open, onClose, settings, onSaveSettings,
                   </p>
                 ) : holidayRows.map((h, idx) => (
                   <div key={`${h.date}-${idx}`} data-testid="holiday-row" className="flex items-center gap-2">
-                    <input
+                    <Input
                       type="date"
                       aria-label="Data do feriado"
+                      fullWidth={false}
                       min={startKey}
                       max={endKey}
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                       value={h.date}
                       onChange={(e) => setHolidayRows((prev) => prev.map((row, i) => (i === idx ? { ...row, date: e.target.value } : row)))}
                     />
-                    <input
-                      type="text"
-                      aria-label="Nome do feriado"
-                      placeholder="Nome do feriado (opcional)"
-                      className="flex-1 min-w-0 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                      value={h.name}
-                      onChange={(e) => setHolidayRows((prev) => prev.map((row, i) => (i === idx ? { ...row, name: e.target.value } : row)))}
-                    />
-                    <button
-                      type="button"
+                    <div className="flex-1 min-w-0">
+                      <Input
+                        type="text"
+                        aria-label="Nome do feriado"
+                        placeholder="Nome do feriado (opcional)"
+                        value={h.name}
+                        onChange={(e) => setHolidayRows((prev) => prev.map((row, i) => (i === idx ? { ...row, name: e.target.value } : row)))}
+                      />
+                    </div>
+                    <IconButton
+                      variant="dangerGhost"
+                      size="sm"
                       aria-label="Remover feriado"
-                      className="p-1.5 rounded text-slate-400 hover:text-danger hover:bg-danger-light transition-colors"
                       onClick={() => setHolidayRows((prev) => prev.filter((_, i) => i !== idx))}
                     >
                       <AppIcon name="x" className="w-4 h-4" />
-                    </button>
+                    </IconButton>
                   </div>
                 ))}
               </div>

@@ -23,9 +23,9 @@ Precedente: o audit em `docs/ui/ui-audit-report.md` reduziu de **51 para 10** os
 ## 2. Variantes permitidas
 
 - `Button`: variants `primary` | `secondary` | `outline` | `ghost` | `danger`; sizes `sm` | `md` | `lg`. Focus ring obrigatorio (`focus-visible:ring-2 focus-visible:ring-brand-500`) — ja embutido no primitive.
-- `IconButton`: variants `ghost` | `outline` | `primary` | `danger`; sizes `sm` | `md` | `lg`. Exige `aria-label` no uso.
+- `IconButton`: variants `ghost` | `outline` | `primary` | `danger` | `dangerGhost`; sizes `sm` | `md` | `lg`. Exige `aria-label` no uso. (`dangerGhost` = ghost com hover destrutivo `danger-light`/`danger`, para acoes de remover em listas/linhas.)
 - `Card`: variants `default` | `nested` | `flat`.
-- `Modal`: sizes `sm` | `md` | `lg` | `xl` | `2xl`; fecha com `Escape`; footer via slot.
+- `Modal`: sizes `sm` | `md` | `lg` | `xl` | `2xl`; fecha com `Escape`; footer via slot; props opcionais `icon`/`subtitle` (header com tile de icone + subtitulo, fundo surface-muted).
 - `Badge`: tones `ok` | `warning` | `danger` | `critical` | `neutral`. Para papeis de workspace seguir o padrao de [features/reports/components/WorkspaceMembersModal.jsx](features/reports/components/WorkspaceMembersModal.jsx): `amber` (owner), `sky` (editor), `slate` (viewer).
 - `EmptyState`: sempre com `icon + title + description + action`.
 - `Textarea`: auto-height; usar para campos multi-linha (nunca `<textarea>` cru).
@@ -138,4 +138,4 @@ Vitest. Toda mudanca de componente, hook, service ou util precisa de teste novo 
 
 Ao adicionar novo primitive em `components/ui/`, novo token Tailwind, novo hook global, novo alias em `AppIcon.jsx` ou nova convencao UX, **atualizar este arquivo no mesmo PR** e bumpar a data do rodape. Ao concluir refatoracao UI grande, adicionar entrada em `../docs/ui/ui-audit-report.md`. Revisar integralmente a cada trimestre (audit comparando com estado do codigo). Ver secao "Manutencao dos documentos" do plano arquitetural em `.claude/plans/jazzy-tinkering-cocke.md`.
 
-> Ultima revisao: 2026-04-17.
+> Ultima revisao: 2026-06-13.

@@ -88,7 +88,7 @@ export default function QuadroTable({ weeks, variant = 'marcador' }) {
               <td
                 key={cell.dateKey}
                 className="align-top"
-                style={{ border: '1px solid #C9CFD8', background: cellFill(cell), padding: '4px 5px', minHeight: 52 }}
+                style={{ border: '1px solid #C9CFD8', background: cellFill(cell), padding: '4px 5px', height: 52 }}
               >
                 <p className="m-0 font-bold" style={{ fontSize: '7.5pt', color: cell.inRange ? '#334155' : '#A8B0BC' }}>
                   {cell.dayNum}

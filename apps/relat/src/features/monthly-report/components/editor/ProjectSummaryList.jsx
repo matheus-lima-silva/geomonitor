@@ -41,7 +41,7 @@ export default function ProjectSummaryList({ projects, onChange }) {
   return (
     <div ref={containerRef}>
       <div className="flex items-center justify-between mt-6 mb-1">
-        <h3 className="m-0 text-[1.05rem] font-bold text-slate-800">Resumo por projeto</h3>
+        <h3 className="m-0 text-md font-bold text-slate-800">Resumo por projeto</h3>
         <Button variant="outline" size="sm" onClick={addProject}>
           <AppIcon name="plus" className="w-[15px] h-[15px] mr-1.5" />
           Adicionar projeto

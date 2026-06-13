@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import AppIcon from '@app/components/AppIcon';
 import { Button } from '@app/components/ui';
+import { avatarColor, initials } from '../../utils/avatars';
 
 /**
  * Seletor do engenheiro ativo ("ATIVIDADES DE Nome") com popover para trocar,
@@ -49,7 +50,13 @@ export default function EngineerSelector({ engineers, activeIndex, onSelect, onA
         >
           <ul className="m-0 p-0 list-none flex flex-col gap-0.5">
             {engineers.map((engineer, idx) => (
-              <li key={engineer.id} className="flex items-center gap-1 group">
+              <li key={engineer.id} className="flex items-center gap-1.5 group">
+                <span
+                  className={`flex items-center justify-center w-[22px] h-[22px] rounded-full text-white text-2xs font-bold shrink-0 ${avatarColor(idx)}`}
+                  aria-hidden="true"
+                >
+                  {initials(engineer.name)}
+                </span>
                 {editingId === engineer.id ? (
                   <input
                     autoFocus
@@ -75,6 +82,9 @@ export default function EngineerSelector({ engineers, activeIndex, onSelect, onA
                     {engineer.name || 'Engenheiro sem nome'}
                   </button>
                 )}
+                {idx === activeIndex && editingId !== engineer.id ? (
+                  <AppIcon name="check" className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+                ) : null}
                 <button
                   type="button"
                   aria-label={`Renomear ${engineer.name || 'engenheiro'}`}
