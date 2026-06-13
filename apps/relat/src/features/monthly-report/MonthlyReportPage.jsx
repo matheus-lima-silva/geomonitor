@@ -3,6 +3,7 @@ import { Button } from '@app/components/ui';
 import Topbar from './components/topbar/Topbar';
 import IntroCard from './components/editor/IntroCard';
 import ActivitiesCard from './components/editor/ActivitiesCard';
+import ActivitiesSection from './components/editor/ActivitiesSection';
 import ConclusionCard from './components/editor/ConclusionCard';
 import { useMonthlyReport } from './hooks/useMonthlyReport';
 import { useReportSettings } from './hooks/useReportSettings';
@@ -114,9 +115,7 @@ function MonthlyReportWorkspace({ period, onPeriodChange, settings, onExit }) {
                   onChangeIntro={(intro) => updateReport((r) => ({ ...r, intro }))}
                 />
                 <ActivitiesCard report={report}>
-                  <p className="text-sm text-slate-400 m-0">
-                    O calendário interativo de atividades entra na próxima etapa da construção.
-                  </p>
+                  <ActivitiesSection report={report} updateReport={updateReport} />
                 </ActivitiesCard>
                 <ConclusionCard
                   report={report}

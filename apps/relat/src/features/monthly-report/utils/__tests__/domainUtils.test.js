@@ -61,28 +61,34 @@ describe('calendar', () => {
       { startDate: '2026-04-16', endDate: '2026-04-16' },
       parseDateKey('2026-04-12'), // domingo (inicio da semana)
       parseDateKey('2026-04-18'),
-      buildHolidaySet([]),
     );
     expect(segs).toHaveLength(1);
     expect(segs[0]).toMatchObject({ startCol: 5, endCol: 5, showText: true });
   });
 
-  it('getActivitySegments pula feriado marcado na lista explicita', () => {
-    const set = buildHolidaySet([{ date: '2026-04-21', name: 'Tiradentes' }]);
-    // Semana 19-25/04; atividade 20->22 quebra em [seg 20] e [qua 22] pulando 21.
+  it('getActivitySegments: barra multi-dia e continua (cobre fim de semana/feriado)', () => {
+    // Semana 19-25/04; atividade 20->24 vira um unico segmento seg->sex.
     const segs = getActivitySegments(
-      { startDate: '2026-04-20', endDate: '2026-04-22' },
+      { startDate: '2026-04-20', endDate: '2026-04-24' },
       parseDateKey('2026-04-19'),
       parseDateKey('2026-04-25'),
-      set,
     );
-    expect(segs).toHaveLength(2);
-    expect(segs[0]).toMatchObject({ startCol: 2, endCol: 2 });
-    expect(segs[1]).toMatchObject({ startCol: 4, endCol: 4 });
+    expect(segs).toHaveLength(1);
+    expect(segs[0]).toMatchObject({ startCol: 2, endCol: 6, continuesLeft: false, continuesRight: false });
+  });
+
+  it('getActivitySegments: atividade cruzando semanas marca continuacao e esconde o texto', () => {
+    // Atividade 16->24/04 vista pela semana 19-25: continuesLeft, sem texto.
+    const segs = getActivitySegments(
+      { startDate: '2026-04-16', endDate: '2026-04-24' },
+      parseDateKey('2026-04-19'),
+      parseDateKey('2026-04-25'),
+    );
+    expect(segs).toHaveLength(1);
+    expect(segs[0]).toMatchObject({ startCol: 1, endCol: 6, continuesLeft: true, showText: false });
   });
 
   it('packWeekActivities empilha atividades sobrepostas em lanes distintas', () => {
-    const set = buildHolidaySet([]);
     const positioned = packWeekActivities(
       [
         { id: 'a', startDate: '2026-04-16', endDate: '2026-04-16', category: 'vistoria' },
@@ -90,7 +96,6 @@ describe('calendar', () => {
       ],
       parseDateKey('2026-04-12'),
       parseDateKey('2026-04-18'),
-      set,
     );
     expect(positioned).toHaveLength(2);
     const lanes = positioned.map((p) => p.lane).sort();

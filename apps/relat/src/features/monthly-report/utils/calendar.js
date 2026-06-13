@@ -1,7 +1,8 @@
 // Logica do calendario do Relatorio Mensal. Periodo de referencia: dia 16 do
-// mes anterior ate dia 15 do mes de referencia. Atividades multi-dia ocupam
-// barras que pulam fins de semana e feriados. Portado de relatorio_mensal.html,
-// adaptado ao shape da API (startDate/endDate) e recebendo o holidaySet.
+// mes anterior ate dia 15 do mes de referencia. No calendario de edicao a
+// barra multi-dia e CONTINUA (cobre fins de semana e feriados, indicando
+// continuidade — design handoff v2); o pulo de dias nao-uteis vale para os
+// quadros do Word/preview, via activitiesVisibleOnDate.
 
 import { dateKey, parseDateKey, isWorkingDay } from './holidays';
 
@@ -13,9 +14,9 @@ export function getDateRange(refYear, refMonth) {
   return { start, end };
 }
 
-// Segmentos visiveis de uma atividade dentro de uma semana (domingo->sabado).
-// Atividades multi-dia quebram em segmentos pulando dias nao-uteis.
-export function getActivitySegments(activity, weekStart, weekEnd, holidaySet) {
+// Segmento visivel de uma atividade dentro de uma semana (domingo->sabado):
+// barra continua, no maximo um segmento por semana, recortado nas bordas.
+export function getActivitySegments(activity, weekStart, weekEnd) {
   const startKey = activity.startDate;
   const endKey = activity.endDate;
 
@@ -30,51 +31,20 @@ export function getActivitySegments(activity, weekStart, weekEnd, holidaySet) {
 
   const actStart = parseDateKey(startKey);
   const actEnd = parseDateKey(endKey);
-  const segments = [];
-  let segStart = null;
-  let firstSegment = true;
-  const actStartedBeforeWeek = actStart < weekStart;
-  const actEndsAfterWeek = actEnd > weekEnd;
+  if (actEnd < weekStart || actStart > weekEnd) return [];
 
-  for (let i = 0; i < 7; i += 1) {
-    const d = new Date(weekStart);
-    d.setDate(d.getDate() + i);
-    const inActivity = d >= actStart && d <= actEnd;
-    const isWork = isWorkingDay(d, holidaySet);
-
-    if (inActivity && isWork) {
-      if (segStart === null) segStart = i;
-    } else if (segStart !== null) {
-      const continuesLeft = firstSegment && actStartedBeforeWeek;
-      segments.push({
-        startCol: segStart + 1,
-        endCol: i,
-        continuesLeft,
-        continuesRight: false,
-        showText: firstSegment && !continuesLeft,
-      });
-      firstSegment = false;
-      segStart = null;
-    }
-  }
-
-  if (segStart !== null) {
-    const continuesLeft = firstSegment && actStartedBeforeWeek;
-    segments.push({
-      startCol: segStart + 1,
-      endCol: 7,
-      continuesLeft,
-      continuesRight: actEndsAfterWeek,
-      showText: firstSegment && !continuesLeft,
-    });
-  }
-
-  return segments;
+  const segFrom = actStart > weekStart ? actStart : weekStart;
+  const segTo = actEnd < weekEnd ? actEnd : weekEnd;
+  const startCol = Math.round((segFrom - weekStart) / MS_PER_DAY) + 1;
+  const endCol = Math.round((segTo - weekStart) / MS_PER_DAY) + 1;
+  const continuesLeft = actStart < weekStart;
+  const continuesRight = actEnd > weekEnd;
+  return [{ startCol, endCol, continuesLeft, continuesRight, showText: !continuesLeft }];
 }
 
 // Empacota as atividades de uma semana em "lanes" (linhas) sem sobreposicao.
 // Retorna [{ activity, segments, lane }].
-export function packWeekActivities(activities, weekStart, weekEnd, holidaySet) {
+export function packWeekActivities(activities, weekStart, weekEnd) {
   const weekStartKey = dateKey(weekStart);
   const weekEndKey = dateKey(weekEnd);
   const weekActs = (activities || [])
@@ -89,7 +59,7 @@ export function packWeekActivities(activities, weekStart, weekEnd, holidaySet) {
   const positioned = [];
 
   weekActs.forEach((activity) => {
-    const segments = getActivitySegments(activity, weekStart, weekEnd, holidaySet);
+    const segments = getActivitySegments(activity, weekStart, weekEnd);
     if (segments.length === 0) return;
 
     const cols = new Set();
