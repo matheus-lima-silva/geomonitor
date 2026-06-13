@@ -10,7 +10,7 @@ module.exports = async function globalSetup() {
         throw new Error(
             '[pbt] PBT_POSTGRES_URL (ou DATABASE_URL) nao setada.\n'
             + 'Exemplo:\n'
-            + '  docker run --rm -d -p 5432:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=geomonitor_test postgres:16-alpine\n'
+            + '  docker run --rm -d -p 5432:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=geomonitor_test postgis/postgis:16-3.4\n'
             + '  export PBT_POSTGRES_URL=postgres://postgres:test@localhost:5432/geomonitor_test\n'
             + '  export POSTGRES_SSL=disable\n'
             + '  npm run test:pbt',
@@ -56,6 +56,9 @@ module.exports = async function globalSetup() {
             const client = await pool.connect();
             try {
                 await client.query('BEGIN');
+                // Igual ao runner de producao: migracoes longas (CREATE EXTENSION
+                // postgis, backfills) nao podem estourar o statement_timeout do pool.
+                await client.query('SET LOCAL statement_timeout = 0');
                 await client.query(contents);
                 await client.query(
                     `INSERT INTO schema_migrations (filename, checksum, applied_at)

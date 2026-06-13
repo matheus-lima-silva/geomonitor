@@ -7,7 +7,11 @@ name: geomonitor
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # PostGIS (superset do postgres:16) — necessario para a extensao postgis e as
+    # colunas geography (migracao 0023+). Mesmo formato de data dir do PG16, entao
+    # o volume existente e compativel; rode `npm run migrate` apos o swap para
+    # CREATE EXTENSION postgis. Backups: o restore exige imagem PostGIS tambem.
+    image: postgis/postgis:16-3.4
     restart: unless-stopped
     env_file:
       - .env
