@@ -154,6 +154,63 @@ async function countOwners(workspaceId) {
     return result.rows[0]?.count || 0;
 }
 
+/**
+ * Remove um membro de forma atomica, protegendo a invariante "o workspace nunca
+ * fica sem owner". O check-then-act (getMember + countOwners + removeMember) feito
+ * fora de transacao tem race: dois DELETEs concorrentes de owners distintos podem
+ * ambos passar no check "ownerCount > 1" antes de qualquer um deletar sua row,
+ * zerando os owners. Aqui um SELECT ... FOR UPDATE trava todas as rows de
+ * membership do workspace, serializando remocoes concorrentes.
+ *
+ * Retorna um dos: { removed: true } | { notFound: true } | { lastOwner: true }.
+ */
+async function removeMemberGuardingLastOwner(workspaceId, userId) {
+    const normalizedId = normalizeText(workspaceId);
+    const normalizedUserId = normalizeText(userId);
+    if (!normalizedId || !normalizedUserId) {
+        return { notFound: true };
+    }
+
+    const client = await postgresStore.connect();
+    try {
+        await client.query('BEGIN');
+
+        const lockRes = await client.query(
+            `SELECT user_id, role
+             FROM workspace_members
+             WHERE workspace_id = $1
+             FOR UPDATE`,
+            [normalizedId],
+        );
+
+        const target = lockRes.rows.find((row) => row.user_id === normalizedUserId);
+        if (!target) {
+            await client.query('ROLLBACK');
+            return { notFound: true };
+        }
+
+        if (target.role === 'owner') {
+            const ownerCount = lockRes.rows.filter((row) => row.role === 'owner').length;
+            if (ownerCount <= 1) {
+                await client.query('ROLLBACK');
+                return { lastOwner: true };
+            }
+        }
+
+        await client.query(
+            'DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2',
+            [normalizedId, normalizedUserId],
+        );
+        await client.query('COMMIT');
+        return { removed: true };
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+    } finally {
+        client.release();
+    }
+}
+
 module.exports = {
     VALID_ROLES,
     listByWorkspace,
@@ -163,4 +220,5 @@ module.exports = {
     addMember,
     removeMember,
     countOwners,
+    removeMemberGuardingLastOwner,
 };
