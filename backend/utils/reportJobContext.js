@@ -11,6 +11,8 @@ const {
     reportCompoundRepository,
     reportJobRepository,
     workspaceKmzRequestRepository,
+    monthlyReportRepository,
+    monthlyReportSettingsRepository,
 } = require('../repositories');
 
 const { convertDecimalToUtm, normalizeLocationCoordinates } = require('./erosionCoordinates_dist');
@@ -428,6 +430,41 @@ async function buildFichaCadastroContext(job) {
     };
 }
 
+async function buildMonthlyReportContext(job) {
+    const reportId = normalizeText(job.monthlyReportId);
+    const ownerUserId = normalizeText(job.ownerUserId);
+    const report = await monthlyReportRepository.getFull(reportId, ownerUserId);
+    if (!report) {
+        throw createMissingResourceError(`Relatorio mensal '${reportId}' nao encontrado para o job.`);
+    }
+
+    // Envia dados crus; o renderer Python monta calendario/quadros. O contrato
+    // vem das settings globais do dono (texto-modelo ja embute na intro, mas o
+    // renderer pode precisar em capa/cabecalho).
+    const settings = await monthlyReportSettingsRepository.getByOwner(ownerUserId);
+
+    return {
+        job,
+        project: null,
+        defaults: null,
+        renderModel: {
+            monthlyReport: {
+                id: report.id,
+                refYear: report.refYear,
+                refMonth: report.refMonth,
+                authorName: report.authorName,
+                status: report.status,
+                intro: report.intro,
+                conclusao: report.conclusao,
+                quadroStyle: report.quadroStyle,
+                holidays: report.holidays,
+                engineers: report.engineers,
+                contrato: settings ? settings.contrato : { numero: '', objeto: '', contratante: '', contratada: '' },
+            },
+        },
+    };
+}
+
 async function buildReportJobContext(jobId) {
     const job = await reportJobRepository.getById(jobId);
     if (!job) {
@@ -448,6 +485,10 @@ async function buildReportJobContext(jobId) {
 
     if (job.kind === 'ficha_cadastro') {
         return buildFichaCadastroContext(job);
+    }
+
+    if (job.kind === 'monthly_report') {
+        return buildMonthlyReportContext(job);
     }
 
     const error = new Error(`Nao existe contexto de renderizacao para jobs do tipo '${job.kind}'.`);

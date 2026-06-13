@@ -7,6 +7,7 @@ import tempfile
 
 from worker.docx_renderer import render_context_to_docx
 from worker.kmz_renderer import render_context_to_kmz
+from worker.monthly_report_renderer import render_context_to_docx as render_monthly_report_to_docx
 from worker.logging_utils import timed_phase
 
 
@@ -172,6 +173,13 @@ def build_output_file_name(context):
         project_id = normalize_text(project.get("id")) or normalize_text(job.get("projectId")) or "projeto"
         return f"fichas-cadastro-erosao-{project_id}.docx"
 
+    if kind == "monthly_report":
+        mr = render_model.get("monthlyReport") if isinstance(render_model, dict) else {}
+        ref_year = normalize_text(mr.get("refYear")) or "ano"
+        ref_month = mr.get("refMonth")
+        mm = f"{int(ref_month) + 1:02d}" if ref_month is not None and normalize_text(ref_month) != "" else "mes"
+        return f"relatorio-atividades-{ref_year}-{mm}.docx"
+
     return f"relatorio-{normalize_text(job.get('id')) or 'job'}.docx"
 
 
@@ -257,6 +265,39 @@ def process_docx_job(client, job_id, context, staging_dir):
     }
 
 
+def process_monthly_report_job(client, job_id, context, staging_dir):
+    file_name = build_output_file_name(context)
+    output_path = os.path.join(staging_dir, file_name)
+
+    with timed_phase(logger, "render_monthly_report", job_id=job_id, fileName=file_name):
+        render_monthly_report_to_docx(context, output_path)
+
+    with timed_phase(logger, "read_output", job_id=job_id, path=output_path):
+        with open(output_path, "rb") as handle:
+            content = handle.read()
+
+    if not content:
+        return {
+            "status": "failed",
+            "errorLog": f"O arquivo DOCX gerado para '{job_id}' ficou vazio.",
+        }
+
+    with timed_phase(logger, "upload_output", job_id=job_id, sizeBytes=len(content)):
+        media_id = upload_output_media(
+            client,
+            job_id,
+            file_name=file_name,
+            content_type=DOCX_CONTENT_TYPE,
+            purpose="report_output_docx",
+            content=content,
+        )
+
+    return {
+        "status": "completed",
+        "outputDocxMediaId": media_id,
+    }
+
+
 def process_workspace_kmz_job(client, job_id, context, staging_dir):
     file_name = build_output_file_name(context)
     output_path = os.path.join(staging_dir, file_name)
@@ -315,6 +356,9 @@ def process_claimed_job(client, job):
 
             if kind in {"project_dossier", "report_compound", "ficha_cadastro"}:
                 return process_docx_job(client, job_id, context, staging_dir)
+
+            if kind == "monthly_report":
+                return process_monthly_report_job(client, job_id, context, staging_dir)
 
             if kind == "workspace_kmz":
                 return process_workspace_kmz_job(client, job_id, context, staging_dir)

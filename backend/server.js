@@ -23,12 +23,16 @@ const trustProxyValue = trustProxyRaw === 'true'
 app.set('trust proxy', trustProxyValue);
 
 const corsOriginEnv = process.env.FRONTEND_URL;
+// Em dev refletimos a origin (era '*') para permitir credentials (cookies SSO):
+// o browser rejeita ACAO:* em requests com credentials. Em prod, FRONTEND_URL
+// pode listar multiplas origens (geo + relat) separadas por virgula.
 const corsOrigin = corsOriginEnv
   ? corsOriginEnv.split(',').map(o => o.trim()).filter(Boolean)
-  : (isProd ? false : '*');
+  : (isProd ? false : true);
 
 app.use(cors({
   origin: corsOrigin,
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -114,12 +118,16 @@ const reportCompoundsRouter = require('./routes/reportCompounds');
 const reportArchivesRouter = require('./routes/reportArchives');
 const reportTemplatesRouter = require('./routes/reportTemplates');
 const authRouter = require('./routes/auth');
+const monthlyReportsRouter = require('./routes/monthlyReports');
+const monthlyReportSettingsRouter = require('./routes/monthlyReportSettings');
 const profissoesRouter = require('./routes/profissoes');
 const adminMetricsRouter = require('./routes/adminMetrics');
 const adminSqlExecutorRouter = require('./routes/adminSqlExecutor');
 const adminAlertsRouter = require('./routes/adminAlerts');
 
 app.use('/api/auth', authRouter);
+app.use('/api/monthly-reports', monthlyReportsRouter);
+app.use('/api/monthly-report-settings', monthlyReportSettingsRouter);
 app.use('/api/profissoes', profissoesRouter);
 app.use('/api/erosions', erosionsRouter);
 app.use('/api/projects', projectsRouter);

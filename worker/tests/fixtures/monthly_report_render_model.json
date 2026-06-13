@@ -1,0 +1,53 @@
+{
+  "monthlyReport": {
+    "id": "MR-FIXTURE",
+    "refYear": 2026,
+    "refMonth": 4,
+    "authorName": "Matheus Lima",
+    "status": "final",
+    "intro": "O presente relatório apresenta de forma resumida as atividades realizadas no período de 16 de abril a 15 de maio de 2026, realizadas pelos engenheiros Matheus Lima e Victor Britto.\n\nOs profissionais estão vinculados ao contrato nº 30001490 — ELETROBRAS — APOIO À FISCALIZAÇÃO DE OBRAS DE TRANSMISSÃO, firmado entre a contratante AXIA ENERGIA e a contratada CONCREMAT ENGENHARIA E TECNOLOGIA S.A.",
+    "conclusao": "No período avaliado foram realizadas campanhas de vistoria e diversas atividades de apoio técnico, contemplando inspeções de campo, elaboração de relatórios e suporte a processos de licenciamento ambiental.",
+    "quadroStyle": "marcador",
+    "holidays": [
+      { "date": "2026-04-21", "name": "Tiradentes" },
+      { "date": "2026-04-23", "name": "São Jorge" },
+      { "date": "2026-05-01", "name": "Dia do Trabalho" }
+    ],
+    "engineers": [
+      {
+        "id": "MRE-1",
+        "name": "Matheus Lima",
+        "sortOrder": 0,
+        "activities": [
+          { "id": "MRA-1", "category": "relatorio", "description": "LT 500kv Bom Despacho Ouro Preto - Monitoramento de Processos Erosivos.", "startDate": "2026-04-16", "endDate": "2026-04-24" },
+          { "id": "MRA-2", "category": "doc", "description": "Busca e revisão de documentos técnicos Fase 1 PNI parte alta.", "startDate": "2026-04-22", "endDate": "2026-04-29" },
+          { "id": "MRA-3", "category": "vistoria", "description": "PNI Parte alta ETE e ETA", "startDate": "2026-04-28", "endDate": "2026-04-30" },
+          { "id": "MRA-4", "category": "geo", "description": "Desenho técnico licenciamento SE Santa Cruz.", "startDate": "2026-05-04", "endDate": "2026-05-05" }
+        ],
+        "projects": [
+          { "id": "MRP-1", "name": "LT 500 kV Bom Despacho–Ouro Preto", "description": "Atividade de gabinete dedicada à elaboração do Relatório de Monitoramento de Processos Erosivos referente ao empreendimento.", "sortOrder": 0 },
+          { "id": "MRP-2", "name": "SE Santa Cruz", "description": "Elaboração de desenho técnico em atendimento a demanda do órgão licenciador.", "sortOrder": 1 }
+        ]
+      },
+      {
+        "id": "MRE-2",
+        "name": "Victor Britto",
+        "sortOrder": 1,
+        "activities": [
+          { "id": "MRA-5", "category": "vistoria", "description": "Vistoria do PRAD da UHE Serra da Mesa.", "startDate": "2026-04-16", "endDate": "2026-04-16" },
+          { "id": "MRA-6", "category": "outro", "description": "Logística de retorno da vistoria", "startDate": "2026-04-17", "endDate": "2026-04-17" },
+          { "id": "MRA-7", "category": "reuniao", "description": "Reunião com a FUNAI e elaboração de relatório da vistoria", "startDate": "2026-05-06", "endDate": "2026-05-06" }
+        ],
+        "projects": [
+          { "id": "MRP-3", "name": "UHE Serra da Mesa", "description": "Realizada vistoria de campo nas áreas de PRAD da Usina Hidrelétrica Serra da Mesa.", "sortOrder": 0 }
+        ]
+      }
+    ],
+    "contrato": {
+      "numero": "30001490",
+      "objeto": "ELETROBRAS — APOIO À FISCALIZAÇÃO DE OBRAS DE TRANSMISSÃO",
+      "contratante": "AXIA ENERGIA",
+      "contratada": "CONCREMAT ENGENHARIA E TECNOLOGIA S.A."
+    }
+  }
+}

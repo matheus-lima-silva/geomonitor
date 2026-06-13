@@ -42,6 +42,8 @@ export async function login(email, password) {
   const res = await fetch(`${API_BASE_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    // credentials para o browser armazenar os cookies de sessao (SSO).
+    credentials: 'include',
     body: JSON.stringify({ email, password }),
   });
 
@@ -85,7 +87,17 @@ export async function confirmResetPassword(token, newPassword) {
   if (!res.ok) throw await parseApiError(res);
 }
 
-export function logout() {
+export async function logout() {
+  // Limpa os cookies de sessao no servidor (SSO entre subdominios). Best-effort:
+  // mesmo se falhar, os tokens locais sao limpos abaixo.
+  try {
+    await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+  } catch {
+    /* ignore — limpamos o estado local de qualquer forma */
+  }
   clearTokens();
 }
 

@@ -22,6 +22,15 @@ Authorization: Bearer <access-token>
 
 Senhas sao armazenadas em `auth_credentials` (bcrypt, salt rounds 12). Tokens de reset de senha expiram em 1 hora.
 
+### SSO entre subdominios (cookies)
+
+Para compartilhar a sessao entre `geo.*` e `relat.*`, `login` e `refresh` tambem setam dois cookies (`backend/utils/authCookies.js`):
+
+- `gm_refresh` — httpOnly, `Path=/api/auth`, `Domain` de `AUTH_COOKIE_DOMAIN` (ex.: `.lima.rio.br`), `SameSite=Lax`, `Secure` em prod. Carrega o refresh token.
+- `gm_session` — nao-httpOnly, `Path=/`, mesmo `Domain`. Apenas um flag para o frontend saber que ha sessao e tentar `refresh` no load (o httpOnly nao e legivel por JS).
+
+`POST /api/auth/refresh` le o refresh token **do cookie `gm_refresh` com prioridade**, caindo para `body.refreshToken` (fluxo localStorage / fallback dev). `POST /api/auth/logout` limpa ambos os cookies. O fluxo localStorage do frontend e mantido como fallback (dev cross-port), entao o cookie e **aditivo**.
+
 ### Middlewares de autorizacao (`backend/utils/authMiddleware.js`)
 
 | Middleware | Descricao |
@@ -97,10 +106,38 @@ Endpoints de autenticacao e gestao de credenciais. Body validado por Zod (`backe
 | Metodo | Rota | Permissao | Descricao |
 |---|---|---|---|
 | POST | `/api/auth/register` | publico | Cria conta nova (gera UUID, hash bcrypt) |
-| POST | `/api/auth/login` | publico | Autentica e retorna `{ accessToken, refreshToken, user }` |
-| POST | `/api/auth/refresh` | publico | Renova access token a partir de refresh token |
+| POST | `/api/auth/login` | publico | Autentica, retorna `{ accessToken, refreshToken, user }` e seta cookies `gm_refresh` + `gm_session` |
+| POST | `/api/auth/refresh` | publico | Renova access token a partir do cookie `gm_refresh` ou `body.refreshToken` |
+| POST | `/api/auth/logout` | publico | Limpa os cookies de sessao (`gm_refresh`, `gm_session`) |
 | POST | `/api/auth/reset-password` | publico | Solicita token de reset (sempre retorna 200 para evitar enumeracao) |
 | POST | `/api/auth/reset-password/confirm` | publico | Confirma reset com token valido |
+
+---
+
+## Relatorios Mensais (`/api/monthly-reports`)
+
+Modulo do portal relat.lima.rio.br (Relatorio Mensal de Acompanhamento dos Servicos). Modelo relacional: `monthly_reports` (header + `version` + `status` + textos `intro`/`conclusao` + `quadro_style`) + `monthly_report_engineers` + `monthly_report_projects` + `monthly_report_activities` — projetos e atividades pertencem a um engenheiro (migration `0016`). Pessoal por dono (`owner_user_id = req.user.uid`); unico por `(owner, ano, mes)`. Save **full-sync transacional** com concorrencia otimista. Body validado por `backend/schemas/monthlyReportSchemas.js` (envelope `{ data, meta }`).
+
+| Metodo | Rota | Permissao | Descricao |
+|---|---|---|---|
+| GET | `/api/monthly-reports` | `requireActiveUser` | Lista resumida (sem filhos) dos relatorios do dono |
+| GET | `/api/monthly-reports/by-period?year=&month=` | `requireActiveUser` | Garante (cria vazio se faltar) o relatorio do mes |
+| GET | `/api/monthly-reports/:id` | `requireActiveUser` | Relatorio completo (header + engenheiros com atividades e projetos) |
+| POST | `/api/monthly-reports` | `requireActiveUser` | Cria a partir de dados completos; 409 `PERIOD_EXISTS` se o mes ja existe |
+| PUT | `/api/monthly-reports/:id` | `requireActiveUser` | Full-sync transacional; 409 `VERSION_CONFLICT` (com `currentVersion`) se `data.version` divergir |
+| POST | `/api/monthly-reports/:id/generate` | `requireActiveUser` | Enfileira `report_job` (`kind=monthly_report`, `monthlyReportId`+`ownerUserId` no payload) e dispara o worker; 202 com link `self` para `GET /report-jobs/:id` |
+| DELETE | `/api/monthly-reports/:id` | `requireActiveUser` | Remove o relatorio (cascata nos filhos) |
+
+`data`: `{ refYear, refMonth, authorName, status('draft'|'final'), version?, intro, conclusao, quadroStyle('preenchido'|'marcador'|'barra'), holidays[{date,name}], engineers[{ id?, name, sortOrder?, activities[{id?, category, description, startDate, endDate}], projects[{id?, name, description, sortOrder?}] }] }`. `category` e enum (`vistoria|doc|relatorio|geo|reuniao|outro`). Feriados sao **lista explicita** controlada pelo usuario (o auto-preenchimento BR/RJ e acao do cliente). Ids `MRE-/MRP-/MRA-` enviados pelo cliente sao preservados no full-sync. O DOCX e renderizado pelo worker Python (`worker/monthly_report_renderer.py`, `kind=monthly_report`); o contexto cru vem de `GET /report-jobs/:id/context` (`buildMonthlyReportContext`).
+
+## Config do Relatorio Mensal (`/api/monthly-report-settings`)
+
+Singleton por usuario (tabela `monthly_report_settings`, payload JSONB): cadastro de equipe e dados do contrato — valem para todos os meses; o frontend usa para semear novos periodos e o texto-modelo da introducao. Body validado por `backend/schemas/monthlyReportSettingsSchemas.js`.
+
+| Metodo | Rota | Permissao | Descricao |
+|---|---|---|---|
+| GET | `/api/monthly-report-settings` | `requireActiveUser` | Settings do usuario (default vazio se nunca salvas) |
+| PUT | `/api/monthly-report-settings` | `requireActiveUser` | Upsert; `data: { team[{id?,name}], contrato{numero,objeto,contratante,contratada} }` |
 
 ---
 
