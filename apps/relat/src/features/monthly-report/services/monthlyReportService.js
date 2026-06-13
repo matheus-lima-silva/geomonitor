@@ -71,7 +71,7 @@ export async function generateDocx(id) {
   return parseSuccess(response, 'Erro ao iniciar a geração do documento.');
 }
 
-// Status do job de geracao (mesmo endpoint usado pelo geo para polling).
+// Status do job de geracao (mesmo endpoint/desempacote do geo para polling).
 export async function getJobStatus(jobId) {
   const token = await getAuthToken();
   const response = await fetch(`${API_BASE_URL}/report-jobs/${encodeURIComponent(jobId)}`, {
@@ -81,7 +81,8 @@ export async function getJobStatus(jobId) {
     const message = await extractApiErrorMessage(response, 'Erro ao consultar o status da geração.');
     throw new Error(message);
   }
-  return response.json();
+  const result = await response.json();
+  return result?.data || result;
 }
 
 // Config global (equipe + contrato) — singleton por usuario.

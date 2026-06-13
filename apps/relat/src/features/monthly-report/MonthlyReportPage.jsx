@@ -11,6 +11,7 @@ import SettingsModal from './components/modals/SettingsModal';
 import { useMonthlyReport } from './hooks/useMonthlyReport';
 import { useReportSettings } from './hooks/useReportSettings';
 import { useScrollSpy } from './hooks/useScrollSpy';
+import { useGenerateDocx } from './hooks/useGenerateDocx';
 
 const SECTION_IDS = STEPS.map((s) => s.id);
 
@@ -45,7 +46,7 @@ export default function MonthlyReportPage({ onExit }) {
 }
 
 function MonthlyReportWorkspace({ period, onPeriodChange, settings, saveSettingsData, onExit }) {
-  const { report, loading, error, saveStatus, conflict, updateReport, reload } = useMonthlyReport({
+  const { report, loading, error, saveStatus, conflict, updateReport, flush, reload } = useMonthlyReport({
     refYear: period.refYear,
     refMonth: period.refMonth,
     settings,
@@ -54,6 +55,7 @@ function MonthlyReportWorkspace({ period, onPeriodChange, settings, saveSettings
   const editorRef = useRef(null);
   const { activeId, scrollTo } = useScrollSpy(editorRef, SECTION_IDS);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { generating, generate } = useGenerateDocx({ report, flush });
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-app-bg">
@@ -65,8 +67,9 @@ function MonthlyReportWorkspace({ period, onPeriodChange, settings, saveSettings
         onStepClick={scrollTo}
         saveStatus={saveStatus}
         onOpenSettings={() => setSettingsOpen(true)}
-        onGenerate={() => {}}
-        generateDisabled
+        onGenerate={generate}
+        generating={generating}
+        generateDisabled={!report || conflict}
       />
 
       {conflict ? (
