@@ -1,12 +1,18 @@
 import { useRef, useState } from 'react';
 import { Button } from '@app/components/ui';
 import Topbar from './components/topbar/Topbar';
+import { STEPS } from './components/topbar/StepNav';
 import IntroCard from './components/editor/IntroCard';
 import ActivitiesCard from './components/editor/ActivitiesCard';
 import ActivitiesSection from './components/editor/ActivitiesSection';
 import ConclusionCard from './components/editor/ConclusionCard';
+import PreviewColumn from './components/preview/PreviewColumn';
+import SettingsModal from './components/modals/SettingsModal';
 import { useMonthlyReport } from './hooks/useMonthlyReport';
 import { useReportSettings } from './hooks/useReportSettings';
+import { useScrollSpy } from './hooks/useScrollSpy';
+
+const SECTION_IDS = STEPS.map((s) => s.id);
 
 /**
  * Construtor do Relatorio Mensal de Acompanhamento dos Servicos.
@@ -38,7 +44,7 @@ export default function MonthlyReportPage({ onExit }) {
   );
 }
 
-function MonthlyReportWorkspace({ period, onPeriodChange, settings, onExit }) {
+function MonthlyReportWorkspace({ period, onPeriodChange, settings, saveSettingsData, onExit }) {
   const { report, loading, error, saveStatus, conflict, updateReport, reload } = useMonthlyReport({
     refYear: period.refYear,
     refMonth: period.refMonth,
@@ -46,16 +52,8 @@ function MonthlyReportWorkspace({ period, onPeriodChange, settings, onExit }) {
   });
 
   const editorRef = useRef(null);
-  const [activeStep, setActiveStep] = useState('sec-intro');
-
-  function scrollToStep(id) {
-    setActiveStep(id);
-    const container = editorRef.current;
-    const el = container ? container.querySelector(`#${id}`) : null;
-    if (container && el) {
-      container.scrollTo({ top: el.offsetTop - container.offsetTop - 8, behavior: 'smooth' });
-    }
-  }
+  const { activeId, scrollTo } = useScrollSpy(editorRef, SECTION_IDS);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-app-bg">
@@ -63,10 +61,10 @@ function MonthlyReportWorkspace({ period, onPeriodChange, settings, onExit }) {
         refYear={period.refYear}
         refMonth={period.refMonth}
         onPeriodChange={onPeriodChange}
-        activeStep={activeStep}
-        onStepClick={scrollToStep}
+        activeStep={activeId}
+        onStepClick={scrollTo}
         saveStatus={saveStatus}
-        onOpenSettings={() => {}}
+        onOpenSettings={() => setSettingsOpen(true)}
         onGenerate={() => {}}
         generateDisabled
       />
@@ -126,20 +124,19 @@ function MonthlyReportWorkspace({ period, onPeriodChange, settings, onExit }) {
           </div>
         </main>
 
-        <aside
-          className="hidden min-[1180px]:flex flex-col bg-slate-200 border-l border-slate-300"
-          data-testid="preview-column"
-        >
-          <div className="flex items-center gap-2 bg-app-surface border-b border-slate-300 px-4 py-2">
-            <span className="text-2xs font-bold uppercase tracking-wide text-slate-500">
-              Pré-visualização do documento
-            </span>
-          </div>
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-sm text-slate-500">A pré-visualização ao vivo entra em breve.</p>
-          </div>
-        </aside>
+        <PreviewColumn report={report} />
       </div>
+
+      {report ? (
+        <SettingsModal
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          settings={settings}
+          onSaveSettings={saveSettingsData}
+          report={report}
+          updateReport={updateReport}
+        />
+      ) : null}
     </div>
   );
 }

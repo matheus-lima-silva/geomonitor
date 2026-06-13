@@ -16,9 +16,18 @@ vi.mock('../services/monthlyReportService', () => {
 });
 
 import { fetchByPeriod, fetchSettings } from '../services/monthlyReportService';
+import { ToastProvider } from '@app/context/ToastContext';
 import MonthlyReportPage from '../MonthlyReportPage';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+function page() {
+  return (
+    <ToastProvider>
+      <MonthlyReportPage />
+    </ToastProvider>
+  );
+}
 
 function loadedReport() {
   return {
@@ -56,7 +65,7 @@ describe('MonthlyReportPage', () => {
 
   it('carrega settings + relatorio e renderiza topbar, cards e periodo', async () => {
     await act(async () => {
-      root.render(<MonthlyReportPage />);
+      root.render(page());
     });
     // Aguarda settings -> relatorio.
     await act(async () => {});
@@ -75,7 +84,7 @@ describe('MonthlyReportPage', () => {
 
   it('editar a introducao atualiza o estado do textarea', async () => {
     await act(async () => {
-      root.render(<MonthlyReportPage />);
+      root.render(page());
     });
     await act(async () => {});
 
@@ -92,7 +101,7 @@ describe('MonthlyReportPage', () => {
     let resolveSettings;
     fetchSettings.mockImplementationOnce(() => new Promise((resolve) => { resolveSettings = resolve; }));
     await act(async () => {
-      root.render(<MonthlyReportPage />);
+      root.render(page());
     });
     expect(container.textContent).toContain('Carregando configurações');
     await act(async () => {
