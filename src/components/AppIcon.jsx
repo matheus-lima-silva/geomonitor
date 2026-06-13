@@ -56,6 +56,13 @@ import User from 'lucide-react/dist/esm/icons/user';
 import Users from 'lucide-react/dist/esm/icons/users';
 import Waypoints from 'lucide-react/dist/esm/icons/waypoints';
 import X from 'lucide-react/dist/esm/icons/x';
+import CalendarX from 'lucide-react/dist/esm/icons/calendar-x';
+import Columns3 from 'lucide-react/dist/esm/icons/columns-3';
+import Maximize from 'lucide-react/dist/esm/icons/maximize';
+import Pencil from 'lucide-react/dist/esm/icons/pencil';
+import Settings from 'lucide-react/dist/esm/icons/settings';
+import Table from 'lucide-react/dist/esm/icons/table';
+import Wand2 from 'lucide-react/dist/esm/icons/wand-2';
 
 const ICON_MAP = {
   plus: Plus,
@@ -124,6 +131,13 @@ const ICON_MAP = {
   'image-off': ImageOff,
   'arrow-up': ArrowUp,
   'arrow-down': ArrowDown,
+  settings: Settings,
+  'wand-2': Wand2,
+  pencil: Pencil,
+  'columns-3': Columns3,
+  maximize: Maximize,
+  'calendar-x': CalendarX,
+  table: Table,
 };
 
 function AppIcon({
