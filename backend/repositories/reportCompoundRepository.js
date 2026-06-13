@@ -109,8 +109,14 @@ async function save(payload, options = {}) {
     return getById(normalizedId);
 }
 
+async function remove(id) {
+    const normalizedId = normalizeText(id);
+    await postgresStore.query('DELETE FROM report_compounds WHERE id = $1', [normalizedId]);
+}
+
 module.exports = {
     list,
     getById,
     save,
+    remove,
 };
