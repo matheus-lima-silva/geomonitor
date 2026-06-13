@@ -361,7 +361,33 @@ router.post('/:id/restore', verifyToken, requireEditor, requireWorkspaceWrite, a
 });
 
 router.delete('/:id', verifyToken, requireEditor, requireWorkspaceWrite, asyncHandler(async (req, res) => {
-    await reportWorkspaceRepository.remove(req.params.id);
+    const workspaceId = normalizeText(req.params.id);
+
+    // A FK report_photos.workspace_id e ON DELETE CASCADE: o banco remove as linhas
+    // das fotos junto com o workspace, mas nao os objetos no S3. Limpamos o storage
+    // explicitamente ANTES (mesmo padrao do esvaziar lixeira), deixando o cascade
+    // apenas como rede de seguranca.
+    const removedPhotos = await reportPhotoRepository.removeAllByWorkspace(workspaceId);
+    const mediaAssetIds = removedPhotos.map((photo) => photo.mediaAssetId).filter(Boolean);
+    if (mediaAssetIds.length > 0) {
+        const assets = await mediaAssetRepository.listByIds(mediaAssetIds);
+        const removedAssetIds = [];
+        for (const asset of assets) {
+            try {
+                await removeStoredMedia(asset);
+                removedAssetIds.push(asset.id);
+            } catch (cleanupError) {
+                console.error('[report-workspaces API] Falha ao limpar storage ao deletar workspace', asset.id, cleanupError);
+            }
+        }
+        try {
+            await mediaAssetRepository.removeByIds(removedAssetIds);
+        } catch (cleanupError) {
+            console.error('[report-workspaces API] Falha ao remover media assets em lote ao deletar workspace', cleanupError);
+        }
+    }
+
+    await reportWorkspaceRepository.remove(workspaceId);
     return res.status(204).send();
 }));
 
@@ -598,17 +624,28 @@ router.delete('/:id/photos/trash', verifyToken, requireEditor, requireWorkspaceW
 
         const removed = await reportPhotoRepository.removeAllTrashed(workspaceId);
 
-        for (const item of removed) {
-            if (item.mediaAssetId) {
+        // Evita N+1: busca todos os assets de uma vez e deleta em lote. O unico
+        // trabalho por item que sobra e o I/O de storage (removeStoredMedia), que
+        // nao da pra batchear no S3. As linhas do banco saem em 1 query.
+        const mediaAssetIds = removed
+            .map((item) => item.mediaAssetId)
+            .filter(Boolean);
+
+        if (mediaAssetIds.length > 0) {
+            const assets = await mediaAssetRepository.listByIds(mediaAssetIds);
+            const removedAssetIds = [];
+            for (const asset of assets) {
                 try {
-                    const asset = await mediaAssetRepository.getById(item.mediaAssetId);
-                    if (asset) {
-                        await removeStoredMedia(asset);
-                        await mediaAssetRepository.remove(item.mediaAssetId);
-                    }
+                    await removeStoredMedia(asset);
+                    removedAssetIds.push(asset.id);
                 } catch (cleanupError) {
-                    console.error('[report-workspaces API] Falha ao limpar media asset', item.mediaAssetId, cleanupError);
+                    console.error('[report-workspaces API] Falha ao limpar storage do media asset', asset.id, cleanupError);
                 }
+            }
+            try {
+                await mediaAssetRepository.removeByIds(removedAssetIds);
+            } catch (cleanupError) {
+                console.error('[report-workspaces API] Falha ao remover media assets em lote', cleanupError);
             }
         }
 
@@ -1128,22 +1165,17 @@ router.delete('/:id/members/:userId', verifyToken, requireEditor, requireWorkspa
             return res.status(400).json({ status: 'error', message: 'userId obrigatorio.' });
         }
 
-        const member = await workspaceMemberRepository.getMember(workspaceId, userId);
-        if (!member) {
+        const outcome = await workspaceMemberRepository.removeMemberGuardingLastOwner(workspaceId, userId);
+        if (outcome.notFound) {
             return res.status(404).json({ status: 'error', message: 'Membro nao encontrado neste workspace.' });
         }
-
-        if (member.role === 'owner') {
-            const ownerCount = await workspaceMemberRepository.countOwners(workspaceId);
-            if (ownerCount <= 1) {
-                return res.status(400).json({
-                    status: 'error',
-                    message: 'Nao e possivel remover o ultimo owner do workspace. Promova outro usuario antes.',
-                });
-            }
+        if (outcome.lastOwner) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'Nao e possivel remover o ultimo owner do workspace. Promova outro usuario antes.',
+            });
         }
 
-        await workspaceMemberRepository.removeMember(workspaceId, userId);
         return res.status(204).send();
     } catch (error) {
         console.error('[report-workspaces API] Error DELETE /:id/members/:userId:', error);

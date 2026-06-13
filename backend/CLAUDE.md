@@ -52,9 +52,12 @@ Geracao/verificacao em [utils/jwt.js](utils/jwt.js); credenciais em `auth_creden
 ## 8. Persistencia: Postgres + repositories
 
 - Todas as queries vao por repositories em `repositories/*.js` — **nunca** SQL cru dentro de uma rota.
-- Mudanca de schema → **migration nova** em `migrations/NNNN_descricao.sql`. Padrao atual vai de `0001_document_store.sql` ate `0011_photo_archive.sql`.
+- Mudanca de schema → **migration nova** em `migrations/NNNN_descricao.sql`. Padrao atual vai de `0001_document_store.sql` ate `0024_project_geometries.sql`.
+- **PostGIS** (a partir da `0023`): a imagem do Postgres e `postgis/postgis:16-3.4` (homelab, PBT, backup). `erosions.geom` e `report_photos.geom` sao colunas `geography(Point,4326)` GERADAS (STORED) — erosions deriva do `payload` (Opcao A: COALESCE locationCoordinates/flat, com guarda regex no cast), report_photos das colunas `gps_lat/gps_lon`. Indices GIST. geography => distancias em METROS. NAO inserir em coluna gerada. `project_geometries` (`0024`) materializa eixo da LT (LineString) e torres (MultiPoint) do `projects.payload`; reconstruida no save via wrap em `projectRepository.save` -> `projectGeometryRepository.upsertFromProject` (falha nao quebra o save). FK CASCADE (projecao derivada). `utils/geoDistance.js` calcula distancia ponto->eixo/torre e flags via uma query PostGIS contra `project_geometries` (metros). Auto-distancia: `reportPhotoRepository.save` popula `distance_to_*`/`inside_*` salvo `manual_override`; o save de erosao ([routes/erosions.js](routes/erosions.js)) alimenta a criticidade V3 com a distancia a torre mais proxima de forma **hibrida** (`resolveEffectiveStructureDistance`: override manual -> calculada -> digitada), so daqui pra frente. A engine `utils/criticality.js` NAO muda — so a fonte do valor de entrada.
+- FKs reais existem a partir da `0019/0020/0021` (antes eram "virtuais", validadas so em codigo); a auditoria pre-FK de orfaos esta em `0018_fk_orphan_audit.sql`. Politica: filhos de dados de `projects` (workspaces, fotos, erosoes, dossiers) -> `RESTRICT`; config/efemeros owned (project_report_defaults, project_photo_exports) e subordinados (fotos de workspace, condicoes de licenca, archives de compound, kmz_requests, imports) -> `CASCADE`; referencias fracas (report_jobs.*, report_photos.media_asset_id, *.template_id) -> `SET NULL`. Deletar pai com filhos RESTRICT falha — limpe os filhos antes (as rotas de delete ja cuidam do S3). Orfaos NAO sao apagados por migracao: o `VALIDATE CONSTRAINT` falha alto se houver, force a limpeza via `0018` antes.
 - Aplicar com `npm run migrate` antes de rodar testes que dependam do novo schema.
 - `ALTER TABLE` ad-hoc e anti-padrao.
+- O pool aplica `statement_timeout` (default 15000ms, configuravel via `POSTGRES_STATEMENT_TIMEOUT_MS`; `0` desliga) para nao segurar conexao em query presa. O runner de migracoes desliga isso por transacao (`SET LOCAL statement_timeout = 0`) para nao estourar backfills/CREATE INDEX longos.
 
 ## 9. Storage de midia (S3/Tigris/MinIO)
 
@@ -121,20 +124,24 @@ Comando: `cd backend && npm test`. Deve passar antes de considerar a tarefa conc
 
 ## 13b. Testes property-based de race conditions (opt-in)
 
-Suite separada para caçar race conditions em fluxos check-then-act (ex.: `countOwners()` + `removeMember()` fora de transacao em `routes/reportWorkspaces.js`). Usa [`fast-check`](https://fast-check.dev/) com `fc.asyncProperty` + `Promise.allSettled` contra Postgres real para reproduzir intercalacoes nao-deterministicas.
+Suite separada para caçar race conditions em fluxos check-then-act. Usa [`fast-check`](https://fast-check.dev/) com `fc.asyncProperty` + `Promise.allSettled` contra Postgres real para reproduzir intercalacoes nao-deterministicas.
+
+> A race do "ultimo owner" (antes `countOwners()` + `removeMember()` fora de transacao) ja foi **corrigida**: a remocao passa por `workspaceMemberRepository.removeMemberGuardingLastOwner` (transacao com `SELECT ... FOR UPDATE`). O PBT abaixo agora passa de forma estavel e ha cobertura deterministica em [__tests__/workspaceMemberRepository.test.js](__tests__/workspaceMemberRepository.test.js).
 
 - **Opt-in por env**: sem `PBT_POSTGRES_URL` (ou `DATABASE_URL`) setada, os `describe` viram `describe.skip` — `npm test` padrao segue intacto.
 - **Sufixo de arquivo**: `*.pbt.test.js`. Config dedicada: [jest.pbt.config.js](jest.pbt.config.js) + setup [jest.pbt.setup.js](jest.pbt.setup.js) + [jest.pbt.globalSetup.js](jest.pbt.globalSetup.js) (aplica migracoes).
 - **Helpers**: [__tests__/helpers/pbtDb.js](__tests__/helpers/pbtDb.js), [pbtArbitraries.js](__tests__/helpers/pbtArbitraries.js), [concurrencyRunner.js](__tests__/helpers/concurrencyRunner.js), [workspaceFactory.js](__tests__/helpers/workspaceFactory.js), [fcDefaults.js](__tests__/helpers/fcDefaults.js).
-- **Template**: [__tests__/integration/workspaceOwners.race.pbt.test.js](__tests__/integration/workspaceOwners.race.pbt.test.js) — deve falhar hoje com contra-exemplo; passa depois do fix (`SELECT ... FOR UPDATE` + transacao).
+- **Template**: [__tests__/integration/workspaceOwners.race.pbt.test.js](__tests__/integration/workspaceOwners.race.pbt.test.js) — invariante "workspace nunca fica sem owner"; passa apos o fix (`SELECT ... FOR UPDATE` + transacao). Use como modelo para os proximos alvos abaixo.
 
 Rodar:
 ```bash
-docker run --rm -d -p 5432:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=geomonitor_test postgres:16-alpine
+docker run --rm -d -p 5432:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=geomonitor_test postgis/postgis:16-3.4
 export PBT_POSTGRES_URL=postgres://postgres:test@localhost:5432/geomonitor_test
 export POSTGRES_SSL=disable
 cd backend && npm run test:pbt
 ```
+
+> Use a imagem `postgis/postgis:16-3.4` (nao `postgres:16-alpine`): a migracao `0023` faz `CREATE EXTENSION postgis` e cria colunas `geography`, que falham em Postgres sem PostGIS.
 
 Proximos alvos para replicar o padrao (todos com race concreta mapeada):
 1. **Numeracao de versao de archives** — `repositories/reportArchiveRepository.js:73-75` (`MAX(version)+1` sem lock).
@@ -173,4 +180,4 @@ CI nao roda `test:pbt` por enquanto — sera adicionado em follow-up junto com o
 
 Ao introduzir novo util em `utils/`, novo middleware, nova convencao ou mudar contrato de envelope, **atualizar este arquivo no mesmo PR** e bumpar a data do rodape. Revisar integralmente a cada trimestre (audit comparando com estado do codigo). Ver secao "Manutencao dos documentos" do plano arquitetural em `.claude/plans/jazzy-tinkering-cocke.md`.
 
-> Ultima revisao: 2026-05-26.
+> Ultima revisao: 2026-06-13.

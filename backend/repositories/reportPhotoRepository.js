@@ -4,6 +4,8 @@ const {
     normalizeKey,
     buildMetadata,
 } = require('./common');
+const { computeGeoDistance } = require('../utils/geoDistance');
+const reportDefaultsRepository = require('./reportDefaultsRepository');
 
 function hydratePhotoRow(row) {
     return buildMetadata(row.payload, row);
@@ -224,6 +226,33 @@ async function save(payload, options = {}) {
         workspaceId: normalizeText(payload?.workspaceId || current?.workspaceId),
         projectId: normalizeKey(payload?.projectId || current?.projectId),
     };
+
+    // Fase 6.3: auto-popula distancias/flags geograficos via PostGIS. Pula quando a
+    // curadoria foi feita manualmente (manual_override). Sem geometria/coords,
+    // computeGeoDistance retorna null e os campos ficam como vieram.
+    if (!nextPayload.manualOverride
+        && nextPayload.projectId
+        && Number.isFinite(Number(nextPayload.gpsLat))
+        && Number.isFinite(Number(nextPayload.gpsLon))) {
+        try {
+            const defaults = await reportDefaultsRepository.getByProjectId(nextPayload.projectId);
+            const geo = await computeGeoDistance({
+                projectId: nextPayload.projectId,
+                lat: nextPayload.gpsLat,
+                lon: nextPayload.gpsLon,
+                faixaBufferM: defaults?.faixaBufferMetersSide,
+                towerRadiusM: defaults?.baseTowerRadiusMeters,
+            });
+            if (geo) {
+                nextPayload.distanceToAxisM = geo.distanceToAxisM;
+                nextPayload.distanceToTowerM = geo.distanceToTowerM;
+                nextPayload.insideRightOfWay = geo.insideRightOfWay;
+                nextPayload.insideTowerRadius = geo.insideTowerRadius;
+            }
+        } catch (geoError) {
+            console.error('[report-photos] falha ao calcular distancias geograficas:', geoError);
+        }
+    }
 
     await postgresStore.query(
         `
@@ -494,6 +523,32 @@ async function removeAllTrashed(workspaceId) {
     }));
 }
 
+async function remove(id) {
+    const normalizedId = normalizeText(id);
+    await postgresStore.query('DELETE FROM report_photos WHERE id = $1', [normalizedId]);
+}
+
+// Remove TODAS as fotos de um workspace (ativas/lixeira/arquivadas) e devolve os
+// media_asset_id para que a rota limpe o storage S3 antes de apagar o workspace.
+// Necessario porque a FK report_photos.workspace_id e ON DELETE CASCADE: sem este
+// cleanup explicito, deletar o workspace removeria as linhas mas deixaria orfaos
+// no bucket.
+async function removeAllByWorkspace(workspaceId) {
+    const normalizedWorkspaceId = normalizeText(workspaceId);
+    const result = await postgresStore.query(
+        `
+            DELETE FROM report_photos
+            WHERE workspace_id = $1
+            RETURNING id, media_asset_id, payload
+        `,
+        [normalizedWorkspaceId],
+    );
+    return result.rows.map((row) => ({
+        id: row.id,
+        mediaAssetId: row.media_asset_id || (row.payload && row.payload.mediaAssetId) || null,
+    }));
+}
+
 module.exports = {
     listByWorkspace,
     listTrashedByWorkspace,
@@ -508,6 +563,8 @@ module.exports = {
     archiveOlderThanDays,
     archiveAllTrashed,
     removeAllTrashed,
+    remove,
+    removeAllByWorkspace,
     countByProject,
     batchUpdateSortOrder,
 };

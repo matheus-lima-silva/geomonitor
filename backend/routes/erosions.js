@@ -3,7 +3,9 @@ const router = express.Router();
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
 const crypto = require('crypto');
 const { createHateoasResponse, generateHateoasLinks, createPaginatedHateoasResponse } = require('../utils/hateoas');
-const { erosionRepository, reportJobRepository } = require('../repositories');
+const { erosionRepository, reportJobRepository, reportDefaultsRepository } = require('../repositories');
+const { normalizeKey } = require('../repositories/common');
+const { computeGeoDistance, resolveEffectiveStructureDistance } = require('../utils/geoDistance');
 const { triggerWorkerRun } = require('../utils/workerTrigger');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { validateBody } = require('../middleware/validate');
@@ -116,6 +118,43 @@ async function saveErosionHandler(req, res) {
             dimensionamento: technical.dimensionamento,
         });
 
+        // Fase 6.4: distancia "a estrutura" hibrida. Calcula via PostGIS (torre mais
+        // proxima da erosao, contra project_geometries) e injeta na criticidade,
+        // salvo override manual do operador. Engine de criticidade inalterada — so
+        // muda a fonte do valor de entrada. So daqui pra frente (no save/edicao).
+        let distanciaCalculadaMetros = null;
+        let distanciaEfetivaMetros = technical.distanciaEstruturaMetros;
+        if (!isHistoricalRecord) {
+            try {
+                const erosionProjectId = normalizeKey(sanitizedPayload.projectId || sanitizedPayload.projetoId);
+                const defaults = erosionProjectId
+                    ? await reportDefaultsRepository.getByProjectId(erosionProjectId)
+                    : null;
+                const geo = await computeGeoDistance({
+                    projectId: erosionProjectId,
+                    lat: locationResult.latitude,
+                    lon: locationResult.longitude,
+                    faixaBufferM: defaults?.faixaBufferMetersSide,
+                    towerRadiusM: defaults?.baseTowerRadiusMeters,
+                });
+                distanciaCalculadaMetros = geo ? geo.distanceToTowerM : null;
+                distanciaEfetivaMetros = resolveEffectiveStructureDistance({
+                    manualOverride: Boolean(sanitizedPayload.distanciaEstruturaManual),
+                    manualValue: technical.distanciaEstruturaMetros,
+                    computed: distanciaCalculadaMetros,
+                });
+                criticalityInput.distancia_estrutura_m = distanciaEfetivaMetros;
+                if (criticalityInput.exposicao && typeof criticalityInput.exposicao === 'object') {
+                    criticalityInput.exposicao = {
+                        ...criticalityInput.exposicao,
+                        distancia_estrutura_m: distanciaEfetivaMetros,
+                    };
+                }
+            } catch (geoError) {
+                console.error('[Geomonitor API] Falha ao calcular distancia geografica da erosao:', geoError);
+            }
+        }
+
         let calculationResult;
         let criticalidade = null;
         let alertsAtivos = [];
@@ -175,7 +214,8 @@ async function saveErosionHandler(req, res) {
             tipoSolo: technical.tipoSolo,
             profundidadeMetros: technical.profundidadeMetros,
             declividadeGraus: technical.declividadeGraus,
-            distanciaEstruturaMetros: technical.distanciaEstruturaMetros,
+            distanciaEstruturaMetros: distanciaEfetivaMetros,
+            distanciaEstruturaCalculadaMetros: distanciaCalculadaMetros,
             sinaisAvanco: technical.sinaisAvanco,
             vegetacaoInterior: technical.vegetacaoInterior,
             impactoVia: technical.impactoVia || null,
