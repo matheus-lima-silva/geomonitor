@@ -116,6 +116,21 @@ export function packWeekActivities(activities, weekStart, weekEnd, holidaySet) {
   return positioned;
 }
 
+// Dias uteis do periodo do relatorio (seg-sex menos feriados marcados).
+export function countWorkingDays(refYear, refMonth, holidaySet) {
+  const { start, end } = getDateRange(refYear, refMonth);
+  let count = 0;
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    if (isWorkingDay(d, holidaySet)) count += 1;
+  }
+  return count;
+}
+
+// Formata Date como DD/MM/AAAA (rotulos de periodo e cabecalhos).
+export function fmtDate(d) {
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
 // Atividades visiveis num dia (para o render compacto / DOCX): atividade de 1
 // dia aparece sempre; multi-dia so em dias uteis.
 export function activitiesVisibleOnDate(activities, dateStr, holidaySet) {

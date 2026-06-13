@@ -2,17 +2,18 @@ import { useState } from 'react';
 import { Button, Card, Input, PageHeader } from '@app/components/ui';
 import { useAuth } from '@app/context/AuthContext';
 import { useToast } from '@app/context/ToastContext';
+import MonthlyReportPage from './features/monthly-report/MonthlyReportPage';
 
 /**
  * Shell do Portal de Relatorios (relat.lima.rio.br).
  *
- * Fase 1: casca minima reaproveitando os primitivos do geomonitor + auth.
- * O login e local por enquanto (mesmas credenciais/backend do geo); o SSO
- * por cookie .lima.rio.br entra na Fase 2. A navegacao de modulos do hub e
- * a tela do Relatorio Mensal entram nas fases seguintes.
+ * Hub de modulos de relatorio. O primeiro modulo e o construtor do Relatorio
+ * Mensal de Acompanhamento dos Servicos; a navegacao e um view-switch simples
+ * (sem router) — modulos novos entram como cards.
  */
 export default function RelatApp() {
   const { user, loading, logout } = useAuth();
+  const [activeModule, setActiveModule] = useState(null);
 
   if (loading) {
     return (
@@ -24,6 +25,10 @@ export default function RelatApp() {
 
   if (!user) {
     return <LoginScreen />;
+  }
+
+  if (activeModule === 'monthly-report') {
+    return <MonthlyReportPage onExit={() => setActiveModule(null)} />;
   }
 
   return (
@@ -41,12 +46,12 @@ export default function RelatApp() {
 
         <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Card>
-            <h3 className="text-base font-semibold text-slate-800 m-0">Relatorio Mensal de Atividades</h3>
+            <h3 className="text-base font-semibold text-slate-800 m-0">Relatorio Mensal de Servicos</h3>
             <p className="text-sm text-slate-500 mt-1 mb-3">
-              Calendario de atividades e resumo por projeto. Em construcao.
+              Calendario de atividades por engenheiro, resumo por projeto e geracao do .docx pronto.
             </p>
-            <Button variant="primary" size="sm" disabled>
-              Em breve
+            <Button variant="primary" size="sm" onClick={() => setActiveModule('monthly-report')}>
+              Abrir
             </Button>
           </Card>
         </section>

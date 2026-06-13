@@ -4,11 +4,13 @@ import {
   dateKey,
   parseDateKey,
   brazilHolidaysFor,
+  officialHolidaysForPeriod,
   buildHolidaySet,
   isWorkingDay,
 } from '../holidays';
 import { getDateRange, getActivitySegments, packWeekActivities } from '../calendar';
-import { computedMetaForProject, formatDateLabel } from '../projectMeta';
+import { introTemplate, conclusaoTemplate, listEngineerNames } from '../templates';
+import { genId, ID_PREFIX } from '../ids';
 
 describe('holidays', () => {
   it('calcula a Pascoa de 2026 (05/04)', () => {
@@ -24,16 +26,26 @@ describe('holidays', () => {
     expect(byDate['2026-04-23']).toBe('São Jorge'); // estadual RJ
   });
 
-  it('isWorkingDay: sabado e feriado nao contam; dia util normal conta', () => {
-    const set = buildHolidaySet(2026, 4, []);
-    expect(isWorkingDay(parseDateKey('2026-04-18'), set)).toBe(false); // sabado
-    expect(isWorkingDay(parseDateKey('2026-04-21'), set)).toBe(false); // Tiradentes
-    expect(isWorkingDay(parseDateKey('2026-04-20'), set)).toBe(true); // segunda util
+  it('officialHolidaysForPeriod filtra ao periodo 16->15 e ordena por data', () => {
+    // Maio/2026: periodo 16/04 a 15/05 cobre Tiradentes, Sao Jorge e Dia do Trabalho.
+    const list = officialHolidaysForPeriod(2026, 4);
+    expect(list.map((h) => h.date)).toEqual(['2026-04-21', '2026-04-23', '2026-05-01']);
   });
 
-  it('buildHolidaySet inclui overrides do usuario', () => {
-    const set = buildHolidaySet(2026, 4, [{ date: '2026-04-20', name: 'Ponto facultativo' }]);
-    expect(isWorkingDay(parseDateKey('2026-04-20'), set)).toBe(false);
+  it('officialHolidaysForPeriod cruza a virada de ano (Janeiro)', () => {
+    // Janeiro/2026: periodo 16/12/2025 a 15/01/2026 — Natal, Confraternizacao.
+    const dates = officialHolidaysForPeriod(2026, 0).map((h) => h.date);
+    expect(dates).toContain('2025-12-25');
+    expect(dates).toContain('2026-01-01');
+    expect(dates.every((d) => d >= '2025-12-16' && d <= '2026-01-15')).toBe(true);
+  });
+
+  it('buildHolidaySet usa somente a lista explicita do relatorio', () => {
+    const set = buildHolidaySet([{ date: '2026-04-21', name: 'Tiradentes' }]);
+    expect(isWorkingDay(parseDateKey('2026-04-21'), set)).toBe(false); // marcado
+    expect(isWorkingDay(parseDateKey('2026-05-01'), set)).toBe(true); // nao marcado => util
+    expect(isWorkingDay(parseDateKey('2026-04-18'), set)).toBe(false); // sabado
+    expect(isWorkingDay(parseDateKey('2026-04-20'), set)).toBe(true); // segunda util
   });
 });
 
@@ -49,14 +61,28 @@ describe('calendar', () => {
       { startDate: '2026-04-16', endDate: '2026-04-16' },
       parseDateKey('2026-04-12'), // domingo (inicio da semana)
       parseDateKey('2026-04-18'),
-      buildHolidaySet(2026, 4, []),
+      buildHolidaySet([]),
     );
     expect(segs).toHaveLength(1);
     expect(segs[0]).toMatchObject({ startCol: 5, endCol: 5, showText: true });
   });
 
+  it('getActivitySegments pula feriado marcado na lista explicita', () => {
+    const set = buildHolidaySet([{ date: '2026-04-21', name: 'Tiradentes' }]);
+    // Semana 19-25/04; atividade 20->22 quebra em [seg 20] e [qua 22] pulando 21.
+    const segs = getActivitySegments(
+      { startDate: '2026-04-20', endDate: '2026-04-22' },
+      parseDateKey('2026-04-19'),
+      parseDateKey('2026-04-25'),
+      set,
+    );
+    expect(segs).toHaveLength(2);
+    expect(segs[0]).toMatchObject({ startCol: 2, endCol: 2 });
+    expect(segs[1]).toMatchObject({ startCol: 4, endCol: 4 });
+  });
+
   it('packWeekActivities empilha atividades sobrepostas em lanes distintas', () => {
-    const set = buildHolidaySet(2026, 4, []);
+    const set = buildHolidaySet([]);
     const positioned = packWeekActivities(
       [
         { id: 'a', startDate: '2026-04-16', endDate: '2026-04-16', category: 'vistoria' },
@@ -72,24 +98,37 @@ describe('calendar', () => {
   });
 });
 
-describe('projectMeta', () => {
-  it('computedMetaForProject monta categorias + dias uteis pulando feriado', () => {
-    const set = buildHolidaySet(2026, 4, []);
-    const activities = [
-      { id: '1', projectId: 'P1', category: 'vistoria', startDate: '2026-04-16', endDate: '2026-04-16' },
-      // 20 e segunda util; 21 e Tiradentes (excluido em multi-dia)
-      { id: '2', projectId: 'P1', category: 'relatorio', startDate: '2026-04-20', endDate: '2026-04-21' },
-      { id: '3', projectId: 'P2', category: 'geo', startDate: '2026-04-17', endDate: '2026-04-17' },
-    ];
-    const meta = computedMetaForProject(activities, 'P1', 2026, 4, set);
-    expect(meta).toBe('VISTORIA, RELATÓRIO · 16 E 20/04 (2 DIAS ÚTEIS)');
+describe('templates', () => {
+  it('listEngineerNames junta nomes com "e" final', () => {
+    expect(listEngineerNames([])).toBe('da equipe');
+    expect(listEngineerNames([{ name: 'Ana' }])).toBe('Ana');
+    expect(listEngineerNames([{ name: 'Ana' }, { name: 'Bia' }, { name: 'Caio' }])).toBe('Ana, Bia e Caio');
   });
 
-  it('computedMetaForProject retorna vazio sem atividades vinculadas', () => {
-    expect(computedMetaForProject([], 'P1', 2026, 4, buildHolidaySet(2026, 4, []))).toBe('');
+  it('introTemplate embute periodo, engenheiros e contrato', () => {
+    const text = introTemplate({
+      refYear: 2026,
+      refMonth: 4,
+      engineers: [{ name: 'Matheus Lima' }, { name: 'Victor Britto' }],
+      contrato: { numero: '30001490', objeto: 'APOIO', contratante: 'AXIA', contratada: 'CONCREMAT' },
+    });
+    expect(text).toContain('16 de abril a 15 de maio de 2026');
+    expect(text).toContain('Matheus Lima e Victor Britto');
+    expect(text).toContain('contrato nº 30001490');
+    expect(text).toContain('contratante AXIA');
+    expect(text).toContain('contratada CONCREMAT');
   });
 
-  it('formatDateLabel agrupa por mes', () => {
-    expect(formatDateLabel(['2026-04-16', '2026-04-24', '2026-05-04'])).toBe('16 E 24/04 E 04/05');
+  it('conclusaoTemplate retorna o paragrafo padrao', () => {
+    expect(conclusaoTemplate()).toContain('campanhas de vistoria');
+  });
+});
+
+describe('ids', () => {
+  it('genId aplica o prefixo e gera ids distintos', () => {
+    const a = genId(ID_PREFIX.engineer);
+    const b = genId(ID_PREFIX.engineer);
+    expect(a).toMatch(/^MRE-/);
+    expect(a).not.toBe(b);
   });
 });

@@ -63,20 +63,29 @@ export function brazilHolidaysFor(year) {
   ];
 }
 
-// Lista de feriados oficiais (por nome) cobrindo o periodo do relatorio (16 do
-// mes anterior -> 15 do mes de referencia), que pode cruzar a virada de ano.
-export function officialHolidaysForReport(refYear, refMonth) {
-  const years = new Set([refYear, refMonth === 0 ? refYear - 1 : refYear]);
+// Feriados oficiais BR/RJ/Rio dentro do periodo do relatorio (16 do mes
+// anterior -> 15 do mes de referencia, que pode cruzar a virada de ano).
+// Motor do botao "Preencher feriados RJ" — o resultado vira entradas da lista
+// explicita `holidays` do relatorio, que o usuario pode editar livremente.
+export function officialHolidaysForPeriod(refYear, refMonth) {
+  const start = new Date(refYear, refMonth - 1, 16);
+  const end = new Date(refYear, refMonth, 15);
+  const startKey = dateKey(start);
+  const endKey = dateKey(end);
+  const years = new Set([start.getFullYear(), end.getFullYear()]);
   const all = [];
   years.forEach((y) => all.push(...brazilHolidaysFor(y)));
-  return all;
+  return all
+    .filter((h) => h.date >= startKey && h.date <= endKey)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-// Set de chaves de data (oficiais + overrides do usuario) para o periodo.
-export function buildHolidaySet(refYear, refMonth, overrides = []) {
+// Set de chaves de data a partir da lista explicita de feriados do relatorio.
+// Feriados sao 100% controlados pelo usuario (sem computo implicito): o
+// auto-preenchimento oficial e uma acao de UI que adiciona entradas a lista.
+export function buildHolidaySet(holidays = []) {
   const set = new Set();
-  officialHolidaysForReport(refYear, refMonth).forEach((h) => set.add(h.date));
-  (Array.isArray(overrides) ? overrides : []).forEach((h) => {
+  (Array.isArray(holidays) ? holidays : []).forEach((h) => {
     if (h && h.date) set.add(h.date);
   });
   return set;
