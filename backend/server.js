@@ -119,6 +119,7 @@ const reportArchivesRouter = require('./routes/reportArchives');
 const reportTemplatesRouter = require('./routes/reportTemplates');
 const authRouter = require('./routes/auth');
 const monthlyReportsRouter = require('./routes/monthlyReports');
+const monthlyReportSettingsRouter = require('./routes/monthlyReportSettings');
 const profissoesRouter = require('./routes/profissoes');
 const adminMetricsRouter = require('./routes/adminMetrics');
 const adminSqlExecutorRouter = require('./routes/adminSqlExecutor');
@@ -126,6 +127,7 @@ const adminAlertsRouter = require('./routes/adminAlerts');
 
 app.use('/api/auth', authRouter);
 app.use('/api/monthly-reports', monthlyReportsRouter);
+app.use('/api/monthly-report-settings', monthlyReportSettingsRouter);
 app.use('/api/profissoes', profissoesRouter);
 app.use('/api/erosions', erosionsRouter);
 app.use('/api/projects', projectsRouter);

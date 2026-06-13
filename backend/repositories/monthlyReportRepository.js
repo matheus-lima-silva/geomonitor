@@ -1,9 +1,10 @@
 const crypto = require('crypto');
 const { postgresStore, normalizeText } = require('./common');
 
-// Relatorio Mensal de Atividades — modelo relacional (header + projetos +
-// atividades). O save e full-sync transacional: trava o header, checa version
-// (concorrencia otimista) e reescreve projetos/atividades (delete + reinsert).
+// Relatorio Mensal de Acompanhamento dos Servicos — modelo relacional
+// (header + engenheiros, cada um com atividades e projetos). O save e
+// full-sync transacional: trava o header, checa version (concorrencia
+// otimista) e reescreve a arvore de filhos (delete + reinsert).
 
 function genId(prefix) {
     return `${prefix}-${crypto.randomUUID()}`;
@@ -17,10 +18,8 @@ function toIsoDateString(value) {
 function mapProjectRow(row) {
     return {
         id: row.id,
-        linkedProjectId: row.linked_project_id || null,
         name: row.name || '',
         description: row.description || '',
-        collapsed: !!row.collapsed,
         sortOrder: Number(row.sort_order) || 0,
     };
 }
@@ -28,7 +27,6 @@ function mapProjectRow(row) {
 function mapActivityRow(row) {
     return {
         id: row.id,
-        projectId: row.project_id || null,
         category: row.category,
         description: row.description || '',
         startDate: toIsoDateString(row.start_date),
@@ -36,8 +34,21 @@ function mapActivityRow(row) {
     };
 }
 
-function hydrate(reportRow, projectRows, activityRows) {
+function hydrate(reportRow, engineerRows, projectRows, activityRows) {
     const payload = reportRow.payload && typeof reportRow.payload === 'object' ? reportRow.payload : {};
+    const projectsByEngineer = new Map();
+    for (const row of projectRows) {
+        const list = projectsByEngineer.get(row.engineer_id) || [];
+        list.push(mapProjectRow(row));
+        projectsByEngineer.set(row.engineer_id, list);
+    }
+    const activitiesByEngineer = new Map();
+    for (const row of activityRows) {
+        const list = activitiesByEngineer.get(row.engineer_id) || [];
+        list.push(mapActivityRow(row));
+        activitiesByEngineer.set(row.engineer_id, list);
+    }
+
     return {
         id: reportRow.id,
         ownerUserId: reportRow.owner_user_id,
@@ -46,24 +57,39 @@ function hydrate(reportRow, projectRows, activityRows) {
         authorName: reportRow.author_name || '',
         status: reportRow.status || 'draft',
         version: Number(reportRow.version) || 1,
-        holidayOverrides: Array.isArray(payload.holidayOverrides) ? payload.holidayOverrides : [],
-        projects: projectRows.map(mapProjectRow),
-        activities: activityRows.map(mapActivityRow),
+        intro: reportRow.intro || '',
+        conclusao: reportRow.conclusao || '',
+        quadroStyle: reportRow.quadro_style || 'marcador',
+        holidays: Array.isArray(payload.holidays) ? payload.holidays : [],
+        engineers: engineerRows.map((row) => ({
+            id: row.id,
+            name: row.name || '',
+            sortOrder: Number(row.sort_order) || 0,
+            activities: activitiesByEngineer.get(row.id) || [],
+            projects: projectsByEngineer.get(row.id) || [],
+        })),
         createdAt: reportRow.created_at instanceof Date ? reportRow.created_at.toISOString() : reportRow.created_at,
         updatedAt: reportRow.updated_at instanceof Date ? reportRow.updated_at.toISOString() : reportRow.updated_at,
         updatedBy: reportRow.updated_by || null,
     };
 }
 
+const SELECT_ENGINEERS = `
+    SELECT id, report_id, name, sort_order
+    FROM monthly_report_engineers
+    WHERE report_id = $1
+    ORDER BY sort_order ASC, id ASC
+`;
+
 const SELECT_PROJECTS = `
-    SELECT id, report_id, linked_project_id, name, description, collapsed, sort_order
+    SELECT id, report_id, engineer_id, name, description, sort_order
     FROM monthly_report_projects
     WHERE report_id = $1
     ORDER BY sort_order ASC, id ASC
 `;
 
 const SELECT_ACTIVITIES = `
-    SELECT id, report_id, project_id, category, description,
+    SELECT id, report_id, engineer_id, category, description,
            to_char(start_date, 'YYYY-MM-DD') AS start_date,
            to_char(end_date, 'YYYY-MM-DD') AS end_date
     FROM monthly_report_activities
@@ -75,17 +101,19 @@ async function getFull(id, ownerUserId) {
     const reportId = normalizeText(id);
     const owner = normalizeText(ownerUserId);
     const reportRes = await postgresStore.query(
-        `SELECT id, owner_user_id, ref_year, ref_month, author_name, status, version, payload, created_at, updated_at, updated_by
+        `SELECT id, owner_user_id, ref_year, ref_month, author_name, status, version,
+                intro, conclusao, quadro_style, payload, created_at, updated_at, updated_by
          FROM monthly_reports WHERE id = $1 AND owner_user_id = $2 LIMIT 1`,
         [reportId, owner],
     );
     if (reportRes.rows.length === 0) return null;
 
-    const [projectsRes, activitiesRes] = await Promise.all([
+    const [engineersRes, projectsRes, activitiesRes] = await Promise.all([
+        postgresStore.query(SELECT_ENGINEERS, [reportId]),
         postgresStore.query(SELECT_PROJECTS, [reportId]),
         postgresStore.query(SELECT_ACTIVITIES, [reportId]),
     ]);
-    return hydrate(reportRes.rows[0], projectsRes.rows, activitiesRes.rows);
+    return hydrate(reportRes.rows[0], engineersRes.rows, projectsRes.rows, activitiesRes.rows);
 }
 
 async function getByPeriod(ownerUserId, refYear, refMonth) {
@@ -117,69 +145,83 @@ async function listByOwner(ownerUserId) {
     }));
 }
 
-// Reescreve projetos + atividades de um relatorio dentro de uma transacao.
-// Preserva ids fornecidos (estabilidade entre saves); gera quando ausentes.
-async function rewriteChildren(client, reportId, projects, activities) {
+// Reescreve engenheiros + projetos + atividades dentro de uma transacao.
+// Preserva ids fornecidos (estabilidade de keys entre saves); gera quando
+// ausentes — inclusive mapeando filhos para o id final do engenheiro.
+async function rewriteChildren(client, reportId, engineers) {
     await client.query('DELETE FROM monthly_report_activities WHERE report_id = $1', [reportId]);
     await client.query('DELETE FROM monthly_report_projects WHERE report_id = $1', [reportId]);
+    await client.query('DELETE FROM monthly_report_engineers WHERE report_id = $1', [reportId]);
 
-    const validProjectIds = new Set();
-    const projectList = Array.isArray(projects) ? projects : [];
-    for (let i = 0; i < projectList.length; i += 1) {
-        const p = projectList[i] || {};
-        const pid = normalizeText(p.id) || genId('MRP');
-        validProjectIds.add(pid);
+    const engineerList = Array.isArray(engineers) ? engineers : [];
+    for (let i = 0; i < engineerList.length; i += 1) {
+        const eng = engineerList[i] || {};
+        const engineerId = normalizeText(eng.id) || genId('MRE');
         await client.query(
-            `INSERT INTO monthly_report_projects
-                (id, report_id, linked_project_id, name, description, collapsed, sort_order)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            `INSERT INTO monthly_report_engineers (id, report_id, name, sort_order)
+             VALUES ($1, $2, $3, $4)`,
             [
-                pid,
+                engineerId,
                 reportId,
-                normalizeText(p.linkedProjectId) || null,
-                p.name || '',
-                p.description || '',
-                p.collapsed === true,
-                Number.isFinite(Number(p.sortOrder)) ? Number(p.sortOrder) : i,
+                eng.name || '',
+                Number.isFinite(Number(eng.sortOrder)) ? Number(eng.sortOrder) : i,
             ],
         );
-    }
 
-    const activityList = Array.isArray(activities) ? activities : [];
-    for (const a of activityList) {
-        const act = a || {};
-        const aid = normalizeText(act.id) || genId('MRA');
-        const linkedProject = normalizeText(act.projectId);
-        const projectId = linkedProject && validProjectIds.has(linkedProject) ? linkedProject : null;
-        await client.query(
-            `INSERT INTO monthly_report_activities
-                (id, report_id, project_id, category, description, start_date, end_date)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [
-                aid,
-                reportId,
-                projectId,
-                normalizeText(act.category),
-                act.description || '',
-                act.startDate,
-                act.endDate,
-            ],
-        );
+        const projectList = Array.isArray(eng.projects) ? eng.projects : [];
+        for (let j = 0; j < projectList.length; j += 1) {
+            const p = projectList[j] || {};
+            await client.query(
+                `INSERT INTO monthly_report_projects (id, report_id, engineer_id, name, description, sort_order)
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                [
+                    normalizeText(p.id) || genId('MRP'),
+                    reportId,
+                    engineerId,
+                    p.name || '',
+                    p.description || '',
+                    Number.isFinite(Number(p.sortOrder)) ? Number(p.sortOrder) : j,
+                ],
+            );
+        }
+
+        const activityList = Array.isArray(eng.activities) ? eng.activities : [];
+        for (const a of activityList) {
+            const act = a || {};
+            await client.query(
+                `INSERT INTO monthly_report_activities
+                    (id, report_id, engineer_id, category, description, start_date, end_date)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [
+                    normalizeText(act.id) || genId('MRA'),
+                    reportId,
+                    engineerId,
+                    normalizeText(act.category),
+                    act.description || '',
+                    act.startDate,
+                    act.endDate,
+                ],
+            );
+        }
     }
+}
+
+function buildPayload(data) {
+    return { holidays: Array.isArray(data.holidays) ? data.holidays : [] };
 }
 
 async function create(data) {
     const owner = normalizeText(data.ownerUserId);
     const id = normalizeText(data.id) || genId('MR');
-    const payload = { holidayOverrides: Array.isArray(data.holidayOverrides) ? data.holidayOverrides : [] };
 
     const client = await postgresStore.connect();
     try {
         await client.query('BEGIN');
         await client.query(
             `INSERT INTO monthly_reports
-                (id, owner_user_id, ref_year, ref_month, author_name, status, version, payload, created_at, updated_at, updated_by)
-             VALUES ($1, $2, $3, $4, $5, $6, 1, $7::jsonb, NOW(), NOW(), $8)`,
+                (id, owner_user_id, ref_year, ref_month, author_name, status, version,
+                 intro, conclusao, quadro_style, payload, created_at, updated_at, updated_by)
+             VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $8, $9, $10::jsonb, NOW(), NOW(), $11)`,
             [
                 id,
                 owner,
@@ -187,11 +229,14 @@ async function create(data) {
                 Number(data.refMonth),
                 data.authorName || '',
                 normalizeText(data.status) || 'draft',
-                JSON.stringify(payload),
+                data.intro || '',
+                data.conclusao || '',
+                normalizeText(data.quadroStyle) || 'marcador',
+                JSON.stringify(buildPayload(data)),
                 normalizeText(data.updatedBy) || null,
             ],
         );
-        await rewriteChildren(client, id, data.projects, data.activities);
+        await rewriteChildren(client, id, data.engineers);
         await client.query('COMMIT');
     } catch (err) {
         await client.query('ROLLBACK');
@@ -202,7 +247,8 @@ async function create(data) {
     return getFull(id, owner);
 }
 
-// Garante um relatorio para o periodo (cria vazio se nao existir).
+// Garante um relatorio para o periodo (cria vazio se nao existir). O seed de
+// equipe/textos-modelo e responsabilidade do frontend (primeiro PUT).
 async function ensureForPeriod(ownerUserId, refYear, refMonth, authorName) {
     const existing = await getByPeriod(ownerUserId, refYear, refMonth);
     if (existing) return existing;
@@ -212,9 +258,8 @@ async function ensureForPeriod(ownerUserId, refYear, refMonth, authorName) {
         refMonth,
         authorName: authorName || '',
         status: 'draft',
-        holidayOverrides: [],
-        projects: [],
-        activities: [],
+        holidays: [],
+        engineers: [],
         updatedBy: authorName || null,
     });
 }
@@ -226,7 +271,6 @@ async function ensureForPeriod(ownerUserId, refYear, refMonth, authorName) {
 async function saveFull(id, ownerUserId, data, expectedVersion) {
     const reportId = normalizeText(id);
     const owner = normalizeText(ownerUserId);
-    const payload = { holidayOverrides: Array.isArray(data.holidayOverrides) ? data.holidayOverrides : [] };
 
     const client = await postgresStore.connect();
     try {
@@ -248,19 +292,23 @@ async function saveFull(id, ownerUserId, data, expectedVersion) {
         await client.query(
             `UPDATE monthly_reports
              SET ref_year = $1, ref_month = $2, author_name = $3, status = $4,
-                 version = version + 1, payload = $5::jsonb, updated_at = NOW(), updated_by = $6
-             WHERE id = $7`,
+                 intro = $5, conclusao = $6, quadro_style = $7,
+                 version = version + 1, payload = $8::jsonb, updated_at = NOW(), updated_by = $9
+             WHERE id = $10`,
             [
                 Number(data.refYear),
                 Number(data.refMonth),
                 data.authorName || '',
                 normalizeText(data.status) || 'draft',
-                JSON.stringify(payload),
+                data.intro || '',
+                data.conclusao || '',
+                normalizeText(data.quadroStyle) || 'marcador',
+                JSON.stringify(buildPayload(data)),
                 normalizeText(data.updatedBy) || null,
                 reportId,
             ],
         );
-        await rewriteChildren(client, reportId, data.projects, data.activities);
+        await rewriteChildren(client, reportId, data.engineers);
         await client.query('COMMIT');
     } catch (err) {
         await client.query('ROLLBACK');

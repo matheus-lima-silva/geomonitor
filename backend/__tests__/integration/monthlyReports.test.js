@@ -33,6 +33,10 @@ jest.mock('../../repositories', () => {
             saveFull: jest.fn(async () => ({ notFound: true })),
             remove: jest.fn(async () => {}),
         },
+        monthlyReportSettingsRepository: {
+            getByOwner: jest.fn(async () => null),
+            saveByOwner: jest.fn(async () => null),
+        },
         userRepository: { list: noopList, getById: jest.fn(async () => null), save: jest.fn(), remove: jest.fn(), listPaginated: noopPaginated },
         erosionRepository: { list: noopList, listPaginated: noopPaginated, getById: jest.fn() },
         inspectionRepository: { list: noopList, listPaginated: noopPaginated, getById: jest.fn(), save: jest.fn(), remove: jest.fn() },
@@ -76,9 +80,11 @@ function sampleReport(overrides = {}) {
         authorName: 'Ana',
         status: 'draft',
         version: 1,
-        holidayOverrides: [],
-        projects: [],
-        activities: [],
+        intro: '',
+        conclusao: '',
+        quadroStyle: 'marcador',
+        holidays: [],
+        engineers: [],
         ...overrides,
     };
 }
@@ -146,9 +152,21 @@ describe('POST /api/monthly-reports', () => {
                 data: {
                     refYear: 2026,
                     refMonth: 4,
-                    activities: [{ category: 'invalida', description: 'x', startDate: '2026-04-16', endDate: '2026-04-16' }],
+                    engineers: [{
+                        name: 'Eng 1',
+                        activities: [{ category: 'invalida', description: 'x', startDate: '2026-04-16', endDate: '2026-04-16' }],
+                    }],
                 },
             });
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('rejeita quadroStyle invalido com 400 VALIDATION_ERROR', async () => {
+        const res = await request(app)
+            .post('/api/monthly-reports')
+            .set('Authorization', 'Bearer t')
+            .send({ data: { refYear: 2026, refMonth: 4, quadroStyle: 'zebra' } });
         expect(res.status).toBe(400);
         expect(res.body.code).toBe('VALIDATION_ERROR');
     });
@@ -179,16 +197,45 @@ describe('POST /api/monthly-reports', () => {
 });
 
 describe('PUT /api/monthly-reports/:id', () => {
-    it('200 em save bem-sucedido', async () => {
+    it('200 em save bem-sucedido com engineers aninhados', async () => {
         monthlyReportRepository.saveFull.mockResolvedValueOnce({ report: sampleReport({ version: 2 }) });
         const res = await request(app)
             .put('/api/monthly-reports/MR-1')
             .set('Authorization', 'Bearer t')
-            .send({ data: { refYear: 2026, refMonth: 4, version: 1, authorName: 'Ana' } });
+            .send({
+                data: {
+                    refYear: 2026,
+                    refMonth: 4,
+                    version: 1,
+                    intro: 'Texto de introducao',
+                    quadroStyle: 'barra',
+                    holidays: [{ date: '2026-04-21', name: 'Tiradentes' }],
+                    engineers: [{
+                        id: 'MRE-1',
+                        name: 'Matheus',
+                        activities: [{ id: 'MRA-1', category: 'vistoria', description: 'LT 500kv', startDate: '2026-04-16', endDate: '2026-04-17' }],
+                        projects: [{ id: 'MRP-1', name: 'LT 500 kV', description: 'Resumo' }],
+                    }],
+                },
+            });
         expect(res.status).toBe(200);
         expect(res.body.data.version).toBe(2);
         expect(monthlyReportRepository.saveFull).toHaveBeenCalledWith(
-            'MR-1', 'owner-1', expect.objectContaining({ updatedBy: 'ana@empresa.com' }), 1,
+            'MR-1',
+            'owner-1',
+            expect.objectContaining({
+                updatedBy: 'ana@empresa.com',
+                intro: 'Texto de introducao',
+                quadroStyle: 'barra',
+                holidays: [{ date: '2026-04-21', name: 'Tiradentes' }],
+                engineers: [expect.objectContaining({
+                    id: 'MRE-1',
+                    name: 'Matheus',
+                    activities: [expect.objectContaining({ category: 'vistoria' })],
+                    projects: [expect.objectContaining({ name: 'LT 500 kV' })],
+                })],
+            }),
+            1,
         );
     });
 

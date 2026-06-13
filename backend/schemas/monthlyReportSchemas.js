@@ -1,22 +1,13 @@
 const { z } = require('zod');
 
-// Categorias de atividade — mesmas chaves do prototipo (relatorio_mensal.html).
+// Categorias de atividade — mesmas chaves do design handoff (estado.js).
 const CATEGORY_VALUES = ['vistoria', 'doc', 'relatorio', 'geo', 'reuniao', 'outro'];
+const QUADRO_STYLES = ['preenchido', 'marcador', 'barra'];
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-const projectSchema = z.object({
-    id: z.string().trim().optional(),
-    linkedProjectId: z.string().trim().nullish(),
-    name: z.string().trim().max(300).optional().default(''),
-    description: z.string().optional().default(''),
-    collapsed: z.boolean().optional().default(false),
-    sortOrder: z.coerce.number().int().optional(),
-});
 
 const activitySchema = z
     .object({
         id: z.string().trim().optional(),
-        projectId: z.string().trim().nullish(),
         category: z.enum(CATEGORY_VALUES),
         description: z.string().trim().min(1, 'Descricao da atividade e obrigatoria.'),
         startDate: z.string().regex(ISO_DATE, 'startDate deve ser YYYY-MM-DD.'),
@@ -27,7 +18,22 @@ const activitySchema = z
         path: ['endDate'],
     });
 
-const holidayOverrideSchema = z.object({
+const projectSchema = z.object({
+    id: z.string().trim().optional(),
+    name: z.string().trim().max(300).optional().default(''),
+    description: z.string().optional().default(''),
+    sortOrder: z.coerce.number().int().optional(),
+});
+
+const engineerSchema = z.object({
+    id: z.string().trim().optional(),
+    name: z.string().trim().max(200).optional().default(''),
+    sortOrder: z.coerce.number().int().optional(),
+    activities: z.array(activitySchema).optional().default([]),
+    projects: z.array(projectSchema).optional().default([]),
+});
+
+const holidaySchema = z.object({
     date: z.string().regex(ISO_DATE),
     name: z.string().trim().optional().default(''),
 });
@@ -38,9 +44,11 @@ const monthlyReportDataSchema = z.object({
     authorName: z.string().trim().optional().default(''),
     status: z.enum(['draft', 'final']).optional().default('draft'),
     version: z.coerce.number().int().optional(),
-    projects: z.array(projectSchema).optional().default([]),
-    activities: z.array(activitySchema).optional().default([]),
-    holidayOverrides: z.array(holidayOverrideSchema).optional().default([]),
+    intro: z.string().optional().default(''),
+    conclusao: z.string().optional().default(''),
+    quadroStyle: z.enum(QUADRO_STYLES).optional().default('marcador'),
+    holidays: z.array(holidaySchema).optional().default([]),
+    engineers: z.array(engineerSchema).optional().default([]),
 });
 
 const metaSchema = z.object({ updatedBy: z.string().optional() }).optional();
@@ -58,6 +66,7 @@ const byPeriodQuerySchema = z.object({
 
 module.exports = {
     CATEGORY_VALUES,
+    QUADRO_STYLES,
     saveMonthlyReportSchema,
     byPeriodQuerySchema,
 };
