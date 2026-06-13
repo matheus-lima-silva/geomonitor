@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import AppIcon from '@app/components/AppIcon';
-import { Button, Modal } from '@app/components/ui';
+import { Button, IconButton, Input, Modal, Select } from '@app/components/ui';
 import { CATEGORIES, CATEGORY_KEYS } from '../../utils/constants';
 import { parseDateKey } from '../../utils/holidays';
 import { fmtDate } from '../../utils/calendar';
@@ -60,6 +60,8 @@ export default function DayActivitiesModal({ open, dateStr, activities, holidays
       open={open}
       onClose={onClose}
       title={`${WEEKDAYS[date.getDay()]}, ${fmtDate(date)}`}
+      subtitle="Atividades do dia — datas maiores criam barras de vários dias"
+      icon="calendar-days"
       size="2xl"
       footer={(
         <div className="flex items-center w-full gap-2">
@@ -76,10 +78,6 @@ export default function DayActivitiesModal({ open, dateStr, activities, holidays
         </div>
       )}
     >
-      <p className="m-0 mb-3 text-sm text-slate-500">
-        Atividades do dia — datas maiores criam barras de vários dias.
-      </p>
-
       {holiday ? (
         <p
           data-testid="holiday-indicator"
@@ -89,53 +87,49 @@ export default function DayActivitiesModal({ open, dateStr, activities, holidays
         </p>
       ) : null}
 
-      <div className="grid grid-cols-[170px_1fr_132px_132px_28px] gap-2 mb-1 text-2xs font-bold uppercase tracking-wide text-slate-500">
+      <div className="grid grid-cols-[170px_1fr_132px_132px_34px] gap-2 mb-1 text-2xs font-bold uppercase tracking-wide text-slate-500">
         <span>Categoria</span><span>Descrição</span><span>Início</span><span>Fim</span><span />
       </div>
 
       <div className="flex flex-col gap-2">
         {rows.map((row, index) => (
-          <div key={row.id || `new-${index}`} data-testid="activity-row" className="grid grid-cols-[170px_1fr_132px_132px_28px] gap-2 items-center">
-            <select
+          <div key={row.id || `new-${index}`} data-testid="activity-row" className="grid grid-cols-[170px_1fr_132px_132px_34px] gap-2 items-center">
+            <Select
               aria-label="Categoria"
-              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               value={row.category}
               onChange={(e) => updateRow(index, { category: e.target.value })}
             >
               {CATEGORY_KEYS.map((key) => (
                 <option key={key} value={key}>{CATEGORIES[key].label}</option>
               ))}
-            </select>
-            <input
+            </Select>
+            <Input
               type="text"
               aria-label="Descrição"
               placeholder="Descrição (ex: Vistoria LT 500 kV trecho T142–T168)"
-              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               value={row.description}
               onChange={(e) => updateRow(index, { description: e.target.value })}
             />
-            <input
+            <Input
               type="date"
               aria-label="Início"
-              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               value={row.startDate}
               onChange={(e) => updateRow(index, { startDate: e.target.value })}
             />
-            <input
+            <Input
               type="date"
               aria-label="Fim"
-              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               value={row.endDate}
               onChange={(e) => updateRow(index, { endDate: e.target.value })}
             />
-            <button
-              type="button"
+            <IconButton
+              variant="dangerGhost"
+              size="sm"
               aria-label="Remover atividade"
-              className="p-1.5 rounded text-slate-400 hover:text-danger hover:bg-danger-light transition-colors"
               onClick={() => removeRow(index)}
             >
               <AppIcon name="x" className="w-4 h-4" />
-            </button>
+            </IconButton>
           </div>
         ))}
       </div>

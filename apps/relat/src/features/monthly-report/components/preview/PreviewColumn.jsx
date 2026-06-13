@@ -29,7 +29,7 @@ export default function PreviewColumn({ report }) {
         <div className="flex-1" />
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={zoomOut} aria-label="Reduzir" title="Reduzir">−</Button>
-          <span data-testid="zoom-value" className="font-mono text-xs text-slate-600 w-11 text-center">
+          <span data-testid="zoom-value" className="font-mono text-2xs text-slate-500 w-[38px] text-center">
             {Math.round(zoom * 100)}%
           </span>
           <Button variant="ghost" size="sm" onClick={zoomIn} aria-label="Ampliar" title="Ampliar">+</Button>
@@ -39,7 +39,7 @@ export default function PreviewColumn({ report }) {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto p-5">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto px-5 py-6">
         <div
           style={{
             width: SHEET_WIDTH_PX * zoom,

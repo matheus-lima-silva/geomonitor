@@ -9,6 +9,8 @@ import Button from './Button';
  *   open       — controla visibilidade
  *   onClose    — callback ao fechar
  *   title      — título do modal
+ *   subtitle   — subtítulo opcional (linha menor abaixo do título)
+ *   icon       — nome de ícone opcional; renderiza um tile + header surface-muted
  *   size       — 'sm' | 'md' | 'lg' | 'xl'  (padrão: 'md')
  *   children   — conteúdo
  *   footer     — slot para botões de ação (ReactNode)
@@ -25,6 +27,8 @@ export default function Modal({
     open,
     onClose,
     title,
+    subtitle,
+    icon,
     size = 'md',
     children,
     footer,
@@ -55,10 +59,30 @@ export default function Modal({
                 ].join(' ')}
             >
                 {/* Header */}
-                {(title || onClose) && (
-                    <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-slate-200">
-                        {title && (
-                            <h2 className="text-md font-bold text-slate-800 m-0">{title}</h2>
+                {(title || subtitle || onClose) && (
+                    <div
+                        className={[
+                            'flex items-center gap-3 px-5 py-3.5 border-b border-slate-200 rounded-t-2xl',
+                            icon ? 'bg-app-surfaceMuted' : '',
+                        ].filter(Boolean).join(' ')}
+                    >
+                        {icon && (
+                            <span
+                                className="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-50 border border-brand-200 text-brand-600 shrink-0"
+                                aria-hidden="true"
+                            >
+                                <AppIcon name={icon} className="w-[18px] h-[18px]" />
+                            </span>
+                        )}
+                        {(title || subtitle) && (
+                            <div className="min-w-0 flex-1">
+                                {title && (
+                                    <h2 className="text-md font-bold text-slate-800 m-0 truncate">{title}</h2>
+                                )}
+                                {subtitle && (
+                                    <p className="text-xs text-slate-500 m-0 truncate">{subtitle}</p>
+                                )}
+                            </div>
                         )}
                         {onClose && (
                             <Button

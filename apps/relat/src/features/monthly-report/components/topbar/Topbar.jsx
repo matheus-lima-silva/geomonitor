@@ -30,7 +30,7 @@ export default function Topbar({
           <AppIcon name="monitor" className="w-[18px] h-[18px]" />
         </span>
         <div className="min-w-0 hidden md:block">
-          <p className="m-0 text-base font-semibold text-slate-800 truncate">Relatório mensal de serviços</p>
+          <p className="m-0 text-md font-semibold text-slate-800 truncate">Relatório mensal de serviços</p>
           <p className="m-0 text-xs text-slate-500 truncate hidden xl:block">
             Lance as atividades, escreva os textos e gere o .docx pronto
           </p>
