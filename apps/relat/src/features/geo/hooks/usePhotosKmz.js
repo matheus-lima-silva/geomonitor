@@ -13,8 +13,12 @@ function isImageFile(file) {
 }
 
 // Identidade estavel de um arquivo selecionado, para deduplicar re-seleções.
+// Prefere webkitRelativePath (presente na selecao de pasta) para nao colapsar
+// fotos homonimas de subpastas diferentes — espelha `fingerprintFile` do import
+// de workspace (src/features/reports/utils/workspaceImportState.js).
 function fileKey(file) {
-  return `${file.name}::${file.size}::${file.lastModified}`;
+  const path = String(file.webkitRelativePath || file.name || '').trim();
+  return `${path}::${file.size}::${file.lastModified}`;
 }
 
 function pad(value) {

@@ -32,6 +32,7 @@ export default function GeoPhotosKmzPage({ onExit }) {
   const [summary, setSummary] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef(null);
+  const folderInputRef = useRef(null);
 
   function handleSelect(event) {
     const count = addFiles(event.target.files);
@@ -145,6 +146,32 @@ export default function GeoPhotosKmzPage({ onExit }) {
               />
             </div>
 
+            <div className="flex flex-col items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => folderInputRef.current?.click()}
+              >
+                <AppIcon name="folder" className="w-4 h-4" aria-hidden="true" />
+                Selecionar pasta
+              </Button>
+              <p className="text-xs text-slate-400 text-center">
+                Coleta todas as fotos da pasta, incluindo subpastas.
+              </p>
+              {/* webkitdirectory faz o browser devolver a arvore inteira (recursivo). */}
+              <input
+                ref={folderInputRef}
+                id="geo-kmz-folder"
+                type="file"
+                accept="image/*"
+                multiple
+                webkitdirectory=""
+                directory=""
+                className="sr-only"
+                onChange={handleSelect}
+              />
+            </div>
+
             {files.length > 0 ? (
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
@@ -158,7 +185,7 @@ export default function GeoPhotosKmzPage({ onExit }) {
                 <ul className="max-h-56 overflow-y-auto rounded-md border border-slate-200 divide-y divide-slate-100">
                   {files.map((file) => (
                     <li
-                      key={`${file.name}-${file.size}-${file.lastModified}`}
+                      key={`${file.webkitRelativePath || file.name}-${file.size}-${file.lastModified}`}
                       className="flex items-center justify-between gap-3 px-3 py-2"
                     >
                       <span className="flex items-center gap-2 min-w-0">
