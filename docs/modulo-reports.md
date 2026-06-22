@@ -240,7 +240,57 @@ A geracao de DOCX, o processamento de KMZ grande e o export ZIP de fotos rodam n
 4. Worker faz upload do resultado como novo `media_asset` e chama `PUT /api/report-jobs/:id/complete` com os ids de saida.
 5. UI observa o job (polling) e, quando `ready`, habilita download/entrega.
 
-Configuracao do worker fica em [deploy/fly/**/worker.toml](../deploy/fly). Envs relevantes: `GEOMONITOR_API_URL`, `WORKER_API_TOKEN`, `WORKER_AUTO_POLL`, `WORKER_POLL_INTERVAL_SECONDS`.
+Configuracao do worker fica em [deploy/fly/**/worker.toml](../deploy/fly). Envs relevantes: `GEOMONITOR_API_URL`, `WORKER_API_TOKEN`, `WORKER_AUTO_POLL`, `WORKER_POLL_INTERVAL_SECONDS`, `WORKER_DOWNLOAD_MAX_ATTEMPTS`, `WORKER_DOWNLOAD_BACKOFF_BASE`.
+
+---
+
+## KMZ com fotos: export full-res, download e round-trip de organizacao
+
+O export `POST /api/report-workspaces/:id/kmz` gera (no worker, kind `workspace_kmz`) um KMZ que
+**embute todas as fotos do workspace em resolucao completa**, agrupadas por torre em pastas
+`Torre N` / `Sem Torre`. Esse arquivo serve tanto para entrega quanto para o **round-trip de
+organizacao**: o usuario abre no Google Earth Pro, arrasta as fotos de `Sem Torre` para a pasta da
+torre correta, re-salva e re-importa — atribuindo a torre **sem reenviar as fotos**.
+
+### Geracao resiliente (worker)
+
+- [worker/kmz_renderer.py](../worker/kmz_renderer.py) faz **streaming**: monta o `doc.kml` a partir
+  de metadados e entao baixa cada imagem -> grava no zip -> descarta o buffer. O pico de memoria
+  fica em O(1 imagem) mesmo com centenas de fotos full-res (um workspace real chegou a ~500 MB).
+- O download de cada media em [worker/runtime.py](../worker/runtime.py) (`download_media_content`)
+  tem **retry com backoff** (`WORKER_DOWNLOAD_MAX_ATTEMPTS`, `WORKER_DOWNLOAD_BACKOFF_BASE`), entao
+  um blip transitorio do MinIO nao derruba o job inteiro. Falha parcial vira aviso no `README.txt`
+  e o job completa; so falha o job quando **todas** as fotos falham apos as retentativas
+  (mensagem distinta de "workspace sem fotos com media").
+- `process_workspace_kmz_job` ([worker/job_processor.py](../worker/job_processor.py)) **nao** usa o
+  prefetch em memoria do DOCX — passa o downloader sincrono direto pro renderer.
+- **Progresso ao vivo (estilo upload):** o renderer reporta `processed/total` (~a cada 5%, best-effort)
+  via `PUT /api/report-jobs/:id/progress`, que grava `progress` no `workspace_kmz_request`. O polling
+  de 5s do frontend traz isso de volta e a aba de Workspaces desenha uma barra
+  (`buildKmzGenerationProgress` em [reportUtils.js](../src/features/reports/utils/reportUtils.js)):
+  indeterminada na fila, percentual durante a renderizacao.
+
+### Esquema de identidade do round-trip
+
+Cada placemark exportado carrega `<ExtendedData>` com `photoId` + `mediaAssetId`, e a imagem e
+nomeada `files/{photoId}.{ext}`. No re-import, [kmzProcessor.js](../backend/utils/kmzProcessor.js)
+casa a foto existente por prioridade: **nome do arquivo (photoId) -> `ExtendedData.photoId` ->
+`ExtendedData.mediaAssetId` -> `sha256` dos bytes** (rede de seguranca, caso o Google Earth
+recompacte sem ExtendedData). A torre vem do `folderPath` da pasta organizada
+([kmlParser.js](../backend/utils/kmlParser.js) agora expoe `extendedData` e `folderPath`). Foto
+casada + torre nova => `save({ towerSource: 'kmz_organized' }, { merge:true })`; sem match => cria
+(KMZ externo). Ver `summary` em [api-backend.md](api-backend.md#kmz).
+
+### Download confiavel (frontend)
+
+O KMZ full-res e grande demais para puxar como `Blob` em memoria (estourava a aba). Para asset
+remoto (`backend === 'tigris'`, devolvido por `/media/:id/access-url`), o frontend
+([mediaService.js](../src/services/mediaService.js) `resolveMediaDownload` +
+[reportUtils.js](../src/features/reports/utils/reportUtils.js) `triggerUrlDownload`) **navega
+direto ate a URL assinada do MinIO**, deixando o browser streamar pro disco. O nome amigavel e
+preservado via `ResponseContentDisposition` na URL assinada (`createSignedAccessUrl({ downloadFileName })`
+em [mediaStorage.js](../backend/utils/mediaStorage.js)). O discriminador e o campo `backend`, **nao**
+a origem da URL — no homelab o MinIO publico fica sob o mesmo host do app (Caddy).
 
 ---
 

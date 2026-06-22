@@ -197,5 +197,49 @@ describe('kmlParser', () => {
             expect(result.placemarks).toHaveLength(1);
             expect(result.placemarks[0].folderPath).toBe('LT123');
         });
+
+        it('parses ExtendedData Data name/value pairs (round-trip identity)', () => {
+            const kml = `<?xml version="1.0" encoding="UTF-8"?>
+            <kml xmlns="http://www.opengis.net/kml/2.2">
+              <Document>
+                <Folder>
+                  <name>Torre 7</name>
+                  <Placemark>
+                    <name>Foto da torre</name>
+                    <ExtendedData>
+                      <Data name="photoId"><value>RPH-abc</value></Data>
+                      <Data name="mediaAssetId"><value>MED-xyz</value></Data>
+                    </ExtendedData>
+                    <Point>
+                      <coordinates>-43.1,-22.4,0</coordinates>
+                    </Point>
+                  </Placemark>
+                </Folder>
+              </Document>
+            </kml>`;
+
+            const result = parseKmlPlacemarks(kml);
+            expect(result.placemarks).toHaveLength(1);
+            const pm = result.placemarks[0];
+            expect(pm.extendedData).toEqual({ photoId: 'RPH-abc', mediaAssetId: 'MED-xyz' });
+            expect(pm.folderPath).toBe('Torre 7');
+            // folderPath organizado pelo usuario serve de fonte de torre no re-import.
+            expect(findTowerIdFromSource(pm.folderPath)).toBe('7');
+        });
+
+        it('defaults extendedData to empty object when absent', () => {
+            const kml = `<?xml version="1.0" encoding="UTF-8"?>
+            <kml xmlns="http://www.opengis.net/kml/2.2">
+              <Document>
+                <Placemark>
+                  <name>Torre 1</name>
+                  <Point><coordinates>-43.1,-22.4,0</coordinates></Point>
+                </Placemark>
+              </Document>
+            </kml>`;
+
+            const result = parseKmlPlacemarks(kml);
+            expect(result.placemarks[0].extendedData).toEqual({});
+        });
     });
 });

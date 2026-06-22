@@ -8,6 +8,7 @@ import SearchableSelect from '../../../components/ui/SearchableSelect';
 import {
   IMPORT_MODES,
   STEPS,
+  buildKmzGenerationProgress,
   buildWorkspacePhotoDraft,
   fmt,
   formatInspectionMonthYear,
@@ -763,6 +764,21 @@ export default function WorkspacesTab({
                     <AppIcon name="file-text" />
                     {busy === 'workspace-kmz' ? 'Enfileirando KMZ...' : 'Gerar KMZ com Fotos'}
                   </Button>
+                  {(() => {
+                    const kmzProgress = buildKmzGenerationProgress(selectedWorkspaceKmzRequest || {});
+                    if (!kmzProgress.active) return null;
+                    return (
+                      <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2">
+                        <div className="text-xs font-medium text-brand-700">{kmzProgress.label}</div>
+                        <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-brand-100">
+                          <div
+                            className={`h-full rounded-full bg-brand-500 transition-all duration-300 ${kmzProgress.indeterminate ? 'w-full animate-pulse' : ''}`}
+                            style={kmzProgress.indeterminate ? undefined : { width: `${kmzProgress.percent}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {selectedWorkspaceKmzRequest?.outputKmzMediaId ? (
                     <Button
                       variant="outline"

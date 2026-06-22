@@ -1,6 +1,29 @@
 import html
+import math
+import os
 import re
 import zipfile
+
+from worker.exif_gps import extract_gps_latlon
+
+
+# Estilo do marcador de foto (icone de camera publico do Google), distinto das
+# torres (pin padrao). Referenciado por <styleUrl>#photo-marker</styleUrl>.
+PHOTO_MARKER_STYLE = "\n".join([
+    '    <Style id="photo-marker">',
+    "      <IconStyle>",
+    "        <color>ff00aaff</color>",
+    "        <scale>1.1</scale>",
+    "        <Icon>",
+    "          <href>https://maps.google.com/mapfiles/kml/shapes/camera.png</href>",
+    "        </Icon>",
+    "      </IconStyle>",
+    "    </Style>",
+])
+
+
+def kmz_exif_gps_enabled():
+    return os.environ.get("WORKER_KMZ_EXIF_GPS", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
 def normalize_text(value):
@@ -34,6 +57,18 @@ def extension_from_content_type(content_type):
         "image/tiff": ".tif",
     }
     return mapping.get(normalize_text(content_type).lower(), ".bin")
+
+
+def resolve_image_extension(photo):
+    # Deriva a extensao na fase de metadados (antes do download) a partir do
+    # fileName; sem isso, default para .jpg (extensao de imagem valida que o
+    # leitor de KMZ reconhece no re-import).
+    name = normalize_text(photo.get("fileName"))
+    if "." in name:
+        candidate = "." + name.rsplit(".", 1)[1].lower()
+        if re.match(r"^\.[a-z0-9]{1,5}$", candidate):
+            return candidate
+    return ".jpg"
 
 
 def normalize_tower_id(value):
@@ -96,10 +131,25 @@ def build_line_coordinates(project):
     return points
 
 
+def is_valid_latlon(latitude, longitude):
+    # Rejeita o sentinela "null island" (0,0) e coordenadas fora de faixa/nao-finitas.
+    # As fotos de campo vinham com gpsLat/gpsLon=0 (placeholder), o que jogava todos
+    # os marcadores em lat0/lon0 no meio do Atlantico.
+    if latitude is None or longitude is None:
+        return False
+    if not (math.isfinite(latitude) and math.isfinite(longitude)):
+        return False
+    if abs(latitude) > 90 or abs(longitude) > 180:
+        return False
+    if latitude == 0.0 and longitude == 0.0:
+        return False
+    return True
+
+
 def resolve_photo_coordinates(photo, tower_lookup):
     latitude = to_number(photo.get("gpsLat"))
     longitude = to_number(photo.get("gpsLon"))
-    if latitude is not None and longitude is not None:
+    if is_valid_latlon(latitude, longitude):
         return latitude, longitude, 0.0, "gps"
 
     tower_id = normalize_tower_id(photo.get("towerId"))
@@ -170,10 +220,19 @@ def build_photo_placemark(photo_entry):
     description = sanitize_cdata(
         build_photo_description(photo, photo_entry["imagePath"], photo_entry["coordinateSource"])
     )
+    photo_id = normalize_text(photo_entry.get("photoId")) or normalize_text(photo.get("id"))
+    media_asset_id = normalize_text(photo_entry.get("mediaAssetId")) or normalize_text(photo.get("mediaAssetId"))
     lines = [
         "      <Placemark>",
         f"        <name>{escape_xml(name)}</name>",
         f"        <description><![CDATA[{description}]]></description>",
+        # ExtendedData carrega a identidade estavel da foto. Sobrevive ao round-trip
+        # no Google Earth Pro, permitindo que o re-import case a foto existente e
+        # atribua a torre da pasta sem novo upload.
+        "        <ExtendedData>",
+        f'          <Data name="photoId"><value>{escape_xml(photo_id)}</value></Data>',
+        f'          <Data name="mediaAssetId"><value>{escape_xml(media_asset_id)}</value></Data>',
+        "        </ExtendedData>",
     ]
 
     latitude = photo_entry.get("latitude")
@@ -181,6 +240,7 @@ def build_photo_placemark(photo_entry):
     altitude = photo_entry.get("altitude")
     if latitude is not None and longitude is not None:
         lines.extend([
+            "        <styleUrl>#photo-marker</styleUrl>",
             "        <Point>",
             f"          <coordinates>{longitude},{latitude},{altitude or 0.0}</coordinates>",
             "        </Point>",
@@ -247,6 +307,8 @@ def build_kml_document(project, workspace, photo_entries, warnings):
         '<kml xmlns="http://www.opengis.net/kml/2.2">',
         "  <Document>",
         f"    <name>{escape_xml(f'{project_name} - {workspace_name}')}</name>",
+        # Estilo deve preceder os placemarks que o referenciam.
+        PHOTO_MARKER_STYLE,
         header_description,
         infra_folder,
         photos_folder,
@@ -255,7 +317,16 @@ def build_kml_document(project, workspace, photo_entries, warnings):
     ])
 
 
-def render_context_to_kmz(context, output_path, download_media):
+def _emit_progress(progress_callback, processed, total):
+    if not progress_callback:
+        return
+    try:
+        progress_callback(processed, total)
+    except Exception:  # pragma: no cover - progresso e best-effort
+        pass
+
+
+def render_context_to_kmz(context, output_path, download_media, progress_callback=None):
     render_model = context.get("renderModel") if isinstance(context, dict) else {}
     project = context.get("project") if isinstance(context, dict) else {}
     workspace = render_model.get("workspace") if isinstance(render_model, dict) else {}
@@ -265,55 +336,32 @@ def render_context_to_kmz(context, output_path, download_media):
     if not isinstance(workspace, dict) or not workspace:
         raise RuntimeError("Contexto invalido para gerar KMZ do workspace.")
 
+    photos = photos or []
     photo_entries = []
     warnings = []
-    used_names = set()
+    photos_without_media = 0
 
-    for index, photo in enumerate(photos or [], start=1):
+    # Fase 1 — metadados sem bytes. Resolve nome de arquivo estavel por photoId
+    # (fecha o round-trip de organizacao) e coordenadas, sem segurar buffers.
+    for index, photo in enumerate(photos, start=1):
         media_asset_id = normalize_text(photo.get("mediaAssetId"))
         if not media_asset_id:
+            photos_without_media += 1
             warnings.append(f"Foto {normalize_text(photo.get('id')) or index} sem media associada.")
             continue
 
-        try:
-            response = download_media(media_asset_id) or {}
-            buffer = response.get("buffer")
-            if not buffer:
-                raise RuntimeError("conteudo vazio")
-        except Exception as exc:
-            warnings.append(
-                f"Foto {normalize_text(photo.get('id')) or index} nao foi incorporada: {exc}"
-            )
-            continue
-
-        base_name = safe_file_name(
-            photo.get("fileName")
-            or photo.get("caption")
-            or f"foto-{index}.jpg",
-            fallback=f"foto-{index}.bin",
-        )
-        if "." not in base_name:
-            base_name = f"{base_name}{extension_from_content_type(response.get('contentType'))}"
-        file_name = base_name
-        suffix = 1
-        while file_name in used_names:
-            stem, dot, extension = base_name.rpartition(".")
-            if dot:
-                file_name = f"{stem}-{suffix}.{extension}"
-            else:
-                file_name = f"{base_name}-{suffix}"
-            suffix += 1
-        used_names.add(file_name)
+        photo_id = normalize_text(photo.get("id")) or f"foto-{index}"
+        extension = resolve_image_extension(photo)
+        file_name = f"{safe_file_name(photo_id, fallback=f'foto-{index}')}{extension}"
 
         latitude, longitude, altitude, coordinate_source = resolve_photo_coordinates(photo, tower_lookup)
-        if latitude is None or longitude is None:
-            warnings.append(
-                f"Foto {normalize_text(photo.get('id')) or index} ficou sem coordenadas de mapa."
-            )
+        # O aviso de "sem coordenadas" so e decidido apos a tentativa de EXIF
+        # (Fase 2), senao uma foto que ganha posicao via EXIF receberia aviso falso.
 
         photo_entries.append({
             "photo": photo,
-            "buffer": buffer,
+            "photoId": photo_id,
+            "mediaAssetId": media_asset_id,
             "imagePath": f"files/{file_name}",
             "fileName": file_name,
             "latitude": latitude,
@@ -323,14 +371,60 @@ def render_context_to_kmz(context, output_path, download_media):
         })
 
     if not photo_entries:
-        raise RuntimeError("Nenhuma foto com media disponivel para gerar o KMZ.")
+        raise RuntimeError("Nenhuma foto com media associada para gerar o KMZ.")
 
-    kml_document = build_kml_document(project, workspace, photo_entries, warnings)
+    # Fase 2 — stream: baixa cada imagem, grava no zip e descarta o buffer, mantendo
+    # o pico de memoria em O(1 imagem) mesmo com centenas de fotos full-res.
+    images_written = 0
+    download_failures = 0
+    failed_photo_ids = set()
+    total_photos = len(photo_entries)
+    # Reporta progresso ~a cada 5% (limita ~20 pings HTTP mesmo com 500+ fotos).
+    progress_step = max(1, total_photos // 20)
+    _emit_progress(progress_callback, 0, total_photos)
 
     with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("doc.kml", kml_document.encode("utf-8"))
+        for index, photo_entry in enumerate(photo_entries, start=1):
+            try:
+                response = download_media(photo_entry["mediaAssetId"]) or {}
+                buffer = response.get("buffer")
+                if not buffer:
+                    raise RuntimeError("conteudo vazio")
+                archive.writestr(photo_entry["imagePath"], buffer)
+                images_written += 1
+                # Foto sem coordenada localizada (gps invalido + sem torre)? Recupera
+                # do EXIF do proprio JPEG que acabamos de baixar, para virar marcador
+                # no lugar real. O KML so e montado depois deste loop, entao a
+                # coordenada descoberta aqui ja entra no placemark. Precedencia:
+                # gps valido > torre > exif. extract_gps_latlon nunca levanta.
+                if kmz_exif_gps_enabled() and not photo_entry.get("coordinateSource"):
+                    gps = extract_gps_latlon(buffer)
+                    if gps:
+                        photo_entry["latitude"] = gps[0]
+                        photo_entry["longitude"] = gps[1]
+                        photo_entry["altitude"] = 0.0
+                        photo_entry["coordinateSource"] = "exif"
+            except Exception as exc:
+                download_failures += 1
+                failed_photo_ids.add(photo_entry["photoId"])
+                warnings.append(f"Foto {photo_entry['photoId']} nao foi incorporada: {exc}")
+
+            # processed = fotos tentadas (avanca mesmo em falha), para a barra nao travar.
+            if index % progress_step == 0 or index == total_photos:
+                _emit_progress(progress_callback, index, total_photos)
+
+        # Agora que o EXIF ja foi tentado, registra as fotos que seguem sem posicao
+        # (exceto as que ja falharam no download — essas ja tem aviso proprio).
         for photo_entry in photo_entries:
-            archive.writestr(photo_entry["imagePath"], photo_entry["buffer"])
+            if not photo_entry.get("coordinateSource") and photo_entry["photoId"] not in failed_photo_ids:
+                warnings.append(f"Foto {photo_entry['photoId']} ficou sem coordenadas de mapa.")
+
+        # KML montado depois do stream para incluir todos os avisos (inclusive de
+        # download) na descricao do documento. Ordem das entradas no zip e
+        # irrelevante para leitores de KMZ.
+        kml_document = build_kml_document(project, workspace, photo_entries, warnings)
+        archive.writestr("doc.kml", kml_document.encode("utf-8"))
+
         if warnings:
             archive.writestr(
                 "README.txt",
@@ -342,3 +436,10 @@ def render_context_to_kmz(context, output_path, download_media):
                     *[f"- {warning}" for warning in warnings],
                 ]).encode("utf-8"),
             )
+
+    if images_written == 0:
+        # Havia fotos com media, mas todas falharam no download apos as retentativas.
+        # Mensagem distinta de "workspace sem fotos com media" para diagnostico claro.
+        raise RuntimeError(
+            "Todas as fotos falharam no download apos novas tentativas; KMZ nao gerado."
+        )

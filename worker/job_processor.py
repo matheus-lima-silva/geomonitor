@@ -302,12 +302,20 @@ def process_workspace_kmz_job(client, job_id, context, staging_dir):
     file_name = build_output_file_name(context)
     output_path = os.path.join(staging_dir, file_name)
 
-    media_ids = _collect_media_asset_ids(context)
-    image_cache = _prefetch_images(client, media_ids, job_id)
-    image_loader = _build_cached_image_loader(client, image_cache)
+    # O KMZ pode embutir centenas de fotos full-res. O renderer streama imagem a
+    # imagem direto pro zip (baixa -> grava -> descarta), entao NAO pre-baixamos
+    # tudo em memoria como no DOCX: passamos o downloader sincrono do client, que
+    # ja tem retry/backoff embutido. Isso mantem o pico de memoria em O(1 imagem).
+    def report_progress(processed, total):
+        client.report_job_progress(job_id, processed, total, phase="rendering")
 
     with timed_phase(logger, "render_kmz", job_id=job_id, fileName=file_name):
-        render_context_to_kmz(context, output_path, image_loader)
+        render_context_to_kmz(
+            context,
+            output_path,
+            client.download_media_content,
+            progress_callback=report_progress,
+        )
 
     with timed_phase(logger, "read_output", job_id=job_id, path=output_path):
         with open(output_path, "rb") as handle:

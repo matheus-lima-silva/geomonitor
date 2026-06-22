@@ -172,11 +172,24 @@ async function createSignedUploadUrl({ storageKey, contentType, internal = false
     };
 }
 
-async function createSignedAccessUrl({ storageKey, internal = false }) {
+function buildContentDisposition(downloadFileName) {
+    const name = normalizeText(downloadFileName);
+    if (!name) return '';
+    // Sanitiza para um filename seguro em header HTTP (sem aspas/control chars).
+    const safe = name.replace(/[\r\n"\\]+/g, '_');
+    return `attachment; filename="${safe}"`;
+}
+
+// downloadFileName: quando informado, embute response-content-disposition na URL
+// assinada para que o browser baixe com nome amigavel mesmo navegando direto ao
+// MinIO/S3 (sem passar pelo backend). Sem ele, o nome cai para a object key.
+async function createSignedAccessUrl({ storageKey, internal = false, downloadFileName = '' }) {
     const expiresIn = getPresignTtlSeconds();
+    const contentDisposition = buildContentDisposition(downloadFileName);
     const command = new GetObjectCommand({
         Bucket: getBucketName(),
         Key: normalizeText(storageKey),
+        ...(contentDisposition ? { ResponseContentDisposition: contentDisposition } : {}),
     });
 
     const signedHref = await getSignedUrl(getS3Client(), command, { expiresIn });

@@ -124,6 +124,36 @@ export async function resolveMediaAccessUrl(mediaId) {
   };
 }
 
+// Resolve como baixar uma midia SEM materializar o arquivo em memoria.
+// Para assets remotos (backend Tigris/S3 = MinIO no homelab) a URL assinada e
+// publica e nao precisa de Authorization — o caller deve navegar direto ate ela
+// (triggerUrlDownload), deixando o browser streamar pro disco. Isso evita o OOM
+// que ocorre ao puxar arquivos grandes (ex.: KMZ de centenas de MB) via blob.
+// Para asset local (backend Node), a URL exige Bearer no fetch, entao mantemos o
+// caminho blob (downloadMediaAsset) — usado apenas para arquivos pequenos.
+export async function resolveMediaDownload(mediaId) {
+  const result = await requestMedia(`${API_BASE_URL}/media/${encodeURIComponent(mediaId)}/access-url`, {
+    method: 'GET',
+  });
+
+  const accessUrl = String(result?.data?.accessUrl || '').trim();
+  if (!accessUrl) {
+    throw new Error('URL de acesso da midia invalida.');
+  }
+
+  // O campo `backend` (devolvido por /access-url) e o discriminador autoritativo.
+  // backend === 'tigris' => URL assinada do S3/MinIO, com a credencial na query
+  // string: o browser navega direto e streama pro disco (sem Authorization, sem
+  // blob). NAO usar a heuristica de origin (isLocalAccessUrl) aqui: no homelab o
+  // MinIO publico e servido sob o MESMO host do app (geo.lima.rio.br/<bucket>/...),
+  // entao ela daria falso-positivo e cairia de volta no caminho blob (o OOM).
+  // backend === 'local' => /api/media/:id/content, que exige Bearer no fetch.
+  const backend = result?.data?.backend || null;
+  const isRemote = backend === 'tigris';
+
+  return { accessUrl, backend, isRemote };
+}
+
 export async function downloadMediaAsset(mediaId) {
   const result = await requestMedia(`${API_BASE_URL}/media/${encodeURIComponent(mediaId)}/access-url`, {
     method: 'GET',

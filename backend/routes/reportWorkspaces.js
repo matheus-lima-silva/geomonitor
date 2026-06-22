@@ -968,8 +968,10 @@ router.post('/:id/kmz/process', verifyToken, requireEditor, requireWorkspaceWrit
             warnings: result.warnings,
             summaryJson: {
                 photosCreated: result.photosCreated,
+                photosUpdated: result.photosUpdated,
                 photosSkipped: result.photosSkipped,
                 towersInferred: result.towersInferred,
+                towersAssigned: result.towersAssigned,
                 pendingLinkage: result.pendingLinkage,
                 placemarkCount: result.placemarkCount,
                 photoIds: result.photoIds,
@@ -987,8 +989,10 @@ router.post('/:id/kmz/process', verifyToken, requireEditor, requireWorkspaceWrit
                     workspaceId,
                     summary: {
                         photosCreated: result.photosCreated,
+                        photosUpdated: result.photosUpdated,
                         photosSkipped: result.photosSkipped,
                         towersInferred: result.towersInferred,
+                        towersAssigned: result.towersAssigned,
                         pendingLinkage: result.pendingLinkage,
                         placemarkCount: result.placemarkCount,
                         warnings: result.warnings,

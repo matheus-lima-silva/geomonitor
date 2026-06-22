@@ -74,6 +74,28 @@ class WorkerClient:
             expected_statuses={200},
         )
 
+    def report_job_progress(self, job_id, processed, total, phase="rendering"):
+        # Best-effort: progresso nunca pode derrubar o job. Engole qualquer erro
+        # (rede, 4xx/5xx) e apenas loga em debug — o job segue normalmente.
+        try:
+            self._request_json(
+                "PUT",
+                f"/api/report-jobs/{parse.quote(normalize_text(job_id))}/progress",
+                payload={
+                    "data": {
+                        "processed": int(processed or 0),
+                        "total": int(total or 0),
+                        "phase": normalize_text(phase) or "rendering",
+                    },
+                },
+                expected_statuses={200},
+            )
+        except Exception as exc:  # pragma: no cover - best-effort
+            logger.debug(
+                "report_job_progress_failed",
+                extra={"jobId": normalize_text(job_id), "errorType": type(exc).__name__},
+            )
+
     def mark_failed(self, job_id, error_log):
         return self._request_json(
             "PUT",
@@ -85,24 +107,42 @@ class WorkerClient:
     def download_media_content(self, media_id):
         normalized = normalize_text(media_id)
         start = time.perf_counter()
-        try:
-            status_code, raw_body, headers = self._request_binary(
-                "GET",
-                f"/api/media/{parse.quote(normalized)}/content",
-                expected_statuses={200},
-            )
-        except Exception as exc:
-            duration_ms = int((time.perf_counter() - start) * 1000)
-            logger.warning(
-                "download_image_error",
-                extra={
-                    "phase": "download_image",
-                    "mediaAssetId": normalized,
-                    "durationMs": duration_ms,
-                    "errorType": type(exc).__name__,
-                },
-            )
-            raise
+        # Retry com backoff exponencial para tolerar instabilidades transitorias do
+        # storage (MinIO/S3). Sem isso, um unico blip de rede derrubava a geracao
+        # inteira de um KMZ com centenas de fotos. Beneficia DOCX e KMZ por estar no
+        # client real (o renderer recebe so um image_loader abstrato).
+        max_attempts = max(1, int(normalize_text(os.getenv("WORKER_DOWNLOAD_MAX_ATTEMPTS")) or "3"))
+        backoff_base = float(normalize_text(os.getenv("WORKER_DOWNLOAD_BACKOFF_BASE")) or "0.5")
+        last_exc = None
+        status_code = raw_body = headers = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                status_code, raw_body, headers = self._request_binary(
+                    "GET",
+                    f"/api/media/{parse.quote(normalized)}/content",
+                    expected_statuses={200},
+                )
+                last_exc = None
+                break
+            except Exception as exc:
+                last_exc = exc
+                duration_ms = int((time.perf_counter() - start) * 1000)
+                logger.warning(
+                    "download_image_error",
+                    extra={
+                        "phase": "download_image",
+                        "mediaAssetId": normalized,
+                        "durationMs": duration_ms,
+                        "errorType": type(exc).__name__,
+                        "attempt": attempt,
+                        "maxAttempts": max_attempts,
+                    },
+                )
+                if attempt < max_attempts and backoff_base > 0:
+                    time.sleep(backoff_base * (2 ** (attempt - 1)))
+
+        if last_exc is not None:
+            raise last_exc
 
         duration_ms = int((time.perf_counter() - start) * 1000)
         size_bytes = len(raw_body) if raw_body else 0

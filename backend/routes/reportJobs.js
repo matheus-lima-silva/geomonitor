@@ -165,4 +165,29 @@ router.put('/:id/fail', requireEditorOrWorker, async (req, res) => {
     }
 });
 
+// Ping de progresso intra-job (worker -> backend). Rota de transporte: o worker
+// chama com x-worker-token durante a renderizacao para atualizar o campo
+// `progress` do workspace_kmz_request, consumido pelo polling do frontend. Nao
+// altera statusExecucao. Resposta minima (alta frequencia).
+router.put('/:id/progress', requireEditorOrWorker, async (req, res) => {
+    try {
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const data = body.data && typeof body.data === 'object' ? body.data : {};
+        const job = await reportJobRepository.reportProgress(req.params.id, {
+            processed: data.processed,
+            total: data.total,
+            phase: data.phase,
+        }, {
+            updatedBy: resolveActor(req),
+        });
+        if (!job) {
+            return res.status(404).json({ status: 'error', message: 'Job nao encontrado' });
+        }
+        return res.status(200).json({ status: 'success', data: { id: normalizeText(job.id) } });
+    } catch (error) {
+        console.error('[report-jobs API] Error PUT /:id/progress:', error);
+        return res.status(500).json({ status: 'error', message: 'Erro ao atualizar progresso do job' });
+    }
+});
+
 module.exports = router;

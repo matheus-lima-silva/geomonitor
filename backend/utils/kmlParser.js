@@ -103,6 +103,24 @@ function getElementText(parent, tagName) {
     return (elements[0].textContent || '').trim();
 }
 
+// Extrai <ExtendedData><Data name="k"><value>v</value></Data></ExtendedData>
+// como um mapa { k: v }. Usado para a identidade estavel da foto (photoId /
+// mediaAssetId) embutida pelo export, que sobrevive ao round-trip no Google Earth.
+function getExtendedData(placemark) {
+    const result = {};
+    const extNodes = placemark.getElementsByTagName('ExtendedData');
+    if (!extNodes || extNodes.length === 0) return result;
+    const dataNodes = extNodes[0].getElementsByTagName('Data');
+    for (let i = 0; i < dataNodes.length; i += 1) {
+        const node = dataNodes[i];
+        const key = (node.getAttribute && node.getAttribute('name')) || '';
+        const trimmedKey = String(key || '').trim();
+        if (!trimmedKey) continue;
+        result[trimmedKey] = getElementText(node, 'value');
+    }
+    return result;
+}
+
 function getFolderPath(node) {
     const parts = [];
     let current = node?.parentNode;
@@ -157,6 +175,7 @@ function parseKmlPlacemarks(kmlText) {
             lat: tuple.lat,
             lon: tuple.lon,
             folderPath,
+            extendedData: getExtendedData(pm),
         });
     }
 

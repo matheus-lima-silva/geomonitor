@@ -249,6 +249,33 @@ async function markFailed(id, errorLog, meta = {}) {
     return saved;
 }
 
+// Progresso intra-job (ex.: fotos processadas/total durante a geracao do KMZ).
+// Persistido no workspace_kmz_request (consumido pelo polling do frontend) — NAO
+// altera statusExecucao, so o campo `progress`. Best-effort: so rastreia
+// workspace_kmz hoje; outros kinds sao no-op.
+async function reportProgress(id, progress = {}, meta = {}) {
+    const job = await getById(normalizeText(id));
+    if (!job) return null;
+    if (normalizeText(job.kind) !== 'workspace_kmz' || !normalizeText(job.workspaceKmzToken)) {
+        return job;
+    }
+    const current = await workspaceKmzRequestRepository.getByToken(job.workspaceKmzToken);
+    if (!current) return job;
+
+    const total = Math.max(0, Math.trunc(Number(progress.total) || 0));
+    const rawProcessed = Math.max(0, Math.trunc(Number(progress.processed) || 0));
+    const processed = total > 0 ? Math.min(total, rawProcessed) : rawProcessed;
+    const phase = normalizeText(progress.phase) || 'rendering';
+
+    await workspaceKmzRequestRepository.save(job.workspaceKmzToken, {
+        ...current,
+        progress: { processed, total, phase, updatedAt: new Date().toISOString() },
+        updatedAt: new Date().toISOString(),
+        updatedBy: normalizeText(meta.updatedBy) || current.updatedBy || 'worker',
+    }, { merge: true });
+    return job;
+}
+
 async function save(payload, options = {}) {
     const normalizedId = normalizeText(payload?.id);
     const current = options.merge ? await getById(normalizedId) : null;
@@ -311,5 +338,6 @@ module.exports = {
     reclaimStuckJobs,
     markComplete,
     markFailed,
+    reportProgress,
     STUCK_PROCESSING_THRESHOLD_MINUTES,
 };
