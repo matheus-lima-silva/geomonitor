@@ -147,17 +147,40 @@ describe('WorkspacesTab — picker de vistoria', () => {
     expect(container.textContent).toContain('Sem vistoria vinculada');
   });
 
-  it('exibe badge com a vistoria quando o workspace ativo tem inspectionId', async () => {
+  it('exibe badge com a vistoria do workspace ativo resolvida pelo lookup global', async () => {
     await act(async () => {
       root.render(<WorkspacesTab {...buildStubProps({
         selectedWorkspace: { id: 'RW-1', nome: 'W', projectId: 'PRJ-01', inspectionId: 'VS-01' },
-        projectInspections: [{ id: 'VS-01', projetoId: 'PRJ-01', dataInicio: '2026-04-10' }],
+        // A vistoria do workspace selecionado e resolvida via inspections global,
+        // nao por projectInspections (que e escopado ao rascunho de criacao).
+        inspections: [{ id: 'VS-01', projetoId: 'PRJ-01', dataInicio: '2026-04-10T12:00:00Z' }],
+        projectInspections: [],
       })} />);
     });
 
     const badge = container.querySelector('[data-testid="workspace-inspection-badge"]');
     expect(badge).not.toBeNull();
     expect(badge.textContent).toContain('VS-01');
+    // O separador ' — ' so aparece quando a inspection foi efetivamente resolvida
+    // (id + data). Sem resolucao, o label cai no id cru, sem separador.
+    expect(badge.textContent).toContain('—');
+  });
+
+  it('resolve a vistoria do workspace selecionado via inspections global mesmo com projectInspections de outro empreendimento', async () => {
+    await act(async () => {
+      root.render(<WorkspacesTab {...buildStubProps({
+        selectedWorkspace: { id: 'RW-9', nome: 'W9', projectId: 'PRJ-02', inspectionId: 'VS-FAR' },
+        // projectInspections segue o empreendimento do rascunho (PRJ-01), nao o do
+        // workspace selecionado (PRJ-02). Sem o lookup global, o badge nao resolveria.
+        projectInspections: [{ id: 'VS-LOCAL', projetoId: 'PRJ-01', dataInicio: '2026-04-10T12:00:00Z' }],
+        inspections: [{ id: 'VS-FAR', projetoId: 'PRJ-02', dataInicio: '2026-03-15T12:00:00Z' }],
+      })} />);
+    });
+
+    const badge = container.querySelector('[data-testid="workspace-inspection-badge"]');
+    expect(badge).not.toBeNull();
+    expect(badge.textContent).toContain('VS-FAR');
+    expect(badge.textContent).toContain('—');
   });
 });
 
