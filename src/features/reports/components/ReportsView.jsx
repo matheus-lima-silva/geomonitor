@@ -617,10 +617,16 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     return Number.isInteger(value) && value >= 1 && value <= 3650 ? value : 30;
   }, [rulesConfig]);
 
+  // Vistorias do formulario de criacao: seguem o empreendimento do rascunho
+  // (workspaceDraft.projectId), NAO o filtro de lista (selectedProjectId). O
+  // formulario de criar workspace e desacoplado do filtro de lista (ver
+  // workspaceDraft acima), entao a fonte das vistorias precisa acompanhar a
+  // escolha feita dentro do proprio formulario.
   const projectInspections = useMemo(() => {
-    if (!selectedProjectId) return [];
-    return inspections.filter((inspection) => String(inspection.projetoId || '') === selectedProjectId);
-  }, [inspections, selectedProjectId]);
+    const projectId = workspaceDraft.projectId;
+    if (!projectId) return [];
+    return inspections.filter((inspection) => String(inspection.projetoId || '') === projectId);
+  }, [inspections, workspaceDraft.projectId]);
 
   // Lista workspaces sem vistoria em TODOS os projetos visiveis (nao depende
   // do filtro selectedProjectId). Cada linha da modal resolve sua propria

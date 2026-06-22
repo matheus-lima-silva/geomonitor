@@ -700,7 +700,7 @@ export default function WorkspacesTab({
                 <p className="m-0 mb-1 text-xs text-slate-400">{selectedWorkspace.id}</p>
                 {selectedWorkspace.inspectionId ? (
                   (() => {
-                    const inspection = projectInspections.find((i) => i.id === selectedWorkspace.inspectionId);
+                    const inspection = inspectionsById.get(selectedWorkspace.inspectionId);
                     const label = inspection
                       ? [inspection.id, inspection.dataInicio ? new Date(inspection.dataInicio).toLocaleDateString('pt-BR') : ''].filter(Boolean).join(' — ')
                       : selectedWorkspace.inspectionId;
