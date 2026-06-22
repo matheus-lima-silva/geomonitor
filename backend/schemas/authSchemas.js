@@ -26,8 +26,10 @@ const loginSchema = z.object({
     password: z.string().min(1, 'Senha e obrigatoria.'),
 });
 
+// refreshToken e opcional: pode vir no cookie httpOnly (SSO) em vez do body.
+// O handler exige presenca de pelo menos uma das fontes.
 const refreshSchema = z.object({
-    refreshToken: z.string().min(1, 'Refresh token e obrigatorio.'),
+    refreshToken: z.string().min(1).optional(),
 });
 
 const resetPasswordRequestSchema = z.object({

@@ -136,8 +136,22 @@ describe('authService', () => {
   });
 
   describe('logout', () => {
-    it('limpa os tokens', () => {
-      logout();
+    it('chama POST /auth/logout com credentials e limpa os tokens', async () => {
+      fetchMock.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ status: 'success' }) });
+
+      await logout();
+
+      expect(fetchMock.mock.calls[0][0]).toContain('/auth/logout');
+      expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+      expect(fetchMock.mock.calls[0][1].credentials).toBe('include');
+      expect(clearTokens).toHaveBeenCalled();
+    });
+
+    it('limpa os tokens mesmo se o logout no servidor falhar', async () => {
+      fetchMock.mockRejectedValue(new Error('network'));
+
+      await logout();
+
       expect(clearTokens).toHaveBeenCalled();
     });
   });

@@ -82,6 +82,15 @@ Cada dimensao possui quatro classes, pontuadas em **0, 2, 4 ou 6**, totalizando 
 | E3     | 5 – 20 m   | 4         |
 | E4     | < 5 m      | 6         |
 
+> **Origem da distancia (desde PostGIS / Fase 6).** Quando o projeto tem geometria
+> materializada (eixo + torres em `project_geometries`) e a erosao tem coordenadas, a distancia
+> a estrutura e **calculada automaticamente** como a distancia a **torre mais proxima** (PostGIS,
+> em metros). Modelo **hibrido**: o operador pode sobrescrever o valor calculado (flag
+> `distanciaEstruturaManual`); a criticidade usa, nesta ordem, o valor manual (se sobrescrito) →
+> o calculado → o ultimo valor informado. Sem geometria/coordenadas, cai no valor informado, como
+> antes. Os cortes E1–E4 e o piso C3 (secao 5.4) permanecem identicos — muda apenas a **fonte** da
+> distancia, nao a regra. Aplica-se **no proximo save/edicao** da erosao (sem recalculo retroativo).
+
 ### A — Sinais de Avanco / Atividade
 
 | Classe | Descricao                                   | Pontuacao |

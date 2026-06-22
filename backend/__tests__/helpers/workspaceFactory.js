@@ -17,6 +17,13 @@ async function seedWorkspaceWithOwners(pool, { ownerCount }) {
     try {
         await client.query('BEGIN');
 
+        // O projeto pai precisa existir: a FK report_workspaces.project_id ->
+        // projects (ON DELETE RESTRICT, migracao 0020) rejeita workspace orfao.
+        await client.query(
+            `INSERT INTO projects (id, payload) VALUES ($1, '{}'::jsonb) ON CONFLICT (id) DO NOTHING`,
+            [projectId],
+        );
+
         await client.query(
             `INSERT INTO report_workspaces (id, project_id, status) VALUES ($1, $2, 'draft')`,
             [workspaceId, projectId],

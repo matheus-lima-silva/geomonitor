@@ -3,6 +3,7 @@ const VARIANT_CLASSES = {
     outline: 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50 hover:text-slate-800',
     primary: 'bg-brand-600 text-white border-transparent hover:bg-brand-700',
     danger: 'bg-danger text-white border-transparent hover:bg-danger-dark',
+    dangerGhost: 'bg-transparent text-slate-400 border-transparent hover:bg-danger-light hover:text-danger',
 };
 
 const SIZE_CLASSES = {

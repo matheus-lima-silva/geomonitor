@@ -74,7 +74,7 @@ export function AuthProvider({ children }) {
         await doResetPassword(email);
       },
       async logout() {
-        doLogout();
+        await doLogout();
         clearAllDrafts();
         clearAllServiceCaches();
         setUser(null);

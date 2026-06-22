@@ -40,6 +40,9 @@ async function applyMigration(pool, migrationPath, filename, checksum) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+        // Migracoes podem conter operacoes longas (backfill, CREATE INDEX, VALIDATE
+        // CONSTRAINT). Desliga o statement_timeout do pool apenas para esta transacao.
+        await client.query('SET LOCAL statement_timeout = 0');
         await client.query(sql);
         await client.query(
             `

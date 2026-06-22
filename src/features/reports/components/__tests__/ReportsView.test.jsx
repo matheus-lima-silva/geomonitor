@@ -22,6 +22,7 @@ const mockData = vi.hoisted(() => ({
     { id: 'RPH-2', caption: 'Vista geral', towerId: 'T-02', workspaceId: 'RW-2', importSource: 'loose_photos', includeInReport: false, captureAt: '2026-03-18T10:00:00.000Z' },
   ],
   dossiers: [{ id: 'DOS-1', nome: 'Dossie 1', status: 'draft' }],
+  inspections: [{ id: 'VS-PRJ01-1', projetoId: 'PRJ-01', dataInicio: '2026-05-01T12:00:00Z', responsavel: 'Eng. Teste' }],
 }));
 
 vi.mock('../../../../services/reportWorkspaceService', () => ({
@@ -128,6 +129,11 @@ vi.mock('../../../../services/userService', () => ({
   listSignatarios: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('../../../../services/inspectionService', () => ({
+  subscribeInspections: vi.fn((onData) => { onData(mockData.inspections); return () => {}; }),
+  saveInspection: vi.fn().mockResolvedValue('VS-PRJ01-1'),
+}));
+
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 function resetMockData() {
@@ -143,6 +149,7 @@ function resetMockData() {
     { id: 'RPH-2', caption: 'Vista geral', towerId: 'T-02', workspaceId: 'RW-2', importSource: 'loose_photos', includeInReport: false, captureAt: '2026-03-18T10:00:00.000Z' },
   ];
   mockData.dossiers = [{ id: 'DOS-1', nome: 'Dossie 1', status: 'draft' }];
+  mockData.inspections = [{ id: 'VS-PRJ01-1', projetoId: 'PRJ-01', dataInicio: '2026-05-01T12:00:00Z', responsavel: 'Eng. Teste' }];
 }
 
 // Helper: interact with a SearchableSelect — focus to open, then mousedown on the matching option.
@@ -189,6 +196,43 @@ describe('ReportsView', () => {
     expect(container.textContent).toContain('Dossie do Empreendimento');
     expect(container.textContent).toContain('Relatório Final');
     expect(container.textContent).toContain('Workspace 1');
+  });
+
+  it('lista a vistoria do empreendimento escolhido no formulario de criar workspace mesmo sem filtro de lista ativo', async () => {
+    await act(async () => {
+      root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+      await Promise.resolve();
+    });
+
+    // Garante a secao "Criar Workspace" aberta (colapsavel; o estado inicial depende
+    // de haver ou nao workspace selecionado). So abre se ainda nao estiver aberta.
+    if (!container.querySelector('#rw-project')) {
+      const createToggle = [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Criar Workspace'));
+      await act(async () => {
+        createToggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+    }
+
+    // Escolhe o empreendimento DENTRO do formulario — sem tocar no filtro de lista
+    // (selectedProjectId continua vazio). Era exatamente este o cenario que falhava:
+    // a fonte de vistorias seguia selectedProjectId em vez de workspaceDraft.projectId.
+    await selectSearchableOption(container, 'rw-project', 'Linha Norte');
+
+    // A vistoria do empreendimento aparece no dropdown mesmo com o filtro de lista vazio
+    const inspectionSelect = container.querySelector('#rw-inspection');
+    expect(inspectionSelect).not.toBeNull();
+    const optionValues = [...inspectionSelect.querySelectorAll('option')].map((opt) => opt.value);
+    expect(optionValues).toContain('VS-PRJ01-1');
+
+    // Ao selecionar a vistoria, o botao de criar habilita
+    await act(async () => {
+      const selectSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+      selectSetter.call(inspectionSelect, 'VS-PRJ01-1');
+      inspectionSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const submitButton = container.querySelector('[data-testid="create-workspace-submit"]');
+    expect(submitButton.disabled).toBe(false);
   });
 
   it('troca para a biblioteca do empreendimento e exibe a acao de exportacao', async () => {

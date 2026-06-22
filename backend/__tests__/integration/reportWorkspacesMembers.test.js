@@ -73,6 +73,18 @@ const mockWorkspaceMemberRepository = {
             (m) => m.workspaceId === workspaceId && m.role === 'owner',
         ).length;
     }),
+    removeMemberGuardingLastOwner: jest.fn(async (workspaceId, userId) => {
+        const target = mockState.members.get(memberKey(workspaceId, userId));
+        if (!target) return { notFound: true };
+        if (target.role === 'owner') {
+            const ownerCount = Array.from(mockState.members.values()).filter(
+                (m) => m.workspaceId === workspaceId && m.role === 'owner',
+            ).length;
+            if (ownerCount <= 1) return { lastOwner: true };
+        }
+        mockState.members.delete(memberKey(workspaceId, userId));
+        return { removed: true };
+    }),
 };
 
 const mockReportWorkspaceRepository = {

@@ -7,7 +7,11 @@ name: geomonitor
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # PostGIS (superset do postgres:16) — necessario para a extensao postgis e as
+    # colunas geography (migracao 0023+). Mesmo formato de data dir do PG16, entao
+    # o volume existente e compativel; rode `npm run migrate` apos o swap para
+    # CREATE EXTENSION postgis. Backups: o restore exige imagem PostGIS tambem.
+    image: postgis/postgis:16-3.4
     restart: unless-stopped
     env_file:
       - .env
@@ -146,6 +150,18 @@ services:
     expose:
       - "8080"
 
+  # Portal de Relatorios (relat.lima.rio.br). Segundo SPA, servido same-origin:
+  # sem VITE_API_BASE_URL (deriva ${origin}/api em runtime). O Caddy roteia
+  # relat.lima.rio.br/api para o mesmo backend `api`.
+  relat:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.relat
+    restart: unless-stopped
+    networks: [internal]
+    expose:
+      - "8080"
+
   caddy:
     build:
       context: ./caddy
@@ -156,6 +172,8 @@ services:
         condition: service_started
       web:
         condition: service_started
+      relat:
+        condition: service_started
       minio:
         condition: service_healthy
     env_file:
@@ -164,6 +182,9 @@ services:
       PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME}
       BUCKET_NAME: ${BUCKET_NAME}
       GEO_HOSTNAME: ${GEO_HOSTNAME}
+      # Default seguro: sem RELAT_HOSTNAME no .env, o Caddy serve relat.localhost
+      # com cert interno (sem ACME), entao o stack sobe sem derrubar o geo.
+      RELAT_HOSTNAME: ${RELAT_HOSTNAME:-relat.localhost}
       ACME_EMAIL: ${ACME_EMAIL}
       CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
     volumes:

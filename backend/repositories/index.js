@@ -2,6 +2,7 @@ const reportDefaultsRepository = require('./reportDefaultsRepository');
 const reportWorkspaceRepository = require('./reportWorkspaceRepository');
 const reportPhotoRepository = require('./reportPhotoRepository');
 const projectRepository = require('./projectRepository');
+const projectGeometryRepository = require('./projectGeometryRepository');
 const operatingLicenseRepository = require('./operatingLicenseRepository');
 const licenseConditionRepository = require('./licenseConditionRepository');
 const inspectionRepository = require('./inspectionRepository');
@@ -19,6 +20,8 @@ const mediaAssetRepository = require('./mediaAssetRepository');
 const reportTemplateRepository = require('./reportTemplateRepository');
 const rulesConfigRepository = require('./rulesConfigRepository');
 const workspaceMemberRepository = require('./workspaceMemberRepository');
+const monthlyReportRepository = require('./monthlyReportRepository');
+const monthlyReportSettingsRepository = require('./monthlyReportSettingsRepository');
 const adminSqlAuditRepository = require('./adminSqlAuditRepository');
 const adminSqlSnippetsRepository = require('./adminSqlSnippetsRepository');
 const systemAlertsRepository = require('./systemAlertsRepository');
@@ -31,6 +34,7 @@ module.exports = {
     reportWorkspaceRepository,
     reportPhotoRepository,
     projectRepository,
+    projectGeometryRepository,
     operatingLicenseRepository,
     licenseConditionRepository,
     inspectionRepository,
@@ -48,4 +52,6 @@ module.exports = {
     reportTemplateRepository,
     rulesConfigRepository,
     workspaceMemberRepository,
+    monthlyReportRepository,
+    monthlyReportSettingsRepository,
 };

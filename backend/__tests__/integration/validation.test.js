@@ -104,10 +104,12 @@ describe('Validation (Zod)', () => {
     });
 
     describe('POST /api/auth/refresh', () => {
-        it('rejeita body sem refreshToken com 400 VALIDATION_ERROR', async () => {
+        // refreshToken agora e opcional no body (pode vir do cookie httpOnly).
+        // Sem cookie e sem body, o handler retorna 401 (token ausente).
+        it('rejeita ausencia de token (cookie e body) com 401 INVALID_REFRESH_TOKEN', async () => {
             const res = await request(app).post('/api/auth/refresh').send({});
-            expect(res.status).toBe(400);
-            expect(res.body.code).toBe('VALIDATION_ERROR');
+            expect(res.status).toBe(401);
+            expect(res.body.code).toBe('INVALID_REFRESH_TOKEN');
         });
     });
 });

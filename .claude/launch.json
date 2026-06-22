@@ -8,6 +8,12 @@
       "port": 5173
     },
     {
+      "name": "relat",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--config", "apps/relat/vite.config.js", "--port", "5174"],
+      "port": 5174
+    },
+    {
       "name": "backend",
       "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
       "runtimeArgs": ["backend/server.js"],

@@ -10,6 +10,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Cm, Pt
 
 from worker.docx_renderer import (
+    apply_body_font,
     apply_eletrobras_formatting_compound,
     create_document_from_template,
 )
@@ -377,15 +378,15 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertAlmostEqual(back_cover.left_margin, Cm(0), delta=margin_tolerance)
         self.assertAlmostEqual(back_cover.bottom_margin, Cm(0), delta=margin_tolerance)
 
-        # Normal: Arial 11.
+        # Normal: DM Sans 14.
         normal = document.styles["Normal"]
-        self.assertEqual(normal.font.name, "Arial")
-        self.assertEqual(normal.font.size, Pt(11))
+        self.assertEqual(normal.font.name, "DM Sans")
+        self.assertEqual(normal.font.size, Pt(14))
 
-        # NormalWeb (body paragraph style) — justified Arial 11 with 12pt spacing.
+        # NormalWeb (body paragraph style) — justified DM Sans 14 with 12pt spacing.
         body = document.styles["Normal (Web)"]
-        self.assertEqual(body.font.name, "Arial")
-        self.assertEqual(body.font.size, Pt(11))
+        self.assertEqual(body.font.name, "DM Sans")
+        self.assertEqual(body.font.size, Pt(14))
         self.assertFalse(body.font.italic)
         self.assertEqual(body.paragraph_format.alignment, WD_ALIGN_PARAGRAPH.JUSTIFY)
         self.assertEqual(body.paragraph_format.space_before, Pt(12))
@@ -405,10 +406,29 @@ class WorkerRuntimeTests(unittest.TestCase):
             spacing_el.attrib,
         )
 
+        # Heading do template: troca apenas o typeface, tamanho/bold ficam do template.
+        heading = document.styles["Ttulo1"]
+        self.assertEqual(heading.font.name, "DM Sans")
+
         # Caption (photo legend): preserva estilo original do template (italic, cor tema).
         caption = document.styles["caption"]
         self.assertTrue(caption.font.italic)
         self.assertIsNone(caption.font.bold)
+
+    def test_apply_body_font_on_template_styles(self):
+        # Caminho do dossie: so a fonte de corpo e aplicada, sem margens/spacing.
+        document, used_template, _ = create_document_from_template(
+            "LT Test", "COD-001", "2026-04-15", "00"
+        )
+        self.assertTrue(used_template, "Template file must exist for this test to be meaningful")
+
+        apply_body_font(document)
+
+        self.assertEqual(document.styles["Normal"].font.name, "DM Sans")
+        self.assertEqual(document.styles["Normal"].font.size, Pt(14))
+        self.assertEqual(document.styles["Normal (Web)"].font.name, "DM Sans")
+        self.assertEqual(document.styles["Normal (Web)"].font.size, Pt(14))
+        self.assertEqual(document.styles["Ttulo1"].font.name, "DM Sans")
 
     def test_run_once_completes_workspace_kmz_job(self):
         job = {"id": "JOB-KMZ-1", "kind": "workspace_kmz"}

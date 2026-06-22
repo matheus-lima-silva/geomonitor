@@ -94,7 +94,7 @@ Backup sem teste de restore nao e backup. Script `scripts/backup/restore_drill.s
 
 1. Baixa o dump mais recente do B2 com `rclone copy`.
 2. Decifra com `gpg --decrypt` (chave privada precisa estar disponivel em ambiente isolado — drill roda em laptop do operador, **nao** na VM de producao).
-3. Sobe um Postgres 16 ephemeral via `docker run --rm postgres:16-alpine` em porta alta.
+3. Sobe um Postgres 16 ephemeral via `docker run --rm postgis/postgis:16-3.4` em porta alta. **Precisa ser PostGIS** (nao `postgres:16-alpine`): o dump contem a extensao postgis e colunas `geography`; restaurar em Postgres sem PostGIS falha com `type "geography" does not exist`.
 4. `pg_restore --clean --if-exists -d "$EPHEMERAL_URL" dump.pgcustom`.
 5. Sobe o backend tambem ephemeral apontando `DATABASE_URL` para esse Postgres com MinIO mockado (variavel `MEDIA_BACKEND=memory` se existir, ou um MinIO ephemeral vazio).
 6. Bate `curl -fsS http://localhost:<porta>/api/health` e verifica 200.

@@ -360,17 +360,19 @@ def _resolve_heading_style(document):
 
 
 # ----------------------------------------------------------------------------
-# Eletrobras/Biocev formatting overrides — scope: report_compound only.
+# Formatting overrides applied at runtime on the loaded Document.
 #
 # The institutional template `template_relatorio.docx` ships with body/caption
-# styles that drift from the Eletrobras style guide (NormalWeb is Times New
+# styles that drift from the desired body typography (NormalWeb is Times New
 # Roman 12 with autospacing; Legenda is 9pt italic gray; section margins are
-# 2.54/1.91cm instead of 4/2cm). We apply these fixes at runtime on the loaded
-# Document so they don't leak into dossier/ficha renders — each render loads a
-# fresh template copy, so the mutation is scoped to a single render call.
+# 2.54/1.91cm instead of 4/2cm). Body font/size fixes apply to compound and
+# dossier renders via apply_body_font; margin/spacing fixes stay compound-only.
+# Each render loads a fresh template copy, so mutations are scoped per render.
 # ----------------------------------------------------------------------------
-ELETROBRAS_BODY_FONT = "Arial"
-ELETROBRAS_BODY_SIZE_PT = 11
+# DM Sans is not bundled with Windows/Office; viewers without it installed see
+# a substituted fallback font (python-docx cannot embed fonts).
+BODY_FONT_NAME = "DM Sans"
+BODY_FONT_SIZE_PT = 14
 
 
 def _clear_autospacing(style):
@@ -399,8 +401,38 @@ def _clear_run_color(style):
         rPr.remove(color)
 
 
+def apply_body_font(document):
+    """Set the body typeface/size on the document's base styles.
+
+    Mutates Normal, Normal (Web) and the template heading style in place so
+    every paragraph that inherits from them renders in the body font. Heading
+    keeps the template's size/bold/numbering — only the typeface changes.
+    """
+    styles = document.styles
+
+    try:
+        normal = styles["Normal"]
+        normal.font.name = BODY_FONT_NAME
+        normal.font.size = Pt(BODY_FONT_SIZE_PT)
+    except KeyError:
+        pass
+
+    try:
+        body = styles["Normal (Web)"]
+        body.font.name = BODY_FONT_NAME
+        body.font.size = Pt(BODY_FONT_SIZE_PT)
+    except KeyError:
+        pass
+
+    try:
+        heading = styles[TEMPLATE_HEADING_STYLE]
+        heading.font.name = BODY_FONT_NAME
+    except KeyError:
+        pass
+
+
 def apply_eletrobras_formatting_compound(document):
-    """Mutate a template-backed Document to match the Eletrobras/Biocev guide.
+    """Mutate a template-backed Document to match the institutional layout.
 
     Only called from render_report_compound_docx, and only when used_template
     is True (the fallback Document() path relies on python-docx defaults that
@@ -420,22 +452,13 @@ def apply_eletrobras_formatting_compound(document):
         # Footer distance deliberately left at template default (user asked
         # us not to touch the footer area).
 
-    styles = document.styles
-
-    # --- 2. Normal: Arial 11 (was 11.5) ---
-    try:
-        normal = styles["Normal"]
-        normal.font.name = ELETROBRAS_BODY_FONT
-        normal.font.size = Pt(ELETROBRAS_BODY_SIZE_PT)
-    except KeyError:
-        pass
+    # --- 2. Body font on Normal / Normal (Web) / heading ---
+    apply_body_font(document)
 
     # --- 3. NormalWeb (body paragraphs via _add_body_paragraph) ---
-    # Arial 11, justified, 12pt before/after, single line spacing.
+    # Justified, 12pt before/after, single line spacing.
     try:
-        body = styles["Normal (Web)"]
-        body.font.name = ELETROBRAS_BODY_FONT
-        body.font.size = Pt(ELETROBRAS_BODY_SIZE_PT)
+        body = document.styles["Normal (Web)"]
         body.font.italic = False
         fmt = body.paragraph_format
         fmt.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
@@ -893,6 +916,8 @@ def render_project_dossier_docx(context, output_path, image_loader):
         job.get("updatedAt") or job.get("createdAt"),
         metadata["revision"],
     )
+    if used_template:
+        apply_body_font(document)
     if not used_template:
         add_cover(
             document,

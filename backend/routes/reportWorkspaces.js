@@ -27,6 +27,7 @@ const {
     mediaAssetRepository,
     workspaceMemberRepository,
     userRepository,
+    inspectionRepository,
 } = require('../repositories');
 const { processKmzImport } = require('../utils/kmzProcessor');
 const { removeStoredMedia } = require('../utils/mediaStorage');
@@ -66,6 +67,17 @@ function normalizeWorkspacePayload(data = {}, fallback = {}) {
         importedAt: normalizeText(data.importedAt) || normalizeText(fallback.importedAt),
         lastGeneratedAt: normalizeText(data.lastGeneratedAt) || normalizeText(fallback.lastGeneratedAt),
     };
+}
+
+// Integridade referencial do vinculo workspace <-> vistoria. A migration
+// 0009_workspace_inspection_link.sql documenta que, como `inspections` usa
+// document-store (JSONB, sem FK fisica), a checagem acontece aqui no handler
+// antes de aceitar um inspection_id no payload. Retorna true quando o id e
+// null/vazio (sem vinculo, sempre permitido) ou quando a vistoria existe.
+async function inspectionExists(inspectionId) {
+    if (!inspectionId) return true;
+    const inspection = await inspectionRepository.getById(inspectionId);
+    return Boolean(inspection);
 }
 
 function normalizePhoto(photo = {}, workspaceId = '', fallbackProjectId = '') {
@@ -283,6 +295,13 @@ router.get('/:id', verifyToken, requireActiveUser, requireWorkspaceRead, asyncHa
 router.post('/', verifyToken, requireEditor, validateBody(workspaceCreateSchema), asyncHandler(async (req, res) => {
     const { data, meta = {} } = req.body;
     const payload = normalizeWorkspacePayload(data);
+
+    // Bloqueia referencia pendente: inspectionId nao-null tem que apontar para
+    // uma vistoria existente. null/ausente segue permitido (sem vinculo).
+    if (!(await inspectionExists(payload.inspectionId))) {
+        return res.status(400).json({ status: 'error', message: 'Vistoria nao encontrada' });
+    }
+
     const saved = await reportWorkspaceRepository.save({
         ...payload,
         updatedAt: new Date().toISOString(),
@@ -316,6 +335,15 @@ router.put('/:id', verifyToken, requireEditor, requireWorkspaceWrite, validateBo
     const { data, meta = {} } = req.body;
     const current = await reportWorkspaceRepository.getById(req.params.id) || {};
     const payload = normalizeWorkspacePayload({ ...data, id: req.params.id }, current);
+
+    // Mesma validacao referencial do POST, mas so quando inspectionId vem
+    // explicitamente nesta requisicao — evita re-validar (e potencialmente
+    // bloquear) um vinculo preexistente em updates de outros campos. null
+    // explicito = desclassificar, sempre permitido.
+    if (data.inspectionId !== undefined && !(await inspectionExists(payload.inspectionId))) {
+        return res.status(400).json({ status: 'error', message: 'Vistoria nao encontrada' });
+    }
+
     const saved = await reportWorkspaceRepository.save({
         ...payload,
         updatedAt: new Date().toISOString(),
@@ -361,7 +389,33 @@ router.post('/:id/restore', verifyToken, requireEditor, requireWorkspaceWrite, a
 });
 
 router.delete('/:id', verifyToken, requireEditor, requireWorkspaceWrite, asyncHandler(async (req, res) => {
-    await reportWorkspaceRepository.remove(req.params.id);
+    const workspaceId = normalizeText(req.params.id);
+
+    // A FK report_photos.workspace_id e ON DELETE CASCADE: o banco remove as linhas
+    // das fotos junto com o workspace, mas nao os objetos no S3. Limpamos o storage
+    // explicitamente ANTES (mesmo padrao do esvaziar lixeira), deixando o cascade
+    // apenas como rede de seguranca.
+    const removedPhotos = await reportPhotoRepository.removeAllByWorkspace(workspaceId);
+    const mediaAssetIds = removedPhotos.map((photo) => photo.mediaAssetId).filter(Boolean);
+    if (mediaAssetIds.length > 0) {
+        const assets = await mediaAssetRepository.listByIds(mediaAssetIds);
+        const removedAssetIds = [];
+        for (const asset of assets) {
+            try {
+                await removeStoredMedia(asset);
+                removedAssetIds.push(asset.id);
+            } catch (cleanupError) {
+                console.error('[report-workspaces API] Falha ao limpar storage ao deletar workspace', asset.id, cleanupError);
+            }
+        }
+        try {
+            await mediaAssetRepository.removeByIds(removedAssetIds);
+        } catch (cleanupError) {
+            console.error('[report-workspaces API] Falha ao remover media assets em lote ao deletar workspace', cleanupError);
+        }
+    }
+
+    await reportWorkspaceRepository.remove(workspaceId);
     return res.status(204).send();
 }));
 
@@ -384,6 +438,13 @@ router.post('/:id/import', verifyToken, requireEditor, requireWorkspaceWrite, as
             updatedAt: new Date().toISOString(),
             updatedBy: meta.updatedBy || req.user?.email || 'API',
         };
+
+        // Mesma integridade referencial do POST/PUT: so quando o import traz
+        // inspectionId explicito no payload (o fluxo comum nao traz e mantem o
+        // vinculo preexistente). null/ausente segue permitido.
+        if (data.inspectionId !== undefined && !(await inspectionExists(nextData.inspectionId))) {
+            return res.status(400).json({ status: 'error', message: 'Vistoria nao encontrada' });
+        }
 
         const saved = await reportWorkspaceRepository.save(nextData, { merge: true });
         const workspaceImportId = `WIM-${crypto.randomUUID()}`;
@@ -598,17 +659,28 @@ router.delete('/:id/photos/trash', verifyToken, requireEditor, requireWorkspaceW
 
         const removed = await reportPhotoRepository.removeAllTrashed(workspaceId);
 
-        for (const item of removed) {
-            if (item.mediaAssetId) {
+        // Evita N+1: busca todos os assets de uma vez e deleta em lote. O unico
+        // trabalho por item que sobra e o I/O de storage (removeStoredMedia), que
+        // nao da pra batchear no S3. As linhas do banco saem em 1 query.
+        const mediaAssetIds = removed
+            .map((item) => item.mediaAssetId)
+            .filter(Boolean);
+
+        if (mediaAssetIds.length > 0) {
+            const assets = await mediaAssetRepository.listByIds(mediaAssetIds);
+            const removedAssetIds = [];
+            for (const asset of assets) {
                 try {
-                    const asset = await mediaAssetRepository.getById(item.mediaAssetId);
-                    if (asset) {
-                        await removeStoredMedia(asset);
-                        await mediaAssetRepository.remove(item.mediaAssetId);
-                    }
+                    await removeStoredMedia(asset);
+                    removedAssetIds.push(asset.id);
                 } catch (cleanupError) {
-                    console.error('[report-workspaces API] Falha ao limpar media asset', item.mediaAssetId, cleanupError);
+                    console.error('[report-workspaces API] Falha ao limpar storage do media asset', asset.id, cleanupError);
                 }
+            }
+            try {
+                await mediaAssetRepository.removeByIds(removedAssetIds);
+            } catch (cleanupError) {
+                console.error('[report-workspaces API] Falha ao remover media assets em lote', cleanupError);
             }
         }
 
@@ -1132,22 +1204,17 @@ router.delete('/:id/members/:userId', verifyToken, requireEditor, requireWorkspa
             return res.status(400).json({ status: 'error', message: 'userId obrigatorio.' });
         }
 
-        const member = await workspaceMemberRepository.getMember(workspaceId, userId);
-        if (!member) {
+        const outcome = await workspaceMemberRepository.removeMemberGuardingLastOwner(workspaceId, userId);
+        if (outcome.notFound) {
             return res.status(404).json({ status: 'error', message: 'Membro nao encontrado neste workspace.' });
         }
-
-        if (member.role === 'owner') {
-            const ownerCount = await workspaceMemberRepository.countOwners(workspaceId);
-            if (ownerCount <= 1) {
-                return res.status(400).json({
-                    status: 'error',
-                    message: 'Nao e possivel remover o ultimo owner do workspace. Promova outro usuario antes.',
-                });
-            }
+        if (outcome.lastOwner) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'Nao e possivel remover o ultimo owner do workspace. Promova outro usuario antes.',
+            });
         }
 
-        await workspaceMemberRepository.removeMember(workspaceId, userId);
         return res.status(204).send();
     } catch (error) {
         console.error('[report-workspaces API] Error DELETE /:id/members/:userId:', error);

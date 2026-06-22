@@ -174,7 +174,7 @@ Adicionado em [0009_workspace_inspection_link.sql](../backend/migrations/0009_wo
 
 Workspaces podem opcionalmente referenciar uma `inspection` especifica via `report_workspaces.inspection_id`. Isso permite distinguir campanhas re-entrantes no mesmo empreendimento (ex.: mesmo projeto vistoriado 3 vezes no ano gera 3 workspaces, um por vistoria).
 
-- Nao ha FK fisica (a tabela `inspections` usa document-store JSONB). A integridade e validada no route handler antes de aceitar um `inspection_id` no payload.
+- Nao ha FK fisica (a tabela `inspections` usa document-store JSONB). A integridade e validada no route handler ([backend/routes/reportWorkspaces.js](../backend/routes/reportWorkspaces.js), helper `inspectionExists`) antes de aceitar um `inspection_id` no payload: POST `/api/report-workspaces` (sempre), PUT `/api/report-workspaces/:id` e POST `/api/report-workspaces/:id/import` (quando o payload traz `inspectionId`) respondem **400 "Vistoria nao encontrada"** se o `inspection_id` nao-null nao corresponder a nenhuma vistoria. `inspection_id` `null`/ausente continua permitido.
 - Workspaces antigos, criados antes desta migracao, ficam com `inspection_id = NULL`. A UI oferece um modal global para classificacao retroativa: [UnclassifiedWorkspacesModal.jsx](../src/features/reports/components/UnclassifiedWorkspacesModal.jsx).
 - Esse modal **dispara globalmente**, independente do filtro ativo na aba de workspaces — garantindo que o usuario veja todos os pendentes de classificacao, nao apenas os do filtro atual.
 

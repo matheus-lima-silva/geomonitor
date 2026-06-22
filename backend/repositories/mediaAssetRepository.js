@@ -47,14 +47,18 @@ async function getById(id) {
     return result.rows.length > 0 ? hydrateRow(result.rows[0]) : null;
 }
 
-async function listByIds(ids) {
-    const normalizedIds = (Array.isArray(ids) ? ids : [])
-        .map((value) => normalizeText(value))
+function normalizeIdList(ids) {
+    return (Array.isArray(ids) ? ids : [])
+        .map((id) => normalizeText(id))
         .filter(Boolean);
+}
+
+async function listByIds(ids) {
+    const normalizedIds = normalizeIdList(ids);
     if (normalizedIds.length === 0) return [];
 
     const result = await postgresStore.query(
-        `${MEDIA_SELECT} WHERE id = ANY($1)`,
+        `${MEDIA_SELECT} WHERE id = ANY($1::text[])`,
         [normalizedIds],
     );
     return result.rows.map((row) => hydrateRow(row));
@@ -183,6 +187,16 @@ async function remove(id) {
     await postgresStore.query('DELETE FROM media_assets WHERE id = $1', [normalizedId]);
 }
 
+async function removeByIds(ids) {
+    const normalizedIds = normalizeIdList(ids);
+    if (normalizedIds.length === 0) return;
+
+    await postgresStore.query(
+        'DELETE FROM media_assets WHERE id = ANY($1::text[])',
+        [normalizedIds],
+    );
+}
+
 module.exports = {
     list,
     getById,
@@ -191,6 +205,7 @@ module.exports = {
     listByPurpose,
     save,
     remove,
+    removeByIds,
     markReady,
     markFailed,
 };

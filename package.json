@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:relat": "vite --config apps/relat/vite.config.js",
     "build": "vite build",
+    "build:relat": "vite build --config apps/relat/vite.config.js",
     "preview": "vite preview",
     "test": "vitest run",
     "test:ci:strict": "npm run test",
