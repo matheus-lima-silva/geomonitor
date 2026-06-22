@@ -47,6 +47,19 @@ async function getById(id) {
     return result.rows.length > 0 ? hydrateRow(result.rows[0]) : null;
 }
 
+async function listByIds(ids) {
+    const normalizedIds = (Array.isArray(ids) ? ids : [])
+        .map((value) => normalizeText(value))
+        .filter(Boolean);
+    if (normalizedIds.length === 0) return [];
+
+    const result = await postgresStore.query(
+        `${MEDIA_SELECT} WHERE id = ANY($1)`,
+        [normalizedIds],
+    );
+    return result.rows.map((row) => hydrateRow(row));
+}
+
 async function listByLinkedResource(resourceType, resourceId) {
     const normalizedType = normalizeText(resourceType);
     const normalizedId = normalizeText(resourceId);
@@ -173,6 +186,7 @@ async function remove(id) {
 module.exports = {
     list,
     getById,
+    listByIds,
     listByLinkedResource,
     listByPurpose,
     save,

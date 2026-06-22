@@ -325,6 +325,27 @@ export function triggerBlobDownload(filename, blob) {
   return true;
 }
 
+// Baixa navegando direto ate a URL (sem materializar blob em memoria). Para URL
+// remota/cross-origin o atributo `download` e ignorado pelo browser por seguranca;
+// o nome do arquivo vem do header Content-Disposition que a URL assinada carrega
+// (ResponseContentDisposition definido em createSignedAccessUrl no backend).
+export function triggerUrlDownload(filename, url) {
+  if (typeof document === 'undefined') {
+    return false;
+  }
+  const href = String(url || '').trim();
+  if (!href) return false;
+
+  const link = document.createElement('a');
+  link.href = href;
+  link.download = String(filename || '');
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  return true;
+}
+
 export function sanitizeDownloadName(value = '', fallback = 'documento.docx') {
   const normalized = String(value || '')
     .trim()
@@ -343,6 +364,63 @@ export function buildCompoundDownloadFileName(compound = {}) {
 
 export function buildWorkspaceKmzDownloadFileName(workspace = {}, requestEntry = {}) {
   return sanitizeDownloadName(`workspace-${workspace.id || 'workspace'}-${requestEntry.token || 'fotos'}.kmz`, 'workspace-fotos.kmz');
+}
+
+// Resumo legivel do resultado de um import de KMZ organizado. Cobre tanto o caso
+// de re-importacao (fotos existentes que receberam torre, sem reupload) quanto o
+// de KMZ externo (fotos novas criadas).
+export function buildKmzImportSummaryText(summary = {}) {
+  const n = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+  const created = n(summary.photosCreated);
+  const updated = n(summary.photosUpdated);
+  const towersAssigned = n(summary.towersAssigned);
+  const skipped = n(summary.photosSkipped);
+
+  const parts = [];
+  if (updated > 0) {
+    const torres = towersAssigned > 0 ? ` (${towersAssigned} com torre)` : '';
+    parts.push(`${updated} foto(s) atualizada(s)${torres}`);
+  }
+  if (created > 0) parts.push(`${created} foto(s) nova(s)`);
+  if (skipped > 0) parts.push(`${skipped} sem mudanca`);
+
+  if (parts.length === 0) {
+    return 'Nenhuma foto foi alterada pelo KMZ importado.';
+  }
+  return `KMZ processado: ${parts.join(', ')}.`;
+}
+
+// Estado da barra de progresso da GERACAO de KMZ (espelha o acompanhamento de
+// upload). Le `statusExecucao` + `progress` ({ processed, total }) que o worker
+// reporta durante a renderizacao e o polling traz de volta. Retorna:
+//   { active, indeterminate, percent, label }.
+// - active=false quando ja ha output (pronto) ou o status nao e pendente.
+// - indeterminate=true enquanto na fila / sem total (sem fotos contadas ainda).
+export function buildKmzGenerationProgress(requestEntry = {}) {
+  const status = String(requestEntry?.statusExecucao || '').toLowerCase();
+  const pending = status.includes('queued') || status.includes('process');
+  if (!pending || requestEntry?.outputKmzMediaId) {
+    return { active: false, indeterminate: false, percent: 0, label: '' };
+  }
+
+  const progress = requestEntry?.progress || {};
+  const total = Math.max(0, Math.trunc(Number(progress.total) || 0));
+  const processed = Math.max(0, Math.trunc(Number(progress.processed) || 0));
+
+  if (status.includes('queued') || total <= 0) {
+    return { active: true, indeterminate: true, percent: 0, label: 'KMZ na fila...' };
+  }
+
+  const percent = Math.min(100, Math.round((Math.min(processed, total) / total) * 100));
+  return {
+    active: true,
+    indeterminate: false,
+    percent,
+    label: `Gerando KMZ... ${Math.min(processed, total)}/${total} fotos (${percent}%)`,
+  };
 }
 
 // ── Dossie ───────────────────────────────────────────────────────────────────

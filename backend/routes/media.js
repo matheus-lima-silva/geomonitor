@@ -203,6 +203,7 @@ router.get('/:id/access-url', verifyToken, requireActiveUser, async (req, res) =
             ? await createSignedAccessUrl({
                 storageKey: asset.storageKey,
                 internal: req.user?.service === 'worker',
+                downloadFileName: asset.fileName,
             })
             : {
                 href: `${resolveApiBaseUrl(req)}/media/${req.params.id}/content`,

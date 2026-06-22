@@ -60,6 +60,8 @@ Geracao/verificacao em [utils/jwt.js](utils/jwt.js); credenciais em `auth_creden
 
 Nunca invocar SDK S3 diretamente da rota. Use [utils/mediaStorage.js](utils/mediaStorage.js) (signed URLs, upload/download, `MEDIA_BACKEND=local|tigris`). Valide uploads com [utils/uploadValidation.js](utils/uploadValidation.js) (tipos MIME + tamanho).
 
+`createSignedAccessUrl({ storageKey, downloadFileName })`: passe `downloadFileName` quando a URL for para **download** direto (browser navega ate ela em vez de baixar via blob). Isso embute `ResponseContentDisposition: attachment; filename="..."` na URL assinada, preservando o nome amigavel mesmo indo direto ao MinIO. A rota `/api/media/:id/access-url` ja passa `asset.fileName`. Necessario para arquivos grandes (ex.: KMZ full-res de centenas de MB) que nao cabem em memoria como blob — ver fluxo de download em [../docs/modulo-reports.md](../docs/modulo-reports.md).
+
 Retencao de fotos da lixeira/archive: [utils/retentionConfig.js](utils/retentionConfig.js).
 
 ### 9a. Endpoint interno vs publico (MinIO/Tailscale)
@@ -173,4 +175,4 @@ CI nao roda `test:pbt` por enquanto — sera adicionado em follow-up junto com o
 
 Ao introduzir novo util em `utils/`, novo middleware, nova convencao ou mudar contrato de envelope, **atualizar este arquivo no mesmo PR** e bumpar a data do rodape. Revisar integralmente a cada trimestre (audit comparando com estado do codigo). Ver secao "Manutencao dos documentos" do plano arquitetural em `.claude/plans/jazzy-tinkering-cocke.md`.
 
-> Ultima revisao: 2026-05-26.
+> Ultima revisao: 2026-06-22.

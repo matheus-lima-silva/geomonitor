@@ -41,6 +41,11 @@ def read_kmz_entry(kmz_bytes, entry_name):
         return kmz_zip.read(entry_name)
 
 
+def read_kmz_namelist(kmz_bytes):
+    with zipfile.ZipFile(io.BytesIO(kmz_bytes)) as kmz_zip:
+        return kmz_zip.namelist()
+
+
 def read_metadata_header(docx_bytes):
     with zipfile.ZipFile(io.BytesIO(docx_bytes)) as docx_zip:
         for name in sorted(docx_zip.namelist()):
@@ -165,6 +170,7 @@ class StubClient:
         self.created_media = []
         self.uploaded_media = []
         self.completed_media = []
+        self.progress_reports = []
 
     def is_configured(self):
         return self._configured
@@ -205,6 +211,9 @@ class StubClient:
 
     def complete_media_upload(self, media_id, stored_size_bytes=None, sha256=""):
         self.completed_media.append((media_id, stored_size_bytes, sha256))
+
+    def report_job_progress(self, job_id, processed, total, phase="rendering"):
+        self.progress_reports.append((job_id, processed, total, phase))
 
     def mark_complete(self, job_id, output_docx_media_id=None, output_kmz_media_id=None):
         self.completed.append((job_id, output_docx_media_id, output_kmz_media_id))
@@ -375,8 +384,123 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertIn("Projeto 1 - Workspace 1", kml_text)
         self.assertIn("Linha Norte C1", kml_text)
         self.assertIn("Foto KMZ 1", kml_text)
-        self.assertIn("files/Foto_KMZ_1.png", kml_text)
-        self.assertEqual(read_kmz_entry(uploaded_kmz, "files/Foto_KMZ_1.png"), SAMPLE_PNG_BYTES)
+        # Nome de arquivo estavel por photoId + ExtendedData garantem o round-trip
+        # de organizacao (re-import casa a foto e atribui torre sem novo upload).
+        self.assertIn("files/RPH-KMZ-1.jpg", kml_text)
+        self.assertIn('<Data name="photoId"><value>RPH-KMZ-1</value></Data>', kml_text)
+        self.assertIn('<Data name="mediaAssetId"><value>MED-KMZ-PHOTO-1</value></Data>', kml_text)
+        self.assertEqual(read_kmz_entry(uploaded_kmz, "files/RPH-KMZ-1.jpg"), SAMPLE_PNG_BYTES)
+
+        # Progresso reportado durante a renderizacao (estilo barra de upload):
+        # ping inicial (0/total) e ping final (total/total).
+        self.assertTrue(client.progress_reports)
+        self.assertEqual(client.progress_reports[0], ("JOB-KMZ-1", 0, 1, "rendering"))
+        self.assertEqual(client.progress_reports[-1], ("JOB-KMZ-1", 1, 1, "rendering"))
+
+    def test_download_media_content_retries_then_succeeds(self):
+        import os
+        from urllib import error as urllib_error
+
+        calls = {"n": 0}
+
+        class BinaryResponse:
+            status = 200
+            headers = {"Content-Type": "image/png"}
+
+            def read(self):
+                return SAMPLE_PNG_BYTES
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        def fake_urlopen(req, timeout=None):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise urllib_error.URLError("instabilidade transitoria")
+            return BinaryResponse()
+
+        os.environ["WORKER_DOWNLOAD_MAX_ATTEMPTS"] = "3"
+        os.environ["WORKER_DOWNLOAD_BACKOFF_BASE"] = "0"
+        try:
+            client = WorkerClient(base_url="https://api.example.com", token="t", urlopen=fake_urlopen)
+            result = client.download_media_content("MED-1")
+        finally:
+            os.environ.pop("WORKER_DOWNLOAD_MAX_ATTEMPTS", None)
+            os.environ.pop("WORKER_DOWNLOAD_BACKOFF_BASE", None)
+
+        self.assertEqual(calls["n"], 3)
+        self.assertEqual(result["buffer"], SAMPLE_PNG_BYTES)
+
+    def test_download_media_content_raises_after_exhausting_retries(self):
+        import os
+        from urllib import error as urllib_error
+
+        calls = {"n": 0}
+
+        def fake_urlopen(req, timeout=None):
+            calls["n"] += 1
+            raise urllib_error.URLError("sempre indisponivel")
+
+        os.environ["WORKER_DOWNLOAD_MAX_ATTEMPTS"] = "2"
+        os.environ["WORKER_DOWNLOAD_BACKOFF_BASE"] = "0"
+        try:
+            client = WorkerClient(base_url="https://api.example.com", token="t", urlopen=fake_urlopen)
+            with self.assertRaises(Exception):
+                client.download_media_content("MED-1")
+        finally:
+            os.environ.pop("WORKER_DOWNLOAD_MAX_ATTEMPTS", None)
+            os.environ.pop("WORKER_DOWNLOAD_BACKOFF_BASE", None)
+
+        self.assertEqual(calls["n"], 2)
+
+    def test_run_once_fails_workspace_kmz_when_all_downloads_fail(self):
+        job = {"id": "JOB-KMZ-FAIL", "kind": "workspace_kmz"}
+        client = StubClient(
+            configured=True,
+            job=job,
+            contexts={"JOB-KMZ-FAIL": build_workspace_kmz_context()},
+            download_fail_media_ids={"MED-KMZ-PHOTO-1"},
+        )
+        runtime = WorkerRuntime(client=client)
+
+        result = runtime.run_once()
+
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(client.failed[0][0], "JOB-KMZ-FAIL")
+        # Mensagem distingue "todas falharam no download" de "sem fotos com media".
+        self.assertIn("Todas as fotos falharam", client.failed[0][1])
+
+    def test_run_once_completes_workspace_kmz_with_partial_download_failure(self):
+        context = build_workspace_kmz_context()
+        context["renderModel"]["photos"].append({
+            "id": "RPH-KMZ-2",
+            "caption": "Foto KMZ 2",
+            "workspaceId": "RW-1",
+            "towerId": "T-02",
+            "includeInReport": True,
+            "mediaAssetId": "MED-KMZ-PHOTO-2",
+        })
+        job = {"id": "JOB-KMZ-PARTIAL", "kind": "workspace_kmz"}
+        client = StubClient(
+            configured=True,
+            job=job,
+            contexts={"JOB-KMZ-PARTIAL": context},
+            download_fail_media_ids={"MED-KMZ-PHOTO-2"},
+        )
+        runtime = WorkerRuntime(client=client)
+
+        result = runtime.run_once()
+
+        self.assertEqual(result["status"], "completed")
+        uploaded_kmz = client.uploaded_media[0][1]
+        names = read_kmz_namelist(uploaded_kmz)
+        self.assertIn("files/RPH-KMZ-1.jpg", names)
+        self.assertNotIn("files/RPH-KMZ-2.jpg", names)
+        readme = read_kmz_entry(uploaded_kmz, "README.txt").decode("utf-8")
+        self.assertIn("RPH-KMZ-2", readme)
 
     def test_run_once_marks_job_as_failed_when_upload_breaks(self):
         job = {"id": "JOB-UPLOAD-FAIL", "kind": "project_dossier"}

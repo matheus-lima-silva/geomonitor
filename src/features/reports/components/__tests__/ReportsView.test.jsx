@@ -6,7 +6,7 @@ import { getWorkspaceKmzRequest, listReportWorkspacePhotos, requestWorkspaceKmz,
 import { downloadProjectPhotoExport, listProjectPhotos, requestProjectPhotoExport } from '../../../../services/projectPhotoLibraryService';
 import { createProjectDossier, listProjectDossiers } from '../../../../services/projectDossierService';
 import { addWorkspaceToReportCompound, createReportCompound, generateReportCompound, listReportCompounds, reorderReportCompound, runReportCompoundPreflight, updateReportCompound } from '../../../../services/reportCompoundService';
-import { downloadMediaAsset } from '../../../../services/mediaService';
+import { downloadMediaAsset, resolveMediaDownload } from '../../../../services/mediaService';
 import { listProfissoes, listSignatarios } from '../../../../services/userService';
 
 const mockData = vi.hoisted(() => ({
@@ -116,6 +116,11 @@ vi.mock('../../../../services/mediaService', () => ({
   uploadMediaBinary: vi.fn().mockResolvedValue({}),
   completeMediaUpload: vi.fn().mockResolvedValue({ data: { id: 'MED-1' } }),
   downloadMediaAsset: vi.fn().mockResolvedValue({ blob: new Blob(['docx']) }),
+  resolveMediaDownload: vi.fn().mockResolvedValue({
+    accessUrl: 'https://geo.lima.rio.br/geomonitor-media/kmz?X-Amz-Signature=abc',
+    backend: 'tigris',
+    isRemote: true,
+  }),
 }));
 
 vi.mock('../../../../services/userService', () => ({
@@ -581,9 +586,13 @@ describe('ReportsView', () => {
 
     await act(async () => {
       downloadButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
     });
 
-    expect(downloadMediaAsset).toHaveBeenCalledWith('MED-KMZ-1');
+    // KMZ full-res e remoto (tigris): resolve a URL assinada e navega direto pro
+    // disco, sem materializar blob (downloadMediaAsset).
+    expect(resolveMediaDownload).toHaveBeenCalledWith('MED-KMZ-1');
+    expect(downloadMediaAsset).not.toHaveBeenCalled();
   });
 
   it('gera miniatura quando existe blob valido mesmo sem content-type de imagem', async () => {

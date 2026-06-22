@@ -482,11 +482,11 @@ Tabela auxiliar: `workspace_kmz_requests` (requests efemeros de export). `media_
 
 | Metodo | Rota | Permissao | Descricao |
 |---|---|---|---|
-| POST | `/api/report-workspaces/:id/kmz/process` | `requireWorkspaceWrite` | Processa KMZ enviado como media asset: parseia KML, extrai fotos, infere torres |
+| POST | `/api/report-workspaces/:id/kmz/process` | `requireWorkspaceWrite` | Processa KMZ organizado: parseia KML, casa por identidade (`photoId`/`mediaAssetId`/`sha256`) e **atualiza a torre de fotos existentes** (round-trip), ou cria fotos novas a partir de um KMZ externo |
 | POST | `/api/report-workspaces/:id/kmz` | `requireWorkspaceWrite` | Solicita export KMZ assincrono (resposta 202 + token) |
 | GET | `/api/report-workspaces/:id/kmz/:token` | `requireWorkspaceRead` | Consulta status do export |
 
-Resposta de `POST .../kmz/process`:
+Resposta de `POST .../kmz/process` — `summary` distingue fotos **criadas** (KMZ externo) de fotos **atualizadas** (round-trip de organizacao, sem reupload):
 
 ```json
 {
@@ -495,8 +495,10 @@ Resposta de `POST .../kmz/process`:
     "workspaceId": "RW-xxx",
     "summary": {
       "photosCreated": 5,
+      "photosUpdated": 12,
       "photosSkipped": 1,
       "towersInferred": 4,
+      "towersAssigned": 12,
       "pendingLinkage": 1,
       "placemarkCount": 10,
       "warnings": []
@@ -504,6 +506,9 @@ Resposta de `POST .../kmz/process`:
   }
 }
 ```
+
+- `photosUpdated`: fotos **ja existentes** que tiveram a torre (re)atribuida a partir da pasta `Torre N` em que o usuario organizou o placemark no Google Earth — sem novo upload.
+- `towersAssigned`: subconjunto de `photosUpdated` que estava **sem torre** e passou a ter (`towerSource = 'kmz_organized'`).
 
 ### Membros
 
@@ -571,6 +576,7 @@ Tabela Postgres: `report_jobs`. Fila de jobs assincronos consumidos pelo worker 
 | POST | `/api/report-jobs/reclaim-stuck` | `requireEditorOrWorker` | Recupera jobs presos (threshold default: 30 min) |
 | PUT | `/api/report-jobs/:id/complete` | `requireEditorOrWorker` | Marca job `ready` com artefatos (`outputDocxMediaId`, `outputKmzMediaId`) |
 | PUT | `/api/report-jobs/:id/fail` | `requireEditorOrWorker` | Marca job `failed` com `errorLog` |
+| PUT | `/api/report-jobs/:id/progress` | `requireEditorOrWorker` | Ping de progresso (worker): `{ data: { processed, total, phase } }`. So `workspace_kmz` — grava `progress` no `workspace_kmz_request` (nao muda `statusExecucao`). Rota de transporte (resposta minima); o polling do frontend desenha a barra de geracao |
 
 ---
 

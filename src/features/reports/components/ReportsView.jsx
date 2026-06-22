@@ -27,7 +27,7 @@ import {
   trashReportCompound,
   updateReportCompound,
 } from '../../../services/reportCompoundService';
-import { completeMediaUpload, createMediaUpload, downloadMediaAsset, uploadMediaBinary } from '../../../services/mediaService';
+import { completeMediaUpload, createMediaUpload, downloadMediaAsset, resolveMediaDownload, uploadMediaBinary } from '../../../services/mediaService';
 import { getAuthToken } from '../../../utils/serviceFactory';
 import { clearImportState, fingerprintFile, readImportState, writeImportState } from '../utils/workspaceImportState';
 import { getProjectTowerList } from '../../../utils/getProjectTowerList';
@@ -63,6 +63,7 @@ import {
   buildDefaultCaption,
   buildDefaultDossierScope,
   buildDossierDownloadFileName,
+  buildKmzImportSummaryText,
   buildProjectPhotoFilters,
   buildSignatarySnapshot,
   buildWorkspaceKmzDownloadFileName,
@@ -76,6 +77,7 @@ import {
   sortPhotosByMode,
   sanitizeDownloadName,
   triggerBlobDownload,
+  triggerUrlDownload,
 } from '../utils/reportUtils';
 import { parseCaptionsFile } from '../utils/captionsIO';
 import BibliotecaTab from './BibliotecaTab';
@@ -714,12 +716,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
         const processResult = await processWorkspaceKmz(workspace.id, { mediaAssetId: uploaded.mediaAssetId }, { updatedBy: userEmail || 'web' });
         const summary = processResult?.data?.summary || {};
         if (Array.isArray(summary.warnings)) warnings.push(...summary.warnings);
-        const parts = [];
-        if (summary.photosCreated > 0) parts.push(`${summary.photosCreated} foto(s) importada(s)`);
-        if (summary.towersInferred > 0) parts.push(`${summary.towersInferred} torre(s) inferida(s)`);
-        if (summary.pendingLinkage > 0) parts.push(`${summary.pendingLinkage} pendente(s)`);
-        if (summary.photosSkipped > 0) parts.push(`${summary.photosSkipped} duplicada(s) ignorada(s)`);
-        showToast(parts.length > 0 ? `KMZ processado: ${parts.join(', ')}.` : 'KMZ processado (nenhuma foto encontrada).', 'success');
+        showToast(buildKmzImportSummaryText(summary), 'success');
       } else {
         // Dedupe: filtrar fotos ja enviadas em tentativas anteriores desse workspace.
         const previousState = readImportState(workspace.id) || { completedFingerprints: [], failedFingerprints: [] };
@@ -1152,10 +1149,19 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
   async function handleDownloadWorkspaceKmz(requestEntry) {
     const mediaId = String(requestEntry?.outputKmzMediaId || '').trim();
     if (!mediaId || !selectedWorkspace?.id) { showToast('O KMZ ainda nao esta pronto para download.', 'error'); return; }
+    const fileName = buildWorkspaceKmzDownloadFileName(selectedWorkspace, requestEntry);
     try {
       setBusy(`download:${mediaId}`);
-      const result = await downloadMediaAsset(mediaId);
-      triggerBlobDownload(buildWorkspaceKmzDownloadFileName(selectedWorkspace, requestEntry), result.blob);
+      // O KMZ com fotos full-res pode ter centenas de MB. Para asset remoto
+      // (MinIO/S3) navegamos direto ate a URL assinada para o browser streamar
+      // pro disco, evitando estourar a memoria da aba com um blob gigante.
+      const { accessUrl, isRemote } = await resolveMediaDownload(mediaId);
+      if (isRemote) {
+        triggerUrlDownload(fileName, accessUrl);
+      } else {
+        const result = await downloadMediaAsset(mediaId);
+        triggerBlobDownload(fileName, result.blob);
+      }
     } catch (error) {
       showToast(error?.message || 'Erro ao baixar KMZ do workspace.', 'error');
     } finally {

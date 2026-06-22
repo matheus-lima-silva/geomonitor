@@ -11,6 +11,63 @@ function buildDefaultCaption(fileName = '') {
     return String(fileName || '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
 }
 
+function fileStem(name = '') {
+    const base = String(name || '').split(/[\\/]/).pop() || '';
+    return base.replace(/\.[^.]+$/, '');
+}
+
+// Resolve a torre de um placemark/imagem por prioridade:
+//   1. pasta organizada pelo usuario (folderPath, ex.: "Torre 15") — sinal do round-trip;
+//   2. caminho da imagem dentro do zip (KMZ externo com pastas Torre N/);
+//   3. nome do placemark.
+function resolveTower(entry, placemark) {
+    if (placemark && placemark.folderPath) {
+        const fromFolder = findTowerIdFromSource(placemark.folderPath);
+        if (fromFolder) return { towerId: fromFolder, towerSource: 'kmz_folder' };
+    }
+    const fromPath = inferTowerIdFromPath(entry.internalPath);
+    if (fromPath) return { towerId: fromPath, towerSource: 'kmz_folder' };
+    if (placemark && placemark.name) {
+        const fromName = findTowerIdFromSource(placemark.name);
+        if (fromName) return { towerId: fromName, towerSource: 'kmz_placemark' };
+    }
+    return { towerId: '', towerSource: '' };
+}
+
+async function buildExistingPhotoIndex(workspaceId, existingPhotos, mediaAssetRepository) {
+    const byId = new Map();
+    const byMediaAssetId = new Map();
+    const bySha256 = new Map();
+
+    for (const photo of existingPhotos) {
+        const id = normalizeText(photo.id);
+        const mediaId = normalizeText(photo.mediaAssetId);
+        if (id) byId.set(id, photo);
+        if (mediaId) byMediaAssetId.set(mediaId, photo);
+        const payloadSha = normalizeText(photo.sha256 || photo.contentSha256);
+        if (payloadSha && !bySha256.has(payloadSha)) bySha256.set(payloadSha, photo);
+    }
+
+    // sha256 das midias das fotos existentes (uma query). E a rede de seguranca do
+    // round-trip: casa por conteudo quando a identidade no KML some (ex.: Google
+    // Earth recompactou o KMZ sem ExtendedData).
+    const mediaIds = [...byMediaAssetId.keys()];
+    if (mediaIds.length > 0 && typeof mediaAssetRepository.listByIds === 'function') {
+        const mediaList = await mediaAssetRepository.listByIds(mediaIds);
+        const shaByMediaId = new Map();
+        for (const media of mediaList) {
+            const sha = normalizeText(media.sha256);
+            if (sha) shaByMediaId.set(normalizeText(media.id), sha);
+        }
+        for (const photo of existingPhotos) {
+            const sha = shaByMediaId.get(normalizeText(photo.mediaAssetId));
+            if (sha && !bySha256.has(sha)) bySha256.set(sha, photo);
+        }
+    }
+
+    return { byId, byMediaAssetId, bySha256 };
+}
+
 async function processKmzImport({
     workspaceId,
     projectId,
@@ -23,29 +80,41 @@ async function processKmzImport({
     const { kmlText, imageEntries } = extractKmzContents(buffer);
 
     let placemarkCount = 0;
-    let placemarkLookup = new Map();
     const warnings = [];
+    let placemarks = [];
 
     if (kmlText) {
         const kmlResult = parseKmlPlacemarks(kmlText);
-        placemarkCount = kmlResult.placemarks.length;
+        placemarks = kmlResult.placemarks;
+        placemarkCount = placemarks.length;
         warnings.push(...kmlResult.warnings);
-
-        for (const pm of kmlResult.placemarks) {
-            if (pm.name) {
-                placemarkLookup.set(pm.name.toLowerCase(), pm);
-            }
-        }
     } else {
         warnings.push('Nenhum arquivo KML encontrado no KMZ.');
+    }
+
+    // Indices de placemark por identidade estavel (ExtendedData) e por nome (fallback
+    // de KMZ externo). O placemark carrega o folderPath = pasta onde a foto foi
+    // organizada, que e a fonte primaria de torre no re-import.
+    const placemarkByPhotoId = new Map();
+    const placemarkByMediaAssetId = new Map();
+    const placemarkByName = new Map();
+    for (const pm of placemarks) {
+        const ext = pm.extendedData || {};
+        const pmPhotoId = normalizeText(ext.photoId);
+        const pmMediaAssetId = normalizeText(ext.mediaAssetId);
+        if (pmPhotoId) placemarkByPhotoId.set(pmPhotoId, pm);
+        if (pmMediaAssetId) placemarkByMediaAssetId.set(pmMediaAssetId, pm);
+        if (pm.name) placemarkByName.set(pm.name.toLowerCase(), pm);
     }
 
     if (imageEntries.length === 0) {
         warnings.push('Nenhuma imagem encontrada no KMZ.');
         return {
             photosCreated: 0,
+            photosUpdated: 0,
             photosSkipped: 0,
             towersInferred: 0,
+            towersAssigned: 0,
             pendingLinkage: 0,
             placemarkCount,
             warnings,
@@ -54,21 +123,66 @@ async function processKmzImport({
     }
 
     const existingPhotos = await reportPhotoRepository.listByWorkspace(workspaceId);
-    const existingHashes = new Set(
-        existingPhotos
-            .map((p) => normalizeText(p.sha256 || p.contentSha256))
-            .filter(Boolean),
+    const { byId, byMediaAssetId, bySha256 } = await buildExistingPhotoIndex(
+        workspaceId,
+        existingPhotos,
+        mediaAssetRepository,
     );
+    const existingHashes = new Set(bySha256.keys());
 
     let photosCreated = 0;
+    let photosUpdated = 0;
     let photosSkipped = 0;
     let towersInferred = 0;
+    let towersAssigned = 0;
     let pendingLinkage = 0;
     const photoIds = [];
+    const createdSortBase = existingPhotos.length;
 
     for (const entry of imageEntries) {
         const sha256 = crypto.createHash('sha256').update(entry.data).digest('hex');
+        const stem = fileStem(entry.name);
 
+        // Localiza o placemark correspondente (para folderPath + ExtendedData).
+        const placemark = placemarkByPhotoId.get(stem)
+            || placemarkByName.get(stem.toLowerCase())
+            || null;
+        const ext = placemark?.extendedData || {};
+        const pmPhotoId = normalizeText(ext.photoId);
+        const pmMediaAssetId = normalizeText(ext.mediaAssetId);
+
+        // Resolve a foto existente por prioridade de identidade:
+        // photoId (nome do arquivo) -> ExtendedData.photoId -> ExtendedData.mediaAssetId -> sha256.
+        const existingPhoto = byId.get(stem)
+            || (pmPhotoId ? byId.get(pmPhotoId) : null)
+            || (pmMediaAssetId ? byMediaAssetId.get(pmMediaAssetId) : null)
+            || bySha256.get(sha256)
+            || null;
+
+        const { towerId } = resolveTower(entry, placemark);
+
+        if (existingPhoto) {
+            // Re-import: atualiza a torre da foto existente SEM novo upload. So escreve
+            // quando ha uma torre nova/diferente — senao e no-op.
+            const currentTower = normalizeText(existingPhoto.towerId);
+            if (towerId && towerId !== currentTower) {
+                await reportPhotoRepository.save({
+                    id: existingPhoto.id,
+                    towerId,
+                    towerSource: 'kmz_organized',
+                    updatedBy,
+                    updatedAt: new Date().toISOString(),
+                }, { merge: true });
+                photosUpdated += 1;
+                if (!currentTower) towersAssigned += 1;
+                photoIds.push(existingPhoto.id);
+            } else {
+                photosSkipped += 1;
+            }
+            continue;
+        }
+
+        // Sem foto existente: dedupe por sha256 e cria (caso de KMZ externo).
         if (existingHashes.has(sha256)) {
             photosSkipped += 1;
             continue;
@@ -98,38 +212,17 @@ async function processKmzImport({
             throw dbErr;
         }
 
-        let towerId = inferTowerIdFromPath(entry.internalPath);
-        let towerSource = towerId ? 'kmz_folder' : '';
-
-        if (!towerId) {
-            const baseName = entry.name.replace(/\.[^.]+$/, '').toLowerCase();
-            const placemarkMatch = placemarkLookup.get(baseName);
-            if (placemarkMatch) {
-                const fromPlacemark = findTowerIdFromSource(placemarkMatch.name);
-                if (fromPlacemark) {
-                    towerId = fromPlacemark;
-                    towerSource = 'kmz_placemark';
-                }
-            }
-        }
-
+        let towerSource = '';
         if (!towerId) {
             towerSource = 'pending';
             pendingLinkage += 1;
         } else {
+            towerSource = resolveTower(entry, placemark).towerSource || 'kmz_folder';
             towersInferred += 1;
         }
 
-        let gpsLat = null;
-        let gpsLon = null;
-        for (const pm of placemarkLookup.values()) {
-            const pmTower = findTowerIdFromSource(pm.name);
-            if (pmTower && pmTower === towerId) {
-                gpsLat = pm.lat;
-                gpsLon = pm.lon;
-                break;
-            }
-        }
+        const gpsLat = placemark && Number.isFinite(placemark.lat) ? placemark.lat : null;
+        const gpsLon = placemark && Number.isFinite(placemark.lon) ? placemark.lon : null;
 
         const photoId = `RPH-${crypto.randomUUID()}`;
         await reportPhotoRepository.save({
@@ -143,13 +236,17 @@ async function processKmzImport({
             caption: buildDefaultCaption(entry.name),
             curationStatus: towerId ? 'reviewed' : 'uploaded',
             importSource: 'organized_kmz',
+            // Persiste o sha256 no payload da foto para que re-imports futuros possam
+            // casar por conteudo mesmo sem consultar media_assets.
+            sha256,
             gpsLat,
             gpsLon,
-            sortOrder: photosCreated,
+            sortOrder: createdSortBase + photosCreated,
             updatedBy,
             updatedAt: new Date().toISOString(),
         }, { merge: true });
 
+        bySha256.set(sha256, { id: photoId });
         existingHashes.add(sha256);
         photoIds.push(photoId);
         photosCreated += 1;
@@ -157,8 +254,10 @@ async function processKmzImport({
 
     return {
         photosCreated,
+        photosUpdated,
         photosSkipped,
         towersInferred,
+        towersAssigned,
         pendingLinkage,
         placemarkCount,
         warnings,
