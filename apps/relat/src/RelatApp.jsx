@@ -3,6 +3,7 @@ import { Button, Card, Input, PageHeader } from '@app/components/ui';
 import { useAuth } from '@app/context/AuthContext';
 import { useToast } from '@app/context/ToastContext';
 import MonthlyReportPage from './features/monthly-report/MonthlyReportPage';
+import GeoPhotosKmzPage from './features/geo/GeoPhotosKmzPage';
 
 /**
  * Shell do Portal de Relatorios (relat.lima.rio.br).
@@ -31,6 +32,10 @@ export default function RelatApp() {
     return <MonthlyReportPage onExit={() => setActiveModule(null)} />;
   }
 
+  if (activeModule === 'geo') {
+    return <GeoPhotosKmzPage onExit={() => setActiveModule(null)} />;
+  }
+
   return (
     <main className="min-h-screen bg-app-bg">
       <div className="mx-auto max-w-5xl px-6 py-8">
@@ -51,6 +56,16 @@ export default function RelatApp() {
               Calendario de atividades por engenheiro, resumo por projeto e geracao do .docx pronto.
             </p>
             <Button variant="primary" size="sm" onClick={() => setActiveModule('monthly-report')}>
+              Abrir
+            </Button>
+          </Card>
+
+          <Card>
+            <h3 className="text-base font-semibold text-slate-800 m-0">Geo · Fotos para KMZ</h3>
+            <p className="text-sm text-slate-500 mt-1 mb-3">
+              Um lote de fotos vira um KMZ com marcadores no GPS do EXIF — montado no navegador, sem upload.
+            </p>
+            <Button variant="primary" size="sm" onClick={() => setActiveModule('geo')}>
               Abrir
             </Button>
           </Card>
