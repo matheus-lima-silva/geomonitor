@@ -27,6 +27,7 @@ const {
     mediaAssetRepository,
     workspaceMemberRepository,
     userRepository,
+    inspectionRepository,
 } = require('../repositories');
 const { processKmzImport } = require('../utils/kmzProcessor');
 const { removeStoredMedia } = require('../utils/mediaStorage');
@@ -66,6 +67,17 @@ function normalizeWorkspacePayload(data = {}, fallback = {}) {
         importedAt: normalizeText(data.importedAt) || normalizeText(fallback.importedAt),
         lastGeneratedAt: normalizeText(data.lastGeneratedAt) || normalizeText(fallback.lastGeneratedAt),
     };
+}
+
+// Integridade referencial do vinculo workspace <-> vistoria. A migration
+// 0009_workspace_inspection_link.sql documenta que, como `inspections` usa
+// document-store (JSONB, sem FK fisica), a checagem acontece aqui no handler
+// antes de aceitar um inspection_id no payload. Retorna true quando o id e
+// null/vazio (sem vinculo, sempre permitido) ou quando a vistoria existe.
+async function inspectionExists(inspectionId) {
+    if (!inspectionId) return true;
+    const inspection = await inspectionRepository.getById(inspectionId);
+    return Boolean(inspection);
 }
 
 function normalizePhoto(photo = {}, workspaceId = '', fallbackProjectId = '') {
@@ -283,6 +295,13 @@ router.get('/:id', verifyToken, requireActiveUser, requireWorkspaceRead, asyncHa
 router.post('/', verifyToken, requireEditor, validateBody(workspaceCreateSchema), asyncHandler(async (req, res) => {
     const { data, meta = {} } = req.body;
     const payload = normalizeWorkspacePayload(data);
+
+    // Bloqueia referencia pendente: inspectionId nao-null tem que apontar para
+    // uma vistoria existente. null/ausente segue permitido (sem vinculo).
+    if (!(await inspectionExists(payload.inspectionId))) {
+        return res.status(400).json({ status: 'error', message: 'Vistoria nao encontrada' });
+    }
+
     const saved = await reportWorkspaceRepository.save({
         ...payload,
         updatedAt: new Date().toISOString(),
@@ -316,6 +335,15 @@ router.put('/:id', verifyToken, requireEditor, requireWorkspaceWrite, validateBo
     const { data, meta = {} } = req.body;
     const current = await reportWorkspaceRepository.getById(req.params.id) || {};
     const payload = normalizeWorkspacePayload({ ...data, id: req.params.id }, current);
+
+    // Mesma validacao referencial do POST, mas so quando inspectionId vem
+    // explicitamente nesta requisicao — evita re-validar (e potencialmente
+    // bloquear) um vinculo preexistente em updates de outros campos. null
+    // explicito = desclassificar, sempre permitido.
+    if (data.inspectionId !== undefined && !(await inspectionExists(payload.inspectionId))) {
+        return res.status(400).json({ status: 'error', message: 'Vistoria nao encontrada' });
+    }
+
     const saved = await reportWorkspaceRepository.save({
         ...payload,
         updatedAt: new Date().toISOString(),
@@ -410,6 +438,13 @@ router.post('/:id/import', verifyToken, requireEditor, requireWorkspaceWrite, as
             updatedAt: new Date().toISOString(),
             updatedBy: meta.updatedBy || req.user?.email || 'API',
         };
+
+        // Mesma integridade referencial do POST/PUT: so quando o import traz
+        // inspectionId explicito no payload (o fluxo comum nao traz e mantem o
+        // vinculo preexistente). null/ausente segue permitido.
+        if (data.inspectionId !== undefined && !(await inspectionExists(nextData.inspectionId))) {
+            return res.status(400).json({ status: 'error', message: 'Vistoria nao encontrada' });
+        }
 
         const saved = await reportWorkspaceRepository.save(nextData, { merge: true });
         const workspaceImportId = `WIM-${crypto.randomUUID()}`;

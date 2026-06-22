@@ -1,6 +1,11 @@
 // Testes de integracao para o vinculo workspace <-> inspection (vistoria).
-// Valida que o inspection_id persiste via PUT, aparece no GET e gera
-// HATEOAS link quando preenchido.
+// Cobre dois aspectos:
+//   1. Persistencia/HATEOAS: inspection_id persiste via POST/PUT, aparece no
+//      GET e gera link HATEOAS quando preenchido.
+//   2. Integridade referencial (migration 0009): como `inspections` usa
+//      document-store JSONB (sem FK fisica), o route handler valida a
+//      existencia da vistoria antes de aceitar um inspection_id nao-null.
+//      Referencia inexistente => 400 "Vistoria nao encontrada".
 
 const mockAuthContext = {
     user: { uid: 'user_admin', email: 'admin@test.local' },
@@ -28,6 +33,7 @@ jest.mock('../../utils/authMiddleware', () => {
 
 const mockState = {
     workspaces: new Map(),
+    inspections: new Map(),
 };
 
 const mockReportWorkspaceRepository = {
@@ -42,12 +48,19 @@ const mockReportWorkspaceRepository = {
     remove: jest.fn(async (id) => mockState.workspaces.delete(id)),
 };
 
+const mockInspectionRepository = {
+    list: jest.fn(async () => Array.from(mockState.inspections.values())),
+    getById: jest.fn(async (id) => mockState.inspections.get(id) || null),
+    save: jest.fn(),
+    remove: jest.fn(),
+};
+
 jest.mock('../../repositories', () => {
     const noopList = jest.fn(async () => []);
     return {
         rulesConfigRepository: { get: jest.fn(), save: jest.fn() },
         userRepository: { getById: jest.fn(async () => null) },
-        inspectionRepository: { list: noopList, getById: jest.fn(), save: jest.fn(), remove: jest.fn() },
+        inspectionRepository: mockInspectionRepository,
         projectRepository: { list: noopList, getById: jest.fn() },
         erosionRepository: { list: noopList, getById: jest.fn() },
         operatingLicenseRepository: { list: noopList },
@@ -108,13 +121,22 @@ function seedWorkspace(id, overrides = {}) {
     return workspace;
 }
 
+function seedInspection(id, overrides = {}) {
+    const inspection = { id, projectId: 'P1', ...overrides };
+    mockState.inspections.set(id, inspection);
+    return inspection;
+}
+
 beforeEach(() => {
     mockState.workspaces.clear();
+    mockState.inspections.clear();
     jest.clearAllMocks();
 });
 
 describe('report-workspaces inspection link', () => {
     it('persiste inspectionId ao criar workspace via POST', async () => {
+        seedInspection('VS-123');
+
         const response = await request(app)
             .post('/api/report-workspaces')
             .send({
@@ -135,6 +157,7 @@ describe('report-workspaces inspection link', () => {
 
     it('atualiza inspectionId via PUT em workspace existente', async () => {
         seedWorkspace('RW-1', { inspectionId: null });
+        seedInspection('VS-456');
 
         const response = await request(app)
             .put('/api/report-workspaces/RW-1')
@@ -148,7 +171,7 @@ describe('report-workspaces inspection link', () => {
         expect(savedPayload.inspectionId).toBe('VS-456');
     });
 
-    it('inclui link HATEOAS para a vistoria quando inspectionId est\u00e1 preenchido', async () => {
+    it('inclui link HATEOAS para a vistoria quando inspectionId está preenchido', async () => {
         seedWorkspace('RW-2', { inspectionId: 'VS-789' });
 
         const response = await request(app).get('/api/report-workspaces/RW-2');
@@ -160,7 +183,7 @@ describe('report-workspaces inspection link', () => {
         expect(body._links.inspection.method).toBe('GET');
     });
 
-    it('omite link HATEOAS de vistoria quando inspectionId est\u00e1 ausente', async () => {
+    it('omite link HATEOAS de vistoria quando inspectionId está ausente', async () => {
         seedWorkspace('RW-3', { inspectionId: null });
 
         const response = await request(app).get('/api/report-workspaces/RW-3');
@@ -183,5 +206,165 @@ describe('report-workspaces inspection link', () => {
         expect(response.status).toBe(200);
         const savedPayload = mockReportWorkspaceRepository.save.mock.calls.slice(-1)[0][0];
         expect(savedPayload.inspectionId).toBeNull();
+    });
+});
+
+describe('report-workspaces inspection referential integrity', () => {
+    it('POST com inspectionId inexistente retorna 400 e nao persiste', async () => {
+        const response = await request(app)
+            .post('/api/report-workspaces')
+            .send({
+                data: {
+                    id: 'RW-bad',
+                    projectId: 'P1',
+                    nome: 'Sem vistoria valida',
+                    inspectionId: 'VS-DOES-NOT-EXIST',
+                },
+                meta: { updatedBy: 'admin' },
+            });
+
+        expect(response.status).toBe(400);
+        expect(response.body.status).toBe('error');
+        expect(response.body.message).toBe('Vistoria nao encontrada');
+        expect(mockReportWorkspaceRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('POST com inspectionId valido persiste e retorna 201', async () => {
+        seedInspection('VS-OK');
+
+        const response = await request(app)
+            .post('/api/report-workspaces')
+            .send({
+                data: {
+                    id: 'RW-ok',
+                    projectId: 'P1',
+                    nome: 'Vistoria valida',
+                    inspectionId: 'VS-OK',
+                },
+                meta: { updatedBy: 'admin' },
+            });
+
+        expect(response.status).toBe(201);
+        expect(mockInspectionRepository.getById).toHaveBeenCalledWith('VS-OK');
+        const savedPayload = mockReportWorkspaceRepository.save.mock.calls[0][0];
+        expect(savedPayload.inspectionId).toBe('VS-OK');
+    });
+
+    it('POST com inspectionId null persiste sem validar vistoria (201)', async () => {
+        const response = await request(app)
+            .post('/api/report-workspaces')
+            .send({
+                data: {
+                    id: 'RW-null',
+                    projectId: 'P1',
+                    nome: 'Sem vinculo',
+                    inspectionId: null,
+                },
+                meta: { updatedBy: 'admin' },
+            });
+
+        expect(response.status).toBe(201);
+        expect(mockInspectionRepository.getById).not.toHaveBeenCalled();
+        const savedPayload = mockReportWorkspaceRepository.save.mock.calls[0][0];
+        expect(savedPayload.inspectionId).toBeNull();
+    });
+
+    it('POST sem inspectionId no payload persiste sem validar vistoria (201)', async () => {
+        const response = await request(app)
+            .post('/api/report-workspaces')
+            .send({
+                data: { id: 'RW-omit', projectId: 'P1', nome: 'Sem campo' },
+                meta: { updatedBy: 'admin' },
+            });
+
+        expect(response.status).toBe(201);
+        expect(mockInspectionRepository.getById).not.toHaveBeenCalled();
+        const savedPayload = mockReportWorkspaceRepository.save.mock.calls[0][0];
+        expect(savedPayload.inspectionId).toBeNull();
+    });
+
+    it('PUT com inspectionId inexistente retorna 400 e nao persiste', async () => {
+        seedWorkspace('RW-5', { inspectionId: null });
+
+        const response = await request(app)
+            .put('/api/report-workspaces/RW-5')
+            .send({
+                data: { inspectionId: 'VS-GHOST' },
+                meta: { updatedBy: 'admin' },
+            });
+
+        expect(response.status).toBe(400);
+        expect(response.body.message).toBe('Vistoria nao encontrada');
+        expect(mockReportWorkspaceRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('PUT de outro campo nao revalida vinculo preexistente (sem consulta a vistoria)', async () => {
+        // RW-6 ja tem vinculo VS-OLD que nao seedamos em inspections — um
+        // update de `nome` (sem inspectionId no payload) nao pode falhar nem
+        // consultar a vistoria, ja que o vinculo nao esta sendo alterado.
+        seedWorkspace('RW-6', { inspectionId: 'VS-OLD' });
+
+        const response = await request(app)
+            .put('/api/report-workspaces/RW-6')
+            .send({
+                data: { nome: 'Nome novo' },
+                meta: { updatedBy: 'admin' },
+            });
+
+        expect(response.status).toBe(200);
+        expect(mockInspectionRepository.getById).not.toHaveBeenCalled();
+        const savedPayload = mockReportWorkspaceRepository.save.mock.calls.slice(-1)[0][0];
+        expect(savedPayload.inspectionId).toBe('VS-OLD');
+        expect(savedPayload.nome).toBe('Nome novo');
+    });
+
+    it('POST /:id/import com inspectionId inexistente retorna 400 e nao persiste', async () => {
+        seedWorkspace('RW-7', { inspectionId: null });
+
+        const response = await request(app)
+            .post('/api/report-workspaces/RW-7/import')
+            .send({
+                data: { sourceType: 'manual', inspectionId: 'VS-GHOST' },
+                meta: { updatedBy: 'admin' },
+            });
+
+        expect(response.status).toBe(400);
+        expect(response.body.message).toBe('Vistoria nao encontrada');
+        expect(mockReportWorkspaceRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('POST /:id/import com inspectionId valido persiste e retorna 200', async () => {
+        seedWorkspace('RW-8', { inspectionId: null });
+        seedInspection('VS-IMP');
+
+        const response = await request(app)
+            .post('/api/report-workspaces/RW-8/import')
+            .send({
+                data: { sourceType: 'manual', inspectionId: 'VS-IMP' },
+                meta: { updatedBy: 'admin' },
+            });
+
+        expect(response.status).toBe(200);
+        expect(mockInspectionRepository.getById).toHaveBeenCalledWith('VS-IMP');
+        const savedPayload = mockReportWorkspaceRepository.save.mock.calls[0][0];
+        expect(savedPayload.inspectionId).toBe('VS-IMP');
+    });
+
+    it('POST /:id/import sem inspectionId nao revalida vinculo preexistente', async () => {
+        // RW-9 tem vinculo VS-OLD2 que nao seedamos em inspections; um import
+        // sem inspectionId no payload nao pode falhar nem consultar a vistoria.
+        seedWorkspace('RW-9', { inspectionId: 'VS-OLD2' });
+
+        const response = await request(app)
+            .post('/api/report-workspaces/RW-9/import')
+            .send({
+                data: { sourceType: 'manual' },
+                meta: { updatedBy: 'admin' },
+            });
+
+        expect(response.status).toBe(200);
+        expect(mockInspectionRepository.getById).not.toHaveBeenCalled();
+        const savedPayload = mockReportWorkspaceRepository.save.mock.calls.slice(-1)[0][0];
+        expect(savedPayload.inspectionId).toBe('VS-OLD2');
     });
 });

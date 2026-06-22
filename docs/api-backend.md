@@ -480,6 +480,8 @@ Tabela Postgres principal: `report_workspaces` (com `project_id`, `inspection_id
 | DELETE | `/api/report-workspaces/:id` | `requireWorkspaceWrite` | Hard delete |
 | POST | `/api/report-workspaces/:id/import` | `requireWorkspaceWrite` | Registra importacao (`workspace_imports`) |
 
+**Integridade referencial de `inspectionId`**: no POST (sempre) e no PUT/`import` (quando `data.inspectionId` vem no payload), um `inspectionId` nao-null e validado contra `inspectionRepository.getById`. Referencia inexistente => **400** `{ status: 'error', message: 'Vistoria nao encontrada' }`. `inspectionId` `null`/ausente segue permitido (workspace sem vinculo / desclassificado). Como `inspections` usa document-store JSONB (sem FK fisica), essa checagem mora no route handler — ver [migration 0009](../backend/migrations/0009_workspace_inspection_link.sql) e [docs/modulo-reports.md](modulo-reports.md#vinculo-com-vistoria-inspection_id).
+
 ### Fotos (ativas, trash, archive)
 
 Tabela: `report_photos` com campos `deleted_at` (lixeira) e `archived_at` (arquivo imutavel). Ver [docs/modulo-reports.md](modulo-reports.md) para o ciclo de vida completo.
