@@ -1,6 +1,29 @@
 import html
+import math
+import os
 import re
 import zipfile
+
+from worker.exif_gps import extract_gps_latlon
+
+
+# Estilo do marcador de foto (icone de camera publico do Google), distinto das
+# torres (pin padrao). Referenciado por <styleUrl>#photo-marker</styleUrl>.
+PHOTO_MARKER_STYLE = "\n".join([
+    '    <Style id="photo-marker">',
+    "      <IconStyle>",
+    "        <color>ff00aaff</color>",
+    "        <scale>1.1</scale>",
+    "        <Icon>",
+    "          <href>https://maps.google.com/mapfiles/kml/shapes/camera.png</href>",
+    "        </Icon>",
+    "      </IconStyle>",
+    "    </Style>",
+])
+
+
+def kmz_exif_gps_enabled():
+    return os.environ.get("WORKER_KMZ_EXIF_GPS", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
 def normalize_text(value):
@@ -108,10 +131,25 @@ def build_line_coordinates(project):
     return points
 
 
+def is_valid_latlon(latitude, longitude):
+    # Rejeita o sentinela "null island" (0,0) e coordenadas fora de faixa/nao-finitas.
+    # As fotos de campo vinham com gpsLat/gpsLon=0 (placeholder), o que jogava todos
+    # os marcadores em lat0/lon0 no meio do Atlantico.
+    if latitude is None or longitude is None:
+        return False
+    if not (math.isfinite(latitude) and math.isfinite(longitude)):
+        return False
+    if abs(latitude) > 90 or abs(longitude) > 180:
+        return False
+    if latitude == 0.0 and longitude == 0.0:
+        return False
+    return True
+
+
 def resolve_photo_coordinates(photo, tower_lookup):
     latitude = to_number(photo.get("gpsLat"))
     longitude = to_number(photo.get("gpsLon"))
-    if latitude is not None and longitude is not None:
+    if is_valid_latlon(latitude, longitude):
         return latitude, longitude, 0.0, "gps"
 
     tower_id = normalize_tower_id(photo.get("towerId"))
@@ -202,6 +240,7 @@ def build_photo_placemark(photo_entry):
     altitude = photo_entry.get("altitude")
     if latitude is not None and longitude is not None:
         lines.extend([
+            "        <styleUrl>#photo-marker</styleUrl>",
             "        <Point>",
             f"          <coordinates>{longitude},{latitude},{altitude or 0.0}</coordinates>",
             "        </Point>",
@@ -268,6 +307,8 @@ def build_kml_document(project, workspace, photo_entries, warnings):
         '<kml xmlns="http://www.opengis.net/kml/2.2">',
         "  <Document>",
         f"    <name>{escape_xml(f'{project_name} - {workspace_name}')}</name>",
+        # Estilo deve preceder os placemarks que o referenciam.
+        PHOTO_MARKER_STYLE,
         header_description,
         infra_folder,
         photos_folder,
@@ -314,8 +355,8 @@ def render_context_to_kmz(context, output_path, download_media, progress_callbac
         file_name = f"{safe_file_name(photo_id, fallback=f'foto-{index}')}{extension}"
 
         latitude, longitude, altitude, coordinate_source = resolve_photo_coordinates(photo, tower_lookup)
-        if latitude is None or longitude is None:
-            warnings.append(f"Foto {photo_id} ficou sem coordenadas de mapa.")
+        # O aviso de "sem coordenadas" so e decidido apos a tentativa de EXIF
+        # (Fase 2), senao uma foto que ganha posicao via EXIF receberia aviso falso.
 
         photo_entries.append({
             "photo": photo,
@@ -336,6 +377,7 @@ def render_context_to_kmz(context, output_path, download_media, progress_callbac
     # o pico de memoria em O(1 imagem) mesmo com centenas de fotos full-res.
     images_written = 0
     download_failures = 0
+    failed_photo_ids = set()
     total_photos = len(photo_entries)
     # Reporta progresso ~a cada 5% (limita ~20 pings HTTP mesmo com 500+ fotos).
     progress_step = max(1, total_photos // 20)
@@ -350,13 +392,32 @@ def render_context_to_kmz(context, output_path, download_media, progress_callbac
                     raise RuntimeError("conteudo vazio")
                 archive.writestr(photo_entry["imagePath"], buffer)
                 images_written += 1
+                # Foto sem coordenada localizada (gps invalido + sem torre)? Recupera
+                # do EXIF do proprio JPEG que acabamos de baixar, para virar marcador
+                # no lugar real. O KML so e montado depois deste loop, entao a
+                # coordenada descoberta aqui ja entra no placemark. Precedencia:
+                # gps valido > torre > exif. extract_gps_latlon nunca levanta.
+                if kmz_exif_gps_enabled() and not photo_entry.get("coordinateSource"):
+                    gps = extract_gps_latlon(buffer)
+                    if gps:
+                        photo_entry["latitude"] = gps[0]
+                        photo_entry["longitude"] = gps[1]
+                        photo_entry["altitude"] = 0.0
+                        photo_entry["coordinateSource"] = "exif"
             except Exception as exc:
                 download_failures += 1
+                failed_photo_ids.add(photo_entry["photoId"])
                 warnings.append(f"Foto {photo_entry['photoId']} nao foi incorporada: {exc}")
 
             # processed = fotos tentadas (avanca mesmo em falha), para a barra nao travar.
             if index % progress_step == 0 or index == total_photos:
                 _emit_progress(progress_callback, index, total_photos)
+
+        # Agora que o EXIF ja foi tentado, registra as fotos que seguem sem posicao
+        # (exceto as que ja falharam no download — essas ja tem aviso proprio).
+        for photo_entry in photo_entries:
+            if not photo_entry.get("coordinateSource") and photo_entry["photoId"] not in failed_photo_ids:
+                warnings.append(f"Foto {photo_entry['photoId']} ficou sem coordenadas de mapa.")
 
         # KML montado depois do stream para incluir todos os avisos (inclusive de
         # download) na descricao do documento. Ordem das entradas no zip e

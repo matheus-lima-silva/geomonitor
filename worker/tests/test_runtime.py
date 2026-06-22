@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import re
+import struct
 import unittest
 import zipfile
 
@@ -12,12 +13,58 @@ from worker.docx_renderer import (
     apply_eletrobras_formatting_compound,
     create_document_from_template,
 )
+from worker.exif_gps import extract_gps_latlon
 from worker.runtime import WorkerClient, WorkerRuntime
 
 
 SAMPLE_PNG_BYTES = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z2ioAAAAASUVORK5CYII="
 )
+
+
+def build_minimal_jpeg_with_gps(
+    lat_dms=(22, 30, 0),
+    lat_ref="S",
+    lon_dms=(43, 15, 0),
+    lon_ref="W",
+    break_den=False,
+    bad_offset=False,
+):
+    """Monta um JPEG minimo (SOI + APP1/Exif + EOI) com um GPS IFD, via struct.
+
+    Layout do bloco TIFF (little-endian), offsets relativos ao inicio do TIFF:
+      8   IFD0 (1 entry -> GPS IFD pointer @26)
+      26  GPS IFD (4 entries: LatRef, Lat@80, LonRef, Lon@104)
+      80  3 rationals da latitude
+      104 3 rationals da longitude
+    """
+    def rationals(dms):
+        out = b""
+        for value in dms:
+            den = 0 if break_den else 1
+            out += struct.pack("<II", int(value), den)
+        return out
+
+    lat_off = 9999 if bad_offset else 80
+    tiff = b"II" + struct.pack("<HI", 42, 8)
+    # IFD0 @8
+    tiff += struct.pack("<H", 1)
+    tiff += struct.pack("<HHI", 0x8825, 4, 1) + struct.pack("<I", 26)
+    tiff += struct.pack("<I", 0)
+    # GPS IFD @26
+    tiff += struct.pack("<H", 4)
+    tiff += struct.pack("<HHI", 0x0001, 2, 2) + (lat_ref.encode() + b"\x00\x00\x00")[:4]
+    tiff += struct.pack("<HHI", 0x0002, 5, 3) + struct.pack("<I", lat_off)
+    tiff += struct.pack("<HHI", 0x0003, 2, 2) + (lon_ref.encode() + b"\x00\x00\x00")[:4]
+    tiff += struct.pack("<HHI", 0x0004, 5, 3) + struct.pack("<I", 104)
+    tiff += struct.pack("<I", 0)
+    # data @80 (lat), @104 (lon)
+    tiff += rationals(lat_dms)
+    tiff += rationals(lon_dms)
+
+    exif = b"Exif\x00\x00" + tiff
+    app1 = b"\xff\xe1" + struct.pack(">H", len(exif) + 2) + exif
+    return b"\xff\xd8" + app1 + b"\xff\xd9"
 
 
 def read_docx_entry(docx_bytes, entry_name):
@@ -502,6 +549,63 @@ class WorkerRuntimeTests(unittest.TestCase):
         readme = read_kmz_entry(uploaded_kmz, "README.txt").decode("utf-8")
         self.assertIn("RPH-KMZ-2", readme)
 
+    def test_run_once_workspace_kmz_uses_exif_when_no_tower(self):
+        jpeg = build_minimal_jpeg_with_gps()  # -22.5, -43.25
+        context = build_workspace_kmz_context()
+        context["renderModel"]["photos"] = [{
+            "id": "RPH-EXIF-1",
+            "caption": "Foto sem torre",
+            "workspaceId": "RW-1",
+            "towerId": "",
+            "gpsLat": 0,
+            "gpsLon": 0,
+            "includeInReport": True,
+            "mediaAssetId": "MED-EXIF-1",
+        }]
+
+        class GpsStub(StubClient):
+            def download_media_content(self, media_id):
+                return {"buffer": jpeg, "contentType": "image/jpeg"}
+
+        job = {"id": "JOB-EXIF", "kind": "workspace_kmz"}
+        client = GpsStub(configured=True, job=job, contexts={"JOB-EXIF": context})
+
+        result = WorkerRuntime(client=client).run_once()
+
+        self.assertEqual(result["status"], "completed")
+        kml = read_kmz_entry(client.uploaded_media[0][1], "doc.kml").decode("utf-8")
+        self.assertIn('<Style id="photo-marker">', kml)
+        self.assertIn("<styleUrl>#photo-marker</styleUrl>", kml)
+        # Marcador na posicao do EXIF (lon,lat), nao em 0,0.
+        self.assertIn("-43.25,-22.5", kml)
+
+    def test_run_once_workspace_kmz_no_marker_for_zero_coords_without_exif(self):
+        # gps placeholder (0,0), sem torre e sem EXIF (StubClient devolve PNG) ->
+        # nenhum marcador (nao plota null-island), e aviso no README.
+        context = build_workspace_kmz_context()
+        context["renderModel"]["photos"] = [{
+            "id": "RPH-ZERO-1",
+            "caption": "Foto zero",
+            "workspaceId": "RW-1",
+            "towerId": "",
+            "gpsLat": 0,
+            "gpsLon": 0,
+            "includeInReport": True,
+            "mediaAssetId": "MED-ZERO-1",
+        }]
+        job = {"id": "JOB-ZERO", "kind": "workspace_kmz"}
+        client = StubClient(configured=True, job=job, contexts={"JOB-ZERO": context})
+
+        result = WorkerRuntime(client=client).run_once()
+
+        self.assertEqual(result["status"], "completed")
+        kmz = client.uploaded_media[0][1]
+        kml = read_kmz_entry(kmz, "doc.kml").decode("utf-8")
+        self.assertIn('<Style id="photo-marker">', kml)
+        self.assertNotIn("<styleUrl>#photo-marker</styleUrl>", kml)
+        readme = read_kmz_entry(kmz, "README.txt").decode("utf-8")
+        self.assertIn("ficou sem coordenadas de mapa", readme)
+
     def test_run_once_marks_job_as_failed_when_upload_breaks(self):
         job = {"id": "JOB-UPLOAD-FAIL", "kind": "project_dossier"}
         client = StubClient(
@@ -908,6 +1012,32 @@ class WorkerClientTests(unittest.TestCase):
         result = client.get_job_context("JOB-CTX")
 
         self.assertEqual(result, {"job": {"id": "JOB-CTX"}})
+
+
+class ExifGpsTests(unittest.TestCase):
+    def test_extracts_signed_latlon_south_west(self):
+        result = extract_gps_latlon(build_minimal_jpeg_with_gps())
+        self.assertIsNotNone(result)
+        lat, lon = result
+        self.assertAlmostEqual(lat, -22.5, places=5)
+        self.assertAlmostEqual(lon, -43.25, places=5)
+
+    def test_north_east_stays_positive(self):
+        lat, lon = extract_gps_latlon(build_minimal_jpeg_with_gps(lat_ref="N", lon_ref="E"))
+        self.assertAlmostEqual(lat, 22.5, places=5)
+        self.assertAlmostEqual(lon, 43.25, places=5)
+
+    def test_non_jpeg_returns_none(self):
+        self.assertIsNone(extract_gps_latlon(b"definitely not a jpeg"))
+
+    def test_png_without_exif_returns_none(self):
+        self.assertIsNone(extract_gps_latlon(SAMPLE_PNG_BYTES))
+
+    def test_zero_denominator_returns_none(self):
+        self.assertIsNone(extract_gps_latlon(build_minimal_jpeg_with_gps(break_den=True)))
+
+    def test_out_of_bounds_offset_returns_none(self):
+        self.assertIsNone(extract_gps_latlon(build_minimal_jpeg_with_gps(bad_offset=True)))
 
 
 if __name__ == "__main__":
