@@ -69,6 +69,20 @@ describe('GeoPhotosKmzPage', () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
   }
 
+  // Foto vinda da selecao de pasta carrega webkitRelativePath (que `File` nao deixa
+  // setar). addFiles so le name/type/size/webkitRelativePath, entao basta um objeto.
+  function folderPhoto(name, relativePath) {
+    return { name, size: 10, lastModified: 0, type: 'image/jpeg', webkitRelativePath: relativePath };
+  }
+
+  async function selectFolder(files) {
+    const input = container.querySelector('#geo-kmz-folder');
+    Object.defineProperty(input, 'files', { value: files, configurable: true });
+    await act(async () => {
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
   it('inicia com o botao Gerar desabilitado', async () => {
     await render();
     expect(generateButton().disabled).toBe(true);
@@ -107,5 +121,24 @@ describe('GeoPhotosKmzPage', () => {
       back.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
+  it('coleta fotos de subpastas ao selecionar uma pasta', async () => {
+    await render();
+    await selectFolder([
+      folderPhoto('a.jpg', 'raiz/torre-1/a.jpg'),
+      folderPhoto('b.jpg', 'raiz/torre-2/b.jpg'),
+    ]);
+    expect(container.textContent).toContain('2 foto(s) selecionada(s)');
+    expect(generateButton().disabled).toBe(false);
+  });
+
+  it('mantem fotos homonimas de subpastas diferentes (dedup por caminho)', async () => {
+    await render();
+    await selectFolder([
+      folderPhoto('IMG_0001.jpg', 'raiz/torre-1/IMG_0001.jpg'),
+      folderPhoto('IMG_0001.jpg', 'raiz/torre-2/IMG_0001.jpg'),
+    ]);
+    expect(container.textContent).toContain('2 foto(s) selecionada(s)');
   });
 });

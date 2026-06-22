@@ -95,6 +95,7 @@ const ICON_MAP = {
   shield: ShieldCheck,
   'dashboard-nav': LayoutDashboard,
   'projects-nav': FolderOpen,
+  folder: FolderOpen,
   'licenses-nav': FileCheck,
   'inspections-nav': ClipboardCheck,
   'erosions-nav': AlertTriangle,
