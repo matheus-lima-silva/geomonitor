@@ -187,6 +187,35 @@ PR grande que refatorou `src/features/licenses/components/LicensesView.jsx` em c
 
 A secao "exige acompanhamento erosivo" permanece como callout amber (alinhado ao warning do projeto). Roteamento por URL param (`?license=ID`) foi escolhido por fidelidade ao projeto — o app nao usa React Router; seguimos o padrao ja presente em `App.jsx:8` (`?uiReview=sidebar`) e `?token` do reset-password.
 
+## Redesign de Empreendimentos + acentos do Login (junho/2026)
+
+Parte do programa de adocao do design handoff (1 PR por view). So apresentacao — nenhuma
+mudanca de modelo, servico ou contrato de API.
+
+- **`ProjectsView` toolbar** — alem de Busca + Tipo, ganhou `Select` "Ordenar por"
+  (Ordem de cadastro / Nome / Pendencias primeiro / Proxima entrega) e um toggle
+  "Com pendencias (N)". O toggle e o primitive `Button variant="outline"` com `aria-pressed`
+  e estado amber (`!bg-amber-100 !border-amber-300 !text-amber-800`, important para vencer a
+  precedencia do Tailwind sobre o `bg-white` do variant) — sem `<button>` ad-hoc.
+- **Card do empreendimento** — o corpo deixou de ser uma lista vertical de `<strong>label:</strong>`
+  e virou a **grade de 3 stats** (Vistorias / Dias vistoriados / Torres/dia util, `tabular-nums` +
+  `text-2xs uppercase`) seguida do callout **"Proxima entrega"** com a linha de periodicidade
+  (`periodicidade · meses · ano base`). Adicionado chip de georreferenciamento (`satellite`,
+  verde quando ha torres com GPS, amber quando nao). `shadow-sm` → `shadow-card`. Header, rodape
+  (Vistorias / Tracar rota / Importar / Exportar KML), route planner e fluxos de KML
+  permanecem intactos (sem regressao).
+- **Helper puro novo** `getProjectNextDelivery(project, referenceDate?)` em
+  `features/projects/utils/reportSchedule.js` — reusa `buildProjectReportOccurrences` (ja trata a
+  paridade do ano base bienal) e devolve `{ month, year, monthsAway, label }`. Usado tanto no
+  callout do card quanto na ordenacao "Proxima entrega". Testado em `reportSchedule.test.js`.
+- **Login (`src/views/AuthView.jsx`)** — restauracao de acentos nas strings de UI e mensagens
+  (`aprovacao`→`aprovação`, `redefinicao`→`redefinição`, `Forca`→`Força`, `Maiuscula`,
+  `Minuscula`, `Numero`, `rapido`, `invalido`, `nao foi possivel a acao`, etc.) para casar com o
+  kit e com o Dashboard. Novo teste `src/views/__tests__/AuthView.test.jsx` (mocka
+  `useAuth`/`useToast`) guarda os acentos.
+- **`AppIcon.jsx`** — alias novo `satellite`. (O menu ⋯ do kit foi deixado de fora deste PR;
+  o card mantem as acoes em rodape, sem `more-horizontal`.)
+
 ## Follow-up suggestions
 
 - Add regression tests for the paginated trash modal (cover page boundaries, empty pages, filter + sort interaction). Existing tests cover `WorkspacesTab.lixeira` but not the modal's pagination edge cases.

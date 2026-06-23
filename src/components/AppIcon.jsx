@@ -46,6 +46,7 @@ import PenLine from 'lucide-react/dist/esm/icons/pen-line';
 import Plus from 'lucide-react/dist/esm/icons/plus';
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw';
 import Route from 'lucide-react/dist/esm/icons/route';
+import Satellite from 'lucide-react/dist/esm/icons/satellite';
 import Save from 'lucide-react/dist/esm/icons/save';
 import Search from 'lucide-react/dist/esm/icons/search';
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check';
@@ -78,6 +79,7 @@ const ICON_MAP = {
   'file-text': FileText,
   map: MapIcon,
   route: Route,
+  satellite: Satellite,
   reset: RefreshCw,
   refresh: RefreshCw,
   check: Check,
