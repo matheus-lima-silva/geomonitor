@@ -85,7 +85,7 @@ Nao criar componentes de feature fora dessa estrutura. Exemplo canonico: [featur
 
 Nunca importar de `lucide-react` diretamente em features/views. Fonte unica: [components/AppIcon.jsx](components/AppIcon.jsx).
 
-`AppIcon` mantem um `ICON_MAP` com **aliases semanticos** (`plus`, `save`, `edit`, `trash`, `close`, `check`, `alert`, `dashboard-nav`, `projects-nav`, `licenses-nav`, `inspections-nav`, `erosions-nav`, `visit-nav`, `route-plan`, `map-pin` etc.). Esses aliases padronizam o visual mesmo que o icone lucide subjacente mude.
+`AppIcon` mantem um `ICON_MAP` com **aliases semanticos** (`plus`, `save`, `edit`, `trash`, `close`, `check`, `alert`, `dashboard-nav`, `projects-nav`, `licenses-nav`, `inspections-nav`, `erosions-nav`, `visit-nav`, `route-plan`, `map-pin`, `clock` etc.). Esses aliases padronizam o visual mesmo que o icone lucide subjacente mude.
 
 Uso:
 
