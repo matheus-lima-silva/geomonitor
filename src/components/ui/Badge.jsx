@@ -1,7 +1,7 @@
 /**
  * Badge / Chip de status padronizado.
  *
- * tone: 'ok' | 'warning' | 'danger' | 'critical' | 'neutral' | string
+ * tone: 'ok' | 'warning' | 'danger' | 'critical' | 'info' | 'neutral' | string
  * size: 'sm' | 'md'
  */
 const TONE_CLASSES = {
@@ -9,6 +9,7 @@ const TONE_CLASSES = {
     warning: 'bg-warning-light text-yellow-900 border-warning-border',
     danger: 'bg-danger-light  text-red-700   border-danger-border',
     critical: 'bg-critical-light text-red-900  border-red-300',
+    info: 'bg-info-light text-info-dark border-info-border',
     neutral: 'bg-slate-50 text-slate-600 border-slate-300',
 };
 

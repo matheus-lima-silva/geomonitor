@@ -150,14 +150,15 @@ describe('InspectionDetailsModal', () => {
     expect(container.textContent).not.toContain('Feriado -');
   });
 
-  it('inclui feriado no HTML do PDF exportado', () => {
+  it('gera o PDF da vistoria (diario + erosoes) na janela, seguindo o design do handoff', () => {
     vi.useFakeTimers();
     const { inspection, inspections, erosions, project } = buildData();
     const documentWrite = vi.fn();
     const documentClose = vi.fn();
     const print = vi.fn();
     vi.spyOn(window, 'open').mockReturnValue({
-      document: { write: documentWrite, close: documentClose },
+      document: { open: vi.fn(), write: documentWrite, close: documentClose },
+      focus: vi.fn(),
       print,
     });
 
@@ -181,8 +182,12 @@ describe('InspectionDetailsModal', () => {
     act(() => { vi.runAllTimers(); });
 
     const htmlArg = documentWrite.mock.calls[0]?.[0] || '';
-    expect(htmlArg).toContain('chip amber');
-    expect(htmlArg).toContain('Feriado - Feriado de Teste');
+    expect(htmlArg).toContain('Relatorio de Vistoria');
+    expect(htmlArg).toContain('Diario de campo');
+    expect(htmlArg).toContain('VS-P1-10012026-0001');
+    expect(htmlArg).toContain('pv-page pv--sobria');
+    // O PDF segue o design do handoff (sem chip de feriado); o badge de feriado fica so na tela.
+    expect(htmlArg).not.toContain('Feriado de Teste');
     vi.useRealTimers();
   });
 

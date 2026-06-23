@@ -218,4 +218,24 @@ describe('ErosionFormModal', () => {
 
     expect(options).toEqual(['', '0', '2', '10', '163A']);
   });
+
+  it('navega entre as etapas do wizard (indicador + Avancar)', () => {
+    const wrapperOf = (text) => {
+      const heading = [...container.querySelectorAll('section h4')].find((h) => (h.textContent || '').includes(text));
+      return heading ? heading.closest('section').parentElement : null;
+    };
+    renderModal(root);
+
+    expect(wrapperOf('Cadastro').hasAttribute('hidden')).toBe(false);
+    expect(wrapperOf('Grau erosivo').hasAttribute('hidden')).toBe(true);
+
+    const avancar = [...container.querySelectorAll('button')].find((b) => (b.textContent || '').includes('Avancar'));
+    act(() => { avancar.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(wrapperOf('Cadastro').hasAttribute('hidden')).toBe(true);
+    expect(wrapperOf('Grau erosivo').hasAttribute('hidden')).toBe(false);
+
+    const localizacaoStep = [...container.querySelectorAll('ol button')].find((b) => (b.textContent || '').includes('Localizacao'));
+    act(() => { localizacaoStep.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(wrapperOf('Localização geográfica').hasAttribute('hidden')).toBe(false);
+  });
 });
