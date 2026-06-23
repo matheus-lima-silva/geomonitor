@@ -281,6 +281,16 @@ recompacte sem ExtendedData). A torre vem do `folderPath` da pasta organizada
 casada + torre nova => `save({ towerSource: 'kmz_organized' }, { merge:true })`; sem match => cria
 (KMZ externo). Ver `summary` em [api-backend.md](api-backend.md#kmz).
 
+**Reconciliacao dos curationDrafts.** A curadoria mantem um snapshot por foto em
+`draft_state.curationDrafts` (autosave). Como o re-import grava a torre direto em `report_photos`
+mas o draft antigo pode ter `towerId` vazio, sem cuidado o draft **mascara** a torre nova na UI
+(card "Sem torre" enquanto o sidebar, que le `tower_id`, ja mostra a torre). Duas defesas: (1) o
+`processKmzImport` atualiza, ao final, o `towerId` das entradas de `curationDrafts` das fotos cuja
+torre foi (re)atribuida — preservando o resto do `draft_state` (best-effort, nao quebra o import);
+(2) `buildWorkspacePhotoDrafts` ([reportUtils.js](../src/features/reports/utils/reportUtils.js)) usa
+fallback `||` (nao `??`) para `towerId`/`caption`, de modo que um draft vazio nunca esconde o valor
+persistido da foto.
+
 ### Download confiavel (frontend)
 
 O KMZ full-res e grande demais para puxar como `Blob` em memoria (estourava a aba). Para asset
