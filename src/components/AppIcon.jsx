@@ -39,6 +39,7 @@ import LogIn from 'lucide-react/dist/esm/icons/log-in';
 import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import Mail from 'lucide-react/dist/esm/icons/mail';
 import MapIcon from 'lucide-react/dist/esm/icons/map';
+import MapPin from 'lucide-react/dist/esm/icons/map-pin';
 import Menu from 'lucide-react/dist/esm/icons/menu';
 import Monitor from 'lucide-react/dist/esm/icons/monitor';
 import Pause from 'lucide-react/dist/esm/icons/pause';
@@ -77,6 +78,7 @@ const ICON_MAP = {
   pdf: FileDown,
   'file-text': FileText,
   map: MapIcon,
+  'map-pin': MapPin,
   route: Route,
   reset: RefreshCw,
   refresh: RefreshCw,
