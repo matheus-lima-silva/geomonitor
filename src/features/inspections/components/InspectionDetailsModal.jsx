@@ -1,17 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Badge, Button, IconButton, Modal } from '../../../components/ui';
-import { formatHotelNote, hasHotelData } from '../utils/inspectionWorkflow';
+import { formatHotelNote, formatInspectionPeriod, getInspectionStatusMeta, hasHotelData } from '../utils/inspectionWorkflow';
 import { buildFeriadosIndex, getFeriadoForDate } from '../../shared/rulesConfig';
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+import { buildVistoriaPdfDocument, openVistoriaPrintWindow } from '../utils/vistoriaPdfTemplates';
 
 function formatTowerLabel(towerRef) {
   const ref = String(towerRef ?? '').trim();
@@ -31,32 +23,6 @@ function colorByImpact(impact) {
   return 'status-ok';
 }
 
-function openPrintableWindow(documentHtml) {
-  const win = window.open('', '_blank', 'width=1120,height=820');
-  if (!win) return null;
-
-  let printed = false;
-  const printOnce = () => {
-    if (printed) return;
-    printed = true;
-    if (typeof win.focus === 'function') win.focus();
-    if (typeof win.print === 'function') win.print();
-  };
-
-  const doc = win.document;
-  if (typeof doc?.open === 'function') doc.open();
-  if (typeof doc?.write === 'function') doc.write(documentHtml);
-  if (typeof doc?.close === 'function') doc.close();
-
-  win.onload = () => {
-    setTimeout(printOnce, 120);
-  };
-
-  // Fallback para navegadores que nao disparam onload em about:blank.
-  setTimeout(printOnce, 450);
-  return win;
-}
-
 function InspectionDetailsModal({
   inspection,
   project,
@@ -67,6 +33,8 @@ function InspectionDetailsModal({
   onNavigate,
 }) {
   const feriadosIndex = useMemo(() => buildFeriadosIndex(feriados), [feriados]);
+  const [pdfVariant, setPdfVariant] = useState('sobria');
+  const statusMeta = getInspectionStatusMeta(inspection || {});
   const relatedErosions = (erosions || [])
     .filter((item) => String(item?.vistoriaId || '').trim() === String(inspection?.id || '').trim());
   const currentIndex = (inspections || []).findIndex((item) => item?.id === inspection?.id);
@@ -84,132 +52,14 @@ function InspectionDetailsModal({
   }
 
   function handleExportDetailsPdf() {
-    const days = Array.isArray(inspection?.detalhesDias) ? inspection.detalhesDias : [];
-    const dayCardsHtml = days.map((dia, idx) => {
-      const dateLabel = dia?.data ? new Date(`${dia.data}T00:00:00`).toLocaleDateString('pt-BR') : `Dia ${idx + 1}`;
-      const towers = Array.isArray(dia?.torresDetalhadas) ? dia.torresDetalhadas : [];
-      const towersHtml = towers.length > 0
-        ? towers.map((tower) => `
-          <div class="tower-row ${tower?.temErosao ? 'tower-erosion' : ''}">
-            <strong>${escapeHtml(formatTowerLabel(tower?.numero))}</strong>
-            <span>${escapeHtml(tower?.obs ? ` - ${tower.obs}` : ' - sem observacoes')}</span>
-          </div>
-        `).join('')
-        : '<div class="empty">Sem torres detalhadas neste dia.</div>';
-
-      const hotelHtml = hasHotelData(dia) ? `
-        <div class="hotel-box">
-          <div class="hotel-title">Dados de hospedagem</div>
-          <div><strong>Hotel:</strong> ${escapeHtml(dia?.hotelNome || '-')}</div>
-          <div><strong>Municipio:</strong> ${escapeHtml(dia?.hotelMunicipio || '-')}</div>
-          <div><strong>Torre base:</strong> ${escapeHtml(dia?.hotelTorreBase || '-')}</div>
-          <div><strong>Notas:</strong> Logistica ${escapeHtml(formatHotelNote(dia?.hotelLogisticaNota))} | Reserva ${escapeHtml(formatHotelNote(dia?.hotelReservaNota))} | Estadia ${escapeHtml(formatHotelNote(dia?.hotelEstadiaNota))}</div>
-        </div>
-      ` : '';
-
-      const feriadoDia = getFeriadoForDate(dia?.data, feriadosIndex);
-      return `
-        <div class="day-card avoid-break">
-          <div class="day-head">
-            <span class="date">${escapeHtml(dateLabel)}</span>
-            ${feriadoDia ? `<span class="chip amber">Feriado - ${escapeHtml(feriadoDia.nome)}</span>` : ''}
-            ${dia?.clima ? `<span class="chip sky">${escapeHtml(dia.clima)}</span>` : ''}
-            ${(dia?.torresInput || dia?.torres) ? `<span class="chip gray">Torres: ${escapeHtml(Array.isArray(dia.torres) ? dia.torres.join(', ') : (dia.torresInput || dia.torres))}</span>` : ''}
-          </div>
-          <div class="day-subtitle">Torres visitadas</div>
-          <div class="tower-list">${towersHtml}</div>
-          ${hotelHtml}
-        </div>
-      `;
-    }).join('');
-
-    const erosionsHtml = relatedErosions.length > 0
-      ? relatedErosions.map((item) => `
-        <div class="erosion-row avoid-break">
-          <div><strong>${escapeHtml(item?.id || '-')}</strong></div>
-          <div>${escapeHtml(String(item?.torreRef ?? '').trim() ? formatTowerLabel(item.torreRef) : '-')} • ${escapeHtml(item?.tipo || '-')} • ${escapeHtml(item?.estagio || '-')}</div>
-          <div><strong>Impacto:</strong> ${escapeHtml(item?.impacto || '-')}</div>
-        </div>
-      `).join('')
-      : '<div class="empty">Nenhuma erosao vinculada a esta vistoria.</div>';
-
-    const documentHtml = `
-      <html>
-        <head>
-          <title>Detalhes da Vistoria ${escapeHtml(inspection?.id || '-')}</title>
-          <style>
-            @page { size: A4; margin: 12mm; }
-            * { box-sizing: border-box; }
-            body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; background: #f8fafc; }
-            .wrapper { max-width: 100%; }
-            .header { background: linear-gradient(135deg, #dbeafe 0%, #e2e8f0 100%); border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px; }
-            .title { font-size: 19px; font-weight: 700; margin: 0 0 4px 0; color: #1e3a8a; }
-            .meta { color: #475569; font-size: 11px; }
-            .section { margin-top: 12px; border: 1px solid #dbe4ee; border-radius: 10px; background: #ffffff; padding: 12px; }
-            .section-title { font-size: 13px; font-weight: 700; margin: 0 0 8px 0; color: #0f172a; }
-            .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-            .row { line-height: 1.4; color: #1f2937; }
-            .label { color: #475569; font-weight: 600; }
-            .day-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 8px; background: #fff; }
-            .day-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
-            .date { font-weight: 700; color: #0f172a; }
-            .chip { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 999px; }
-            .chip.sky { background: #e0f2fe; color: #0369a1; }
-            .chip.gray { background: #f1f5f9; color: #334155; }
-            .chip.amber { background: #fef3c7; color: #92400e; font-weight: 700; }
-            .day-subtitle { font-weight: 700; color: #334155; margin: 4px 0 6px; }
-            .tower-list { display: grid; gap: 5px; }
-            .tower-row { border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; padding: 6px; }
-            .tower-erosion { border-color: #fecaca; background: #fef2f2; }
-            .hotel-box { margin-top: 8px; border: 1px solid #bfdbfe; border-radius: 6px; background: #eff6ff; padding: 8px; }
-            .hotel-title { color: #1d4ed8; font-weight: 700; margin-bottom: 4px; }
-            .erosion-row { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: 8px; margin-bottom: 8px; }
-            .empty { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px; color: #64748b; background: #f8fafc; }
-            .avoid-break { page-break-inside: avoid; }
-            @media print {
-              .section-days .day-card { page-break-before: always; break-before: page; margin-bottom: 0; }
-              .section-days .day-card:first-of-type { page-break-before: auto; break-before: auto; }
-              .tower-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; align-items: start; }
-              .tower-row { page-break-inside: avoid; break-inside: avoid; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="wrapper">
-            <div class="header avoid-break">
-              <h1 class="title">Detalhes da Vistoria ${escapeHtml(inspection?.id || '-')}</h1>
-              <div class="meta">Empreendimento: ${escapeHtml(inspection?.projetoId || '-')} ${project?.nome ? `(${escapeHtml(project.nome)})` : ''}</div>
-              <div class="meta">Gerado em: ${escapeHtml(new Date().toLocaleString('pt-BR'))}</div>
-            </div>
-
-            <div class="section avoid-break">
-              <h2 class="section-title">Resumo</h2>
-              <div class="summary-grid">
-                <div class="row"><span class="label">ID:</span> ${escapeHtml(inspection?.id || '-')}</div>
-                <div class="row"><span class="label">Empreendimento:</span> ${escapeHtml(inspection?.projetoId || '-')}</div>
-                <div class="row"><span class="label">Data Inicio:</span> ${escapeHtml(inspection?.dataInicio || '-')}</div>
-                <div class="row"><span class="label">Data Fim:</span> ${escapeHtml(inspection?.dataFim || '-')}</div>
-                <div class="row"><span class="label">Responsavel:</span> ${escapeHtml(inspection?.responsavel || '-')}</div>
-                <div class="row"><span class="label">Dias registados:</span> ${escapeHtml(days.length)}</div>
-              </div>
-              ${inspection?.obs ? `<div class="row" style="margin-top:8px;"><span class="label">Observacoes:</span> ${escapeHtml(inspection.obs).replace(/\n/g, '<br />')}</div>` : ''}
-            </div>
-
-            <div class="section section-days">
-              <h2 class="section-title">Diario de Campo Detalhado</h2>
-              ${dayCardsHtml || '<div class="empty">Sem dias detalhados.</div>'}
-            </div>
-
-            <div class="section">
-              <h2 class="section-title">Erosoes Identificadas (${escapeHtml(relatedErosions.length)})</h2>
-              ${erosionsHtml}
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    openPrintableWindow(documentHtml);
+    const documentHtml = buildVistoriaPdfDocument({
+      inspection,
+      project,
+      erosions: relatedErosions,
+      variant: pdfVariant,
+      user: inspection?.atualizadoPor || '',
+    });
+    openVistoriaPrintWindow(documentHtml);
   }
 
   const footer = (
@@ -220,6 +70,24 @@ function InspectionDetailsModal({
       <IconButton variant="outline" size="md" onClick={handleNext} disabled={!hasNext} aria-label="Proxima vistoria">
         <AppIcon name="chevron-right" />
       </IconButton>
+      <div className="flex items-center gap-1 mr-1" role="group" aria-label="Variacao do PDF">
+        <Button
+          variant={pdfVariant === 'sobria' ? 'primary' : 'outline'}
+          size="sm"
+          onClick={() => setPdfVariant('sobria')}
+          aria-pressed={pdfVariant === 'sobria'}
+        >
+          Sobria
+        </Button>
+        <Button
+          variant={pdfVariant === 'marca' ? 'primary' : 'outline'}
+          size="sm"
+          onClick={() => setPdfVariant('marca')}
+          aria-pressed={pdfVariant === 'marca'}
+        >
+          Com marca
+        </Button>
+      </div>
       <Button variant="primary" size="md" onClick={handleExportDetailsPdf}>
         <AppIcon name="pdf" /> Gerar PDF
       </Button>
@@ -258,11 +126,18 @@ function InspectionDetailsModal({
             )}
           </div>
           <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex flex-col gap-3">
-            <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2">Informacoes da Vistoria</h4>
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+              <h4 className="text-base font-bold text-slate-800 m-0">Informacoes da Vistoria</h4>
+              {statusMeta ? (
+                <Badge tone={statusMeta.tone} size="sm" className="rounded-full shrink-0">
+                  <AppIcon name={statusMeta.icon} className="w-3 h-3" aria-hidden="true" />
+                  {statusMeta.label}
+                </Badge>
+              ) : null}
+            </div>
             <div className="flex flex-col gap-1.5 text-sm text-slate-700">
               <div><strong>ID:</strong> {inspection?.id || '-'}</div>
-              <div><strong>Data Inicio:</strong> {inspection?.dataInicio || '-'}</div>
-              {inspection?.dataFim ? <div><strong>Data Fim:</strong> {inspection.dataFim}</div> : null}
+              <div><strong>Periodo:</strong> {formatInspectionPeriod(inspection?.dataInicio, inspection?.dataFim) || '-'}</div>
               {inspection?.responsavel ? <div><strong>Responsavel:</strong> {inspection.responsavel}</div> : null}
             </div>
           </div>

@@ -40,6 +40,9 @@ import LogIn from 'lucide-react/dist/esm/icons/log-in';
 import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import Mail from 'lucide-react/dist/esm/icons/mail';
 import MapIcon from 'lucide-react/dist/esm/icons/map';
+import MapPin from 'lucide-react/dist/esm/icons/map-pin';
+import MoreHorizontal from 'lucide-react/dist/esm/icons/more-horizontal';
+import CalendarCheck from 'lucide-react/dist/esm/icons/calendar-check';
 import Menu from 'lucide-react/dist/esm/icons/menu';
 import Monitor from 'lucide-react/dist/esm/icons/monitor';
 import Pause from 'lucide-react/dist/esm/icons/pause';
@@ -78,6 +81,10 @@ const ICON_MAP = {
   pdf: FileDown,
   'file-text': FileText,
   map: MapIcon,
+  'map-pin': MapPin,
+  clock: Clock,
+  'more-horizontal': MoreHorizontal,
+  'calendar-check': CalendarCheck,
   route: Route,
   reset: RefreshCw,
   refresh: RefreshCw,
@@ -91,7 +98,6 @@ const ICON_MAP = {
   bell: Bell,
   calendar: Calendar,
   'calendar-days': CalendarDays,
-  clock: Clock,
   planning: ListFilter,
   'route-plan': Waypoints,
   shield: ShieldCheck,
