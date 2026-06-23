@@ -15,6 +15,7 @@ import {
   WIZARD_STEPS,
   getMissingRequired,
   isStepComplete,
+  normalizeReportStyle,
 } from './compound-wizard/wizardConstants';
 
 // Hidrata um draft a partir de um compound existente (modo edit).
@@ -59,6 +60,7 @@ function draftFromCompound(compound, signatariosCandidatos = []) {
     anexoFichasErosionIds: Array.isArray(shared.anexoFichasErosionIds)
       ? shared.anexoFichasErosionIds.filter(Boolean).map(String)
       : [],
+    reportStyle: normalizeReportStyle(shared.reportStyle),
   };
 }
 

@@ -1,5 +1,5 @@
 import AppIcon from '../../../../components/AppIcon';
-import { WIZARD_STEPS } from './wizardConstants';
+import { WIZARD_STEPS, REPORT_STYLES, DEFAULT_REPORT_STYLE } from './wizardConstants';
 
 // Step 5 — read-only + resumo das pendencias.
 // E aqui que o bloqueio acontece: se missingRequired tiver itens, listar quais
@@ -63,6 +63,10 @@ export default function StepRevisao({
         <SummaryRow
           label="Coordenadas nas fotos"
           value={draft.includeTowerCoordinates ? `Sim (${draft.towerCoordinateFormat || 'decimal'})` : 'Não'}
+        />
+        <SummaryRow
+          label="Estilo do relatório"
+          value={(REPORT_STYLES.find((style) => style.value === (draft.reportStyle || DEFAULT_REPORT_STYLE)) || REPORT_STYLES[0]).label}
         />
       </SummarySection>
 

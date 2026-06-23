@@ -61,7 +61,7 @@ function normalizeCompoundPayload(data = {}, meta = {}, fallback = {}) {
     return {
         ...fallback,
         id: normalizeText(data.id) || normalizeText(fallback.id) || `RC-${crypto.randomUUID()}`,
-        nome: normalizeText(data.nome) || normalizeText(fallback.nome) || 'Relatorio composto',
+        nome: normalizeText(data.nome) || normalizeText(fallback.nome) || 'Relatório de Monitoramento de Processo Erosivo',
         status: normalizeText(data.status) || normalizeText(fallback.status) || 'draft',
         workspaceIds,
         orderJson,

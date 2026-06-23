@@ -7,11 +7,11 @@ import unittest
 import zipfile
 
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Cm, Pt
+from docx.shared import Cm, Pt, RGBColor
 
 from worker.docx_renderer import (
+    apply_axia_formatting_compound,
     apply_body_font,
-    apply_eletrobras_formatting_compound,
     create_document_from_template,
 )
 from worker.exif_gps import extract_gps_latlon
@@ -350,18 +350,18 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertIn("Foto 1", document_text)
         self.assertIn("Foto 2", document_text)
 
-    def test_apply_eletrobras_formatting_compound_aligns_styles_and_margins(self):
+    def test_apply_axia_formatting_compound_aligns_styles_and_margins(self):
         document, used_template, _ = create_document_from_template(
             "LT Test", "COD-001", "2026-04-15", "00"
         )
         self.assertTrue(used_template, "Template file must exist for this test to be meaningful")
 
-        apply_eletrobras_formatting_compound(document)
+        apply_axia_formatting_compound(document)
 
         sections = list(document.sections)
         self.assertGreater(len(sections), 1, "Template expected to have a back-cover section")
 
-        # All content sections (everything except the back cover) get Eletrobras margins.
+        # All content sections (everything except the back cover) get AXIA margins.
         # Margins round-trip through w:pgMar as twips, so Cm(4) lands ~180 EMU off
         # (2268 twips * 635 EMU = 1440180 vs Cm(4) = 1440000). Tolerate <0.01 cm.
         margin_tolerance = Cm(0.01)
@@ -409,6 +409,8 @@ class WorkerRuntimeTests(unittest.TestCase):
         # Heading do template: troca apenas o typeface, tamanho/bold ficam do template.
         heading = document.styles["Ttulo1"]
         self.assertEqual(heading.font.name, "DM Sans")
+        # Cor institucional Azul-marinho AXIA fixada em runtime (manual secao 4).
+        self.assertEqual(heading.font.color.rgb, RGBColor.from_string("0A003C"))
 
         # Caption (photo legend): preserva estilo original do template (italic, cor tema).
         caption = document.styles["caption"]
@@ -735,6 +737,64 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertIn("Programa Personalizado", plain)
         # The inspection subtitle from the template must still be present.
         self.assertIn("Inspe", plain)
+
+    def test_report_compound_output_keeps_axia_brand(self):
+        """O re-skin AXIA sobrevive ao render: tema, fontes e heading institucional.
+
+        Garante que o relatorio gerado (Monitoramento de Processo Erosivo)
+        herda a paleta/fontes do template e o realce de heading aplicado em
+        runtime — sem cores do tema Office vazando para a entrega.
+        """
+        docx = self._run_compound(build_compound_context(), job_id="JOB-BRAND")
+
+        theme = read_docx_entry(docx, "word/theme/theme1.xml")
+        self.assertIn('<a:accent1><a:srgbClr val="0000FF"', theme)
+        self.assertIn('<a:dk2><a:srgbClr val="0A003C"', theme)
+        for office_color in ("4472C4", "ED7D31", "FFC000"):
+            self.assertNotIn(office_color, theme)
+
+        font_table = read_docx_entry(docx, "word/fontTable.xml")
+        self.assertIn('<w:font w:name="DM Sans">', font_table)
+        self.assertIn('w:altName w:val="Arial"', font_table)
+
+        # Capa migrou de Verdana (fora da marca) para DM Sans.
+        self.assertNotIn('"Verdana"', read_docx_entry(docx, "word/document.xml"))
+
+        # Heading institucional Ttulo1 fixado em Azul-marinho AXIA.
+        styles = read_docx_entry(docx, "word/styles.xml")
+        ttulo1 = re.search(
+            r'<w:style [^>]*w:styleId="Ttulo1".*?</w:style>', styles, re.S
+        )
+        self.assertIsNotNone(ttulo1)
+        self.assertIn('<w:color w:val="0A003C"', ttulo1.group(0))
+
+    def _normal_rfonts(self, docx):
+        styles = read_docx_entry(docx, "word/styles.xml")
+        normal = re.search(r'<w:style [^>]*w:styleId="Normal".*?</w:style>', styles, re.S).group(0)
+        return re.search(r"<w:rFonts[^>]*>", normal).group(0)
+
+    def test_report_compound_default_preset_embeds_dm_sans(self):
+        """Preset padrao (axia): corpo em DM Sans e a fonte vai embutida no DOCX."""
+        docx = self._run_compound(build_compound_context(), job_id="JOB-DEF")
+        self.assertIn('w:ascii="DM Sans"', self._normal_rfonts(docx))
+        dm = re.search(
+            r'<w:font w:name="DM Sans">.*?</w:font>',
+            read_docx_entry(docx, "word/fontTable.xml"),
+            re.S,
+        ).group(0)
+        self.assertIn("w:embedRegular", dm)
+
+    def test_report_compound_arial_preset_uses_arial(self):
+        """Preset axia-arial: estilos base e runs da capa caem para Arial."""
+        context = build_compound_context()
+        context["renderModel"]["compound"]["sharedTextsJson"] = {
+            "introducao": "Intro",
+            "reportStyle": "axia-arial",
+        }
+        docx = self._run_compound(context, job_id="JOB-ARIAL")
+        self.assertIn('w:ascii="Arial"', self._normal_rfonts(docx))
+        # Nenhum run direto sobra em DM Sans (capa incluida).
+        self.assertNotIn('w:ascii="DM Sans"', read_docx_entry(docx, "word/document.xml"))
 
     def test_project_dossier_header_has_custom_document_code(self):
         """T3 — document_code flows from context, hard-coded placeholder gone."""

@@ -94,7 +94,7 @@ async function save(payload, options = {}) {
         `,
         [
             normalizedId,
-            normalizeText(nextPayload.nome) || 'Relatorio composto',
+            normalizeText(nextPayload.nome) || 'Relatório de Monitoramento de Processo Erosivo',
             normalizeText(nextPayload.status) || 'draft',
             JSON.stringify(nextPayload.workspaceIds || []),
             JSON.stringify(nextPayload.orderJson || []),

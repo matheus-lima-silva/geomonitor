@@ -242,6 +242,14 @@ A geracao de DOCX, o processamento de KMZ grande e o export ZIP de fotos rodam n
 
 Configuracao do worker fica em [deploy/fly/**/worker.toml](../deploy/fly). Envs relevantes: `GEOMONITOR_API_URL`, `WORKER_API_TOKEN`, `WORKER_AUTO_POLL`, `WORKER_POLL_INTERVAL_SECONDS`, `WORKER_DOWNLOAD_MAX_ATTEMPTS`, `WORKER_DOWNLOAD_BACKOFF_BASE`.
 
+### Identidade de marca do relatorio composto (AXIA)
+
+O DOCX do compound — apresentado ao usuario como **"Relatorio de Monitoramento de Processo Erosivo"** (nome padrao quando nao informado) — segue o Manual de Comunicacao Visual da AXIA Energia. O grosso da identidade vem do tema do template [worker/assets/template_relatorio.docx](../worker/assets/template_relatorio.docx): paleta AXIA (Azul `#0000FF`, Azul-marinho `#0A003C`, Off-white `#FAF5F0`, Cinza `#A0B4D2`, Amarelo `#F9B50B`) e fonte **DM Sans com fallback Arial** (`altName` no `fontTable`, regra do manual 3.2 para docs abertos por terceiros). A transformacao e reproduzivel/idempotente via [worker/scripts/reskin_template_axia.py](../worker/scripts/reskin_template_axia.py); realces de runtime (heading em Azul-marinho) ficam em `apply_axia_formatting_compound` ([worker/docx_renderer.py](../worker/docx_renderer.py)). A conformidade e travada por testes em [worker/tests/test_template_axia_brand.py](../worker/tests/test_template_axia_brand.py). O identificador interno (`report_compound` / tabela `report_compounds`) permanece inalterado. Campos de controle do cliente (departamento Furnas, Nº do Documento, revisao) sao preservados.
+
+**Fonte embutida + anexo de fichas.** O mesmo script embute as 4 estaticas DM Sans (`worker/assets/fonts/DMSans-*.ttf`, OFL) nos dois templates — `template_relatorio.docx` e o anexo `template_ficha_cadastro_erosao.docx` — via ofuscacao ECMA-376/OPC (odttf + `fontTable.xml.rels` + `embedTrueTypeFonts`), de modo que DM Sans renderiza mesmo sem a fonte instalada no destinatario. O template da ficha (usado tanto no anexo do compound quanto no relatorio standalone `ficha_cadastro`) recebe o mesmo re-skin de tema/fonte.
+
+**Presets de estilo (por relatorio).** O wizard ([StepCabecalho.jsx](../src/features/reports/components/compound-wizard/StepCabecalho.jsx)) expoe um seletor "Estilo do relatorio" gravado em `sharedTextsJson.reportStyle` (pass-through, sem migracao). Os presets sao espelhados entre `REPORT_STYLES` ([wizardConstants.js](../src/features/reports/components/compound-wizard/wizardConstants.js)) e `REPORT_STYLE_PRESETS` ([docx_renderer.py](../worker/docx_renderer.py)) — **manter em sincronia** (mesmo padrao das cores do relatorio mensal): `axia` (DM Sans embutida, padrao), `axia-arial` (corpo Arial, sem depender do embed) e `axia-escuro` (capa escura/logo negativo, desabilitado ate existir o asset de logo negativo). O worker aplica o preset em `apply_axia_formatting_compound(document, preset)`.
+
 ---
 
 ## KMZ com fotos: export full-res, download e round-trip de organizacao

@@ -11,6 +11,35 @@ export const WIZARD_STEPS = [
 
 export const ANEXO_FICHAS_MODES = Object.freeze(['none', 'all', 'selected']);
 
+// Presets visuais do relatorio gerado. MANTER EM SINCRONIA com
+// REPORT_STYLE_PRESETS em worker/docx_renderer.py (mesma paridade JS<->Python
+// das cores do relatorio mensal). `disabled` marca presets ainda sem asset.
+export const REPORT_STYLES = Object.freeze([
+  {
+    value: 'axia',
+    label: 'AXIA Institucional (DM Sans)',
+    hint: 'Fonte DM Sans embutida + paleta AXIA. Padrão institucional.',
+    disabled: false,
+  },
+  {
+    value: 'axia-arial',
+    label: 'AXIA Compatibilidade (Arial)',
+    hint: 'Corpo em Arial (fonte de sistema), sem fonte embutida — arquivo menor.',
+    disabled: false,
+  },
+  {
+    value: 'axia-escuro',
+    label: 'AXIA Capa Escura (em breve)',
+    hint: 'Capa escura com logo negativo (versão preferencial). Requer o asset de logo negativo.',
+    disabled: true,
+  },
+]);
+export const DEFAULT_REPORT_STYLE = 'axia';
+const ENABLED_REPORT_STYLE_VALUES = REPORT_STYLES.filter((s) => !s.disabled).map((s) => s.value);
+export function normalizeReportStyle(value) {
+  return ENABLED_REPORT_STYLE_VALUES.includes(value) ? value : DEFAULT_REPORT_STYLE;
+}
+
 export const DEFAULT_DRAFT = Object.freeze({
   nome: '',
   revisao: '00',
@@ -31,6 +60,7 @@ export const DEFAULT_DRAFT = Object.freeze({
   towerCoordinateFormat: 'decimal',
   anexoFichasMode: 'none',
   anexoFichasErosionIds: [],
+  reportStyle: DEFAULT_REPORT_STYLE,
 });
 
 // Campos do draft considerados obrigatorios. Hoje so 'nome' (alinhado com a

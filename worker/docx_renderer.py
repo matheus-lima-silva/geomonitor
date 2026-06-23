@@ -13,13 +13,42 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import qn
-from docx.shared import Cm, Pt
+from docx.shared import Cm, Pt, RGBColor
 
 from worker.coordinate_format import format_tower_coordinate
 from worker.kmz_renderer import build_tower_lookup, normalize_tower_id
 
 
 MAX_IMAGE_WIDTH_CM = 15
+
+# Paleta institucional AXIA Energia (Manual de Comunicacao Visual, secao 4),
+# aplicada no re-skin do relatorio composto (Monitoramento de Processo Erosivo).
+# O grosso da identidade vem do tema do template (worker/scripts/reskin_template_axia.py);
+# estas constantes cobrem os realces aplicados em runtime.
+AXIA_AZUL = "0000FF"       # Azul AXIA — accent primario
+AXIA_MARINHO = "0A003C"    # Azul-marinho — titulos/headings e capa
+AXIA_OFFWHITE = "FAF5F0"   # Off-white — fundos claros
+AXIA_CINZA = "A0B4D2"      # Cinza — sombreamento de tabelas
+AXIA_AMARELO = "F9B50B"    # Amarelo — destaque pontual de texto (NUNCA fundo)
+
+# Presets de estilo do relatorio composto, escolhidos no wizard (campo
+# sharedTextsJson.reportStyle). MANTER EM SINCRONIA com REPORT_STYLES em
+# src/features/reports/components/compound-wizard/wizardConstants.js (mesmo
+# padrao de paridade JS<->Python das cores do relatorio mensal). "body_font"
+# decide a tipografia; a paleta/heading AXIA valem para todos os presets.
+DEFAULT_REPORT_STYLE = "axia"
+REPORT_STYLE_PRESETS = {
+    "axia": {"label": "AXIA Institucional", "body_font": "DM Sans"},
+    "axia-arial": {"label": "AXIA Compatibilidade", "body_font": "Arial"},
+    # "axia-escuro" (capa escura/logo negativo) fica gated ate o asset existir.
+}
+
+
+def resolve_report_style(value):
+    key = (value or "").strip() or DEFAULT_REPORT_STYLE
+    return REPORT_STYLE_PRESETS.get(key, REPORT_STYLE_PRESETS[DEFAULT_REPORT_STYLE])
+
+
 HEADING_NUM_ID = "12"
 SIGNATURE_LINE = "_________________________________________"
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "assets", "template_relatorio.docx")
@@ -401,44 +430,66 @@ def _clear_run_color(style):
         rPr.remove(color)
 
 
-def apply_body_font(document):
+def apply_body_font(document, font_name=BODY_FONT_NAME):
     """Set the body typeface/size on the document's base styles.
 
     Mutates Normal, Normal (Web) and the template heading style in place so
     every paragraph that inherits from them renders in the body font. Heading
     keeps the template's size/bold/numbering — only the typeface changes.
+    The font family is overridable so report style presets can pick Arial.
     """
     styles = document.styles
 
     try:
         normal = styles["Normal"]
-        normal.font.name = BODY_FONT_NAME
+        normal.font.name = font_name
         normal.font.size = Pt(BODY_FONT_SIZE_PT)
     except KeyError:
         pass
 
     try:
         body = styles["Normal (Web)"]
-        body.font.name = BODY_FONT_NAME
+        body.font.name = font_name
         body.font.size = Pt(BODY_FONT_SIZE_PT)
     except KeyError:
         pass
 
     try:
         heading = styles[TEMPLATE_HEADING_STYLE]
-        heading.font.name = BODY_FONT_NAME
+        heading.font.name = font_name
     except KeyError:
         pass
 
 
-def apply_eletrobras_formatting_compound(document):
-    """Mutate a template-backed Document to match the institutional layout.
+def _swap_run_fonts(document, from_name, to_name):
+    """Re-point every direct-formatted run font from one family to another.
+
+    Style-level fonts come from apply_body_font; this catches direct rFonts on
+    runs the template ships pre-formatted (notably the cover textbox), so a
+    non-DM-Sans preset renders consistently everywhere.
+    """
+    for rfonts in document._element.iter(qn("w:rFonts")):
+        for attr in ("w:ascii", "w:hAnsi", "w:cs"):
+            if rfonts.get(qn(attr)) == from_name:
+                rfonts.set(qn(attr), to_name)
+
+
+def apply_axia_formatting_compound(document, preset=None):
+    """Mutate a template-backed Document to match the AXIA institutional layout.
 
     Only called from render_report_compound_docx, and only when used_template
     is True (the fallback Document() path relies on python-docx defaults that
     are already closer to the spec). Mutates margins and the custom styles
-    NormalWeb, caption and Normal in place.
+    NormalWeb, caption, heading and Normal in place. The brand palette/fonts
+    live in the template theme (see worker/scripts/reskin_template_axia.py);
+    this only adds the runtime accents the theme cannot express on its own.
+
+    ``preset`` is a REPORT_STYLE_PRESETS entry; its ``body_font`` selects the
+    typeface (DM Sans for the institutional preset, Arial for compatibility).
     """
+    if preset is None:
+        preset = REPORT_STYLE_PRESETS[DEFAULT_REPORT_STYLE]
+    body_font = preset.get("body_font", BODY_FONT_NAME)
     # --- 1. Content section margins (leave back-cover section untouched) ---
     content_sections = list(document.sections)
     if len(content_sections) > 1:
@@ -453,7 +504,20 @@ def apply_eletrobras_formatting_compound(document):
         # us not to touch the footer area).
 
     # --- 2. Body font on Normal / Normal (Web) / heading ---
-    apply_body_font(document)
+    apply_body_font(document, body_font)
+    # Non-DM-Sans presets also flip direct-formatted runs (e.g. the cover) so
+    # the typeface is consistent and does not lean on the embedded DM Sans.
+    if body_font != BODY_FONT_NAME:
+        _swap_run_fonts(document, BODY_FONT_NAME, body_font)
+
+    # --- 2b. Heading institucional em Azul-marinho AXIA (manual secao 4) ---
+    # O template nao fixa cor no Ttulo1 (herda do tema); fixamos explicitamente
+    # para garantir o Azul-marinho independente do leitor/tema instalado.
+    try:
+        heading = document.styles[TEMPLATE_HEADING_STYLE]
+        heading.font.color.rgb = RGBColor.from_string(AXIA_MARINHO)
+    except KeyError:
+        pass
 
     # --- 3. NormalWeb (body paragraphs via _add_body_paragraph) ---
     # Justified, 12pt before/after, single line spacing.
@@ -1019,7 +1083,7 @@ def render_report_compound_docx(context, output_path, image_loader):
     shared = ensure_dict(compound.get("sharedTextsJson"))
     metadata = resolve_template_metadata(source=shared)
 
-    lt_name = normalize_text(shared.get("nome_lt")) or normalize_text(compound.get("nome")) or "Relatorio composto"
+    lt_name = normalize_text(shared.get("nome_lt")) or normalize_text(compound.get("nome")) or "Relatório de Monitoramento de Processo Erosivo"
     doc_code = metadata["document_code"]
     revision = metadata["revision"]
 
@@ -1029,8 +1093,9 @@ def render_report_compound_docx(context, output_path, image_loader):
         job.get("updatedAt") or job.get("createdAt"),
         revision,
     )
+    report_style = resolve_report_style(normalize_text(shared.get("reportStyle")))
     if used_template:
-        apply_eletrobras_formatting_compound(document)
+        apply_axia_formatting_compound(document, report_style)
     titulo_programa = normalize_text(shared.get("titulo_programa"))
 
     if used_template:

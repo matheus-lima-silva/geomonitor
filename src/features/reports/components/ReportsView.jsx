@@ -13,6 +13,7 @@ import {
   trashProjectDossier,
 } from '../../../services/projectDossierService';
 import { downloadProjectPhotoExport, listProjectPhotos, requestProjectPhotoExport } from '../../../services/projectPhotoLibraryService';
+import { normalizeReportStyle } from './compound-wizard/wizardConstants';
 import {
   addWorkspaceToReportCompound,
   createReportCompound,
@@ -1396,6 +1397,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
       anexoFichasErosionIds: Array.isArray(draft.anexoFichasErosionIds)
         ? draft.anexoFichasErosionIds.map((id) => String(id || '').trim()).filter(Boolean)
         : [],
+      reportStyle: normalizeReportStyle(draft.reportStyle),
     };
   }
 

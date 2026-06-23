@@ -1,4 +1,5 @@
 import { Input, Select } from '../../../../components/ui';
+import { REPORT_STYLES, DEFAULT_REPORT_STYLE } from './wizardConstants';
 
 // Step 1 — identificacao do documento. Este 'Cabecalho' e a metadata exibida
 // no cabecalho do DOCX (nome_lt, titulo_programa, codigo_documento), NAO o
@@ -11,6 +12,9 @@ export default function StepCabecalho({ draft, onChange, missingRequired }) {
   const nameError = missingRequired?.some((field) => field.key === 'nome')
     ? 'Obrigatório'
     : '';
+
+  const selectedStyle = draft.reportStyle || DEFAULT_REPORT_STYLE;
+  const styleHint = REPORT_STYLES.find((style) => style.value === selectedStyle)?.hint;
 
   return (
     <div className="flex flex-col gap-4">
@@ -63,6 +67,27 @@ export default function StepCabecalho({ draft, onChange, missingRequired }) {
             placeholder="Ex.: OOSEMB.RT.061.2026"
             hint="Número do documento conforme sistema de gestão."
           />
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Estilo do relatório
+        </p>
+        <div className="max-w-sm">
+          <Select
+            id="wizard-report-style"
+            label="Estilo visual"
+            value={selectedStyle}
+            onChange={(event) => set('reportStyle', event.target.value)}
+            hint={styleHint}
+          >
+            {REPORT_STYLES.map((style) => (
+              <option key={style.value} value={style.value} disabled={style.disabled}>
+                {style.label}
+              </option>
+            ))}
+          </Select>
         </div>
       </div>
 
