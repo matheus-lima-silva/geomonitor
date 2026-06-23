@@ -187,6 +187,43 @@ PR grande que refatorou `src/features/licenses/components/LicensesView.jsx` em c
 
 A secao "exige acompanhamento erosivo" permanece como callout amber (alinhado ao warning do projeto). Roteamento por URL param (`?license=ID`) foi escolhido por fidelidade ao projeto — o app nao usa React Router; seguimos o padrao ja presente em `App.jsx:8` (`?uiReview=sidebar`) e `?token` do reset-password.
 
+## Dashboard de campanhas em Acompanhamentos (junho/2026)
+
+Parte do programa de adocao do design handoff. `FollowupsView` ganhou um **dashboard de
+campanhas de monitoramento** no topo, montado 100% client-side a partir das `reportRows`
+(ocorrencias project×mes que a tela ja recebia via `DashboardView`). **Nenhuma migration,
+endpoint ou contrato de API novo.**
+
+- **Logica pura** em `src/features/followups/utils/followupCampaigns.js` — `buildCampaigns`
+  (uma campanha por janela de entrega), `followupDue` (estados entregue/atrasada/proxima≤45d/
+  em_dia, reusando `daysUntilDue` da reportRow), `deriveCampaignStage`/`followupStageStates`
+  (pipeline Planejamento→Campo→Curadoria→Relatorio→Emissao a partir do status operacional +
+  vistorias reais), `buildCampaignKpis`, `projectsWithoutSchedule`, helpers de periodo/torres
+  de vistoria. Testada em `__tests__/followupCampaigns.test.js` (8 casos).
+- **Componentes novos** em `src/features/followups/components/`: `FollowupCampaignsDashboard`
+  (orquestrador: KPIs + filtro + cards + emissoes + modal), `FollowupKpiBar` (KPIs clicaveis =
+  filtro rapido; tile via `<button aria-pressed>`, mesmo padrao visual-toggle ja aceito no
+  `ErosionPhotosPickerModal`), `FollowupCampaignCard`, `FollowupPipeline`,
+  `FollowupEmissionsPanel`, `ScheduleFieldModal` (Agendar campo — `Modal`+`Input`+`Textarea`).
+  Tudo sobre primitivos `Card`/`Badge`/`Button`/`IconButton`/`Select`.
+- **Hook** `useFollowupCampaignFacets` — carrega `listReportCompounds()` + `listArchives()` uma
+  vez para a timeline de Emissoes; **degrada** para vazio/erro sem quebrar a tela. As facetas de
+  relatorio/emissao por campanha vem do proprio status operacional/`deliveredAt` da reportRow
+  (compounds nao carregam vinculo de projeto — so `workspaceIds` —, entao nao sao mapeados por
+  campanha; o painel de Emissoes e cross-cutting, indexado por compound).
+- **Sem regressao**: as duas tabelas operacionais (entregas de relatorio com edicao inline +
+  obras em erosoes) foram **preservadas integralmente** numa secao recolhivel `<details>`
+  "Detalhes operacionais". `FollowupsView.test.jsx` mantem os 2 casos originais e ganhou 1 caso
+  do dashboard.
+- **Navegacao** entre abas: `FollowupsView` recebe `onNavigate` (ligado a `setActiveTab` no
+  `DashboardView`); cards/painel navegam para `inspections`/`visit-planning`/`georelat`/`projects`.
+- **`AppIcon.jsx`** — aliases novos `send`, `timer`, `calendar-clock`, `calendar-plus`,
+  `calendar-check`, `arrow-up-right`.
+
+Otimizacao futura (nao neste PR): endpoint de agregacao `GET /api/report-campaigns` para
+eliminar o enriquecimento client-side, se a performance pedir. O agendamento de campo e estado
+de sessao (sem persistencia) por enquanto.
+
 ## Redesign de Empreendimentos + acentos do Login (junho/2026)
 
 Parte do programa de adocao do design handoff (1 PR por view). So apresentacao — nenhuma

@@ -16,6 +16,15 @@ vi.mock('../../../../services/erosionService', () => ({
   saveErosionManualFollowupEvent: (...args) => saveErosionManualFollowupEventMock(...args),
 }));
 
+// Dashboard facets hook pulls these; resolve empty so no real fetch happens.
+vi.mock('../../../../services/reportCompoundService', () => ({
+  listReportCompounds: () => Promise.resolve([]),
+}));
+
+vi.mock('../../../../services/reportArchiveService', () => ({
+  listArchives: () => Promise.resolve([]),
+}));
+
 describe('FollowupsView', () => {
   let container;
   let root;
@@ -132,6 +141,52 @@ describe('FollowupsView', () => {
       },
     );
     expect(showToast).toHaveBeenCalledWith('Acompanhamento de entrega atualizado.', 'success');
+  });
+
+  it('renders the campaign dashboard and keeps the operational tables in a collapsible section', async () => {
+    await act(async () => {
+      root.render(
+        <FollowupsView
+          reportRows={[{
+            key: 'P-102|2025-06',
+            projectId: 'P-102',
+            projectName: 'LT 500kV Norte',
+            month: 6,
+            year: 2025,
+            monthKey: '2025-06',
+            daysUntilDue: -5,
+            sourceApplied: 'LO',
+            sourceOverride: 'AUTO',
+            deadlineStatusLabel: 'Atrasado',
+            operationalStatusValue: 'EM_ELABORACAO',
+            operationalStatusLabel: 'Elaboracao',
+            operationalStatusTone: 'warning',
+            deliveredAt: '',
+          }]}
+          workRows={[]}
+          erosions={[]}
+          inspections={[]}
+          projects={[{ id: 'P-102', nome: 'LT 500kV Norte', periodicidadeRelatorio: 'Semestral', mesesEntregaRelatorio: [4, 10] }]}
+          invalidOverrides={[]}
+          userActor="analista@empresa.com"
+          showToast={showToast}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // KPI bar + campaign card derived from the report row
+    expect(container.textContent).toContain('Campanhas ativas');
+    expect(container.textContent).toContain('Entrega atrasada');
+    expect(container.textContent).toContain('Entrega Jun/2025');
+    expect(container.textContent).toContain('Atrasada há 5d');
+
+    // operational tables preserved inside a collapsible <details>
+    const details = container.querySelector('details');
+    expect(details).toBeTruthy();
+    expect(container.textContent).toContain('Detalhes operacionais');
+    expect(container.textContent).toContain('Acompanhamento de Entregas de Relatorio');
   });
 
   it('registers manual work event using shared erosion service', async () => {
