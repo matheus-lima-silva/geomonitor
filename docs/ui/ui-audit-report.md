@@ -187,6 +187,17 @@ PR grande que refatorou `src/features/licenses/components/LicensesView.jsx` em c
 
 A secao "exige acompanhamento erosivo" permanece como callout amber (alinhado ao warning do projeto). Roteamento por URL param (`?license=ID`) foi escolhido por fidelidade ao projeto — o app nao usa React Router; seguimos o padrao ja presente em `App.jsx:8` (`?uiReview=sidebar`) e `?token` do reset-password.
 
+## Redesign do Gerenciamento (Admin) (junho/2026)
+
+Refatoracao de UX de `src/features/admin/components/AdminView.jsx` (sem mudanca de backend) seguindo o handoff do design system:
+
+- **Rail lateral agrupado** substitui a fileira de 8 botoes. Tres grupos (`Pessoas e acesso` / `Regras do sistema` / `Sistema`) num `<nav>` esquerdo (`grid lg:grid-cols-[252px_minmax(0,1fr)]`), com cabecalho de secao (titulo + descricao) na coluna de conteudo. Itens de navegacao seguem o padrao de `<button>` de nav do `AppShell` (`aria-current`, focus-visible ring) e o item `Console SQL` aparece travado (lock) para nao-admin.
+- **Pendencias de aprovacao em destaque**: badge com a contagem de utilizadores `Pendente` no item Utilizadores + banner amber no topo da secao.
+- **Criticidade estruturada** (`CriticalityConfigEditor`, novo): substitui o textarea de JSON cru por faixas C1-C4 com limites encadeados (so o limite superior e editavel) + barra visual (cores via `monitoringColors`) e matriz de pontos T/P/D/S/E/A. O JSON completo continua a fonte de verdade salva (controlled por `value`/`onChange`, preservando descricoes/tipos/`solucoes_por_criticidade`); um `<details>` "Editor avancado (JSON)" mantem o escape. O botao Salvar desabilita quando ha erro de ordenacao das faixas. Campos via `Input` primitive.
+- **Retencao** ganha presets (30/60/90/180/365d) via `Button`.
+- **Icone novo**: alias `clock` em `AppIcon.jsx` (lucide `Clock`) para o item Retencao.
+- **Testes**: `__tests__/CriticalityConfigEditor.test.jsx` (round-trip JSON, encadeamento de faixas, validacao, preservacao de campos nao editados) e `__tests__/AdminView.test.jsx` (rail agrupado, badge/banner de pendencias, troca para o editor).
+
 ## Follow-up suggestions
 
 - Add regression tests for the paginated trash modal (cover page boundaries, empty pages, filter + sort interaction). Existing tests cover `WorkspacesTab.lixeira` but not the modal's pagination edge cases.

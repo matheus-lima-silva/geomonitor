@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Card, ConfirmDeleteModal, Input, Modal, Select, Textarea } from '../../../components/ui';
+import { Button, Card, ConfirmDeleteModal, Input, Modal, Select } from '../../../components/ui';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { deleteUser, saveUser, sendUserResetEmail } from '../../../services/userService';
@@ -16,6 +16,70 @@ import WorkspacesAccessSection from './WorkspacesAccessSection';
 import UsageStatsSection from './UsageStatsSection';
 import SqlExecutorPanel from './SqlExecutorPanel';
 import FeriadosSection from './FeriadosSection';
+import CriticalityConfigEditor from './CriticalityConfigEditor';
+
+const NAV_GROUPS = [
+  {
+    label: 'Pessoas e acesso',
+    items: [
+      { id: 'users', label: 'Utilizadores', icon: 'user' },
+      { id: 'signatures', label: 'Assinaturas', icon: 'edit' },
+      { id: 'workspaces-access', label: 'Acessos a workspaces', icon: 'projects-nav' },
+    ],
+  },
+  {
+    label: 'Regras do sistema',
+    items: [
+      { id: 'rules', label: 'Criticidade', icon: 'shield' },
+      { id: 'retencao', label: 'Retencao', icon: 'clock' },
+      { id: 'feriados', label: 'Feriados', icon: 'calendar' },
+    ],
+  },
+  {
+    label: 'Sistema',
+    items: [
+      { id: 'stats', label: 'Estatisticas', icon: 'dashboard-nav' },
+      { id: 'sql', label: 'Console SQL', icon: 'database', adminOnly: true },
+    ],
+  },
+];
+
+const SECTION_META = {
+  users: { title: 'Utilizadores', desc: 'Aprove solicitacoes de acesso, edite perfis e gerencie status.' },
+  signatures: { title: 'Assinaturas', desc: 'Gerencie os signatarios de qualquer utilizador para os relatorios compostos.' },
+  'workspaces-access': { title: 'Acessos a workspaces', desc: 'Consolida todos os workspaces do sistema e seus membros.' },
+  rules: { title: 'Criticidade (V3)', desc: 'Configuracao canonica usada pelo motor de criticidade.' },
+  retencao: { title: 'Retencao da lixeira', desc: 'Quando fotos na lixeira passam a ser sugeridas para arquivamento.' },
+  feriados: { title: 'Feriados', desc: 'Datas sinalizadas no planejamento de visitas e no diario da vistoria.' },
+  stats: { title: 'Estatisticas de uso', desc: 'Totais, atividade recente, logins e saude da fila de relatorios.' },
+  sql: { title: 'Console SQL', desc: 'Consultas somente leitura para diagnostico, com auditoria.' },
+};
+
+function AdmNavItem({ item, active, badge, locked, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={locked}
+      aria-current={active ? 'page' : undefined}
+      className={[
+        'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm font-semibold border transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1',
+        active
+          ? 'bg-brand-50 border-brand-200 text-brand-800'
+          : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-800',
+        locked ? 'opacity-60 cursor-not-allowed' : '',
+      ].filter(Boolean).join(' ')}
+    >
+      <AppIcon name={item.icon} className={`w-4 h-4 ${active ? 'text-brand-600' : 'text-slate-400'}`} aria-hidden="true" />
+      <span className="flex-1 min-w-0 truncate">{item.label}</span>
+      {badge ? (
+        <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-warning-light border border-warning-border text-yellow-900 text-2xs font-bold">{badge}</span>
+      ) : null}
+      {locked ? <AppIcon name="lock" className="w-3 h-3 text-slate-400" aria-hidden="true" /> : null}
+    </button>
+  );
+}
 
 function AdminView({
   users,
@@ -34,6 +98,7 @@ function AdminView({
   const [retentionDays, setRetentionDays] = useState(() => (
     Number(rulesConfig?.retencao?.lixeira_para_arquivo_dias) || 30
   ));
+  const [criticalityValid, setCriticalityValid] = useState(true);
 
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -60,6 +125,11 @@ function AdminView({
   }, [rulesConfig]);
 
   const canApproveUsers = user?.role === 'admin' || user?.role === 'manager';
+
+  const pendingCount = useMemo(
+    () => (Array.isArray(users) ? users.filter((item) => normalizeUserStatus(item.status) === 'Pendente').length : 0),
+    [users],
+  );
 
   const filteredUsers = useMemo(() => {
     const term = String(searchTerm || '').toLowerCase();
@@ -192,21 +262,42 @@ function AdminView({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 mb-6">
-        <Button variant={section === 'users' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('users')}><AppIcon name="user" />Utilizadores</Button>
-        <Button variant={section === 'signatures' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('signatures')}><AppIcon name="edit" />Assinaturas</Button>
-        <Button variant={section === 'workspaces-access' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('workspaces-access')}><AppIcon name="projects-nav" />Acessos a Workspaces</Button>
-        <Button variant={section === 'rules' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('rules')}><AppIcon name="shield" />Criticidade</Button>
-        <Button variant={section === 'retencao' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('retencao')}><AppIcon name="clock" />Retencao</Button>
-        <Button variant={section === 'feriados' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('feriados')}><AppIcon name="calendar" />Feriados</Button>
-        <Button variant={section === 'stats' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('stats')}><AppIcon name="dashboard-nav" />Estatisticas</Button>
-        {user?.role === 'admin' && (
-          <Button variant={section === 'sql' ? 'primary' : 'outline'} size="sm" onClick={() => setSection('sql')}><AppIcon name="database" />Console SQL</Button>
-        )}
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[252px_minmax(0,1fr)] gap-6 items-start">
+        <nav aria-label="Secoes do gerenciamento" className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col gap-4 lg:sticky lg:top-4">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="flex flex-col gap-1">
+              <p className="px-3 text-2xs font-bold uppercase tracking-wide text-slate-400 m-0 mb-0.5">{group.label}</p>
+              {group.items
+                .filter((navItem) => !navItem.adminOnly || user?.role === 'admin')
+                .map((navItem) => (
+                  <AdmNavItem
+                    key={navItem.id}
+                    item={navItem}
+                    active={section === navItem.id}
+                    badge={navItem.id === 'users' && pendingCount > 0 ? pendingCount : null}
+                    onClick={() => setSection(navItem.id)}
+                  />
+                ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="flex flex-col gap-4 min-w-0">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800 m-0">{SECTION_META[section]?.title}</h3>
+            <p className="text-sm text-slate-500 m-0 mt-0.5">{SECTION_META[section]?.desc}</p>
+          </div>
 
       {section === 'users' && (
         <div className="flex flex-col gap-4">
+          {pendingCount > 0 && (
+            <div className="flex items-center gap-3 rounded-xl border border-warning-border bg-warning-light px-4 py-2.5">
+              <AppIcon name="alert" className="w-4 h-4 text-yellow-700 shrink-0" aria-hidden="true" />
+              <p className="flex-1 text-sm text-yellow-900 m-0">
+                {pendingCount === 1 ? '1 utilizador aguardando aprovacao.' : `${pendingCount} utilizadores aguardando aprovacao.`}
+              </p>
+            </div>
+          )}
           <div className="flex justify-start sm:justify-end gap-2">
             <Button variant="primary" size="sm" onClick={openNewUser}>
               <AppIcon name="plus" />
@@ -295,38 +386,49 @@ function AdminView({
 
       {section === 'retencao' && (
         <div className="flex flex-col gap-5" data-testid="admin-retention-section">
-          <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-            <h3 className="text-base font-bold text-slate-800 m-0 mb-1">Retencao de fotos na lixeira</h3>
-            <p className="text-sm text-slate-500 mb-4">
-              Define apos quantos dias fotos da lixeira passam a ser sugeridas para arquivamento.
-              Nao apaga nada automaticamente — apenas exibe um alerta dentro da lixeira com a acao
-              "Arquivar antigas" em lote.
+          <Card variant="flat" className="p-5 flex flex-col gap-4 max-w-2xl">
+            <p className="text-sm text-slate-500 m-0">
+              Nada e apagado automaticamente — a lixeira apenas exibe um alerta com a acao
+              "Arquivar antigas" em lote quando ha fotos elegiveis.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-wrap items-end gap-4">
               <div>
-                <label htmlFor="admin-retention-days" className="block text-xs font-semibold text-slate-700 mb-1">
-                  Dias para elegibilidade de arquivamento
+                <label htmlFor="admin-retention-days" className="block text-2xs font-bold uppercase tracking-wide text-slate-500 mb-1">
+                  Dias para elegibilidade
                 </label>
                 <Input
                   id="admin-retention-days"
                   type="number"
                   min="1"
                   max="3650"
+                  fullWidth={false}
+                  className="w-28"
                   value={retentionDays}
                   onChange={(event) => setRetentionDays(event.target.value === '' ? '' : Number(event.target.value))}
                 />
-                <p className="text-2xs text-slate-500 m-0 mt-1">
-                  Padrao: 30 dias. Limite maximo: 3650 dias (10 anos).
-                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
+                {[30, 60, 90, 180, 365].map((preset) => (
+                  <Button
+                    key={preset}
+                    variant={Number(retentionDays) === preset ? 'primary' : 'outline'}
+                    size="sm"
+                    aria-pressed={Number(retentionDays) === preset}
+                    onClick={() => setRetentionDays(preset)}
+                  >
+                    {preset}d
+                  </Button>
+                ))}
               </div>
             </div>
-            <div className="mt-4 flex justify-end">
+            <p className="text-2xs text-slate-500 m-0">Padrao: 30 dias. Limite maximo: 3650 dias (10 anos).</p>
+            <div className="flex justify-end">
               <Button variant="primary" onClick={handleSaveRetention} data-testid="admin-retention-save">
                 <AppIcon name="save" />
                 Salvar retencao
               </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
@@ -336,39 +438,31 @@ function AdminView({
 
       {section === 'rules' && (
         <div className="flex flex-col gap-5">
-          <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-            <h3 className="text-base font-bold text-slate-800 m-0 mb-1">Configuracao de criticidade (JSON)</h3>
-            <p className="text-sm text-slate-500 mb-4">
-              A metodologia V3 continua a mesma; aqui ajustamos apenas a configuracao canonica usada pelo motor.
-            </p>
-            <Textarea
-              id="admin-criticality-json"
-              rows={14}
-              value={criticalityText}
-              onChange={(event) => setCriticalityText(event.target.value)}
-              className="min-h-[300px] font-mono mb-4"
-            />
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs text-slate-500 m-0">
-                Estrutura esperada: `criticalidade.pontos`, `criticalidade.faixas` e `criticalidade.solucoes_por_criticidade`.
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setCriticalityText(JSON.stringify(mergeCriticalityConfig(CRITICALITY_DEFAULTS), null, 2))}
-                >
-                  <AppIcon name="reset" />
-                  Restaurar padrao
-                </Button>
-                <Button variant="primary" onClick={handleSaveRules}>
-                  <AppIcon name="save" />
-                  Salvar regras
-                </Button>
-              </div>
+          <CriticalityConfigEditor
+            value={criticalityText}
+            onChange={setCriticalityText}
+            onValidityChange={setCriticalityValid}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-2xs text-slate-400 m-0">A metodologia V3 continua a mesma; aqui ajusta-se apenas a configuracao canonica usada pelo motor.</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCriticalityText(JSON.stringify(mergeCriticalityConfig(CRITICALITY_DEFAULTS), null, 2))}
+              >
+                <AppIcon name="reset" />
+                Restaurar padrao
+              </Button>
+              <Button variant="primary" onClick={handleSaveRules} disabled={!criticalityValid}>
+                <AppIcon name="save" />
+                Salvar regras
+              </Button>
             </div>
           </div>
         </div>
       )}
+        </div>
+      </div>
 
       <ConfirmDeleteModal
         open={Boolean(deleteConfirm)}
