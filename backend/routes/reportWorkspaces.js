@@ -957,6 +957,7 @@ router.post('/:id/kmz/process', verifyToken, requireEditor, requireWorkspaceWrit
             updatedBy,
             mediaAssetRepository,
             reportPhotoRepository,
+            reportWorkspaceRepository,
         });
 
         const workspaceImportId = `WIM-${crypto.randomUUID()}`;

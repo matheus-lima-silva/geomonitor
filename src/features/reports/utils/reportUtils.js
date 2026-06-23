@@ -169,9 +169,13 @@ export function buildWorkspacePhotoDrafts(photos = [], persistedDrafts = {}) {
     return [
       photo.id,
       persistedDraft && typeof persistedDraft === 'object'
+        // `||` (nao `??`) de proposito: um rascunho de autosave com texto vazio
+        // nao pode mascarar o valor persistido da foto. Sem isso, fotos cuja torre
+        // foi atribuida server-side depois (ex.: round-trip do KMZ organizado)
+        // apareceriam "sem torre" porque o draft antigo guarda towerId ''.
         ? {
-          caption: String(persistedDraft.caption ?? photo.caption ?? ''),
-          towerId: String(persistedDraft.towerId ?? photo.towerId ?? ''),
+          caption: String(persistedDraft.caption || photo.caption || ''),
+          towerId: String(persistedDraft.towerId || photo.towerId || ''),
           includeInReport: Boolean(
             persistedDraft.includeInReport ?? photo.includeInReport,
           ),

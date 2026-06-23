@@ -43,6 +43,21 @@ function createMockReportPhotoRepository() {
     };
 }
 
+function createMockReportWorkspaceRepository(initial = {}) {
+    const stored = new Map(Object.entries(initial));
+    return {
+        getById: jest.fn(async (id) => stored.get(id) || null),
+        // Espelha o merge do repositorio real (passamos o draftState completo).
+        save: jest.fn(async (payload, options = {}) => {
+            const current = options.merge ? stored.get(payload.id) : null;
+            const next = { ...(current || {}), ...payload };
+            stored.set(payload.id, next);
+            return next;
+        }),
+        _stored: stored,
+    };
+}
+
 jest.mock('../utils/mediaStorage', () => ({
     readStoredMediaContent: jest.fn(),
     writeLocalContent: jest.fn(async (mediaId, fileName, buffer) => ({
@@ -255,6 +270,71 @@ describe('kmzProcessor', () => {
         expect(reportPhotoRepository._stored.get('RPH-7').towerId).toBe('30');
         // nao cria midia nova (sem reupload).
         expect(mediaAssetRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('reconcilia curationDrafts vazios com a torre atribuida no round-trip', async () => {
+        // Foto existente sem torre + draft de autosave antigo com towerId vazio,
+        // que mascararia a torre nova na UI se nao fosse reconciliado.
+        reportPhotoRepository._stored.set('RPH-7', {
+            id: 'RPH-7', mediaAssetId: 'MED-7', towerId: '', caption: 'torre tbd',
+        });
+        const reportWorkspaceRepository = createMockReportWorkspaceRepository({
+            'WS-001': {
+                id: 'WS-001',
+                draftState: {
+                    autosave: { dirty: true },
+                    curationDrafts: {
+                        'RPH-7': { towerId: '', caption: 'torre tbd', includeInReport: false },
+                    },
+                },
+            },
+        });
+
+        const kml = `<?xml version="1.0" encoding="UTF-8"?>
+        <kml xmlns="http://www.opengis.net/kml/2.2">
+          <Document>
+            <Folder>
+              <name>Torre 30</name>
+              <Placemark>
+                <name>Foto 1</name>
+                <ExtendedData>
+                  <Data name="photoId"><value>RPH-7</value></Data>
+                </ExtendedData>
+                <Point><coordinates>-43.1,-22.4,0</coordinates></Point>
+              </Placemark>
+            </Folder>
+          </Document>
+        </kml>`;
+
+        const kmzBuffer = buildTestKmz({
+            kmlText: kml,
+            images: [{ path: 'files/RPH-7.jpg', data: Buffer.from([0x09, 0x08, 0x07]) }],
+        });
+
+        readStoredMediaContent.mockResolvedValue({
+            buffer: kmzBuffer,
+            contentType: 'application/vnd.google-earth.kmz',
+            fileName: 'organizado.kmz',
+        });
+
+        const result = await processKmzImport({
+            workspaceId: 'WS-001',
+            projectId: 'PROJ-001',
+            mediaAsset: { id: 'MA-KMZ', filePath: '/tmp/kmz' },
+            updatedBy: 'test@user.com',
+            mediaAssetRepository,
+            reportPhotoRepository,
+            reportWorkspaceRepository,
+        });
+
+        expect(result.photosUpdated).toBe(1);
+        expect(reportWorkspaceRepository.save).toHaveBeenCalledTimes(1);
+
+        const savedWs = reportWorkspaceRepository._stored.get('WS-001');
+        expect(savedWs.draftState.curationDrafts['RPH-7'].towerId).toBe('30');
+        // preserva o resto do draft_state (autosave) e demais campos do draft.
+        expect(savedWs.draftState.autosave).toEqual({ dirty: true });
+        expect(savedWs.draftState.curationDrafts['RPH-7'].caption).toBe('torre tbd');
     });
 
     it('handles KMZ without images gracefully', async () => {

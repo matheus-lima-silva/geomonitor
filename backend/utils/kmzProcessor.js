@@ -68,6 +68,42 @@ async function buildExistingPhotoIndex(workspaceId, existingPhotos, mediaAssetRe
     return { byId, byMediaAssetId, bySha256 };
 }
 
+// Reconcilia os curationDrafts do workspace com as torres recem-atribuidas pelo
+// round-trip. Os drafts sao snapshots de autosave por foto; se ficarem com a torre
+// antiga (vazia) eles MASCARAM a torre nova na UI de curadoria. Atualiza so as
+// entradas existentes das fotos afetadas, preservando o resto do draft_state.
+// Best-effort: a torre ja foi salva em report_photos (o que importa), entao falha
+// aqui nao quebra o import.
+async function reconcileCurationDrafts(workspaceId, assignedTowers, reportWorkspaceRepository, updatedBy) {
+    if (!reportWorkspaceRepository || assignedTowers.size === 0) return;
+    try {
+        const workspace = await reportWorkspaceRepository.getById(workspaceId);
+        const draftState = workspace?.draftState;
+        const curationDrafts = draftState?.curationDrafts;
+        if (!curationDrafts || typeof curationDrafts !== 'object') return;
+
+        let changed = false;
+        const nextCurationDrafts = { ...curationDrafts };
+        for (const [photoId, towerId] of assignedTowers) {
+            const draft = nextCurationDrafts[photoId];
+            if (draft && typeof draft === 'object' && normalizeText(draft.towerId) !== towerId) {
+                nextCurationDrafts[photoId] = { ...draft, towerId };
+                changed = true;
+            }
+        }
+        if (!changed) return;
+
+        await reportWorkspaceRepository.save({
+            id: workspaceId,
+            draftState: { ...draftState, curationDrafts: nextCurationDrafts },
+            updatedBy,
+            updatedAt: new Date().toISOString(),
+        }, { merge: true });
+    } catch (err) {
+        console.error('[kmzProcessor] Falha ao reconciliar curationDrafts apos round-trip', workspaceId, err);
+    }
+}
+
 async function processKmzImport({
     workspaceId,
     projectId,
@@ -75,6 +111,7 @@ async function processKmzImport({
     updatedBy,
     mediaAssetRepository,
     reportPhotoRepository,
+    reportWorkspaceRepository,
 }) {
     const { buffer } = await readStoredMediaContent(mediaAsset);
     const { kmlText, imageEntries } = extractKmzContents(buffer);
@@ -137,6 +174,7 @@ async function processKmzImport({
     let towersAssigned = 0;
     let pendingLinkage = 0;
     const photoIds = [];
+    const assignedTowers = new Map();
     const createdSortBase = existingPhotos.length;
 
     for (const entry of imageEntries) {
@@ -175,6 +213,7 @@ async function processKmzImport({
                 }, { merge: true });
                 photosUpdated += 1;
                 if (!currentTower) towersAssigned += 1;
+                assignedTowers.set(existingPhoto.id, towerId);
                 photoIds.push(existingPhoto.id);
             } else {
                 photosSkipped += 1;
@@ -251,6 +290,8 @@ async function processKmzImport({
         photoIds.push(photoId);
         photosCreated += 1;
     }
+
+    await reconcileCurationDrafts(workspaceId, assignedTowers, reportWorkspaceRepository, updatedBy);
 
     return {
         photosCreated,
