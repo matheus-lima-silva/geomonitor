@@ -187,6 +187,117 @@ PR grande que refatorou `src/features/licenses/components/LicensesView.jsx` em c
 
 A secao "exige acompanhamento erosivo" permanece como callout amber (alinhado ao warning do projeto). Roteamento por URL param (`?license=ID`) foi escolhido por fidelidade ao projeto — o app nao usa React Router; seguimos o padrao ja presente em `App.jsx:8` (`?uiReview=sidebar`) e `?token` do reset-password.
 
+## Dashboard de campanhas em Acompanhamentos (junho/2026)
+
+Parte do programa de adocao do design handoff. `FollowupsView` ganhou um **dashboard de
+campanhas de monitoramento** no topo, montado 100% client-side a partir das `reportRows`
+(ocorrencias project×mes que a tela ja recebia via `DashboardView`). **Nenhuma migration,
+endpoint ou contrato de API novo.**
+
+- **Logica pura** em `src/features/followups/utils/followupCampaigns.js` — `buildCampaigns`
+  (uma campanha por janela de entrega), `followupDue` (estados entregue/atrasada/proxima≤45d/
+  em_dia, reusando `daysUntilDue` da reportRow), `deriveCampaignStage`/`followupStageStates`
+  (pipeline Planejamento→Campo→Curadoria→Relatorio→Emissao a partir do status operacional +
+  vistorias reais), `buildCampaignKpis`, `projectsWithoutSchedule`, helpers de periodo/torres
+  de vistoria. Testada em `__tests__/followupCampaigns.test.js` (8 casos).
+- **Componentes novos** em `src/features/followups/components/`: `FollowupCampaignsDashboard`
+  (orquestrador: KPIs + filtro + cards + emissoes + modal), `FollowupKpiBar` (KPIs clicaveis =
+  filtro rapido; tile via `<button aria-pressed>`, mesmo padrao visual-toggle ja aceito no
+  `ErosionPhotosPickerModal`), `FollowupCampaignCard`, `FollowupPipeline`,
+  `FollowupEmissionsPanel`, `ScheduleFieldModal` (Agendar campo — `Modal`+`Input`+`Textarea`).
+  Tudo sobre primitivos `Card`/`Badge`/`Button`/`IconButton`/`Select`.
+- **Hook** `useFollowupCampaignFacets` — carrega `listReportCompounds()` + `listArchives()` uma
+  vez para a timeline de Emissoes; **degrada** para vazio/erro sem quebrar a tela. As facetas de
+  relatorio/emissao por campanha vem do proprio status operacional/`deliveredAt` da reportRow
+  (compounds nao carregam vinculo de projeto — so `workspaceIds` —, entao nao sao mapeados por
+  campanha; o painel de Emissoes e cross-cutting, indexado por compound).
+- **Sem regressao**: as duas tabelas operacionais (entregas de relatorio com edicao inline +
+  obras em erosoes) foram **preservadas integralmente** numa secao recolhivel `<details>`
+  "Detalhes operacionais". `FollowupsView.test.jsx` mantem os 2 casos originais e ganhou 1 caso
+  do dashboard.
+- **Navegacao** entre abas: `FollowupsView` recebe `onNavigate` (ligado a `setActiveTab` no
+  `DashboardView`); cards/painel navegam para `inspections`/`visit-planning`/`georelat`/`projects`.
+- **`AppIcon.jsx`** — aliases novos `send`, `timer`, `calendar-clock`, `calendar-plus`,
+  `calendar-check`, `arrow-up-right`.
+
+Otimizacao futura (nao neste PR): endpoint de agregacao `GET /api/report-campaigns` para
+eliminar o enriquecimento client-side, se a performance pedir. O agendamento de campo e estado
+de sessao (sem persistencia) por enquanto.
+
+## Redesign de Empreendimentos + acentos do Login (junho/2026)
+
+Parte do programa de adocao do design handoff (1 PR por view). So apresentacao — nenhuma
+mudanca de modelo, servico ou contrato de API.
+
+- **`ProjectsView` toolbar** — alem de Busca + Tipo, ganhou `Select` "Ordenar por"
+  (Ordem de cadastro / Nome / Pendencias primeiro / Proxima entrega) e um toggle
+  "Com pendencias (N)". O toggle e o primitive `Button variant="outline"` com `aria-pressed`
+  e estado amber (`!bg-amber-100 !border-amber-300 !text-amber-800`, important para vencer a
+  precedencia do Tailwind sobre o `bg-white` do variant) — sem `<button>` ad-hoc.
+- **Card do empreendimento** — o corpo deixou de ser uma lista vertical de `<strong>label:</strong>`
+  e virou a **grade de 3 stats** (Vistorias / Dias vistoriados / Torres/dia util, `tabular-nums` +
+  `text-2xs uppercase`) seguida do callout **"Proxima entrega"** com a linha de periodicidade
+  (`periodicidade · meses · ano base`). Adicionado chip de georreferenciamento (`satellite`,
+  verde quando ha torres com GPS, amber quando nao). `shadow-sm` → `shadow-card`. Header, rodape
+  (Vistorias / Tracar rota / Importar / Exportar KML), route planner e fluxos de KML
+  permanecem intactos (sem regressao).
+- **Helper puro novo** `getProjectNextDelivery(project, referenceDate?)` em
+  `features/projects/utils/reportSchedule.js` — reusa `buildProjectReportOccurrences` (ja trata a
+  paridade do ano base bienal) e devolve `{ month, year, monthsAway, label }`. Usado tanto no
+  callout do card quanto na ordenacao "Proxima entrega". Testado em `reportSchedule.test.js`.
+- **Login (`src/views/AuthView.jsx`)** — restauracao de acentos nas strings de UI e mensagens
+  (`aprovacao`→`aprovação`, `redefinicao`→`redefinição`, `Forca`→`Força`, `Maiuscula`,
+  `Minuscula`, `Numero`, `rapido`, `invalido`, `nao foi possivel a acao`, etc.) para casar com o
+  kit e com o Dashboard. Novo teste `src/views/__tests__/AuthView.test.jsx` (mocka
+  `useAuth`/`useToast`) guarda os acentos.
+- **`AppIcon.jsx`** — alias novo `satellite`. (O menu ⋯ do kit foi deixado de fora deste PR;
+  o card mantem as acoes em rodape, sem `more-horizontal`.)
+
+## Adocao do design handoff em Erosoes (junho/2026)
+
+2a view do programa de adocao do estilo do handoff. Diff afiado kit×live (o kit e eng.-reversa do app):
+a maior parte ja batia (project picker buscavel, header do card, painel de relatorio, mini-form de evento
+inline, lightbox). Gaps reais adotados (so apresentacao, sem mexer no engine/modelo/servicos):
+
+- **Card clicavel** (`ErosionCardGrid.jsx`): `article` vira `role=button` (Enter/Espaco abre detalhes), com
+  rodape "Ver detalhes" + acoes Navegar/Editar/Excluir em `IconButton` (`ghost`/`dangerGhost`) e
+  `stopPropagation` — mesmo padrao do card de Vistorias.
+- **Wizard do cadastro** (`ErosionFormModal.jsx`): o form de scroll unico vira **4 etapas** (Cadastro /
+  Caracterizacao / Localizacao / Medidas e revisao) com **indicador de etapa** clicavel (check nas
+  concluidas + conector) e **banner de criticidade ao vivo** no topo. As secoes existentes continuam
+  montadas e sao alternadas por `hidden` (so a etapa ativa aparece) — preserva todo o save/validacao e
+  mantem os testes que consultam campos por id. Footer ganha Voltar/Avancar; Salvar continua sempre
+  disponivel.
+- **Timeline do details modal** (`ErosionDetailsModal.jsx`): a timeline com dots ja existia; corrigida a
+  cor do marcador de acompanhamento (`before:bg-*` por tipo: obra=indigo, autuacao=amber, sistema=slate).
+- **Deferido:** o toggle de formato de coordenada (Decimal/UTM/DMS) — os tres formatos ja funcionam (campos
+  + conversoes em `erosionCoordinates.js`); o toggle e so decluttering visual e foi adiado para evitar
+  risco de teste sem ganho funcional.
+- Testes: `ErosionsView.test.jsx` (card clicavel; Editar via aria-label), `ErosionFormModal.test.jsx`
+  (navegacao por etapas via indicador/Avancar).
+
+## Redesign do Gerenciamento (Admin) (junho/2026)
+
+Refatoracao de UX de `src/features/admin/components/AdminView.jsx` (sem mudanca de backend) seguindo o handoff do design system:
+
+- **Rail lateral agrupado** substitui a fileira de 8 botoes. Tres grupos (`Pessoas e acesso` / `Regras do sistema` / `Sistema`) num `<nav>` esquerdo (`grid lg:grid-cols-[252px_minmax(0,1fr)]`), com cabecalho de secao (titulo + descricao) na coluna de conteudo. Itens de navegacao seguem o padrao de `<button>` de nav do `AppShell` (`aria-current`, focus-visible ring) e o item `Console SQL` aparece travado (lock) para nao-admin.
+- **Pendencias de aprovacao em destaque**: badge com a contagem de utilizadores `Pendente` no item Utilizadores + banner amber no topo da secao.
+- **Criticidade estruturada** (`CriticalityConfigEditor`, novo): substitui o textarea de JSON cru por faixas C1-C4 com limites encadeados (so o limite superior e editavel) + barra visual (cores via `monitoringColors`) e matriz de pontos T/P/D/S/E/A. O JSON completo continua a fonte de verdade salva (controlled por `value`/`onChange`, preservando descricoes/tipos/`solucoes_por_criticidade`); um `<details>` "Editor avancado (JSON)" mantem o escape. O botao Salvar desabilita quando ha erro de ordenacao das faixas. Campos via `Input` primitive.
+- **Retencao** ganha presets (30/60/90/180/365d) via `Button`.
+- **Icone novo**: alias `clock` em `AppIcon.jsx` (lucide `Clock`) para o item Retencao.
+- **Testes**: `__tests__/CriticalityConfigEditor.test.jsx` (round-trip JSON, encadeamento de faixas, validacao, preservacao de campos nao editados) e `__tests__/AdminView.test.jsx` (rail agrupado, badge/banner de pendencias, troca para o editor).
+
+## Adocao do design handoff em Vistorias (junho/2026)
+
+Programa de adocao do estilo do handoff (kit do Claude Design) nas views, 1 PR por view. Primeira: **Vistorias** (`src/features/inspections/`). Apenas apresentacao — sem mudanca de save/validacao/modelo.
+
+- **Card da lista** (`InspectionsView.jsx`): card clicavel (role=button + Enter/Space) que abre os detalhes; header com **badge de status** (derivado das datas via `getInspectionStatusMeta`), nome do projeto e **periodo humanizado** (`formatInspectionPeriod`); dias com icone `clock`; a caixa de pendencia passa a usar **tower-pills** (chips por torre) em vez de texto com virgulas; rodape discreto (`border-t`, `bg-slate-50`) com resumo de pendencia + acoes em `IconButton` (`ghost`/`dangerGhost`).
+- **Barra de filtros**: `Select` de empreendimento + chips de status (Todas/Em andamento/Planejadas/Concluidas) com contagem; substitui o banner de filtro forcado, sincronizando com `forcedProjectFilterId`.
+- **Details modal** (`InspectionDetailsModal.jsx`): badge de status + periodo humanizado no card de informacoes; o restante (grid 2-col de torres, caixa de hospedagem `brand-50`, lista de erosoes em cards) **ja estava alinhado**. Preserva o toggle A/B do PDF (Track 1).
+- **Wizard / diario** (`InspectionFormWizardModal.jsx`): **ja alinhado** ao kit (grid de torres 10-col, aviso amber de torre reusada, dropdown de hotel com busca/criar, "Detalhar dia", mini-form de erosao). Sem alteracao — o kit foi engenharia-reversa deste codigo.
+- Primitivos: `Badge` ganhou tone **`info`** (azul, tokens info-*); aliases `clock`/`more-horizontal`/`calendar-check` no `AppIcon`. Helpers `formatInspectionPeriod`/`getInspectionStatusMeta`/`getInspectionDayCount` em `inspectionWorkflow.js`.
+- Testes: `InspectionsView.wizard.test.jsx` ajustado ao novo card; `InspectionDetailsModal.test.jsx` mantido (PDF + feriado + hospedagem).
+
 ## Follow-up suggestions
 
 - Add regression tests for the paginated trash modal (cover page boundaries, empty pages, filter + sort interaction). Existing tests cover `WorkspacesTab.lixeira` but not the modal's pagination edge cases.

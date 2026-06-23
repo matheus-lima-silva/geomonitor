@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Badge, Button, IconButton, Modal } from '../../../components/ui';
-import { formatHotelNote, hasHotelData } from '../utils/inspectionWorkflow';
+import { formatHotelNote, formatInspectionPeriod, getInspectionStatusMeta, hasHotelData } from '../utils/inspectionWorkflow';
 import { buildFeriadosIndex, getFeriadoForDate } from '../../shared/rulesConfig';
 import { buildVistoriaPdfDocument, openVistoriaPrintWindow } from '../utils/vistoriaPdfTemplates';
 
@@ -34,6 +34,7 @@ function InspectionDetailsModal({
 }) {
   const feriadosIndex = useMemo(() => buildFeriadosIndex(feriados), [feriados]);
   const [pdfVariant, setPdfVariant] = useState('sobria');
+  const statusMeta = getInspectionStatusMeta(inspection || {});
   const relatedErosions = (erosions || [])
     .filter((item) => String(item?.vistoriaId || '').trim() === String(inspection?.id || '').trim());
   const currentIndex = (inspections || []).findIndex((item) => item?.id === inspection?.id);
@@ -125,11 +126,18 @@ function InspectionDetailsModal({
             )}
           </div>
           <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex flex-col gap-3">
-            <h4 className="text-base font-bold text-slate-800 m-0 border-b border-slate-100 pb-2">Informacoes da Vistoria</h4>
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+              <h4 className="text-base font-bold text-slate-800 m-0">Informacoes da Vistoria</h4>
+              {statusMeta ? (
+                <Badge tone={statusMeta.tone} size="sm" className="rounded-full shrink-0">
+                  <AppIcon name={statusMeta.icon} className="w-3 h-3" aria-hidden="true" />
+                  {statusMeta.label}
+                </Badge>
+              ) : null}
+            </div>
             <div className="flex flex-col gap-1.5 text-sm text-slate-700">
               <div><strong>ID:</strong> {inspection?.id || '-'}</div>
-              <div><strong>Data Inicio:</strong> {inspection?.dataInicio || '-'}</div>
-              {inspection?.dataFim ? <div><strong>Data Fim:</strong> {inspection.dataFim}</div> : null}
+              <div><strong>Periodo:</strong> {formatInspectionPeriod(inspection?.dataInicio, inspection?.dataFim) || '-'}</div>
               {inspection?.responsavel ? <div><strong>Responsavel:</strong> {inspection.responsavel}</div> : null}
             </div>
           </div>

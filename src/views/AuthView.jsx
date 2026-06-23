@@ -34,18 +34,18 @@ function getPasswordStrength(rules) {
 function getAuthErrorMessage(error) {
   const code = String(error?.code || '').trim();
   const byCode = {
-    INVALID_EMAIL: 'Email invalido.',
+    INVALID_EMAIL: 'Email inválido.',
     MISSING_NAME: 'Informe o nome.',
     MISSING_CREDENTIALS: 'Informe email e senha.',
     INVALID_CREDENTIALS: 'Email ou senha incorretos.',
-    EMAIL_IN_USE: 'Este email ja esta em uso.',
+    EMAIL_IN_USE: 'Este email já está em uso.',
     WEAK_PASSWORD: 'Senha fraca. Use uma senha mais forte.',
-    PROFILE_NOT_FOUND: 'Perfil nao encontrado. Contate um administrador.',
+    PROFILE_NOT_FOUND: 'Perfil não encontrado. Contate um administrador.',
     MIGRATION_RESET_REQUIRED: 'Sua conta foi migrada. Redefina sua senha clicando em "Esqueci minha senha".',
   };
   if (byCode[code]) return byCode[code];
   if (error?.message) return error.message;
-  return 'Nao foi possivel concluir a acao. Tente novamente.';
+  return 'Não foi possível concluir a ação. Tente novamente.';
 }
 
 function AuthView() {
@@ -107,7 +107,7 @@ function AuthView() {
       return;
     }
     if (!isValidEmail(normalizedEmail)) {
-      setFeedback({ type: 'error', text: 'Informe um email valido.' });
+      setFeedback({ type: 'error', text: 'Informe um email válido.' });
       return;
     }
     if (!isResetMode && !password) {
@@ -120,11 +120,11 @@ function AuthView() {
         return;
       }
       if (!allPasswordRulesOk) {
-        setFeedback({ type: 'error', text: 'Senha deve ter 8+ caracteres, maiuscula, minuscula e numero.' });
+        setFeedback({ type: 'error', text: 'Senha deve ter 8+ caracteres, maiúscula, minúscula e número.' });
         return;
       }
       if (password !== confirmPassword) {
-        setFeedback({ type: 'error', text: 'As senhas nao coincidem.' });
+        setFeedback({ type: 'error', text: 'As senhas não coincidem.' });
         return;
       }
     }
@@ -140,7 +140,7 @@ function AuthView() {
         clearSensitiveFields();
         setNome('');
         setMode('login');
-        const text = 'Conta criada com sucesso. Aguarde aprovacao de um administrador.';
+        const text = 'Conta criada com sucesso. Aguarde aprovação de um administrador.';
         setFeedback({ type: 'success', text });
         show(text, 'success');
         return;
@@ -151,7 +151,7 @@ function AuthView() {
         setEmail(normalizedEmail);
         clearSensitiveFields();
         setMode('login');
-        const text = 'Email de recuperacao enviado. Verifique sua caixa de entrada.';
+        const text = 'Email de recuperação enviado. Verifique sua caixa de entrada.';
         setFeedback({ type: 'success', text });
         show(text, 'success');
         return;
@@ -180,13 +180,13 @@ function AuthView() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800 leading-tight">GeoMonitor</h1>
-            <p className="text-sm text-slate-500">Acesso seguro e rapido</p>
+            <p className="text-sm text-slate-500">Acesso seguro e rápido</p>
           </div>
         </header>
 
         <div className="px-8 pb-8 pt-2 flex flex-col gap-5">
           {/* Tab Switch */}
-          <div className="flex rounded-lg bg-slate-100 p-1 gap-1" role="tablist" aria-label="Modo de autenticacao">
+          <div className="flex rounded-lg bg-slate-100 p-1 gap-1" role="tablist" aria-label="Modo de autenticação">
             {[
               { id: 'login', label: 'Entrar' },
               { id: 'register', label: 'Criar conta' },
@@ -218,13 +218,13 @@ function AuthView() {
             {mode === 'register' && (
               <>
                 <h2 className="text-lg font-bold text-slate-800">Criar conta</h2>
-                <p className="text-sm text-slate-500 mt-0.5">A conta sera criada como pendente ate aprovacao do administrador.</p>
+                <p className="text-sm text-slate-500 mt-0.5">A conta será criada como pendente até aprovação do administrador.</p>
               </>
             )}
             {mode === 'reset' && (
               <>
                 <h2 className="text-lg font-bold text-slate-800">Recuperar senha</h2>
-                <p className="text-sm text-slate-500 mt-0.5">Informe o email para receber o link de redefinicao.</p>
+                <p className="text-sm text-slate-500 mt-0.5">Informe o email para receber o link de redefinição.</p>
               </>
             )}
           </div>
@@ -309,8 +309,8 @@ function AuthView() {
                       className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-brand-700 hover:bg-brand-50 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
                       onClick={() => setShowConfirmPassword((value) => !value)}
                       disabled={submitting}
-                      aria-label={showConfirmPassword ? 'Ocultar confirmacao de senha' : 'Mostrar confirmacao de senha'}
-                      title={showConfirmPassword ? 'Ocultar confirmacao de senha' : 'Mostrar confirmacao de senha'}
+                      aria-label={showConfirmPassword ? 'Ocultar confirmação de senha' : 'Mostrar confirmação de senha'}
+                      title={showConfirmPassword ? 'Ocultar confirmação de senha' : 'Mostrar confirmação de senha'}
                     >
                       <AppIcon name={showConfirmPassword ? 'eye-off' : 'eye'} size={18} />
                     </button>
@@ -320,7 +320,7 @@ function AuthView() {
                 {/* Password Strength */}
                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-slate-500">Forca</span>
+                    <span className="text-xs font-medium text-slate-500">Força</span>
                     <strong className="text-xs font-bold text-slate-700">{passwordStrength.label}</strong>
                   </div>
                   {/* Strength bar */}
@@ -336,9 +336,9 @@ function AuthView() {
                   <div className="flex flex-wrap gap-1.5">
                     {[
                       { key: 'minLength', label: '8+ caracteres' },
-                      { key: 'upper', label: 'Maiuscula' },
-                      { key: 'lower', label: 'Minuscula' },
-                      { key: 'number', label: 'Numero' },
+                      { key: 'upper', label: 'Maiúscula' },
+                      { key: 'lower', label: 'Minúscula' },
+                      { key: 'number', label: 'Número' },
                     ].map((rule) => (
                       <span
                         key={rule.key}
@@ -364,7 +364,7 @@ function AuthView() {
               {submitting && 'Aguarde...'}
               {!submitting && mode === 'login' && 'Entrar'}
               {!submitting && mode === 'register' && 'Criar conta'}
-              {!submitting && mode === 'reset' && 'Enviar recuperacao'}
+              {!submitting && mode === 'reset' && 'Enviar recuperação'}
             </button>
           </form>
 

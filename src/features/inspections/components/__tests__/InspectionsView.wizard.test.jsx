@@ -154,7 +154,8 @@ describe('InspectionsView wizard flow', () => {
       ],
     });
 
-    expect(container.textContent).toContain('1 pendente(s)');
+    expect(container.textContent).toContain('Erosoes sem data de visita');
+    expect(container.textContent).toContain('Torre 7');
 
     await clickByText('Nova Vistoria');
     expect(document.querySelector('[role="dialog"]')).toBeTruthy();
@@ -162,7 +163,7 @@ describe('InspectionsView wizard flow', () => {
     await clickByText('Avancar');
     expect(showMock).toHaveBeenCalled();
 
-    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelector('[role="dialog"]').querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
     const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
@@ -223,7 +224,7 @@ describe('InspectionsView wizard flow', () => {
 
     await clickByText('Nova Vistoria');
 
-    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelector('[role="dialog"]').querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
     const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
@@ -259,7 +260,7 @@ describe('InspectionsView wizard flow', () => {
 
     await clickByText('Nova Vistoria');
 
-    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelector('[role="dialog"]').querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
     const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
@@ -308,7 +309,7 @@ describe('InspectionsView wizard flow', () => {
 
     await clickByText('Nova Vistoria');
 
-    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelector('[role="dialog"]').querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
     const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
@@ -359,7 +360,7 @@ describe('InspectionsView wizard flow', () => {
     });
 
     await clickByText('Nova Vistoria');
-    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelector('[role="dialog"]').querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
     const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
@@ -394,7 +395,7 @@ describe('InspectionsView wizard flow', () => {
     renderView(root);
 
     await clickByText('Nova Vistoria');
-    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelector('[role="dialog"]').querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
     const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');
@@ -424,7 +425,7 @@ describe('InspectionsView wizard flow', () => {
 
     await clickByText('Nova Vistoria');
 
-    const _empreendimentoSibling = [...document.querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
+    const _empreendimentoSibling = [...document.querySelector('[role="dialog"]').querySelectorAll('label')].find((el) => el.textContent.includes('Empreendimento')).nextElementSibling;
     const projectSelect = _empreendimentoSibling.tagName === 'SELECT' ? _empreendimentoSibling : _empreendimentoSibling.querySelector('select');
     const dateInputs = document.querySelectorAll('input[type="date"]');
     changeInput(projectSelect, 'P1');

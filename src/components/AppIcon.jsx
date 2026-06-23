@@ -1,9 +1,14 @@
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
 import ArrowDown from 'lucide-react/dist/esm/icons/arrow-down';
 import ArrowUp from 'lucide-react/dist/esm/icons/arrow-up';
+import ArrowUpRight from 'lucide-react/dist/esm/icons/arrow-up-right';
 import Bell from 'lucide-react/dist/esm/icons/bell';
 import Calendar from 'lucide-react/dist/esm/icons/calendar';
+import CalendarCheck from 'lucide-react/dist/esm/icons/calendar-check';
+import CalendarClock from 'lucide-react/dist/esm/icons/calendar-clock';
 import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days';
+import CalendarPlus from 'lucide-react/dist/esm/icons/calendar-plus';
+import Clock from 'lucide-react/dist/esm/icons/clock';
 import Bold from 'lucide-react/dist/esm/icons/bold';
 import Camera from 'lucide-react/dist/esm/icons/camera';
 import Image from 'lucide-react/dist/esm/icons/image';
@@ -40,6 +45,7 @@ import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import Mail from 'lucide-react/dist/esm/icons/mail';
 import MapIcon from 'lucide-react/dist/esm/icons/map';
 import MapPin from 'lucide-react/dist/esm/icons/map-pin';
+import MoreHorizontal from 'lucide-react/dist/esm/icons/more-horizontal';
 import Menu from 'lucide-react/dist/esm/icons/menu';
 import Monitor from 'lucide-react/dist/esm/icons/monitor';
 import Pause from 'lucide-react/dist/esm/icons/pause';
@@ -47,8 +53,11 @@ import PenLine from 'lucide-react/dist/esm/icons/pen-line';
 import Plus from 'lucide-react/dist/esm/icons/plus';
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw';
 import Route from 'lucide-react/dist/esm/icons/route';
+import Satellite from 'lucide-react/dist/esm/icons/satellite';
 import Save from 'lucide-react/dist/esm/icons/save';
 import Search from 'lucide-react/dist/esm/icons/search';
+import Send from 'lucide-react/dist/esm/icons/send';
+import Timer from 'lucide-react/dist/esm/icons/timer';
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check';
 import Trash2 from 'lucide-react/dist/esm/icons/trash-2';
 import Undo2 from 'lucide-react/dist/esm/icons/undo-2';
@@ -79,7 +88,11 @@ const ICON_MAP = {
   'file-text': FileText,
   map: MapIcon,
   'map-pin': MapPin,
+  clock: Clock,
+  'more-horizontal': MoreHorizontal,
+  'calendar-check': CalendarCheck,
   route: Route,
+  satellite: Satellite,
   reset: RefreshCw,
   refresh: RefreshCw,
   check: Check,
@@ -92,6 +105,11 @@ const ICON_MAP = {
   bell: Bell,
   calendar: Calendar,
   'calendar-days': CalendarDays,
+  'calendar-clock': CalendarClock,
+  'calendar-plus': CalendarPlus,
+  'arrow-up-right': ArrowUpRight,
+  send: Send,
+  timer: Timer,
   planning: ListFilter,
   'route-plan': Waypoints,
   shield: ShieldCheck,

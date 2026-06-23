@@ -104,6 +104,26 @@ function getOccurrencesForMonth(projectId, projectName, month, year) {
   };
 }
 
+/* Próxima entrega de relatório a partir da data de referência (default: hoje).
+   Reusa buildProjectReportOccurrences (que já trata a paridade do ano base
+   bienal) e devolve { month, year, monthsAway, label } ou null. */
+export function getProjectNextDelivery(project, referenceDate = new Date()) {
+  const ref = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+  if (Number.isNaN(ref.getTime())) return null;
+  const startYear = ref.getFullYear();
+  const occurrences = buildProjectReportOccurrences(project, startYear, startYear + 4);
+  if (occurrences.length === 0) return null;
+  const refMonthStart = new Date(ref.getFullYear(), ref.getMonth(), 1).getTime();
+  const upcoming = occurrences
+    .filter((occ) => occ.sortDate >= refMonthStart)
+    .sort((a, b) => a.sortDate - b.sortDate);
+  const next = upcoming[0];
+  if (!next) return null;
+  const monthsAway = (next.year - ref.getFullYear()) * 12 + (next.month - 1 - ref.getMonth());
+  const monthLabel = MONTH_OPTIONS_PT.find((m) => m.value === next.month)?.label || String(next.month);
+  return { month: next.month, year: next.year, monthsAway, label: `${monthLabel}/${next.year}` };
+}
+
 export function buildProjectReportOccurrences(project, startYear, endYear) {
   const config = getProjectReportConfig(project);
   const months = normalizeReportMonths(config.mesesEntregaRelatorio);

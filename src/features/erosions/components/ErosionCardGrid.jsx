@@ -1,5 +1,5 @@
 import AppIcon from '../../../components/AppIcon';
-import { Badge, Button } from '../../../components/ui';
+import { Badge, IconButton } from '../../../components/ui';
 import { erosionStatusClass, normalizeErosionStatus } from '../../shared/statusUtils';
 import {
   getLocalContextLabel,
@@ -40,10 +40,18 @@ function ErosionCardGrid({
         const localContexto = technical.localContexto || {};
         const localLabel = getLocalContextLabel(localContexto.localTipo) || '-';
         return (
-          <article key={erosion.id} className="flex flex-col gap-4 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+          <article
+            key={erosion.id}
+            className="group flex flex-col bg-white rounded-xl shadow-card border border-slate-200 overflow-hidden cursor-pointer transition-all hover:border-brand-400 hover:shadow-modal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            role="button"
+            tabIndex={0}
+            aria-label={`Abrir detalhes de ${erosion.id || 'erosao'}`}
+            onClick={() => onOpenDetails(erosion)}
+            onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpenDetails(erosion); } }}
+          >
             <div className="flex flex-col gap-3 p-5 pb-4 border-b border-slate-100 bg-slate-50/50">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-lg font-bold text-slate-800 m-0 truncate">{erosion.id || '-'}</h3>
+                <h3 className="text-lg font-bold text-slate-800 m-0 truncate group-hover:text-brand-700 transition-colors">{erosion.id || '-'}</h3>
                 <span className={erosionStatusClass(erosion.status)}>
                   {normalizedStatus}
                 </span>
@@ -101,25 +109,24 @@ function ErosionCardGrid({
               ) : null}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 p-5 pt-0 mt-auto">
-              <Button variant="outline" size="sm" onClick={() => onOpenDetails(erosion)}>
-                <AppIcon name="details" />
-                Detalhes
-              </Button>
-              {hasCoordinates(erosion) ? (
-                <Button variant="primary" size="sm" onClick={() => onOpenMaps(erosion)}>
-                  <AppIcon name="map" />
-                  Navegar
-                </Button>
-              ) : null}
-              <Button variant="outline" size="sm" onClick={() => onOpenEdit(erosion)}>
-                <AppIcon name="edit" />
-                Editar
-              </Button>
-              <Button variant="danger" size="sm" onClick={() => onRequestDelete(erosion)}>
-                <AppIcon name="trash" />
-                Excluir
-              </Button>
+            <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-t border-slate-100 bg-slate-50 mt-auto">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600">
+                Ver detalhes
+                <AppIcon name="chevron-right" className="w-3.5 h-3.5" aria-hidden="true" />
+              </span>
+              <div className="flex gap-1" onClick={(event) => event.stopPropagation()}>
+                {hasCoordinates(erosion) ? (
+                  <IconButton variant="ghost" size="sm" aria-label={`Navegar ate ${erosion.id || 'erosao'}`} onClick={() => onOpenMaps(erosion)}>
+                    <AppIcon name="map" />
+                  </IconButton>
+                ) : null}
+                <IconButton variant="ghost" size="sm" aria-label={`Editar ${erosion.id || 'erosao'}`} onClick={() => onOpenEdit(erosion)}>
+                  <AppIcon name="edit" />
+                </IconButton>
+                <IconButton variant="dangerGhost" size="sm" aria-label={`Excluir ${erosion.id || 'erosao'}`} onClick={() => onRequestDelete(erosion)}>
+                  <AppIcon name="trash" />
+                </IconButton>
+              </div>
             </div>
           </article>
         );

@@ -8,6 +8,7 @@ import {
   REPORT_OPERATIONAL_STATUS,
   REPORT_SOURCE_OVERRIDE,
 } from '../../monitoring/utils/reportTracking';
+import FollowupCampaignsDashboard from './FollowupCampaignsDashboard';
 
 const WORK_EVENT_FORM_DEFAULT = {
   obraEtapa: 'Projeto',
@@ -28,6 +29,7 @@ function FollowupsView({
   invalidOverrides = [],
   userActor = '',
   showToast,
+  onNavigate,
 }) {
   const [projectFilter, setProjectFilter] = useState('');
   const [yearFilter, setYearFilter] = useState('');
@@ -170,13 +172,29 @@ function FollowupsView({
   }
 
   return (
-    <section className="bg-white rounded-xl shadow-[0_4px_18px_rgba(15,23,42,0.08)] p-5 mb-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-6">
-        <div>
+    <section className="flex flex-col gap-5 p-4 md:p-6 max-w-screen-2xl w-full mx-auto">
+      <header className="flex flex-col sm:flex-row justify-between items-start gap-3">
+        <div className="flex flex-col gap-0.5">
           <h2 className="text-xl font-bold text-slate-800 m-0">Acompanhamentos</h2>
-          <p className="text-sm text-slate-500 mt-1">Gestao operacional de entregas de relatorio e andamento de obras erosivas.</p>
+          <p className="text-sm text-slate-500 m-0">Campanhas de monitoramento de processos erosivos e emissao dos relatorios, por empreendimento.</p>
         </div>
-      </div>
+      </header>
+
+      <FollowupCampaignsDashboard
+        reportRows={reportRows}
+        inspections={inspections}
+        projects={projects}
+        onNavigate={onNavigate}
+        showToast={showToast}
+      />
+
+      <details className="bg-white rounded-xl shadow-card border border-slate-200">
+        <summary className="flex items-center gap-2 cursor-pointer select-none px-5 py-4 text-sm font-bold text-slate-800 marker:content-none">
+          <AppIcon name="table" size={16} className="text-slate-400" />
+          Detalhes operacionais
+          <span className="font-normal text-slate-500">— entregas de relatorio e obras em erosoes</span>
+        </summary>
+        <div className="flex flex-col px-5 pb-5">
 
       <article className="bg-slate-50 rounded-xl p-5 mb-6 border border-slate-200">
         <h3 className="text-lg font-bold text-slate-800 m-0 mb-4">Acompanhamento de Entregas de Relatorio</h3>
@@ -422,6 +440,8 @@ function FollowupsView({
           </div>
         ) : null}
       </article>
+        </div>
+      </details>
     </section>
   );
 }
