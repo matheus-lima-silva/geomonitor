@@ -226,6 +226,20 @@ export default function WorkspacesTab({
   const activeImportMode = IMPORT_MODES[workspaceImportMode] || IMPORT_MODES.loose_photos;
 
   const activePreviewPhoto = workspacePhotos.find((p) => p.id === activePreviewPhotoId) || null;
+  // Indice na lista ja filtrada/ordenada (mesma ordem da grade) — base da navegacao prev/next.
+  const previewIndex = filteredWorkspacePhotos.findIndex((p) => p.id === activePreviewPhotoId);
+
+  // Pre-carrega o blob da foto ativa e dos vizinhos imediatos para que a navegacao
+  // prev/next no modal ampliado nao caia em "preview indisponivel" ao cruzar paginas.
+  useEffect(() => {
+    if (typeof ensurePhotoPreview !== 'function' || !activePreviewPhotoId) return;
+    const idx = filteredWorkspacePhotos.findIndex((p) => p.id === activePreviewPhotoId);
+    if (idx < 0) return;
+    for (const i of [idx - 1, idx, idx + 1]) {
+      const neighbor = filteredWorkspacePhotos[i];
+      if (neighbor) ensurePhotoPreview(neighbor);
+    }
+  }, [activePreviewPhotoId, filteredWorkspacePhotos, ensurePhotoPreview]);
 
   function handleTowerFilterChange(tower) {
     setTowerFilter(tower);
@@ -1551,6 +1565,18 @@ export default function WorkspacesTab({
         previewUrl={photoPreviewUrls[activePreviewPhoto?.id]}
         draft={workspacePhotoDrafts[activePreviewPhoto?.id] || buildWorkspacePhotoDraft(activePreviewPhoto || {})}
         busy={busy}
+        index={previewIndex}
+        total={filteredWorkspacePhotos.length}
+        onPrev={previewIndex > 0 ? () => {
+          const target = previewIndex - 1;
+          setActivePreviewPhotoId(filteredWorkspacePhotos[target].id);
+          setCurrentPage(Math.floor(target / PAGE_SIZE) + 1);
+        } : undefined}
+        onNext={previewIndex >= 0 && previewIndex < filteredWorkspacePhotos.length - 1 ? () => {
+          const target = previewIndex + 1;
+          setActivePreviewPhotoId(filteredWorkspacePhotos[target].id);
+          setCurrentPage(Math.floor(target / PAGE_SIZE) + 1);
+        } : undefined}
         onClose={() => setActivePreviewPhotoId('')}
         onChangeCaption={(value) => {
           if (!activePreviewPhoto) return;
