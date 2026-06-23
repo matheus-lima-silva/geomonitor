@@ -187,6 +187,29 @@ PR grande que refatorou `src/features/licenses/components/LicensesView.jsx` em c
 
 A secao "exige acompanhamento erosivo" permanece como callout amber (alinhado ao warning do projeto). Roteamento por URL param (`?license=ID`) foi escolhido por fidelidade ao projeto — o app nao usa React Router; seguimos o padrao ja presente em `App.jsx:8` (`?uiReview=sidebar`) e `?token` do reset-password.
 
+## Adocao do design handoff em Erosoes (junho/2026)
+
+2a view do programa de adocao do estilo do handoff. Diff afiado kit×live (o kit e eng.-reversa do app):
+a maior parte ja batia (project picker buscavel, header do card, painel de relatorio, mini-form de evento
+inline, lightbox). Gaps reais adotados (so apresentacao, sem mexer no engine/modelo/servicos):
+
+- **Card clicavel** (`ErosionCardGrid.jsx`): `article` vira `role=button` (Enter/Espaco abre detalhes), com
+  rodape "Ver detalhes" + acoes Navegar/Editar/Excluir em `IconButton` (`ghost`/`dangerGhost`) e
+  `stopPropagation` — mesmo padrao do card de Vistorias.
+- **Wizard do cadastro** (`ErosionFormModal.jsx`): o form de scroll unico vira **4 etapas** (Cadastro /
+  Caracterizacao / Localizacao / Medidas e revisao) com **indicador de etapa** clicavel (check nas
+  concluidas + conector) e **banner de criticidade ao vivo** no topo. As secoes existentes continuam
+  montadas e sao alternadas por `hidden` (so a etapa ativa aparece) — preserva todo o save/validacao e
+  mantem os testes que consultam campos por id. Footer ganha Voltar/Avancar; Salvar continua sempre
+  disponivel.
+- **Timeline do details modal** (`ErosionDetailsModal.jsx`): a timeline com dots ja existia; corrigida a
+  cor do marcador de acompanhamento (`before:bg-*` por tipo: obra=indigo, autuacao=amber, sistema=slate).
+- **Deferido:** o toggle de formato de coordenada (Decimal/UTM/DMS) — os tres formatos ja funcionam (campos
+  + conversoes em `erosionCoordinates.js`); o toggle e so decluttering visual e foi adiado para evitar
+  risco de teste sem ganho funcional.
+- Testes: `ErosionsView.test.jsx` (card clicavel; Editar via aria-label), `ErosionFormModal.test.jsx`
+  (navegacao por etapas via indicador/Avancar).
+
 ## Follow-up suggestions
 
 - Add regression tests for the paginated trash modal (cover page boundaries, empty pages, filter + sort interaction). Existing tests cover `WorkspacesTab.lixeira` but not the modal's pagination edge cases.
