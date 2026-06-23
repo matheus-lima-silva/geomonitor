@@ -85,7 +85,7 @@ Nao criar componentes de feature fora dessa estrutura. Exemplo canonico: [featur
 
 Nunca importar de `lucide-react` diretamente em features/views. Fonte unica: [components/AppIcon.jsx](components/AppIcon.jsx).
 
-`AppIcon` mantem um `ICON_MAP` com **aliases semanticos** (`plus`, `save`, `edit`, `trash`, `close`, `check`, `alert`, `dashboard-nav`, `projects-nav`, `licenses-nav`, `inspections-nav`, `erosions-nav`, `visit-nav`, `route-plan` etc.). Esses aliases padronizam o visual mesmo que o icone lucide subjacente mude.
+`AppIcon` mantem um `ICON_MAP` com **aliases semanticos** (`plus`, `save`, `edit`, `trash`, `close`, `check`, `alert`, `send`, `timer`, `calendar-clock`, `calendar-plus`, `calendar-check`, `arrow-up-right`, `dashboard-nav`, `projects-nav`, `licenses-nav`, `inspections-nav`, `erosions-nav`, `visit-nav`, `route-plan` etc.). Esses aliases padronizam o visual mesmo que o icone lucide subjacente mude.
 
 Uso:
 
@@ -138,4 +138,4 @@ Vitest. Toda mudanca de componente, hook, service ou util precisa de teste novo 
 
 Ao adicionar novo primitive em `components/ui/`, novo token Tailwind, novo hook global, novo alias em `AppIcon.jsx` ou nova convencao UX, **atualizar este arquivo no mesmo PR** e bumpar a data do rodape. Ao concluir refatoracao UI grande, adicionar entrada em `../docs/ui/ui-audit-report.md`. Revisar integralmente a cada trimestre (audit comparando com estado do codigo). Ver secao "Manutencao dos documentos" do plano arquitetural em `.claude/plans/jazzy-tinkering-cocke.md`.
 
-> Ultima revisao: 2026-06-13.
+> Ultima revisao: 2026-06-23.
