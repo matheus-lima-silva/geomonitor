@@ -4,6 +4,7 @@ import ArrowUp from 'lucide-react/dist/esm/icons/arrow-up';
 import Bell from 'lucide-react/dist/esm/icons/bell';
 import Calendar from 'lucide-react/dist/esm/icons/calendar';
 import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days';
+import Clock from 'lucide-react/dist/esm/icons/clock';
 import Bold from 'lucide-react/dist/esm/icons/bold';
 import Camera from 'lucide-react/dist/esm/icons/camera';
 import Image from 'lucide-react/dist/esm/icons/image';
@@ -39,6 +40,9 @@ import LogIn from 'lucide-react/dist/esm/icons/log-in';
 import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import Mail from 'lucide-react/dist/esm/icons/mail';
 import MapIcon from 'lucide-react/dist/esm/icons/map';
+import MapPin from 'lucide-react/dist/esm/icons/map-pin';
+import MoreHorizontal from 'lucide-react/dist/esm/icons/more-horizontal';
+import CalendarCheck from 'lucide-react/dist/esm/icons/calendar-check';
 import Menu from 'lucide-react/dist/esm/icons/menu';
 import Monitor from 'lucide-react/dist/esm/icons/monitor';
 import Pause from 'lucide-react/dist/esm/icons/pause';
@@ -77,6 +81,10 @@ const ICON_MAP = {
   pdf: FileDown,
   'file-text': FileText,
   map: MapIcon,
+  'map-pin': MapPin,
+  clock: Clock,
+  'more-horizontal': MoreHorizontal,
+  'calendar-check': CalendarCheck,
   route: Route,
   reset: RefreshCw,
   refresh: RefreshCw,

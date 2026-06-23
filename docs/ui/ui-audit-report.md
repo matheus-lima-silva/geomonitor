@@ -210,6 +210,28 @@ inline, lightbox). Gaps reais adotados (so apresentacao, sem mexer no engine/mod
 - Testes: `ErosionsView.test.jsx` (card clicavel; Editar via aria-label), `ErosionFormModal.test.jsx`
   (navegacao por etapas via indicador/Avancar).
 
+## Redesign do Gerenciamento (Admin) (junho/2026)
+
+Refatoracao de UX de `src/features/admin/components/AdminView.jsx` (sem mudanca de backend) seguindo o handoff do design system:
+
+- **Rail lateral agrupado** substitui a fileira de 8 botoes. Tres grupos (`Pessoas e acesso` / `Regras do sistema` / `Sistema`) num `<nav>` esquerdo (`grid lg:grid-cols-[252px_minmax(0,1fr)]`), com cabecalho de secao (titulo + descricao) na coluna de conteudo. Itens de navegacao seguem o padrao de `<button>` de nav do `AppShell` (`aria-current`, focus-visible ring) e o item `Console SQL` aparece travado (lock) para nao-admin.
+- **Pendencias de aprovacao em destaque**: badge com a contagem de utilizadores `Pendente` no item Utilizadores + banner amber no topo da secao.
+- **Criticidade estruturada** (`CriticalityConfigEditor`, novo): substitui o textarea de JSON cru por faixas C1-C4 com limites encadeados (so o limite superior e editavel) + barra visual (cores via `monitoringColors`) e matriz de pontos T/P/D/S/E/A. O JSON completo continua a fonte de verdade salva (controlled por `value`/`onChange`, preservando descricoes/tipos/`solucoes_por_criticidade`); um `<details>` "Editor avancado (JSON)" mantem o escape. O botao Salvar desabilita quando ha erro de ordenacao das faixas. Campos via `Input` primitive.
+- **Retencao** ganha presets (30/60/90/180/365d) via `Button`.
+- **Icone novo**: alias `clock` em `AppIcon.jsx` (lucide `Clock`) para o item Retencao.
+- **Testes**: `__tests__/CriticalityConfigEditor.test.jsx` (round-trip JSON, encadeamento de faixas, validacao, preservacao de campos nao editados) e `__tests__/AdminView.test.jsx` (rail agrupado, badge/banner de pendencias, troca para o editor).
+
+## Adocao do design handoff em Vistorias (junho/2026)
+
+Programa de adocao do estilo do handoff (kit do Claude Design) nas views, 1 PR por view. Primeira: **Vistorias** (`src/features/inspections/`). Apenas apresentacao — sem mudanca de save/validacao/modelo.
+
+- **Card da lista** (`InspectionsView.jsx`): card clicavel (role=button + Enter/Space) que abre os detalhes; header com **badge de status** (derivado das datas via `getInspectionStatusMeta`), nome do projeto e **periodo humanizado** (`formatInspectionPeriod`); dias com icone `clock`; a caixa de pendencia passa a usar **tower-pills** (chips por torre) em vez de texto com virgulas; rodape discreto (`border-t`, `bg-slate-50`) com resumo de pendencia + acoes em `IconButton` (`ghost`/`dangerGhost`).
+- **Barra de filtros**: `Select` de empreendimento + chips de status (Todas/Em andamento/Planejadas/Concluidas) com contagem; substitui o banner de filtro forcado, sincronizando com `forcedProjectFilterId`.
+- **Details modal** (`InspectionDetailsModal.jsx`): badge de status + periodo humanizado no card de informacoes; o restante (grid 2-col de torres, caixa de hospedagem `brand-50`, lista de erosoes em cards) **ja estava alinhado**. Preserva o toggle A/B do PDF (Track 1).
+- **Wizard / diario** (`InspectionFormWizardModal.jsx`): **ja alinhado** ao kit (grid de torres 10-col, aviso amber de torre reusada, dropdown de hotel com busca/criar, "Detalhar dia", mini-form de erosao). Sem alteracao — o kit foi engenharia-reversa deste codigo.
+- Primitivos: `Badge` ganhou tone **`info`** (azul, tokens info-*); aliases `clock`/`more-horizontal`/`calendar-check` no `AppIcon`. Helpers `formatInspectionPeriod`/`getInspectionStatusMeta`/`getInspectionDayCount` em `inspectionWorkflow.js`.
+- Testes: `InspectionsView.wizard.test.jsx` ajustado ao novo card; `InspectionDetailsModal.test.jsx` mantido (PDF + feriado + hospedagem).
+
 ## Follow-up suggestions
 
 - Add regression tests for the paginated trash modal (cover page boundaries, empty pages, filter + sort interaction). Existing tests cover `WorkspacesTab.lixeira` but not the modal's pagination edge cases.
