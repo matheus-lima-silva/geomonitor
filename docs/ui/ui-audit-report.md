@@ -187,6 +187,17 @@ PR grande que refatorou `src/features/licenses/components/LicensesView.jsx` em c
 
 A secao "exige acompanhamento erosivo" permanece como callout amber (alinhado ao warning do projeto). Roteamento por URL param (`?license=ID`) foi escolhido por fidelidade ao projeto — o app nao usa React Router; seguimos o padrao ja presente em `App.jsx:8` (`?uiReview=sidebar`) e `?token` do reset-password.
 
+## Adocao do design handoff em Vistorias (junho/2026)
+
+Programa de adocao do estilo do handoff (kit do Claude Design) nas views, 1 PR por view. Primeira: **Vistorias** (`src/features/inspections/`). Apenas apresentacao — sem mudanca de save/validacao/modelo.
+
+- **Card da lista** (`InspectionsView.jsx`): card clicavel (role=button + Enter/Space) que abre os detalhes; header com **badge de status** (derivado das datas via `getInspectionStatusMeta`), nome do projeto e **periodo humanizado** (`formatInspectionPeriod`); dias com icone `clock`; a caixa de pendencia passa a usar **tower-pills** (chips por torre) em vez de texto com virgulas; rodape discreto (`border-t`, `bg-slate-50`) com resumo de pendencia + acoes em `IconButton` (`ghost`/`dangerGhost`).
+- **Barra de filtros**: `Select` de empreendimento + chips de status (Todas/Em andamento/Planejadas/Concluidas) com contagem; substitui o banner de filtro forcado, sincronizando com `forcedProjectFilterId`.
+- **Details modal** (`InspectionDetailsModal.jsx`): badge de status + periodo humanizado no card de informacoes; o restante (grid 2-col de torres, caixa de hospedagem `brand-50`, lista de erosoes em cards) **ja estava alinhado**. Preserva o toggle A/B do PDF (Track 1).
+- **Wizard / diario** (`InspectionFormWizardModal.jsx`): **ja alinhado** ao kit (grid de torres 10-col, aviso amber de torre reusada, dropdown de hotel com busca/criar, "Detalhar dia", mini-form de erosao). Sem alteracao — o kit foi engenharia-reversa deste codigo.
+- Primitivos: `Badge` ganhou tone **`info`** (azul, tokens info-*); aliases `clock`/`more-horizontal`/`calendar-check` no `AppIcon`. Helpers `formatInspectionPeriod`/`getInspectionStatusMeta`/`getInspectionDayCount` em `inspectionWorkflow.js`.
+- Testes: `InspectionsView.wizard.test.jsx` ajustado ao novo card; `InspectionDetailsModal.test.jsx` mantido (PDF + feriado + hospedagem).
+
 ## Follow-up suggestions
 
 - Add regression tests for the paginated trash modal (cover page boundaries, empty pages, filter + sort interaction). Existing tests cover `WorkspacesTab.lixeira` but not the modal's pagination edge cases.
