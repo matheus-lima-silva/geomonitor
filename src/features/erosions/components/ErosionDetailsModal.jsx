@@ -684,7 +684,7 @@ function ErosionDetailsModal({
             {sortedHistory.map((item, index) => {
               const itemType = normalizeFollowupEventType(item);
               const typeLabel = itemType === 'obra' ? 'Obra' : (itemType === 'autuacao' ? 'Autuacao' : 'Sistema');
-              const markerColor = itemType === 'obra' ? 'bg-indigo-400' : (itemType === 'autuacao' ? 'bg-amber-400' : 'bg-slate-300');
+              const markerColor = itemType === 'obra' ? 'before:bg-indigo-400' : (itemType === 'autuacao' ? 'before:bg-amber-400' : 'before:bg-slate-300');
               const userLabel = resolveHistoryUserLabel(item.usuario, currentUser);
 
               return (

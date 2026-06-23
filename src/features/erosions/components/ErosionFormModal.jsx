@@ -66,6 +66,8 @@ function getCoordinatesStatus(locationCoordinates = {}) {
   return 'Nao preenchido';
 }
 
+const ERO_FORM_STEPS = ['Cadastro', 'Caracterizacao', 'Localizacao', 'Medidas e revisao'];
+
 function ErosionFormModal({
   open,
   isEditing,
@@ -81,6 +83,8 @@ function ErosionFormModal({
 }) {
   const [coordinatesExpanded, setCoordinatesExpanded] = useState(false);
   const [showInteractiveMap, setShowInteractiveMap] = useState(false);
+  const [step, setStep] = useState(0);
+  useEffect(() => { if (open) setStep(0); }, [open]);
   const syncTimerRef = useRef(null);
   const safeFormData = formData && typeof formData === 'object' ? formData : {};
   const safeProjects = Array.isArray(projects) ? projects.filter((item) => item && typeof item === 'object') : [];
@@ -373,6 +377,18 @@ function ErosionFormModal({
         <AppIcon name="close" />
         Cancelar
       </Button>
+      {step > 0 ? (
+        <Button variant="outline" size="md" onClick={() => setStep((current) => Math.max(0, current - 1))}>
+          <AppIcon name="chevron-left" />
+          Voltar
+        </Button>
+      ) : null}
+      {step < ERO_FORM_STEPS.length - 1 ? (
+        <Button variant="outline" size="md" onClick={() => setStep((current) => Math.min(ERO_FORM_STEPS.length - 1, current + 1))}>
+          Avancar
+          <AppIcon name="chevron-right" />
+        </Button>
+      ) : null}
       <Button variant="primary" size="md" onClick={onSave}>
         <AppIcon name="save" />
         Salvar
@@ -388,6 +404,38 @@ function ErosionFormModal({
       size="lg"
       footer={footer}
     >
+      <div className="mb-6 flex flex-col gap-3">
+        <ol className="flex items-center m-0 p-0 list-none">
+          {ERO_FORM_STEPS.map((label, index) => (
+            <li key={label} className={`flex items-center min-w-0 ${index < ERO_FORM_STEPS.length - 1 ? 'flex-1' : ''}`}>
+              <button
+                type="button"
+                onClick={() => setStep(index)}
+                aria-current={index === step ? 'step' : undefined}
+                className="flex items-center gap-2 bg-transparent border-0 p-0 cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              >
+                <span className={`flex items-center justify-center w-7 h-7 rounded-full border text-xs font-bold shrink-0 transition-colors ${index < step ? 'bg-brand-600 border-brand-600 text-white' : index === step ? 'bg-white border-brand-600 text-brand-700 ring-2 ring-brand-100' : 'bg-white border-slate-300 text-slate-400'}`}>
+                  {index < step ? <AppIcon name="check" className="w-3.5 h-3.5" aria-hidden="true" /> : index + 1}
+                </span>
+                <span className={`text-xs font-semibold whitespace-nowrap ${index === step ? 'text-brand-700' : index < step ? 'text-slate-700' : 'text-slate-400'}`}>{label}</span>
+              </button>
+              {index < ERO_FORM_STEPS.length - 1 ? <span className={`flex-1 h-px mx-3 ${index < step ? 'bg-brand-400' : 'bg-slate-200'}`} /> : null}
+            </li>
+          ))}
+        </ol>
+        {!isHistoricalRecord ? (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+            <span className="font-semibold text-slate-500">Criticidade ao vivo:</span>
+            <span>Impacto <strong className="text-slate-800">{criticalitySummary.impacto}</strong></span>
+            <span aria-hidden="true">·</span>
+            <span>Score <strong className="text-slate-800">{criticalitySummary.score}</strong></span>
+            <span aria-hidden="true">·</span>
+            <span>Frequencia <strong className="text-slate-800">{criticalitySummary.frequencia}</strong></span>
+          </div>
+        ) : null}
+      </div>
+
+      <div hidden={step !== 0}>
       <section className="flex flex-col gap-4 mb-8">
         <h4 className="text-lg font-semibold text-slate-800 m-0">Cadastro</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -466,7 +514,9 @@ function ErosionFormModal({
           ) : null}
         </div>
       </section>
+      </div>
 
+      <div hidden={step !== 1}>
       <section className="flex flex-col gap-4 mb-8">
         <h4 className="text-lg font-semibold text-slate-800 m-0">Grau erosivo e caracterização técnica</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -532,7 +582,9 @@ function ErosionFormModal({
           }}
         />
       </section>
+      </div>
 
+      <div hidden={step !== 2}>
       <section className="flex flex-col gap-4 mb-8">
         <div className="flex items-center justify-between gap-4 mb-2">
           <h4 className="text-lg font-semibold text-slate-800 m-0">
@@ -724,7 +776,9 @@ function ErosionFormModal({
           </div>
         ) : null}
       </section>
+      </div>
 
+      <div hidden={step !== 3}>
       <section className="flex flex-col gap-4 mb-8">
         <h4 className="text-lg font-semibold text-slate-800 m-0">Medidas e anexos</h4>
         <div className="grid grid-cols-1 gap-4">
@@ -798,6 +852,7 @@ function ErosionFormModal({
             ) : null}
           </>
         )}
+      </div>
       </div>
     </Modal>
   );
