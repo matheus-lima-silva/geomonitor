@@ -28,7 +28,7 @@ Precedente: o audit em `docs/ui/ui-audit-report.md` reduziu de **51 para 10** os
 - `Modal`: sizes `sm` | `md` | `lg` | `xl` | `2xl`; fecha com `Escape`; footer via slot; props opcionais `icon`/`subtitle` (header com tile de icone + subtitulo, fundo surface-muted).
 - `Badge`: tones `ok` | `warning` | `danger` | `critical` | `neutral`. Para papeis de workspace seguir o padrao de [features/reports/components/WorkspaceMembersModal.jsx](features/reports/components/WorkspaceMembersModal.jsx): `amber` (owner), `sky` (editor), `slate` (viewer).
 - `EmptyState`: sempre com `icon + title + description + action`.
-- `Textarea`: auto-height; usar para campos multi-linha (nunca `<textarea>` cru).
+- `Textarea`: auto-height; usar para campos multi-linha (nunca `<textarea>` cru). Variants `default` | `filled` (`filled` = fundo `app-surfaceMuted` + borda transparente, volta a branco no foco).
 
 ## 3. Tailwind: so tokens
 
