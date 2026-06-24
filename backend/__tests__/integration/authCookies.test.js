@@ -14,6 +14,12 @@ jest.mock('../../repositories/authCredentialsRepository', () => ({
     clearResetToken: jest.fn(async () => {}),
 }));
 
+jest.mock('../../repositories/refreshTokenRepository', () => ({
+    issueFamily: jest.fn(async () => ({ jti: 'J-new', familyId: 'F-new' })),
+    rotate: jest.fn(async () => ({ jti: 'J-rot', userId: 'U-1', familyId: 'F-1' })),
+    revokeFamilyByJti: jest.fn(async () => {}),
+}));
+
 jest.mock('../../repositories', () => ({
     userRepository: {
         list: jest.fn(async () => []),
@@ -48,11 +54,29 @@ jest.mock('../../repositories', () => ({
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../server');
+const refreshTokenRepository = require('../../repositories/refreshTokenRepository');
 const { REFRESH_COOKIE_NAME, SESSION_HINT_COOKIE_NAME } = require('../../utils/authCookies');
 
+// Token legado (pre-rotacao): sem jti. O /refresh deve migra-lo via issueFamily.
 function signRefresh(userId) {
     return jwt.sign({ sub: userId, type: 'refresh' }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
 }
+
+// Token novo (com jti/fam): o /refresh deve rotaciona-lo via rotate.
+function signRefreshWithJti(userId, jti) {
+    return jwt.sign(
+        { sub: userId, type: 'refresh', fam: 'F-1' },
+        process.env.JWT_REFRESH_SECRET,
+        { expiresIn: '7d', jwtid: jti },
+    );
+}
+
+beforeEach(() => {
+    jest.clearAllMocks();
+    refreshTokenRepository.issueFamily.mockResolvedValue({ jti: 'J-new', familyId: 'F-new' });
+    refreshTokenRepository.rotate.mockResolvedValue({ jti: 'J-rot', userId: 'U-1', familyId: 'F-1' });
+    refreshTokenRepository.revokeFamilyByJti.mockResolvedValue(undefined);
+});
 
 describe('Auth SSO cookies', () => {
     describe('POST /api/auth/refresh', () => {
@@ -97,6 +121,44 @@ describe('Auth SSO cookies', () => {
             expect(res.status).toBe(401);
             expect(res.body.code).toBe('INVALID_REFRESH_TOKEN');
         });
+
+        it('token legado (sem jti) migra via issueFamily, nao via rotate', async () => {
+            const token = signRefresh('U-1');
+            const res = await request(app)
+                .post('/api/auth/refresh')
+                .send({ refreshToken: token });
+
+            expect(res.status).toBe(200);
+            expect(refreshTokenRepository.issueFamily).toHaveBeenCalledWith('U-1');
+            expect(refreshTokenRepository.rotate).not.toHaveBeenCalled();
+        });
+
+        it('token com jti rotaciona via rotate e seta novos cookies', async () => {
+            const token = signRefreshWithJti('U-1', 'J-1');
+            const res = await request(app)
+                .post('/api/auth/refresh')
+                .send({ refreshToken: token });
+
+            expect(res.status).toBe(200);
+            expect(refreshTokenRepository.rotate).toHaveBeenCalledWith('J-1');
+            expect(refreshTokenRepository.issueFamily).not.toHaveBeenCalled();
+            const setCookie = (res.headers['set-cookie'] || []).join(' ; ');
+            expect(setCookie).toContain(`${REFRESH_COOKIE_NAME}=`);
+        });
+
+        it('reuse detectado (rotate => reuse) retorna 401 e limpa cookies', async () => {
+            refreshTokenRepository.rotate.mockResolvedValueOnce({ reuse: true, familyId: 'F-1' });
+            const token = signRefreshWithJti('U-1', 'J-OLD');
+            const res = await request(app)
+                .post('/api/auth/refresh')
+                .send({ refreshToken: token });
+
+            expect(res.status).toBe(401);
+            expect(res.body.code).toBe('INVALID_REFRESH_TOKEN');
+            const setCookie = (res.headers['set-cookie'] || []).join(' ; ');
+            // clearCookie expira os cookies (data no passado).
+            expect(setCookie.toLowerCase()).toContain('expires=');
+        });
     });
 
     describe('POST /api/auth/logout', () => {
@@ -110,6 +172,23 @@ describe('Auth SSO cookies', () => {
             expect(joined).toContain(`${SESSION_HINT_COOKIE_NAME}=`);
             // clearCookie expira o cookie (data no passado).
             expect(joined.toLowerCase()).toContain('expires=');
+        });
+
+        it('revoga a familia do refresh token apresentado (com jti)', async () => {
+            const token = signRefreshWithJti('U-1', 'J-LOGOUT');
+            const res = await request(app)
+                .post('/api/auth/logout')
+                .set('Cookie', [`${REFRESH_COOKIE_NAME}=${token}`])
+                .send();
+
+            expect(res.status).toBe(200);
+            expect(refreshTokenRepository.revokeFamilyByJti).toHaveBeenCalledWith('J-LOGOUT');
+        });
+
+        it('sem token nao chama revokeFamilyByJti e ainda limpa cookies', async () => {
+            const res = await request(app).post('/api/auth/logout').send();
+            expect(res.status).toBe(200);
+            expect(refreshTokenRepository.revokeFamilyByJti).not.toHaveBeenCalled();
         });
     });
 });
