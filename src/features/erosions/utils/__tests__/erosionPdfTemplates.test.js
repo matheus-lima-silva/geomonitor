@@ -161,6 +161,26 @@ describe('buildSingleErosionFichaPdfDocument', () => {
     expect(html).not.toMatch(/border-top:\s*3px solid #0f766e/);
   });
 
+  it('aplica print-color-adjust e grid de fotos responsivo (impressao sem overflow e pin visivel)', () => {
+    const html = buildSingleErosionFichaPdfDocument({
+      erosion: baseErosion(),
+      project: {},
+      history: [],
+      relatedInspections: [],
+      fotosPrincipaisResolved: [
+        { photoId: 'RWP-1', workspaceId: 'RW', mediaAssetId: 'MA-1', sortOrder: 0, signedUrl: 'https://example.com/foto1.jpg' },
+      ],
+    });
+    // Fidelidade de cor na impressao (restaura o pin teal do mapa e os fundos).
+    expect(html).toContain('print-color-adjust: exact');
+    expect(html).toContain('@page');
+    // Grid de fotos responsivo: colunas encolhem (minmax) e imagens em largura relativa.
+    expect(html).toContain('minmax(0, 1fr)');
+    expect(html).toContain('aspect-ratio: 4 / 3');
+    // Nao deve mais usar largura fixa de 8cm na imagem (causava overflow da pagina).
+    expect(html).not.toContain('width: 8cm;');
+  });
+
   it('renderiza placeholder quando signedUrl e vazia (foto orfa)', () => {
     const html = buildSingleErosionFichaPdfDocument({
       erosion: baseErosion(),

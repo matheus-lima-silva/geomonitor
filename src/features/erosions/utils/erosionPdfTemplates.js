@@ -448,6 +448,14 @@ function buildDocument(title, content) {
       <head>
         <title>${escapeHtml(title)}</title>
         <style>
+          /* Fidelidade de cor na impressao: sem isto o Chrome remove os fundos
+             (pin do mapa, badges, chips, highlights) quando "background graphics"
+             esta desligado, que e o padrao. */
+          * {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          @page { size: A4; margin: 12mm; }
           body {
             font-family: Arial, Helvetica, sans-serif;
             color: #334155;
@@ -570,7 +578,7 @@ function buildDocument(title, content) {
           }
           .ficha-photos-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 8mm;
           }
           .ficha-photo-cell {
@@ -585,8 +593,10 @@ function buildDocument(title, content) {
             text-align: center;
           }
           .ficha-photo-cell img {
-            width: 8cm;
-            height: 6cm;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 4 / 3;
+            max-height: 8cm;
             object-fit: cover;
             border-radius: 6px;
             border: 1px solid #e2e8f0;
@@ -598,7 +608,7 @@ function buildDocument(title, content) {
             font-size: 11px;
             color: #334155;
             text-align: center;
-            max-width: 8cm;
+            max-width: 100%;
             margin-left: auto;
             margin-right: auto;
           }
