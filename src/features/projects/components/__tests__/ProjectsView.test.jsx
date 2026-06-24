@@ -129,8 +129,54 @@ describe('ProjectsView', () => {
     expect(container.textContent).toContain('Linha de Transmissao');
     expect(container.textContent).toContain('230 kV');
     expect(container.textContent).toContain('12.3 km');
-    expect(container.textContent).toContain('Ano base (bienal):');
-    expect(container.textContent).toContain('2024');
+    // biennial schedule now lives in the "Próxima entrega" periodicity line
+    expect(container.textContent).toContain('ano base 2024');
+    expect(container.textContent).toContain('Georreferenciado');
+  });
+
+  it('renders the stat grid and next-delivery callout in the card body', () => {
+    renderView(root, {
+      projects: [
+        {
+          id: 'P1',
+          nome: 'Linha Norte',
+          tipo: 'Linha de Transmissao',
+          periodicidadeRelatorio: 'Anual',
+          mesesEntregaRelatorio: [6],
+          torresCoordenadas: [],
+          linhaCoordenadas: [],
+        },
+      ],
+    });
+
+    expect(container.textContent).toContain('Vistorias');
+    expect(container.textContent).toContain('Dias vistoriados');
+    expect(container.textContent).toContain('Torres/dia útil');
+    expect(container.textContent).toContain('Próxima entrega:');
+    expect(container.textContent).toContain('Sem georreferenciamento');
+  });
+
+  it('renders the sort control and the pendency toggle with its count', () => {
+    renderView(root, {
+      projects: [
+        {
+          id: 'P1',
+          nome: 'Linha Norte',
+          tipo: 'Linha de Transmissao',
+          periodicidadeRelatorio: 'Anual',
+          mesesEntregaRelatorio: [6],
+          torresCoordenadas: [],
+          linhaCoordenadas: [],
+        },
+      ],
+      // no operating licenses -> the single project counts as pending (missing LO)
+    });
+
+    expect(container.textContent).toContain('Ordenar por');
+    expect(container.textContent).toContain('Com pendências (1)');
+    const toggle = container.querySelector('[aria-pressed]');
+    expect(toggle).not.toBeNull();
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
   });
 
   it('shows route action and hides import action when project has KML towers', () => {

@@ -252,3 +252,56 @@ export function formatHotelNote(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? String(parsed) : '-';
 }
+
+function formatIsoDateBr(iso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) return String(iso || '');
+  const [year, month, day] = iso.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+/** Período humanizado: "07/04/2025", "07–11/04/2025" ou "30/12 – 02/01/2026". */
+export function formatInspectionPeriod(dataInicio, dataFim) {
+  const ini = String(dataInicio || '').trim();
+  const fim = String(dataFim || '').trim();
+  if (!ini) return '';
+  if (!fim || fim === ini) return formatIsoDateBr(ini);
+  const [yi, mi, di] = ini.split('-');
+  const [yf, mf, df] = fim.split('-');
+  if (yi === yf && mi === mf) return `${di}–${df}/${mi}/${yi}`;
+  if (yi === yf) return `${di}/${mi}–${df}/${mf}/${yi}`;
+  return `${formatIsoDateBr(ini)} – ${formatIsoDateBr(fim)}`;
+}
+
+/** Nº de dias da vistoria: do diário, senão do intervalo de datas. */
+export function getInspectionDayCount(inspection) {
+  const fromDiary = Array.isArray(inspection?.detalhesDias) ? inspection.detalhesDias.length : 0;
+  if (fromDiary > 0) return fromDiary;
+  const ini = String(inspection?.dataInicio || '').trim();
+  const fim = String(inspection?.dataFim || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ini) && /^\d{4}-\d{2}-\d{2}$/.test(fim)) {
+    const diff = Math.round((new Date(`${fim}T00:00:00`) - new Date(`${ini}T00:00:00`)) / 86400000);
+    if (diff >= 0) return diff + 1;
+  }
+  return ini ? 1 : 0;
+}
+
+const INSPECTION_STATUS_META = {
+  planejada: { key: 'planejada', label: 'Planejada', tone: 'neutral', icon: 'calendar' },
+  andamento: { key: 'andamento', label: 'Em andamento', tone: 'info', icon: 'clock' },
+  concluida: { key: 'concluida', label: 'Concluida', tone: 'ok', icon: 'check' },
+};
+
+/** Status derivado das datas (planejada/andamento/concluida) relativo a `today` (ISO). */
+export function getInspectionStatusKey(inspection, today = new Date().toISOString().slice(0, 10)) {
+  const ini = String(inspection?.dataInicio || '').trim();
+  const fim = String(inspection?.dataFim || ini || '').trim();
+  if (!ini) return 'planejada';
+  if (ini > today) return 'planejada';
+  if (fim && fim < today) return 'concluida';
+  return 'andamento';
+}
+
+/** Metadados visuais do status: { key, label, tone, icon }. */
+export function getInspectionStatusMeta(inspection, today) {
+  return INSPECTION_STATUS_META[getInspectionStatusKey(inspection, today)];
+}

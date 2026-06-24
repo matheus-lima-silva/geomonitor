@@ -1120,6 +1120,7 @@ function DashboardView() {
           invalidOverrides={dashboardViewModel.reportInvalidOverrides}
           userActor={String(user?.nome || user?.displayName || user?.email || user?.uid || '').trim()}
           showToast={show}
+          onNavigate={(tab) => setActiveTab(tab)}
         />
       );
     }

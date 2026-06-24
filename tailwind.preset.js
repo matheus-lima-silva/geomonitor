@@ -66,6 +66,10 @@ export default {
         danger: { DEFAULT: '#dc2626', dark: '#b91c1c', light: '#fef2f2', border: '#fecaca' },
         critical: { DEFAULT: '#7f1d1d', light: '#fef2f2' },
       },
+      fontFamily: {
+        // Fragmentos tecnicos (IDs, coordenadas, hashes). Auto-hospedada em src/styles.css.
+        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
       fontSize: {
         '2xs': ['0.68rem', { lineHeight: '1rem' }],
         xs: ['0.74rem', { lineHeight: '1.1rem' }],

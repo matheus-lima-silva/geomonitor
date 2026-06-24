@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button, EmptyState, IconButton, Input, ListItemSkeleton, Select } from '../../../components/ui';
 import { buildFeriadosIndex } from '../../shared/rulesConfig';
 import { useProjectsFeatureState } from '../hooks/useProjectsFeatureState';
-import { formatReportMonths, getProjectReportConfig } from '../utils/reportSchedule';
+import { formatReportMonths, getProjectNextDelivery, getProjectReportConfig } from '../utils/reportSchedule';
 import { validateTowerCoordinatesAsString } from '../utils/kmlUtils';
 import { getProjectInspectionStats } from '../utils/projectStats';
 import { downloadProjectKml } from '../utils/projectKmlExport';
@@ -19,6 +19,8 @@ function ProjectsView({ projects, inspections, operatingLicenses, feriados = [],
   const mergeTargetProjectRef = useRef(null);
   const [localSearch, setLocalSearch] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
+  const [sortBy, setSortBy] = useState('cadastro');
+  const [onlyPendencies, setOnlyPendencies] = useState(false);
 
   const feriadosIndex = useMemo(() => buildFeriadosIndex(feriados), [feriados]);
 
@@ -31,6 +33,16 @@ function ProjectsView({ projects, inspections, operatingLicenses, feriados = [],
     });
     return coveredIds;
   }, [operatingLicenses]);
+
+  const hasPendency = useCallback(
+    (project) => {
+      const config = getProjectReportConfig(project);
+      return config.mesesEntregaRelatorio.length === 0 || !projectsWithLO.has(String(project.id).toUpperCase());
+    },
+    [projectsWithLO],
+  );
+
+  const pendencyCount = useMemo(() => (projects || []).filter(hasPendency).length, [projects, hasPendency]);
 
   const state = useProjectsFeatureState({
     projects,
@@ -56,8 +68,24 @@ function ProjectsView({ projects, inspections, operatingLicenses, feriados = [],
     if (filterTipo) {
       result = result.filter((p) => String(p.tipo || '').toLowerCase() === filterTipo.toLowerCase());
     }
+    if (onlyPendencies) {
+      result = result.filter(hasPendency);
+    }
+    if (sortBy !== 'cadastro') {
+      const byName = (a, b) => String(a.nome || a.id).localeCompare(String(b.nome || b.id), 'pt-BR');
+      result = [...result].sort((a, b) => {
+        if (sortBy === 'nome') return byName(a, b);
+        if (sortBy === 'pendencias') return (Number(hasPendency(b)) - Number(hasPendency(a))) || byName(a, b);
+        if (sortBy === 'entrega') {
+          const da = getProjectNextDelivery(a);
+          const db = getProjectNextDelivery(b);
+          return ((da ? da.monthsAway : 9999) - (db ? db.monthsAway : 9999)) || byName(a, b);
+        }
+        return 0;
+      });
+    }
     return result;
-  }, [projects, searchTerm, localSearch, filterTipo]);
+  }, [projects, searchTerm, localSearch, filterTipo, onlyPendencies, sortBy, hasPendency]);
 
   useEffect(() => {
     if (!editProjectId) return;
@@ -106,7 +134,7 @@ function ProjectsView({ projects, inspections, operatingLicenses, feriados = [],
         onChange={handleCreateInputChange}
       />
 
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-4">
+      <div className="bg-white p-6 rounded-xl shadow-card border border-slate-200 flex flex-col gap-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-col gap-1">
             <h2 className="text-2xl font-bold text-slate-800 m-0">Empreendimentos</h2>
@@ -127,7 +155,7 @@ function ProjectsView({ projects, inspections, operatingLicenses, feriados = [],
               onChange={(e) => setLocalSearch(e.target.value)}
             />
           </div>
-          <div className="w-full sm:w-48">
+          <div className="w-full sm:w-44">
             <Select
               id="projects-filter-tipo"
               label="Tipo"
@@ -139,6 +167,31 @@ function ProjectsView({ projects, inspections, operatingLicenses, feriados = [],
               <option value="Reservatório">Reservatorio</option>
             </Select>
           </div>
+          <div className="w-full sm:w-48">
+            <Select
+              id="projects-sort"
+              label="Ordenar por"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="cadastro">Ordem de cadastro</option>
+              <option value="nome">Nome</option>
+              <option value="pendencias">Pendências primeiro</option>
+              <option value="entrega">Próxima entrega</option>
+            </Select>
+          </div>
+          <Button
+            variant="outline"
+            size="md"
+            aria-pressed={onlyPendencies}
+            className={onlyPendencies
+              ? '!bg-amber-100 !border-amber-300 !text-amber-800 hover:!bg-amber-100 whitespace-nowrap'
+              : 'hover:!bg-amber-50 hover:!border-amber-200 whitespace-nowrap'}
+            onClick={() => setOnlyPendencies((value) => !value)}
+          >
+            <AppIcon name="alert" size={14} />
+            Com pendências ({pendencyCount})
+          </Button>
           <span className="text-xs text-slate-500 whitespace-nowrap pb-2 tabular-nums">
             {filtered.length === (projects || []).length
               ? `${filtered.length} empreendimentos`
@@ -160,9 +213,11 @@ function ProjectsView({ projects, inspections, operatingLicenses, feriados = [],
           const missingSchedule = reportConfig.mesesEntregaRelatorio.length === 0;
           const missingLO = !projectsWithLO.has(String(p.id).toUpperCase());
           const hasPendencies = missingSchedule || missingLO;
+          const rhythmValue = stats.rhythm?.towersPerWorkday;
+          const nextDelivery = getProjectNextDelivery(p);
 
           return (
-            <article key={p.id} className={`flex flex-col bg-white rounded-xl shadow-sm border overflow-hidden ${hasPendencies ? 'border-amber-300' : 'border-slate-200'}`}>
+            <article key={p.id} className={`flex flex-col bg-white rounded-xl shadow-card border overflow-hidden ${hasPendencies ? 'border-amber-300' : 'border-slate-200'}`}>
               <header className="flex justify-between items-start p-5 bg-slate-50 border-b border-slate-200">
                 <div className="flex flex-col gap-1">
                   <h3 className="text-lg font-bold text-slate-800 m-0">{p.nome || p.id}</h3>
@@ -213,31 +268,48 @@ function ProjectsView({ projects, inspections, operatingLicenses, feriados = [],
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">{p.tipo || 'Sem tipo'}</span>
                 {p.tensao && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-orange-50 text-orange-700">{p.tensao} kV</span>}
                 {p.extensao && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-brand-50 text-brand-700">{p.extensao} km</span>}
+                {hasKmlData ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                    <AppIcon name="satellite" size={12} />
+                    Georreferenciado
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
+                    <AppIcon name="satellite" size={12} />
+                    Sem georreferenciamento
+                  </span>
+                )}
               </div>
 
-              <div className="flex flex-col gap-2 p-5 text-sm text-slate-600">
-                <div><strong className="text-slate-800">Vistorias:</strong> {stats.count}</div>
-                <div><strong className="text-slate-800">Tempo de vistoria:</strong> {stats.spanDays ? `${stats.spanDays} dia(s)` : 'S/D'}</div>
-                <div><strong className="text-slate-800">Dias efetivamente vistoriados:</strong> {stats.visitedDays}</div>
-                <div>
-                  <strong className="text-slate-800">Ritmo:</strong>{' '}
-                  {stats.rhythm?.towersPerWorkday
-                    ? `${stats.rhythm.towersPerWorkday.toFixed(1)} torres/dia util`
-                    : 'S/D'}
-                  {stats.rhythm?.towersPerWorkday ? (
-                    <span className="text-xs text-slate-400 ml-1">
-                      {stats.rhythm.source === 'project'
-                        ? `(${stats.rhythm.sampleSize} vistoria${stats.rhythm.sampleSize !== 1 ? 's' : ''} deste projeto)`
-                        : `(media global, ${stats.rhythm.sampleSize} vistoria${stats.rhythm.sampleSize !== 1 ? 's' : ''})`}
-                    </span>
+              <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100">
+                <div className="flex flex-col gap-0.5 px-4 py-3 min-w-0">
+                  <span className="text-xl font-bold text-slate-800 tabular-nums leading-tight truncate">{stats.count}</span>
+                  <span className="text-2xs font-semibold uppercase tracking-wide text-slate-400 truncate">Vistorias</span>
+                </div>
+                <div className="flex flex-col gap-0.5 px-4 py-3 min-w-0">
+                  <span className="text-xl font-bold text-slate-800 tabular-nums leading-tight truncate">{stats.visitedDays}</span>
+                  <span className="text-2xs font-semibold uppercase tracking-wide text-slate-400 truncate">Dias vistoriados</span>
+                  {stats.spanDays ? <span className="text-2xs text-slate-400 truncate">em {stats.spanDays} corridos</span> : null}
+                </div>
+                <div className="flex flex-col gap-0.5 px-4 py-3 min-w-0">
+                  <span className="text-xl font-bold text-slate-800 tabular-nums leading-tight truncate">{rhythmValue ? rhythmValue.toFixed(1) : '—'}</span>
+                  <span className="text-2xs font-semibold uppercase tracking-wide text-slate-400 truncate">Torres/dia útil</span>
+                  {rhythmValue ? (
+                    <span className="text-2xs text-slate-400 truncate">{stats.rhythm.source === 'project' ? 'deste projeto' : 'média global'}</span>
                   ) : null}
                 </div>
-                <div><strong className="text-slate-800">Torres com GPS:</strong> {gpsCount}</div>
-                <div><strong className="text-slate-800">Periodicidade:</strong> {reportConfig.periodicidadeRelatorio}</div>
-                <div><strong className="text-slate-800">Meses de entrega:</strong> {formatReportMonths(reportConfig.mesesEntregaRelatorio)}</div>
-                {reportConfig.periodicidadeRelatorio === 'Bienal' && (
-                  <div><strong className="text-slate-800">Ano base (bienal):</strong> {reportConfig.anoBaseBienal || 'Nao definido'}</div>
-                )}
+              </div>
+
+              <div className="flex flex-col gap-1 p-5 pt-4 text-sm text-slate-600">
+                <div className="flex items-center gap-2">
+                  <AppIcon name="calendar" size={15} className="text-slate-400" />
+                  <span><strong className="text-slate-800">Próxima entrega:</strong> {nextDelivery ? nextDelivery.label : 'Não definida'}</span>
+                </div>
+                <p className="text-xs text-slate-400 m-0 pl-[23px]">
+                  {reportConfig.periodicidadeRelatorio}
+                  {reportConfig.mesesEntregaRelatorio.length > 0 ? ` · ${formatReportMonths(reportConfig.mesesEntregaRelatorio)}` : ''}
+                  {reportConfig.periodicidadeRelatorio === 'Bienal' ? ` · ano base ${reportConfig.anoBaseBienal || 'não definido'}` : ''}
+                </p>
               </div>
 
               <div className="flex gap-3 px-5 py-4 bg-slate-50 border-t border-slate-100 mt-auto">
