@@ -509,7 +509,7 @@ function CoberturaTab({ formData, setFormData, projects }) {
 // Modal com abas
 // =========================================================================
 
-function LicenseFormModal({
+export function LicenseFormModal({
   open,
   formData,
   setFormData,
@@ -522,12 +522,29 @@ function LicenseFormModal({
   showToast,
 }) {
   const [tab, setTab] = useState('identificacao');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (open) setTab('identificacao');
+    if (open) {
+      setTab('identificacao');
+      setIsSaving(false);
+    }
   }, [open]);
 
   if (!open) return null;
+
+  // Guarda contra double-submit: desabilita "Salvar" enquanto onSave (async,
+  // saveOperatingLicense) esta em voo, evitando salvar a LO duas vezes. Mesmo
+  // padrao de ErosionFormModal/ProjectFormModal.
+  async function handleSave() {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSave?.();
+    } finally {
+      setIsSaving(false);
+    }
+  }
 
   const cobertura = Array.isArray(formData.cobertura) ? formData.cobertura : [];
 
@@ -543,13 +560,13 @@ function LicenseFormModal({
 
   const footer = (
     <>
-      <Button variant="outline" size="md" onClick={onCancel}>
+      <Button variant="outline" size="md" onClick={onCancel} disabled={isSaving}>
         <AppIcon name="close" />
         Cancelar
       </Button>
-      <Button variant="primary" size="md" onClick={onSave}>
+      <Button variant="primary" size="md" onClick={handleSave} disabled={isSaving}>
         <AppIcon name="save" />
-        Salvar
+        {isSaving ? 'Salvando...' : 'Salvar'}
       </Button>
     </>
   );

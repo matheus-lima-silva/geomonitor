@@ -41,18 +41,24 @@ function ProfileModal({ onClose }) {
   const [editingSigId, setEditingSigId] = useState(null);
   const [editingSig, setEditingSig] = useState({ ...EMPTY_SIG });
   const [sigBusy, setSigBusy] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     listProfissoes().then(setProfissoes).catch(() => {});
     listSignatarios().then(setSignatarios).catch(() => {});
   }, []);
 
+  // Guarda contra double-submit: ignora cliques re-entrantes e desabilita os
+  // botoes enquanto saveUser + refreshProfile estao em voo, evitando salvar o
+  // perfil duas vezes. Mesmo padrao de ErosionFormModal/ProjectFormModal.
   async function handleSave() {
+    if (isSaving) return;
     if (!String(formData.nome || '').trim()) {
       show('Preencha o nome para salvar o perfil.', 'error');
       return;
     }
 
+    setIsSaving(true);
     try {
       await saveUser(user.uid, {
         id: user.uid,
@@ -71,6 +77,8 @@ function ProfileModal({ onClose }) {
       onClose();
     } catch (err) {
       show(err.message || 'Erro ao salvar perfil.', 'error');
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -133,13 +141,13 @@ function ProfileModal({ onClose }) {
 
   const footer = (
     <>
-      <Button variant="outline" onClick={onClose}>
+      <Button variant="outline" onClick={onClose} disabled={isSaving}>
         <AppIcon name="close" />
         Cancelar
       </Button>
-      <Button variant="primary" onClick={handleSave}>
+      <Button variant="primary" onClick={handleSave} disabled={isSaving}>
         <AppIcon name="save" />
-        Salvar Alteracoes
+        {isSaving ? 'Salvando...' : 'Salvar Alteracoes'}
       </Button>
     </>
   );
