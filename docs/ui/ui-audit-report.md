@@ -134,6 +134,7 @@ Modal de 2xl para selecionar ate 6 fotos principais de uma erosao, agregando fot
 - Reordenacao via setinhas `arrow-up` / `arrow-down` (sem dnd-kit; setinhas sao `IconButton variant="outline" size="sm"`).
 - Grid de thumbnails usa `<button aria-pressed>` com borda/ring do token `brand-600` para indicar selecao — card-like clickable, padrao ja aceito no codebase para toggles visuais.
 - Persiste via `saveErosion({ id, fotosPrincipais }, { merge: true })` — nao cria rota nova.
+- **Modo controlado (junho/2026):** props opcionais `onConfirm(fotosPrincipais)` e `title`. Quando `onConfirm` e passado, o modal devolve a selecao ao caller em vez de chamar `saveErosion`, e nao exige `erosion.id` (basta um `erosion` sintetico `{ projetoId, fotosPrincipais }`). Usado pelo wizard de criacao (`ErosionFormModal`) para escolher fotos antes de a erosao existir. Sem `onConfirm`, o comportamento legado (persiste direto) e preservado.
 
 ### `src/features/erosions/components/EnsureErosionWorkspaceModal.jsx`
 
@@ -282,13 +283,22 @@ inline, lightbox). Gaps reais adotados (so apresentacao, sem mexer no engine/mod
   montadas e sao alternadas por `hidden` (so a etapa ativa aparece) — preserva todo o save/validacao e
   mantem os testes que consultam campos por id. Footer ganha Voltar/Avancar; Salvar continua sempre
   disponivel.
+- **Fotos do workspace no wizard (junho/2026):** na etapa "Medidas e anexos" o campo legado "Fotos (links,
+  um por linha)" foi **substituido** por um seletor de fotos do banco de fotos. Botao "Selecionar fotos do
+  workspace" abre o `ErosionPhotosPickerModal` em **modo controlado** (`onConfirm`), montado lazy so quando
+  aberto; a selecao vai para `formData.fotosPrincipais` (preview com thumbnails `MediaImage` + reordenar/
+  remover) e e persistida no save junto com a erosao. O normalizador de formulario passa a seedar
+  `fotosPrincipais` ao editar, evitando que um save por merge apague as fotos existentes. O dado legado
+  `fotosLinks` segue preservado no payload (so saiu da UI do wizard).
 - **Timeline do details modal** (`ErosionDetailsModal.jsx`): a timeline com dots ja existia; corrigida a
   cor do marcador de acompanhamento (`before:bg-*` por tipo: obra=indigo, autuacao=amber, sistema=slate).
 - **Deferido:** o toggle de formato de coordenada (Decimal/UTM/DMS) — os tres formatos ja funcionam (campos
   + conversoes em `erosionCoordinates.js`); o toggle e so decluttering visual e foi adiado para evitar
   risco de teste sem ganho funcional.
-- Testes: `ErosionsView.test.jsx` (card clicavel; Editar via aria-label), `ErosionFormModal.test.jsx`
-  (navegacao por etapas via indicador/Avancar).
+- Testes: `ErosionsView.test.jsx` (card clicavel; Editar via aria-label; payload de save inclui
+  `fotosPrincipais`; edicao preserva `fotosPrincipais`), `ErosionFormModal.test.jsx` (navegacao por etapas;
+  picker do workspace substitui o campo de links; botao desabilita sem empreendimento; abrir picker lazy),
+  `ErosionPhotosPickerModal.test.jsx` (modo controlado `onConfirm` sem `saveErosion`).
 
 ## Redesign do Gerenciamento (Admin) (junho/2026)
 

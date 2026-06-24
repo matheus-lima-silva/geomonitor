@@ -30,6 +30,8 @@ export default function ErosionPhotosPickerModal({
   onClose,
   onSaved,
   onRequestCreateWorkspace,
+  onConfirm,
+  title,
 }) {
   const { show: showToast } = useOptionalToast();
   const {
@@ -84,10 +86,19 @@ export default function ErosionPhotosPickerModal({
   }
 
   async function handleSave() {
+    const fotosPrincipais = buildFotosPrincipaisPatch(selected);
+
+    // Modo controlado (wizard de criacao): devolve a selecao ao caller em vez de
+    // persistir. Nao exige erosion.id porque a erosao ainda nao foi salva.
+    if (typeof onConfirm === 'function') {
+      onConfirm(fotosPrincipais);
+      onClose?.();
+      return;
+    }
+
     if (!erosion?.id) return;
     try {
       setSaving(true);
-      const fotosPrincipais = buildFotosPrincipaisPatch(selected);
       await saveErosion({ id: erosion.id, fotosPrincipais }, {
         merge: true,
         updatedBy: userEmail || 'web',
@@ -122,7 +133,7 @@ export default function ErosionPhotosPickerModal({
     <Modal
       open={open}
       onClose={saving ? undefined : onClose}
-      title={`Escolher fotos principais da erosao ${erosion.id}`}
+      title={title || (erosion?.id ? `Escolher fotos principais da erosao ${erosion.id}` : 'Selecionar fotos do workspace')}
       size="2xl"
       footer={footer}
     >
