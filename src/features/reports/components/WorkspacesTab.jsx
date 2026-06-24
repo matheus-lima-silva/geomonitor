@@ -10,13 +10,16 @@ import {
   STEPS,
   buildKmzGenerationProgress,
   buildWorkspacePhotoDraft,
+  findTowerCoordinate,
   fmt,
   formatInspectionMonthYear,
+  getPhotoCoordinate,
   getTranslatedStatus,
   getWorkspacePhotoStatus,
   groupPhotosByTower,
   isWorkspacePhotoDirty,
   tone,
+  triggerUrlDownload,
 } from '../utils/reportUtils';
 import PhotoPreviewModal from './PhotoPreviewModal';
 import TrashExpandedModal from './TrashExpandedModal';
@@ -87,6 +90,7 @@ export default function WorkspacesTab({
   handleImportWorkspace,
   handleSaveWorkspacePhoto,
   handleMovePhotoToTrash,
+  onCreateErosionFromPhoto,
   handleRestorePhoto,
   handleRestoreAllTrashedPhotos,
   handleRestoreTowerTrashedPhotos,
@@ -228,6 +232,22 @@ export default function WorkspacesTab({
   const activePreviewPhoto = workspacePhotos.find((p) => p.id === activePreviewPhotoId) || null;
   // Indice na lista ja filtrada/ordenada (mesma ordem da grade) — base da navegacao prev/next.
   const previewIndex = filteredWorkspacePhotos.findIndex((p) => p.id === activePreviewPhotoId);
+
+  // Geolocalizacao da foto ativa para o mini-mapa do lightbox: torre casada por
+  // numero no cadastro do empreendimento + ponto GPS da propria foto.
+  const activePreviewDraft = activePreviewPhoto
+    ? (workspacePhotoDrafts[activePreviewPhoto.id] || buildWorkspacePhotoDraft(activePreviewPhoto))
+    : null;
+  const activePreviewTowerRef = activePreviewDraft
+    ? String(activePreviewDraft.towerId || activePreviewPhoto.towerId || '').trim()
+    : '';
+  const activePreviewTowerPoint = activePreviewPhoto
+    ? findTowerCoordinate(selectedWorkspaceProject, activePreviewTowerRef)
+    : null;
+  const activePreviewPhotoPoint = activePreviewPhoto ? getPhotoCoordinate(activePreviewPhoto) : null;
+  const activePreviewDistanceMeters = activePreviewPhoto
+    ? activePreviewPhoto.distanceToTowerM
+    : null;
 
   // Pre-carrega o blob da foto ativa e dos vizinhos imediatos para que a navegacao
   // prev/next no modal ampliado nao caia em "preview indisponivel" ao cruzar paginas.
@@ -1589,6 +1609,25 @@ export default function WorkspacesTab({
           }));
         }}
         onSave={() => activePreviewPhoto && handleSaveWorkspacePhoto(activePreviewPhoto)}
+        onToggleInclude={(next) => {
+          if (!activePreviewPhoto) return;
+          const base = workspacePhotoDrafts[activePreviewPhoto.id] || buildWorkspacePhotoDraft(activePreviewPhoto);
+          const nextDraft = { ...base, includeInReport: next };
+          setWorkspacePhotoDrafts((prev) => ({ ...prev, [activePreviewPhoto.id]: nextDraft }));
+          // Passa o rascunho explicito para evitar leitura defasada do estado.
+          handleSaveWorkspacePhoto(activePreviewPhoto, nextDraft);
+        }}
+        onDownload={(p) => {
+          const url = photoPreviewUrls[p?.id];
+          if (url) triggerUrlDownload(`${p.id}.jpg`, url);
+        }}
+        onTrash={(p) => p && handleMovePhotoToTrash(p.id)}
+        onCreateErosion={(p) => p && onCreateErosionFromPhoto?.(p)}
+        towerPoint={activePreviewTowerPoint}
+        photoPoint={activePreviewPhotoPoint}
+        towerLabel={activePreviewTowerRef}
+        distanceMeters={activePreviewDistanceMeters}
+        projectId={selectedWorkspace?.projectId || ''}
       />
 
       {/* Modal de gestao de membros do workspace. Renderizado condicionalmente

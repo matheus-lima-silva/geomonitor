@@ -1141,7 +1141,16 @@ function DashboardView() {
     }
 
     if (activeTab === 'georelat') {
-      return <ReportsView userEmail={user?.email} showToast={show} />;
+      return (
+        <ReportsView
+          userEmail={user?.email}
+          showToast={show}
+          onOpenErosionDraft={(draft) => {
+            setPendingErosionDraft(draft);
+            setActiveTab('erosions');
+          }}
+        />
+      );
     }
 
     if (activeTab === 'admin') {
