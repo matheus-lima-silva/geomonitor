@@ -71,7 +71,9 @@ import {
   buildWorkspacePhotoDraft,
   buildWorkspacePhotoDrafts,
   computeTowerCurationStatus,
+  findTowerCoordinate,
   getPersistedWorkspaceCurationDrafts,
+  getPhotoCoordinate,
   getWorkspacePhotoStatus,
   inferTowerIdFromRelativePath,
   isPendingExecutionStatus,
@@ -87,7 +89,7 @@ import DossierTab from './DossierTab';
 import WorkspacesTab from './WorkspacesTab';
 import UnclassifiedWorkspacesModal from './UnclassifiedWorkspacesModal';
 
-export default function ReportsView({ userEmail = '', showToast = () => {} }) {
+export default function ReportsView({ userEmail = '', showToast = () => {}, onOpenErosionDraft = null }) {
   const [tab, setTab] = useState('workspaces');
   const [projects, setProjects] = useState([]);
   const [workspaces, setWorkspaces] = useState([]);
@@ -881,8 +883,10 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     }
   }
 
-  async function handleSaveWorkspacePhoto(photo) {
-    const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
+  async function handleSaveWorkspacePhoto(photo, draftOverride = null) {
+    // draftOverride permite salvar com um rascunho explicito (ex.: autosave do
+    // toggle "incluir no .docx" no lightbox, onde o setState ainda nao refletiu).
+    const draft = draftOverride || workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
     const workspace = selectedWorkspace;
     if (!workspace) { showToast('Selecione um workspace valido para salvar a curadoria.', 'error'); return; }
     try {
@@ -927,6 +931,43 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
     } finally {
       setBusy('');
     }
+  }
+
+  // Handoff "criar erosao a partir da foto": reusa o mecanismo pendingErosionDraft
+  // do DashboardView (mesmo fluxo Vistorias->Erosoes). Monta o contexto minimo e
+  // delega a abertura do formulario de erosao pre-preenchido ao parent.
+  function handleCreateErosionFromPhoto(photo) {
+    if (!photo) return;
+    if (typeof onOpenErosionDraft !== 'function') {
+      showToast('Fluxo de criacao de erosao indisponivel neste contexto.', 'error');
+      return;
+    }
+    const projetoId = String(selectedWorkspace?.projectId || '').trim();
+    if (!projetoId) {
+      showToast('Workspace sem empreendimento vinculado para criar erosao.', 'error');
+      return;
+    }
+    const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
+    const torreRef = String(draft.towerId || photo.towerId || '').trim();
+    // Coordenadas: prioriza a torre cadastrada; cai para o GPS da propria foto.
+    const point = findTowerCoordinate(selectedWorkspaceProject, torreRef) || getPhotoCoordinate(photo);
+    const latitude = point ? String(point[0]) : '';
+    const longitude = point ? String(point[1]) : '';
+
+    onOpenErosionDraft({
+      projetoId,
+      torreRef,
+      latitude,
+      longitude,
+      locationCoordinates: { latitude, longitude },
+    });
+    setActivePreviewPhotoId('');
+    showToast(
+      torreRef
+        ? `Abrindo formulario de erosao — Torre ${torreRef} - foto vinculada.`
+        : 'Abrindo formulario de erosao — foto vinculada.',
+      'info',
+    );
   }
 
   async function handleRestorePhoto(photo) {
@@ -1819,6 +1860,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {} }) {
             handleImportWorkspace={handleImportWorkspace}
             handleSaveWorkspacePhoto={handleSaveWorkspacePhoto}
             handleMovePhotoToTrash={handleMovePhotoToTrash}
+            onCreateErosionFromPhoto={handleCreateErosionFromPhoto}
             handleRestorePhoto={handleRestorePhoto}
             handleRestoreAllTrashedPhotos={handleRestoreAllTrashedPhotos}
             handleRestoreTowerTrashedPhotos={handleRestoreTowerTrashedPhotos}

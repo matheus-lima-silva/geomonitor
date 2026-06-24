@@ -1,3 +1,5 @@
+import { compareTowerNumbers } from '../../projects/utils/kmlUtils';
+
 // ── Constantes ───────────────────────────────────────────────────────────────
 
 export const TABS = [
@@ -199,6 +201,90 @@ export function getWorkspacePhotoStatus(photo = {}, draft = {}) {
   if (includeInReport && hasCaption && hasTower) return 'curated';
   if (hasCaption || hasTower || includeInReport) return 'reviewed';
   return String(photo.curationStatus || 'uploaded').trim() || 'uploaded';
+}
+
+// ── Geolocalizacao da foto (mini-mapa de curadoria) ──────────────────────────
+
+function toFiniteNumber(value) {
+  // Number(null) e Number('') sao 0 — tratar como ausencia, nao como zero.
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+// Coordenada [lat, lng] da torre do empreendimento, casando o numero da torre
+// (project.torresCoordenadas[].numero) com a referencia informada. null se nao achar.
+export function findTowerCoordinate(project, towerRef) {
+  const ref = String(towerRef || '').trim();
+  if (!ref) return null;
+  const coords = Array.isArray(project?.torresCoordenadas) ? project.torresCoordenadas : [];
+  for (const row of coords) {
+    if (compareTowerNumbers(String(row?.numero || '').trim(), ref) === 0) {
+      const lat = toFiniteNumber(row?.latitude);
+      const lng = toFiniteNumber(row?.longitude);
+      if (lat != null && lng != null) return [lat, lng];
+    }
+  }
+  return null;
+}
+
+// Coordenada [lat, lng] da propria foto (GPS/EXIF, colunas gps_lat/gps_lon), ou null.
+export function getPhotoCoordinate(photo) {
+  const lat = toFiniteNumber(photo?.gpsLat);
+  const lng = toFiniteNumber(photo?.gpsLon);
+  if (lat == null || lng == null) return null;
+  return [lat, lng];
+}
+
+// Distancia em metros entre dois pontos [lat, lng] (haversine).
+export function haversineMeters(from, to) {
+  if (!Array.isArray(from) || !Array.isArray(to)) return null;
+  const [lat1, lon1] = from;
+  const [lat2, lon2] = to;
+  if (![lat1, lon1, lat2, lon2].every((v) => Number.isFinite(v))) return null;
+  const earthRadiusM = 6371008.8;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * earthRadiusM * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+// Ponto cardeal (pt-BR) da direcao from->to: N, NE, L, SE, S, SO, O, NO.
+const COMPASS_PT = ['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO'];
+export function bearingToCompassPt(from, to) {
+  if (!Array.isArray(from) || !Array.isArray(to)) return '';
+  const [lat1, lon1] = from;
+  const [lat2, lon2] = to;
+  if (![lat1, lon1, lat2, lon2].every((v) => Number.isFinite(v))) return '';
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLon = toRad(lon2 - lon1);
+  const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2))
+    - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+  const deg = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+  return COMPASS_PT[Math.round(deg / 45) % 8];
+}
+
+// Rotulo "≈ 35 m · O da torre". Prioriza distanceMeters (calculado pelo backend
+// via PostGIS); senao usa haversine entre torre e foto. A direcao e a do ponto
+// da foto visto a partir da torre. Retorna '' quando nao ha distancia.
+export function formatPhotoDistanceLabel(distanceMeters, towerPoint, photoPoint) {
+  const meters = toFiniteNumber(distanceMeters)
+    ?? (towerPoint && photoPoint ? haversineMeters(towerPoint, photoPoint) : null);
+  if (meters == null) return '';
+  const rounded = meters >= 1000
+    ? `${(meters / 1000).toFixed(meters >= 10000 ? 0 : 1)} km`
+    : `${Math.round(meters)} m`;
+  const direction = towerPoint && photoPoint ? bearingToCompassPt(towerPoint, photoPoint) : '';
+  return direction ? `≈ ${rounded} · ${direction} da torre` : `≈ ${rounded}`;
+}
+
+// Rotulo legivel da origem de importacao da foto (para o card de metadados).
+export function formatImportSourceLabel(importSource) {
+  const key = String(importSource || '').trim();
+  return (IMPORT_MODES[key] && IMPORT_MODES[key].label) || key || '-';
 }
 
 // ── Ordenacao e agrupamento de fotos ─────────────────────────────────────────

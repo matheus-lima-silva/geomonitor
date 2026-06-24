@@ -14,6 +14,8 @@ import Button from './Button';
  *   size       — 'sm' | 'md' | 'lg' | 'xl'  (padrão: 'md')
  *   children   — conteúdo
  *   footer     — slot para botões de ação (ReactNode)
+ *   headerActions — slot opcional no header, antes do botão fechar (ReactNode);
+ *                   usado por toolbars (ex.: lightbox de foto: baixar/lixeira).
  */
 const SIZE_CLASSES = {
     sm: 'max-w-sm',
@@ -32,6 +34,7 @@ export default function Modal({
     size = 'md',
     children,
     footer,
+    headerActions,
 }) {
     // Fecha com Escape
     useEffect(() => {
@@ -84,13 +87,18 @@ export default function Modal({
                                 )}
                             </div>
                         )}
+                        {headerActions && (
+                            <div className="ml-auto flex items-center gap-1">
+                                {headerActions}
+                            </div>
+                        )}
                         {onClose && (
                             <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={onClose}
                                 aria-label="Fechar"
-                                className="ml-auto"
+                                className={headerActions ? '' : 'ml-auto'}
                             >
                                 <AppIcon name="close" />
                             </Button>

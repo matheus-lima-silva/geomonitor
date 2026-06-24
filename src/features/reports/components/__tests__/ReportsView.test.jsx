@@ -370,6 +370,45 @@ describe('ReportsView', () => {
     );
   });
 
+  it('handoff: criar erosao a partir da foto chama onOpenErosionDraft com o contexto', async () => {
+    const onOpenErosionDraft = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} onOpenErosionDraft={onOpenErosionDraft} />,
+      );
+      await Promise.resolve();
+    });
+
+    // Abre o lightbox da foto RPH-1 (workspace RW-1 / empreendimento PRJ-01).
+    const openPreview = container.querySelector('button[aria-label="Visualizar foto"]');
+    expect(openPreview).toBeTruthy();
+    await act(async () => {
+      openPreview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    // Botao "Criar erosao nesta torre" abre o modal de chamada (handoff).
+    const createErosionButton = [...container.querySelectorAll('button')]
+      .find((b) => b.textContent.includes('Criar erosão nesta torre'));
+    expect(createErosionButton).toBeTruthy();
+    await act(async () => {
+      createErosionButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    // Confirma: abre o formulario de erosao pre-preenchido via pendingErosionDraft.
+    const confirmButton = [...container.querySelectorAll('button')]
+      .find((b) => b.textContent.includes('Abrir formulário de erosão'));
+    expect(confirmButton).toBeTruthy();
+    await act(async () => {
+      confirmButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onOpenErosionDraft).toHaveBeenCalledTimes(1);
+    expect(onOpenErosionDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ projetoId: 'PRJ-01', torreRef: 'T-01' }),
+    );
+  });
+
   it('cria dossie com escopo editorial configuravel', async () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);

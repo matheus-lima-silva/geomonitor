@@ -187,6 +187,19 @@ PR grande que refatorou `src/features/licenses/components/LicensesView.jsx` em c
 
 A secao "exige acompanhamento erosivo" permanece como callout amber (alinhado ao warning do projeto). Roteamento por URL param (`?license=ID`) foi escolhido por fidelidade ao projeto — o app nao usa React Router; seguimos o padrao ja presente em `App.jsx:8` (`?uiReview=sidebar`) e `?token` do reset-password.
 
+## Redesign do lightbox de curadoria de fotos (junho/2026)
+
+Design handoff hi-fi (`design_handoff_preview_foto`) reprojetou o `PhotoPreviewModal` da curadoria de Relatorios, trocando os botoes de texto (Anterior / Proxima / Salvar) por uma lightbox icon-first. Itens introduzidos:
+
+- **`PhotoPreviewModal`** (`src/features/reports/components/PhotoPreviewModal.jsx`) — reescrito sobre o `Modal` (size `2xl`) em 3 faixas: header com tile de icone + ID mono + chip de posicao + toolbar (`download`, `trash-2` com confirmacao inline `dangerGhost`, fechar); palco escuro (`bg-slate-950`) com setas flutuantes + pilula contadora; painel lateral 340px com card de metadados, acao `.docx` (estado verde quando incluida), legenda com **autosave** (sem botao Salvar: debounce 650ms -> "Salvando..." -> "Salvo automaticamente"), mini-mapa e acao "Criar erosao". Atalhos: setas navegam, `E` inclui, `Del` lixeira.
+- **`PhotoLocationMiniMap`** (`src/features/reports/components/PhotoLocationMiniMap.jsx`) — mini-mapa Leaflet (152px) com torre (quadrado) + foto (circulo) ligados por polilinha tracejada, `fitBounds` e rodape com distancia+direcao. Degrada quando falta coordenada. Reusa `react-leaflet` + `L.divIcon` (primeiro `import L from 'leaflet'` direto no `src/`, alem do `AppIcon`).
+- **`CreateErosionHandoffModal`** (`src/features/reports/components/CreateErosionHandoffModal.jsx`) — modal de chamada (size `sm`) que confirma o contexto e dispara o handoff "criar erosao a partir da foto". Reusa o mecanismo `pendingErosionDraft` do `DashboardView` (mesmo fluxo Vistorias->Erosoes): `ReportsView.handleCreateErosionFromPhoto` -> `onOpenErosionDraft` -> abre o `ErosionFormModal` pre-preenchido.
+- **`Modal`** ganhou slot opcional `headerActions` (ReactNode antes do botao fechar) — usado pela toolbar do lightbox. Aditivo, nao afeta usos existentes.
+- **Helpers puros** em `reportUtils.js` (`findTowerCoordinate`, `getPhotoCoordinate`, `haversineMeters`, `bearingToCompassPt`, `formatPhotoDistanceLabel`, `formatImportSourceLabel`) — testados em `__tests__/reportUtilsGeo.test.js`. Coordenadas da torre vem de `project.torresCoordenadas` (casadas por numero); distancia reusa `photo.distanceToTowerM` (PostGIS) com fallback haversine.
+- **Aliases novos no `AppIcon`**: `hash`, `folder-input`, `radio-tower`, `file-plus-2`, `cloud-check`, `map-pin`, `check-circle-2`.
+
+Sem rota nova (todos os endpoints ja existiam: `PUT .../photos/:id` para legenda+includeInReport, `POST .../photos/:id/trash`). Testes: `PhotoPreviewModal.test.jsx`, `PhotoLocationMiniMap.test.jsx`, `CreateErosionHandoffModal.test.jsx`, `reportUtilsGeo.test.js` e caso de handoff em `ReportsView.test.jsx`.
+
 ## Dashboard de campanhas em Acompanhamentos (junho/2026)
 
 Parte do programa de adocao do design handoff. `FollowupsView` ganhou um **dashboard de

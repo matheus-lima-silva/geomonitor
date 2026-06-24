@@ -15,12 +15,14 @@ import Image from 'lucide-react/dist/esm/icons/image';
 import ImageOff from 'lucide-react/dist/esm/icons/image-off';
 import Building2 from 'lucide-react/dist/esm/icons/building-2';
 import Check from 'lucide-react/dist/esm/icons/check';
+import CheckCircle2 from 'lucide-react/dist/esm/icons/check-circle-2';
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
 import ChevronLeft from 'lucide-react/dist/esm/icons/chevron-left';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import ChevronUp from 'lucide-react/dist/esm/icons/chevron-up';
 import ClipboardCheck from 'lucide-react/dist/esm/icons/clipboard-check';
 import ClipboardList from 'lucide-react/dist/esm/icons/clipboard-list';
+import CloudCheck from 'lucide-react/dist/esm/icons/cloud-check';
 import Copy from 'lucide-react/dist/esm/icons/copy';
 import Database from 'lucide-react/dist/esm/icons/database';
 import Download from 'lucide-react/dist/esm/icons/download';
@@ -30,8 +32,11 @@ import FileCheck from 'lucide-react/dist/esm/icons/file-check';
 import FileCheck2 from 'lucide-react/dist/esm/icons/file-check-2';
 import FileDown from 'lucide-react/dist/esm/icons/file-down';
 import FileSpreadsheet from 'lucide-react/dist/esm/icons/file-spreadsheet';
+import FilePlus2 from 'lucide-react/dist/esm/icons/file-plus-2';
 import FileText from 'lucide-react/dist/esm/icons/file-text';
+import FolderInput from 'lucide-react/dist/esm/icons/folder-input';
 import FolderOpen from 'lucide-react/dist/esm/icons/folder-open';
+import Hash from 'lucide-react/dist/esm/icons/hash';
 import Info from 'lucide-react/dist/esm/icons/info';
 import Italic from 'lucide-react/dist/esm/icons/italic';
 import LayoutDashboard from 'lucide-react/dist/esm/icons/layout-dashboard';
@@ -51,6 +56,7 @@ import Monitor from 'lucide-react/dist/esm/icons/monitor';
 import Pause from 'lucide-react/dist/esm/icons/pause';
 import PenLine from 'lucide-react/dist/esm/icons/pen-line';
 import Plus from 'lucide-react/dist/esm/icons/plus';
+import RadioTower from 'lucide-react/dist/esm/icons/radio-tower';
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw';
 import Route from 'lucide-react/dist/esm/icons/route';
 import Satellite from 'lucide-react/dist/esm/icons/satellite';
@@ -96,6 +102,12 @@ const ICON_MAP = {
   reset: RefreshCw,
   refresh: RefreshCw,
   check: Check,
+  'check-circle-2': CheckCircle2,
+  'cloud-check': CloudCheck,
+  hash: Hash,
+  'folder-input': FolderInput,
+  'file-plus-2': FilePlus2,
+  'radio-tower': RadioTower,
   pause: Pause,
   user: User,
   users: Users,
