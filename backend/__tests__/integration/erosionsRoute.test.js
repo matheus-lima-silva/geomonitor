@@ -85,6 +85,14 @@ jest.mock('../../utils/workerTrigger', () => ({
     triggerWorkerRun: jest.fn(),
 }));
 
+// computeGeoDistance toca PostGIS; mockamos para o teste de save nao depender de DB.
+jest.mock('../../utils/geoDistance', () => ({
+    computeGeoDistance: jest.fn(async () => null),
+    resolveEffectiveStructureDistance: jest.fn(({ manualOverride, manualValue, computed }) => (
+        (manualOverride ? manualValue : (computed != null ? computed : manualValue)) ?? null
+    )),
+}));
+
 const request = require('supertest');
 const app = require('../../server');
 
@@ -150,6 +158,59 @@ describe('POST /api/erosions/fichas-cadastro/generate (Zod)', () => {
         expect(res.status).toBe(202);
         expect(res.body.data.projectId).toBe('PROJ-1');
         expect(res.body.data.statusExecucao).toBe('queued');
+    });
+});
+
+describe('POST /api/erosions (Zod + save)', () => {
+    function wizardPayload(overrides = {}) {
+        return {
+            data: {
+                id: 'ERS-NEW',
+                projetoId: 'PRJ-1',
+                torreRef: '45',
+                latitude: '-15.123456',
+                longitude: '-47.654321',
+                tiposFeicao: ['vocoroca'],
+                usosSolo: ['pastagem'],
+                profundidadeMetros: 5,
+                declividadeGraus: 30,
+                distanciaEstruturaMetros: 3,
+                tipoSolo: 'arenoso',
+                saturacaoPorAgua: 'nao',
+                presencaAguaFundo: 'nao',
+                sinaisAvanco: false,
+                vegetacaoInterior: true,
+                localContexto: { localTipo: 'base_torre' },
+                dimensionamento: 'Premissas e medidas preliminares.',
+                fotosPrincipais: [{ photoId: 'RWP-1', workspaceId: 'RW-1', mediaAssetId: 'MA-1', sortOrder: 0 }],
+                ...overrides,
+            },
+            meta: { merge: true },
+        };
+    }
+
+    it('aceita payload do wizard (booleans + dimensionamento string + fotosPrincipais) e persiste', async () => {
+        const res = await request(app)
+            .post('/api/erosions')
+            .set('Authorization', 'Bearer t')
+            .send(wizardPayload());
+
+        expect(res.status).toBe(201);
+        expect(res.body.status).toBe('success');
+        const saved = mockState.erosions.get('ERS-NEW');
+        expect(saved).toBeTruthy();
+        expect(saved.fotosPrincipais).toHaveLength(1);
+        expect(saved.fotosPrincipais[0].mediaAssetId).toBe('MA-1');
+    });
+
+    it('rejeita sinaisAvanco como array (tipo antigo) com 400 VALIDATION_ERROR', async () => {
+        const res = await request(app)
+            .post('/api/erosions')
+            .set('Authorization', 'Bearer t')
+            .send(wizardPayload({ sinaisAvanco: ['sim'] }));
+
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe('VALIDATION_ERROR');
     });
 });
 

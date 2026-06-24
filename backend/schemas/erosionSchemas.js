@@ -16,12 +16,6 @@ const impactoViaSchema = z.object({
     detalhes: z.record(z.string(), z.any()).optional(),
 }).passthrough().optional().nullable();
 
-const dimensionamentoSchema = z.object({
-    comprimento: z.union([z.string(), z.number()]).optional(),
-    largura: z.union([z.string(), z.number()]).optional(),
-    profundidade: z.union([z.string(), z.number()]).optional(),
-}).passthrough().optional();
-
 const fotoPrincipalSchema = z.object({
     photoId: z.string().trim().min(1),
     workspaceId: z.string().trim().min(1),
@@ -58,11 +52,11 @@ const erosionDataSchema = z.object({
     profundidadeMetros: z.union([z.string(), z.number()]).optional(),
     declividadeGraus: z.union([z.string(), z.number()]).optional(),
     distanciaEstruturaMetros: z.union([z.string(), z.number()]).optional(),
-    sinaisAvanco: z.array(z.string()).optional(),
-    vegetacaoInterior: z.string().optional(),
+    sinaisAvanco: z.boolean().optional(),
+    vegetacaoInterior: z.boolean().optional(),
     presencaAguaFundo: z.string().optional(),
     impactoVia: impactoViaSchema,
-    dimensionamento: dimensionamentoSchema,
+    dimensionamento: z.string().optional(),
     medidaPreventiva: z.string().optional(),
     fotosLinks: z.array(z.string()).optional(),
     fotosPrincipais: fotosPrincipaisSchema,
