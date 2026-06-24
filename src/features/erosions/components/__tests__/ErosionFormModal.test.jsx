@@ -12,6 +12,18 @@ vi.mock('react-leaflet', () => ({
   useMapEvents: () => null,
 }));
 
+// Picker de fotos do workspace e montado sob demanda (lazy) ao abrir; mockamos o
+// service para o teste que abre o picker nao tocar a API real. Como o mount e
+// lazy, os demais testes nao disparam estes mocks.
+let pickerSubCb = null;
+vi.mock('../../../../services/reportWorkspaceService', () => ({
+  subscribeReportWorkspaces: vi.fn((cb) => { pickerSubCb = cb; return () => {}; }),
+  listReportWorkspacePhotos: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('../../../../components/MediaImage', () => ({
+  default: ({ alt }) => <img alt={alt || 'foto'} />,
+}));
+
 import ErosionFormModal from '../ErosionFormModal';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -237,6 +249,64 @@ describe('ErosionFormModal', () => {
     const localizacaoStep = [...container.querySelectorAll('ol button')].find((b) => (b.textContent || '').includes('Localizacao'));
     act(() => { localizacaoStep.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     expect(wrapperOf('Localização geográfica').hasAttribute('hidden')).toBe(false);
+  });
+
+  it('step Medidas e anexos usa picker do workspace e nao o campo de links', () => {
+    renderModal(root);
+
+    expect(container.querySelector('#erosion-photos')).toBeNull();
+    expect(container.textContent).not.toContain('Fotos (links');
+    const fotoBtn = [...container.querySelectorAll('button')]
+      .find((b) => (b.textContent || '').includes('Selecionar fotos do workspace'));
+    expect(fotoBtn).toBeTruthy();
+    expect(fotoBtn.disabled).toBe(false);
+  });
+
+  it('botao de fotos desabilita sem empreendimento selecionado', () => {
+    renderModal(root, {
+      formData: { id: 'ERS-1', projetoId: '', locationCoordinates: {} },
+    });
+
+    const fotoBtn = [...container.querySelectorAll('button')]
+      .find((b) => (b.textContent || '').includes('Selecionar fotos do workspace'));
+    expect(fotoBtn.disabled).toBe(true);
+    expect(container.textContent).toContain('Selecione um empreendimento primeiro');
+  });
+
+  it('abre o picker do workspace ao clicar no botao (mount lazy)', async () => {
+    renderModal(root);
+
+    const fotoBtn = [...container.querySelectorAll('button')]
+      .find((b) => (b.textContent || '').includes('Selecionar fotos do workspace'));
+    await act(async () => {
+      fotoBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      if (pickerSubCb) pickerSubCb([]);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Sem workspaces no projeto, o picker mostra o EmptyState de criacao.
+    expect(container.textContent).toContain('Criar banco de fotos');
+  });
+
+  it('renderiza thumbnails das fotos principais ja selecionadas', () => {
+    renderModal(root, {
+      formData: {
+        id: 'ERS-1',
+        projetoId: 'P1',
+        locationCoordinates: {},
+        fotosPrincipais: [
+          { photoId: 'RWP-1', workspaceId: 'RW-1', mediaAssetId: 'MA-1', sortOrder: 0 },
+          { photoId: 'RWP-2', workspaceId: 'RW-1', mediaAssetId: 'MA-2', sortOrder: 1 },
+        ],
+      },
+    });
+
+    const removeButtons = [...container.querySelectorAll('button[aria-label="Remover foto"]')];
+    expect(removeButtons).toHaveLength(2);
+    expect(container.textContent).toContain('Selecionadas:');
   });
 
   it('bloqueia double-submit: Salvar dispara onSave uma vez e desabilita enquanto em voo', async () => {

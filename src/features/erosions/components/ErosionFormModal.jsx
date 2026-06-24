@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Input, Modal, Select, Textarea } from '../../../components/ui';
+import MediaImage from '../../../components/MediaImage';
+import { Button, IconButton, Input, Modal, Select, Textarea } from '../../../components/ui';
+import ErosionPhotosPickerModal from './ErosionPhotosPickerModal';
+import {
+  EROSION_PHOTOS_PRINCIPAIS_LIMIT,
+  normalizeFotosPrincipais,
+  reorderFotosPrincipais,
+} from '../models/erosionPhotosModel';
 import {
   CircleMarker,
   MapContainer,
@@ -85,7 +92,8 @@ function ErosionFormModal({
   const [showInteractiveMap, setShowInteractiveMap] = useState(false);
   const [step, setStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
-  useEffect(() => { if (open) { setStep(0); setIsSaving(false); } }, [open]);
+  const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
+  useEffect(() => { if (open) { setStep(0); setIsSaving(false); setPhotoPickerOpen(false); } }, [open]);
   const syncTimerRef = useRef(null);
   const safeFormData = formData && typeof formData === 'object' ? formData : {};
   const safeProjects = Array.isArray(projects) ? projects.filter((item) => item && typeof item === 'object') : [];
@@ -102,6 +110,10 @@ function ErosionFormModal({
     : (safeCriticality && typeof safeCriticality === 'object' ? safeCriticality : null);
   const criticalitySummary = buildCriticalitySummaryFromCalculation(safeCriticality);
   const isHistoricalRecord = isHistoricalErosionRecord(safeFormData);
+  const selectedFotosPrincipais = useMemo(
+    () => normalizeFotosPrincipais(safeFormData),
+    [safeFormData.fotosPrincipais],
+  );
 
   const locationCoordinates = {
     latitude: '',
@@ -411,6 +423,7 @@ function ErosionFormModal({
   );
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onCancel}
@@ -804,21 +817,89 @@ function ErosionFormModal({
             onChange={(e) => updateField('dimensionamento', e.target.value)}
             placeholder="Registrar premissas, medidas preliminares ou observacoes tecnicas para futura intervencao."
           />
-          <Textarea
-            id="erosion-photos"
-            label="Fotos (links, um por linha)"
-            rows={2}
-            className="font-mono"
-            value={Array.isArray(safeFormData.fotosLinks) ? safeFormData.fotosLinks.join('\n') : ''}
-            onChange={(e) => {
-              const rows = String(e.target.value || '')
-                .split('\n')
-                .map((line) => line.trim())
-                .filter(Boolean);
-              updateField('fotosLinks', rows);
-            }}
-            error={validationErrors.fotosLinks}
-          />
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium text-slate-700">Fotos do banco de fotos</span>
+              <span className="text-xs text-slate-500">
+                Selecionadas: <strong>{selectedFotosPrincipais.length}</strong> / {EROSION_PHOTOS_PRINCIPAIS_LIMIT}
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!safeFormData.projetoId}
+              onClick={() => setPhotoPickerOpen(true)}
+            >
+              <AppIcon name="image" className="w-4 h-4" aria-hidden="true" />
+              Selecionar fotos do workspace
+            </Button>
+          </div>
+
+          {!safeFormData.projetoId ? (
+            <p className="text-xs text-slate-500 m-0">
+              Selecione um empreendimento primeiro para escolher fotos do workspace.
+            </p>
+          ) : null}
+
+          {selectedFotosPrincipais.length > 0 ? (
+            <ol className="grid grid-cols-2 md:grid-cols-3 gap-3 list-none p-0 m-0">
+              {selectedFotosPrincipais.map((foto, index) => (
+                <li
+                  key={foto.photoId}
+                  className="relative overflow-hidden rounded-xl border border-slate-200 bg-app-surface"
+                >
+                  <div className="aspect-[4/3] w-full overflow-hidden bg-slate-950">
+                    <MediaImage
+                      mediaAssetId={foto.mediaAssetId}
+                      alt={foto.caption || foto.photoId}
+                      className="h-full w-full object-cover"
+                      fallbackClassName="h-full w-full"
+                    />
+                  </div>
+                  <span className="absolute top-2 left-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-white text-xs font-bold shadow">
+                    {index + 1}
+                  </span>
+                  <div className="flex items-center justify-end gap-1 p-1.5">
+                    <IconButton
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => updateField('fotosPrincipais', reorderFotosPrincipais(selectedFotosPrincipais, index, index - 1))}
+                      disabled={index === 0}
+                      aria-label="Mover foto para cima"
+                    >
+                      <AppIcon name="arrow-up" className="w-4 h-4" aria-hidden="true" />
+                    </IconButton>
+                    <IconButton
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => updateField('fotosPrincipais', reorderFotosPrincipais(selectedFotosPrincipais, index, index + 1))}
+                      disabled={index === selectedFotosPrincipais.length - 1}
+                      aria-label="Mover foto para baixo"
+                    >
+                      <AppIcon name="arrow-down" className="w-4 h-4" aria-hidden="true" />
+                    </IconButton>
+                    <IconButton
+                      type="button"
+                      variant="dangerGhost"
+                      size="sm"
+                      onClick={() => updateField('fotosPrincipais', selectedFotosPrincipais
+                        .filter((_, i) => i !== index)
+                        .map((item, i) => ({ ...item, sortOrder: i })))}
+                      aria-label="Remover foto"
+                    >
+                      <AppIcon name="trash" className="w-4 h-4" aria-hidden="true" />
+                    </IconButton>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : null}
         </div>
       </section>
 
@@ -869,6 +950,16 @@ function ErosionFormModal({
       </div>
       </div>
     </Modal>
+    {photoPickerOpen ? (
+      <ErosionPhotosPickerModal
+        open
+        erosion={{ projetoId: safeFormData.projetoId, fotosPrincipais: selectedFotosPrincipais }}
+        title="Selecionar fotos do workspace"
+        onConfirm={(fotos) => updateField('fotosPrincipais', fotos)}
+        onClose={() => setPhotoPickerOpen(false)}
+      />
+    ) : null}
+    </>
   );
 }
 

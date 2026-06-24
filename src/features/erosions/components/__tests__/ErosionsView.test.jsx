@@ -26,6 +26,12 @@ vi.mock('../../../../context/ToastContext', () => ({
   }),
 }));
 
+// Thumbnails das fotos principais usam MediaImage (resolve URL assinada via rede);
+// stub para o teste de edicao nao tocar o backend de midia.
+vi.mock('../../../../components/MediaImage', () => ({
+  default: ({ alt }) => <img alt={alt || 'foto'} />,
+}));
+
 vi.mock('../../../../services/erosionService', () => ({
   deleteErosion: vi.fn(),
   postCalculoErosao: vi.fn(async () => ({
@@ -321,9 +327,47 @@ describe('ErosionsView', () => {
 
     expect(saveErosionMock).toHaveBeenCalledTimes(1);
     expect(saveErosionMock).toHaveBeenCalledWith(
-      expect.objectContaining({ dimensionamento: 'Talude com 8 m de reconformacao.' }),
+      expect.objectContaining({
+        dimensionamento: 'Talude com 8 m de reconformacao.',
+        fotosPrincipais: expect.any(Array),
+      }),
       expect.objectContaining({ updatedBy: 'Tester Nome' }),
     );
+  });
+
+  it('preserva fotosPrincipais existentes ao salvar edicao pelo wizard', async () => {
+    renderView(root, {
+      erosions: [
+        {
+          id: 'ERS-FP',
+          projetoId: 'P1',
+          torreRef: '5',
+          estagio: 'inicial',
+          localContexto: {
+            localTipo: 'base_torre',
+            exposicao: 'faixa_servidao',
+            estruturaProxima: 'torre',
+            localDescricao: '',
+          },
+          status: 'Ativo',
+          impacto: 'Baixo',
+          fotosPrincipais: [
+            { photoId: 'RWP-1', workspaceId: 'RW-1', mediaAssetId: 'MA-1', sortOrder: 0 },
+          ],
+          acompanhamentosResumo: [],
+        },
+      ],
+    });
+
+    await selectProject(container, 'P1');
+    const editButton = container.querySelector('button[aria-label^="Editar"]');
+    await clickElement(editButton);
+    await clickByText('Salvar', document.body);
+
+    expect(saveErosionMock).toHaveBeenCalledTimes(1);
+    const [payload] = saveErosionMock.mock.calls[0];
+    expect(payload.fotosPrincipais).toHaveLength(1);
+    expect(payload.fotosPrincipais[0].mediaAssetId).toBe('MA-1');
   });
 
   it('opens Editar modal without crashing for incomplete legacy erosion payload', async () => {

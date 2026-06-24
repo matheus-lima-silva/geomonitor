@@ -148,4 +148,43 @@ describe('ErosionPhotosPickerModal', () => {
     expect(onSaved).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('modo controlado: chama onConfirm sem saveErosion e sem exigir erosion.id', async () => {
+    listReportWorkspacePhotos.mockResolvedValue([
+      { id: 'RWP-1', mediaAssetId: 'MA-1', caption: 'a' },
+      { id: 'RWP-2', mediaAssetId: 'MA-2', caption: 'b' },
+    ]);
+    const onConfirm = vi.fn();
+    const onClose = vi.fn();
+    await renderWith({
+      open: true,
+      // Erosao sintetica do wizard de criacao: sem id, apenas projetoId.
+      erosion: { projetoId: 'P-1', fotosPrincipais: [] },
+      title: 'Selecionar fotos do workspace',
+      onConfirm,
+      onClose,
+    });
+    await act(async () => {
+      subCb([{ id: 'RW-1', projectId: 'P-1', titulo: 'A' }]);
+    });
+    await flush();
+    await flush();
+
+    const cards = container.querySelectorAll('button[aria-pressed]');
+    await act(async () => { cards[0].click(); });
+
+    const saveBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent.trim().startsWith('Salvar'),
+    );
+    await act(async () => { saveBtn.click(); });
+    await flush();
+
+    expect(saveErosion).not.toHaveBeenCalled();
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    const fotos = onConfirm.mock.calls[0][0];
+    expect(fotos).toHaveLength(1);
+    expect(fotos[0].photoId).toBe('RWP-1');
+    expect(fotos[0].sortOrder).toBe(0);
+    expect(onClose).toHaveBeenCalled();
+  });
 });

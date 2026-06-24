@@ -12,7 +12,7 @@ import {
   saveErosionManualFollowupEvent,
 } from '../../../services/erosionService';
 import { downloadMediaAsset, resolveMediaAccessUrl } from '../../../services/mediaService';
-import { normalizeFotosPrincipais } from '../models/erosionPhotosModel';
+import { buildFotosPrincipaisPatch, normalizeFotosPrincipais } from '../models/erosionPhotosModel';
 import { triggerBlobDownload } from '../../reports/utils/reportUtils';
 import {
   getCriticalityCode,
@@ -95,6 +95,7 @@ const BASE_FORM = {
   impactoVia: null,
   dimensionamento: '',
   fotosLinks: [],
+  fotosPrincipais: [],
   status: 'Ativo',
   registroHistorico: false,
   intervencaoRealizada: '',
@@ -191,6 +192,7 @@ function buildSafeErosionFormState(source, mode = 'new', inspections = []) {
     impactoVia: technical.impactoVia,
     dimensionamento: String(technical.dimensionamento || '').trim(),
     fotosLinks: sanitizePhotoLinksInput(raw.fotosLinks),
+    fotosPrincipais: normalizeFotosPrincipais(raw),
     registroHistorico: isHistoricalErosionRecord(raw),
     intervencaoRealizada: String(raw.intervencaoRealizada || '').trim(),
     acompanhamentosResumo: normalizeFollowupHistory(raw.acompanhamentosResumo),
@@ -715,6 +717,7 @@ function ErosionsView({
             ? (criticalidade.lista_solucoes_sugeridas[0] || '')
             : ''),
         fotosLinks: photos,
+        fotosPrincipais: buildFotosPrincipaisPatch(formData.fotosPrincipais),
         vistoriaId: primaryInspectionId || '',
         vistoriaIds: primaryInspectionId ? mergedInspectionIds : [],
         criticalidade: isHistoricalRecord ? null : criticalidade,
