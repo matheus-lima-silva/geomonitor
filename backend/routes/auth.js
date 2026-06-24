@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const { setAuthCookies, clearAuthCookies, readRefreshCookie } = require('../utils/authCookies');
 const authCredentials = require('../repositories/authCredentialsRepository');
+const refreshTokenRepository = require('../repositories/refreshTokenRepository');
 const { buildBootstrapProfile, loadUserProfile, saveUserProfile } = require('../utils/userProfiles');
 const { userRepository } = require('../repositories');
 const { getMailTransport, sendResetEmail } = require('../utils/mailer');
@@ -146,7 +147,10 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
         }
 
         const accessToken = signAccessToken({ userId: creds.user_id, email: creds.email });
-        const refreshToken = signRefreshToken({ userId: creds.user_id });
+        // Abre uma nova familia de sessao (estado server-side para rotacao
+        // single-use do refresh).
+        const { jti, familyId } = await refreshTokenRepository.issueFamily(creds.user_id);
+        const refreshToken = signRefreshToken({ userId: creds.user_id, jti, familyId });
 
         // Cookie compartilhado entre subdominios (SSO). O refreshToken segue
         // tambem no body para compat com o fluxo localStorage (fallback dev).
@@ -184,8 +188,35 @@ router.post('/refresh', validateBody(refreshSchema), async (req, res) => {
             return res.status(401).json({ status: 'error', message: 'Usuário não encontrado.' });
         }
 
+        let nextJti;
+        let nextFamilyId;
+        if (!decoded.jti) {
+            // Token legado (pre-rotacao, sem jti): migra para uma familia nova sem
+            // deslogar. Evita re-login em massa no deploy do fix.
+            const issued = await refreshTokenRepository.issueFamily(creds.user_id);
+            nextJti = issued.jti;
+            nextFamilyId = issued.familyId;
+        } else {
+            // Rotacao single-use: consome o token apresentado e detecta reuse.
+            const rotation = await refreshTokenRepository.rotate(decoded.jti);
+            if (rotation.reuse || rotation.expired) {
+                clearAuthCookies(res);
+                return res.status(401).json({
+                    status: 'error',
+                    code: 'INVALID_REFRESH_TOKEN',
+                    message: 'Refresh token inválido ou expirado.',
+                });
+            }
+            nextJti = rotation.jti;
+            nextFamilyId = rotation.familyId;
+        }
+
         const newAccessToken = signAccessToken({ userId: creds.user_id, email: creds.email });
-        const newRefreshToken = signRefreshToken({ userId: creds.user_id });
+        const newRefreshToken = signRefreshToken({
+            userId: creds.user_id,
+            jti: nextJti,
+            familyId: nextFamilyId,
+        });
 
         setAuthCookies(res, newRefreshToken);
 
@@ -200,10 +231,22 @@ router.post('/refresh', validateBody(refreshSchema), async (req, res) => {
     }
 });
 
-// POST /api/auth/logout — limpa os cookies de sessao (SSO). Idempotente; nao
-// exige auth (apenas apaga os cookies do dominio). O frontend tambem limpa o
-// access token em memoria e o refresh do localStorage.
-router.post('/logout', (req, res) => {
+// POST /api/auth/logout — limpa os cookies de sessao (SSO) e revoga a familia do
+// refresh token apresentado (invalida todas as rotacoes daquela sessao).
+// Idempotente; nao exige auth. O frontend tambem limpa o access token em memoria
+// e o refresh do localStorage.
+router.post('/logout', async (req, res) => {
+    const refreshToken = readRefreshCookie(req) || req.body?.refreshToken;
+    if (refreshToken) {
+        try {
+            const decoded = verifyRefreshToken(refreshToken);
+            if (decoded?.jti) {
+                await refreshTokenRepository.revokeFamilyByJti(decoded.jti);
+            }
+        } catch {
+            // Token ausente/invalido: segue limpando os cookies (idempotente).
+        }
+    }
     clearAuthCookies(res);
     return res.status(200).json({ status: 'success', message: 'Sessão encerrada.' });
 });

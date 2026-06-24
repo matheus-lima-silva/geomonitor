@@ -109,8 +109,21 @@ async function seedPhoto(pool, { state = 'trash' } = {}) {
     return { photoId, workspaceId, projectId };
 }
 
+// Cria uma credencial minima. refresh_tokens.user_id -> auth_credentials(user_id)
+// (FK CASCADE, migration 0025), entao a credencial precisa existir para emitir
+// refresh tokens.
+async function seedCredential(pool) {
+    const userId = uid('user');
+    await pool.query(
+        `INSERT INTO auth_credentials (user_id, email, password_hash) VALUES ($1, $2, $3)`,
+        [userId, `${userId}@pbt.test`, 'pbt-hash'],
+    );
+    return userId;
+}
+
 module.exports = {
     seedWorkspaceWithOwners,
     seedCompound,
     seedPhoto,
+    seedCredential,
 };

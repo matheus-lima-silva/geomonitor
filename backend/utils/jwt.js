@@ -19,11 +19,18 @@ function signAccessToken({ userId, email }) {
     );
 }
 
-function signRefreshToken({ userId }) {
+// jti/familyId habilitam a rotacao single-use com reuse detection
+// (refreshTokenRepository). Compat: tokens legados sem jti continuam validos pela
+// assinatura — o /refresh os migra para uma familia nova (ver routes/auth.js).
+function signRefreshToken({ userId, jti, familyId }) {
+    const payload = { sub: userId, type: 'refresh' };
+    if (familyId) payload.fam = familyId;
+    const options = { expiresIn: REFRESH_TOKEN_EXPIRY };
+    if (jti) options.jwtid = jti;
     return jwt.sign(
-        { sub: userId, type: 'refresh' },
+        payload,
         getSecret('JWT_REFRESH_SECRET', 'JWT_REFRESH_SECRET'),
-        { expiresIn: REFRESH_TOKEN_EXPIRY },
+        options,
     );
 }
 

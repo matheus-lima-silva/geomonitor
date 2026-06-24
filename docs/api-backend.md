@@ -22,6 +22,8 @@ Authorization: Bearer <access-token>
 
 Senhas sao armazenadas em `auth_credentials` (bcrypt, salt rounds 12). Tokens de reset de senha expiram em 1 hora.
 
+**Rotacao single-use do refresh token (reuse detection).** O refresh token carrega um `jti` (e `fam` de familia) e tem estado server-side em `refresh_tokens` (migration `0025`, `backend/repositories/refreshTokenRepository.js`). Cada `POST /api/auth/refresh` **consome** o token apresentado e emite um sucessor na mesma familia (`rotate`, atomico via `SELECT ... FOR UPDATE` por `jti`). Reusar um token ja consumido revoga a **familia inteira** e retorna `401 INVALID_REFRESH_TOKEN` (limpa os cookies) — defesa contra roubo de refresh token. Ha uma **janela de graca** (~10s) para reuse concorrente legitimo (multi-aba, cookie `gm_refresh` compartilhado): nesse intervalo o mesmo sucessor e devolvido em vez de revogar a familia. Tokens **legados** (emitidos antes da migration, sem `jti`) sao aceitos uma vez e migrados para uma familia nova — sem re-login em massa no deploy. `POST /api/auth/logout` revoga a familia do token apresentado.
+
 ### SSO entre subdominios (cookies)
 
 Para compartilhar a sessao entre `geo.*` e `relat.*`, `login` e `refresh` tambem setam dois cookies (`backend/utils/authCookies.js`):
@@ -107,8 +109,8 @@ Endpoints de autenticacao e gestao de credenciais. Body validado por Zod (`backe
 |---|---|---|---|
 | POST | `/api/auth/register` | publico | Cria conta nova (gera UUID, hash bcrypt) |
 | POST | `/api/auth/login` | publico | Autentica, retorna `{ accessToken, refreshToken, user }` e seta cookies `gm_refresh` + `gm_session` |
-| POST | `/api/auth/refresh` | publico | Renova access token a partir do cookie `gm_refresh` ou `body.refreshToken` |
-| POST | `/api/auth/logout` | publico | Limpa os cookies de sessao (`gm_refresh`, `gm_session`) |
+| POST | `/api/auth/refresh` | publico | Renova o par a partir do cookie `gm_refresh` ou `body.refreshToken`; **rotaciona single-use** (consome o token, emite sucessor); reuse => `401` + revoga a familia |
+| POST | `/api/auth/logout` | publico | Limpa os cookies de sessao (`gm_refresh`, `gm_session`) e **revoga a familia** do refresh token apresentado |
 | POST | `/api/auth/reset-password` | publico | Solicita token de reset (sempre retorna 200 para evitar enumeracao) |
 | POST | `/api/auth/reset-password/confirm` | publico | Confirma reset com token valido |
 
