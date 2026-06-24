@@ -290,6 +290,14 @@ inline, lightbox). Gaps reais adotados (so apresentacao, sem mexer no engine/mod
   remover) e e persistida no save junto com a erosao. O normalizador de formulario passa a seedar
   `fotosPrincipais` ao editar, evitando que um save por merge apague as fotos existentes. O dado legado
   `fotosLinks` segue preservado no payload (so saiu da UI do wizard).
+- **Filtro por torre no picker (junho/2026):** o `ErosionPhotosPickerModal` recebe `erosion.torreRef` e
+  abre **filtrado pela torre da erosao** por padrao, com dropdown `<Select>` "Torre" (`Todas (N)` / cada
+  torre com contagem / `Sem torre`). Match via `normalizeTowerToken` ([reportUtils.js](../../src/features/reports/utils/reportUtils.js)) entre `photo.towerId` e `torreRef` (mesmo formato normalizado); rotulo via `formatTowerLabel`. Vale tambem no modal de detalhes (ja passa a erosao real). EmptyState ganha acao "Ver todas as torres" quando a torre filtrada nao tem fotos.
+- **Correcoes de impressao da ficha** (`erosionPdfTemplates.js`, junho/2026): (a) grid de "Fotos principais"
+  passou a `repeat(2, minmax(0, 1fr))` com imagens responsivas (`width:100%; aspect-ratio:4/3`) em vez de
+  largura fixa `8cm` que estourava a pagina; `@page { size:A4; margin:12mm }`. (b) `print-color-adjust: exact`
+  universal para o Chrome nao remover os fundos no print (default "background graphics" off) — corrige o **pin
+  do mini-mapa que saia branco** e preserva chips/badges/highlights.
 - **Timeline do details modal** (`ErosionDetailsModal.jsx`): a timeline com dots ja existia; corrigida a
   cor do marcador de acompanhamento (`before:bg-*` por tipo: obra=indigo, autuacao=amber, sistema=slate).
 - **Deferido:** o toggle de formato de coordenada (Decimal/UTM/DMS) — os tres formatos ja funcionam (campos

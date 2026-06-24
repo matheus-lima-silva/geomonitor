@@ -50,6 +50,15 @@ beforeEach(() => {
   root = createRoot(container);
 });
 
+async function setSelectValue(el, value) {
+  const proto = Object.getPrototypeOf(el);
+  const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+  if (setter) setter.call(el, value); else el.value = value;
+  await act(async () => {
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+
 async function renderWith(props) {
   await act(async () => {
     root.render(
@@ -186,5 +195,43 @@ describe('ErosionPhotosPickerModal', () => {
     expect(fotos[0].photoId).toBe('RWP-1');
     expect(fotos[0].sortOrder).toBe(0);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('filtra pela torre da erosao por padrao, com opcoes Todas e Sem torre', async () => {
+    listReportWorkspacePhotos.mockResolvedValue([
+      { id: 'RWP-1', mediaAssetId: 'MA-1', caption: 'a', towerId: '45' },
+      { id: 'RWP-2', mediaAssetId: 'MA-2', caption: 'b', towerId: '45' },
+      { id: 'RWP-3', mediaAssetId: 'MA-3', caption: 'c', towerId: '10' },
+      { id: 'RWP-4', mediaAssetId: 'MA-4', caption: 'd' },
+    ]);
+    await renderWith({
+      open: true,
+      erosion: { projetoId: 'P-1', torreRef: '45', fotosPrincipais: [] },
+      title: 'Selecionar fotos do workspace',
+      onConfirm: vi.fn(),
+      onClose: vi.fn(),
+    });
+    await act(async () => { subCb([{ id: 'RW-1', projectId: 'P-1', titulo: 'A' }]); });
+    await flush();
+    await flush();
+
+    // Default: filtrado pela torre 45 (2 fotos).
+    expect(container.querySelectorAll('button[aria-pressed]').length).toBe(2);
+
+    const towerSelect = container.querySelector('#erosion-photos-picker-tower');
+    expect(towerSelect).toBeTruthy();
+    expect(towerSelect.value).toBe('45');
+
+    // Todas -> 4 fotos.
+    await setSelectValue(towerSelect, 'all');
+    expect(container.querySelectorAll('button[aria-pressed]').length).toBe(4);
+
+    // Sem torre -> 1 foto.
+    await setSelectValue(towerSelect, '__none__');
+    expect(container.querySelectorAll('button[aria-pressed]').length).toBe(1);
+
+    // Torre 10 -> 1 foto.
+    await setSelectValue(towerSelect, '10');
+    expect(container.querySelectorAll('button[aria-pressed]').length).toBe(1);
   });
 });

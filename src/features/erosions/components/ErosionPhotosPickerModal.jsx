@@ -11,6 +11,10 @@ import {
   buildFotosPrincipaisPatch,
   reorderFotosPrincipais,
 } from '../models/erosionPhotosModel';
+import { normalizeTowerToken } from '../../reports/utils/reportUtils';
+import { compareTowerNumbers, formatTowerLabel } from '../../projects/utils/kmlUtils';
+
+const TOWER_FILTER_NONE = '__none__';
 
 function makeRef(photoSource, sortOrder) {
   return {
@@ -43,6 +47,7 @@ export default function ErosionPhotosPickerModal({
 
   const [selected, setSelected] = useState([]);
   const [workspaceFilter, setWorkspaceFilter] = useState('all');
+  const [towerFilter, setTowerFilter] = useState('all');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -50,12 +55,32 @@ export default function ErosionPhotosPickerModal({
     const initial = Array.isArray(erosion?.fotosPrincipais) ? erosion.fotosPrincipais : [];
     setSelected(buildFotosPrincipaisPatch(initial));
     setWorkspaceFilter('all');
+    // Abre filtrado pela torre da erosao quando ha uma; senao mostra todas.
+    setTowerFilter(normalizeTowerToken(erosion?.torreRef) || 'all');
   }, [open, erosion?.id]);
 
+  // Torres distintas presentes nas fotos disponiveis (+ contagem e bucket "sem torre").
+  const towerOptions = useMemo(() => {
+    const counts = new Map();
+    let noneCount = 0;
+    available.forEach((p) => {
+      const token = normalizeTowerToken(p.towerId);
+      if (!token) { noneCount += 1; return; }
+      counts.set(token, (counts.get(token) || 0) + 1);
+    });
+    const towers = [...counts.keys()].sort(compareTowerNumbers);
+    return { towers, counts, noneCount };
+  }, [available]);
+
   const filteredAvailable = useMemo(() => {
-    if (workspaceFilter === 'all') return available;
-    return available.filter((p) => p.workspaceId === workspaceFilter);
-  }, [available, workspaceFilter]);
+    return available.filter((p) => {
+      if (workspaceFilter !== 'all' && p.workspaceId !== workspaceFilter) return false;
+      if (towerFilter === 'all') return true;
+      const token = normalizeTowerToken(p.towerId);
+      if (towerFilter === TOWER_FILTER_NONE) return !token;
+      return token === towerFilter;
+    });
+  }, [available, workspaceFilter, towerFilter]);
 
   const selectedMap = useMemo(() => {
     const map = new Map();
@@ -138,27 +163,49 @@ export default function ErosionPhotosPickerModal({
       footer={footer}
     >
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <span className="text-sm text-slate-600">
             Selecionadas: <strong>{selected.length}</strong> / {EROSION_PHOTOS_PRINCIPAIS_LIMIT}
           </span>
-          {hasAnyWorkspace ? (
-            <Select
-              id="erosion-photos-picker-workspace"
-              label="Workspace"
-              value={workspaceFilter}
-              onChange={(event) => setWorkspaceFilter(event.target.value)}
-              className="w-60"
-              fullWidth={false}
-            >
-              <option value="all">Todos ({available.length})</option>
-              {workspaces.map((ws) => (
-                <option key={ws.id} value={ws.id}>
-                  {ws.titulo || ws.nome || ws.id}
-                </option>
-              ))}
-            </Select>
-          ) : null}
+          <div className="flex items-end gap-3">
+            {hasAnyWorkspace && (towerOptions.towers.length > 0 || towerOptions.noneCount > 0) ? (
+              <Select
+                id="erosion-photos-picker-tower"
+                label="Torre"
+                value={towerFilter}
+                onChange={(event) => setTowerFilter(event.target.value)}
+                className="w-48"
+                fullWidth={false}
+              >
+                <option value="all">Todas ({available.length})</option>
+                {towerOptions.towers.map((tower) => (
+                  <option key={tower} value={tower}>
+                    {formatTowerLabel(tower)} ({towerOptions.counts.get(tower)})
+                  </option>
+                ))}
+                {towerOptions.noneCount > 0 ? (
+                  <option value={TOWER_FILTER_NONE}>Sem torre ({towerOptions.noneCount})</option>
+                ) : null}
+              </Select>
+            ) : null}
+            {hasAnyWorkspace ? (
+              <Select
+                id="erosion-photos-picker-workspace"
+                label="Workspace"
+                value={workspaceFilter}
+                onChange={(event) => setWorkspaceFilter(event.target.value)}
+                className="w-60"
+                fullWidth={false}
+              >
+                <option value="all">Todos ({available.length})</option>
+                {workspaces.map((ws) => (
+                  <option key={ws.id} value={ws.id}>
+                    {ws.titulo || ws.nome || ws.id}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+          </div>
         </div>
 
         {selected.length > 0 ? (
@@ -216,11 +263,25 @@ export default function ErosionPhotosPickerModal({
         ) : null}
 
         {!loading && hasAnyWorkspace && filteredAvailable.length === 0 ? (
-          <EmptyState
-            icon="image"
-            title="Nenhuma foto encontrada"
-            description="Faca upload de fotos no workspace selecionado para usa-las aqui."
-          />
+          (towerFilter !== 'all' && available.length > 0) ? (
+            <EmptyState
+              icon="image"
+              title="Nenhuma foto nesta torre"
+              description="Nao ha fotos para o filtro de torre selecionado. Veja as fotos de todas as torres."
+              action={
+                <Button variant="primary" onClick={() => setTowerFilter('all')}>
+                  <AppIcon name="image" className="w-4 h-4" />
+                  Ver todas as torres
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon="image"
+              title="Nenhuma foto encontrada"
+              description="Faca upload de fotos no workspace selecionado para usa-las aqui."
+            />
+          )
         ) : null}
 
         {filteredAvailable.length > 0 ? (

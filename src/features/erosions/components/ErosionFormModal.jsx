@@ -953,7 +953,7 @@ function ErosionFormModal({
     {photoPickerOpen ? (
       <ErosionPhotosPickerModal
         open
-        erosion={{ projetoId: safeFormData.projetoId, fotosPrincipais: selectedFotosPrincipais }}
+        erosion={{ projetoId: safeFormData.projetoId, torreRef: safeFormData.torreRef, fotosPrincipais: selectedFotosPrincipais }}
         title="Selecionar fotos do workspace"
         onConfirm={(fotos) => updateField('fotosPrincipais', fotos)}
         onClose={() => setPhotoPickerOpen(false)}
