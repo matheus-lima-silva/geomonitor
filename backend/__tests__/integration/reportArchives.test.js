@@ -65,6 +65,21 @@ const mockReportArchiveRepository = {
         mockState.maxVersionByCompound.set(payload.compoundId, payload.version);
         return mockState.archives.get(payload.id);
     }),
+    createNextVersion: jest.fn(async (payload) => {
+        const current = mockState.maxVersionByCompound.get(payload.compoundId) || 0;
+        const version = current + 1;
+        const archive = {
+            ...payload,
+            version,
+            generatedSha256: payload.generatedSha256 || null,
+            deliveredMediaId: payload.deliveredMediaId || null,
+            deliveredSha256: payload.deliveredSha256 || null,
+            notes: payload.notes || null,
+        };
+        mockState.archives.set(payload.id, archive);
+        mockState.maxVersionByCompound.set(payload.compoundId, version);
+        return archive;
+    }),
     attachDeliveredMedia: jest.fn(async (id, { mediaId, sha256, notes }) => {
         const existing = mockState.archives.get(id);
         if (!existing) return null;

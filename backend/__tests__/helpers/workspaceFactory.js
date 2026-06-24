@@ -60,6 +60,57 @@ async function seedWorkspaceWithOwners(pool, { ownerCount }) {
     return { workspaceId, ownerUserIds };
 }
 
+// Cria um report_compound minimo. report_archives.compound_id -> report_compounds(id)
+// (FK CASCADE, migration 0019), entao o pai precisa existir para inserir archives.
+async function seedCompound(pool) {
+    const compoundId = uid('rc');
+    await pool.query(
+        `INSERT INTO report_compounds (id, nome, status) VALUES ($1, $2, 'completed')`,
+        [compoundId, `PBT compound ${compoundId}`],
+    );
+    return compoundId;
+}
+
+// Cria uma foto num estado inicial ('active' | 'trash' | 'archived'). Semeia o
+// project (FK RESTRICT) e o workspace (FK CASCADE) exigidos por report_photos.
+// state codificado nos nulaveis deleted_at/archived_at — coluna geom e GERADA
+// (nao inserir).
+async function seedPhoto(pool, { state = 'trash' } = {}) {
+    const projectId = uid('proj');
+    const workspaceId = uid('ws');
+    const photoId = uid('photo');
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query(
+            `INSERT INTO projects (id, payload) VALUES ($1, '{}'::jsonb) ON CONFLICT (id) DO NOTHING`,
+            [projectId],
+        );
+        await client.query(
+            `INSERT INTO report_workspaces (id, project_id, status) VALUES ($1, $2, 'draft')`,
+            [workspaceId, projectId],
+        );
+        const deletedAt = state === 'trash' ? 'NOW()' : 'NULL';
+        const archivedAt = state === 'archived' ? 'NOW()' : 'NULL';
+        await client.query(
+            `INSERT INTO report_photos (id, workspace_id, project_id, deleted_at, archived_at)
+             VALUES ($1, $2, $3, ${deletedAt}, ${archivedAt})`,
+            [photoId, workspaceId, projectId],
+        );
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+
+    return { photoId, workspaceId, projectId };
+}
+
 module.exports = {
     seedWorkspaceWithOwners,
+    seedCompound,
+    seedPhoto,
 };

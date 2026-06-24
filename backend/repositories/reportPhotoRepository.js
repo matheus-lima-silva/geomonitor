@@ -415,19 +415,26 @@ async function listArchivedByProject(projectId) {
     return result.rows.map(hydratePhotoRowFromPg);
 }
 
+// Move a foto para a lixeira. Guarda `archived_at IS NULL`: nunca envia para a
+// lixeira uma foto ARQUIVADA, o que deixaria deleted_at e archived_at ambos
+// non-null (estado incoerente que nenhuma transicao valida produz). Como cada
+// UPDATE single-statement e atomico por linha, a guarda serializa com
+// archive/unarchiveToTrash concorrentes sem precisar de transacao explicita.
 async function softDelete(photoId) {
     const normalizedId = normalizeText(photoId);
     await postgresStore.query(
-        'UPDATE report_photos SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1',
+        'UPDATE report_photos SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 AND archived_at IS NULL',
         [normalizedId],
     );
     return getById(normalizedId);
 }
 
+// Restaura da lixeira. Guarda `deleted_at IS NOT NULL`: so age sobre o que esta
+// de fato na lixeira, nao toca fotos ativas nem arquivadas (state-aware).
 async function restore(photoId) {
     const normalizedId = normalizeText(photoId);
     await postgresStore.query(
-        'UPDATE report_photos SET deleted_at = NULL, updated_at = NOW() WHERE id = $1',
+        'UPDATE report_photos SET deleted_at = NULL, updated_at = NOW() WHERE id = $1 AND deleted_at IS NOT NULL',
         [normalizedId],
     );
     return getById(normalizedId);

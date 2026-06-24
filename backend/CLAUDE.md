@@ -133,7 +133,7 @@ Suite separada para caçar race conditions em fluxos check-then-act. Usa [`fast-
 - **Opt-in por env**: sem `PBT_POSTGRES_URL` (ou `DATABASE_URL`) setada, os `describe` viram `describe.skip` — `npm test` padrao segue intacto.
 - **Sufixo de arquivo**: `*.pbt.test.js`. Config dedicada: [jest.pbt.config.js](jest.pbt.config.js) + setup [jest.pbt.setup.js](jest.pbt.setup.js) + [jest.pbt.globalSetup.js](jest.pbt.globalSetup.js) (aplica migracoes).
 - **Helpers**: [__tests__/helpers/pbtDb.js](__tests__/helpers/pbtDb.js), [pbtArbitraries.js](__tests__/helpers/pbtArbitraries.js), [concurrencyRunner.js](__tests__/helpers/concurrencyRunner.js), [workspaceFactory.js](__tests__/helpers/workspaceFactory.js), [fcDefaults.js](__tests__/helpers/fcDefaults.js).
-- **Template**: [__tests__/integration/workspaceOwners.race.pbt.test.js](__tests__/integration/workspaceOwners.race.pbt.test.js) — invariante "workspace nunca fica sem owner"; passa apos o fix (`SELECT ... FOR UPDATE` + transacao). Use como modelo para os proximos alvos abaixo.
+- **Template**: [__tests__/integration/workspaceOwners.race.pbt.test.js](__tests__/integration/workspaceOwners.race.pbt.test.js) — invariante "workspace nunca fica sem owner"; passa apos o fix (`SELECT ... FOR UPDATE` + transacao). Use como modelo (os alvos ja corrigidos abaixo seguem o mesmo padrao).
 
 Rodar:
 ```bash
@@ -145,12 +145,15 @@ cd backend && npm run test:pbt
 
 > Use a imagem `postgis/postgis:16-3.4` (nao `postgres:16-alpine`): a migracao `0023` faz `CREATE EXTENSION postgis` e cria colunas `geography`, que falham em Postgres sem PostGIS.
 
-Proximos alvos para replicar o padrao (todos com race concreta mapeada):
-1. **Numeracao de versao de archives** — `repositories/reportArchiveRepository.js:73-75` (`MAX(version)+1` sem lock).
-2. **Trash <-> archive de fotos** — `repositories/reportPhotoRepository.js:409-459` (UPDATEs concorrentes em `archived_at`/`deleted_at`).
+Alvos ja **corrigidos** (cada um com seu `*.race.pbt.test.js` + cobertura deterministica no gate):
+1. **Numeracao de versao de archives** — `reportArchiveRepository.createNextVersion` (transacao + `pg_advisory_xact_lock(hashtext(compound_id))` antes de `MAX(version)+1`, serializa entregas concorrentes). PBT: [__tests__/integration/reportArchiveVersion.race.pbt.test.js](__tests__/integration/reportArchiveVersion.race.pbt.test.js); unit: [__tests__/reportArchiveRepository.test.js](__tests__/reportArchiveRepository.test.js).
+2. **Trash <-> archive de fotos** — `softDelete` guardado por `archived_at IS NULL` e `restore` por `deleted_at IS NOT NULL` (cada UPDATE single-statement e atomico por linha; nunca `deleted_at` e `archived_at` ambos set). PBT: [__tests__/integration/reportPhotoState.race.pbt.test.js](__tests__/integration/reportPhotoState.race.pbt.test.js); unit: [__tests__/reportPhotoRepository.test.js](__tests__/reportPhotoRepository.test.js).
+Helpers de seed para esses alvos em [__tests__/helpers/workspaceFactory.js](__tests__/helpers/workspaceFactory.js) (`seedCompound`, `seedPhoto`) e arbitraries em [__tests__/helpers/pbtArbitraries.js](__tests__/helpers/pbtArbitraries.js) (`concurrentCountArb`, `photoStateArb`, `photoTransitionsArb`). Para um novo alvo, replique o padrao: fix com lock/guard atomico + `*.race.pbt.test.js` (invariante que falha antes do fix) + unit deterministico no gate.
+
+Proximo alvo mapeado (com race concreta):
 3. **Rotacao de refresh token JWT** — `routes/auth.js:162-190` (sem invalidacao do token anterior).
 
-CI nao roda `test:pbt` por enquanto — sera adicionado em follow-up junto com o fix da race alvo, quando a suite rodar verde como gate.
+CI nao roda `test:pbt` por enquanto — sera adicionado em follow-up quando a suite virar gate.
 
 ## 14. Checklist ao criar rota nova
 
@@ -182,4 +185,4 @@ CI nao roda `test:pbt` por enquanto — sera adicionado em follow-up junto com o
 
 Ao introduzir novo util em `utils/`, novo middleware, nova convencao ou mudar contrato de envelope, **atualizar este arquivo no mesmo PR** e bumpar a data do rodape. Revisar integralmente a cada trimestre (audit comparando com estado do codigo). Ver secao "Manutencao dos documentos" do plano arquitetural em `.claude/plans/jazzy-tinkering-cocke.md`.
 
-> Ultima revisao: 2026-06-22.
+> Ultima revisao: 2026-06-23.
