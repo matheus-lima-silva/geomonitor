@@ -72,7 +72,7 @@ describe('PhotoPreviewModal — cabecalho e navegacao', () => {
     expect(container.textContent).toContain('2 / 5');
   });
 
-  it('as setas flutuantes chamam onPrev/onNext', () => {
+  it('as setas de navegacao (rodape) chamam onPrev/onNext', () => {
     const onNext = vi.fn();
     const onPrev = vi.fn();
     mount(<PhotoPreviewModal {...baseProps({ onNext, onPrev })} />);

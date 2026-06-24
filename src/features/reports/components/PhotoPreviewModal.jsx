@@ -146,11 +146,6 @@ export default function PhotoPreviewModal({
 
   const headerActions = (
     <>
-      {positionLabel && (
-        <span className="mr-1 rounded-full border border-slate-200 bg-app-surfaceMuted px-2.5 py-1 font-mono text-2xs text-slate-500">
-          {positionLabel}
-        </span>
-      )}
       {onDownload && (
         <IconButton variant="ghost" size="md" aria-label="Baixar foto" onClick={() => onDownload(photo)}>
           <AppIcon name="download" />
@@ -188,11 +183,28 @@ export default function PhotoPreviewModal({
   );
 
   const footer = (
-    <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-2xs text-slate-400">
-      <ShortcutHint keys={['←', '→']} label="Navegar" />
-      <ShortcutHint keys={['E']} label="Incluir" />
-      <ShortcutHint keys={['Del']} label="Lixeira" />
-      <ShortcutHint keys={['Esc']} label="Fechar" />
+    <div className="flex w-full items-center gap-3 text-2xs text-slate-400">
+      <div className="flex items-center gap-4">
+        <ShortcutHint keys={['←', '→']} label="Navegar" />
+        <ShortcutHint keys={['E']} label="Incluir" />
+      </div>
+      <span className="flex-1" />
+      {hasPagination && (
+        <div className="flex items-center gap-2.5">
+          <IconButton variant="outline" size="sm" aria-label="Foto anterior" onClick={onPrev} disabled={!onPrev}>
+            <AppIcon name="chevron-left" className="w-4 h-4" aria-hidden="true" />
+          </IconButton>
+          <span className="font-mono text-2xs text-slate-600">{positionLabel}</span>
+          <IconButton variant="outline" size="sm" aria-label="Próxima foto" onClick={onNext} disabled={!onNext}>
+            <AppIcon name="chevron-right" className="w-4 h-4" aria-hidden="true" />
+          </IconButton>
+        </div>
+      )}
+      <span className="flex-1" />
+      <div className="flex items-center gap-4">
+        <ShortcutHint keys={['Del']} label="Lixeira" />
+        <ShortcutHint keys={['Esc']} label="Fechar" />
+      </div>
     </div>
   );
 
@@ -209,7 +221,7 @@ export default function PhotoPreviewModal({
         footer={footer}
       >
         <div className="flex min-h-0 flex-col gap-4 lg:flex-row">
-          {/* Palco da imagem (escuro) */}
+          {/* Palco da imagem (escuro). Navegacao e contador ficam no rodape. */}
           <div className="relative flex min-h-[240px] flex-1 items-center justify-center overflow-hidden rounded-xl bg-slate-950 lg:min-h-[520px]">
             {previewUrl ? (
               <img
@@ -221,33 +233,6 @@ export default function PhotoPreviewModal({
               <div className="flex aspect-video w-full items-center justify-center text-sm text-slate-400">
                 Preview indisponivel para esta foto.
               </div>
-            )}
-
-            {/* Setas flutuantes sobre a foto */}
-            <button
-              type="button"
-              aria-label="Foto anterior"
-              onClick={onPrev}
-              disabled={!onPrev}
-              className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-900/55 text-white backdrop-blur-sm transition-opacity hover:bg-slate-900/75 disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-            >
-              <AppIcon name="chevron-left" className="w-5 h-5" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              aria-label="Próxima foto"
-              onClick={onNext}
-              disabled={!onNext}
-              className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-900/55 text-white backdrop-blur-sm transition-opacity hover:bg-slate-900/75 disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-            >
-              <AppIcon name="chevron-right" className="w-5 h-5" aria-hidden="true" />
-            </button>
-
-            {/* Pilula contadora no rodape da imagem */}
-            {positionLabel && (
-              <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-slate-900/60 px-2.5 py-0.5 font-mono text-2xs text-white">
-                {positionLabel}
-              </span>
             )}
           </div>
 
@@ -295,10 +280,14 @@ export default function PhotoPreviewModal({
 
             {/* Legenda + autosave */}
             <div className="flex flex-col gap-2">
+              <label htmlFor={`modal-caption-${photo.id}`} className="text-xs font-semibold text-slate-600">
+                Legenda da foto
+              </label>
               <Textarea
                 id={`modal-caption-${photo.id}`}
-                label="Legenda"
+                variant="filled"
                 rows={4}
+                className="min-h-[108px]"
                 value={draft?.caption || ''}
                 onChange={(event) => onChangeCaption(event.target.value)}
                 placeholder="Detalhe os achados operacionais desta foto..."
@@ -325,7 +314,7 @@ export default function PhotoPreviewModal({
             {/* Mini-mapa de localizacao */}
             {coordsPoint && (
               <div className="flex flex-col gap-1.5">
-                <span className="text-2xs font-bold uppercase tracking-wide text-slate-500">
+                <span className="text-xs font-semibold text-slate-600">
                   Localização da foto
                 </span>
                 <PhotoLocationMiniMap
