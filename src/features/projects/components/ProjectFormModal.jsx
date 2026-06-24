@@ -1,10 +1,24 @@
+import { useState } from 'react';
 import { MONTH_OPTIONS_PT, normalizeReportMonths, normalizeReportPeriodicity, requiredMonthCount } from '../utils/reportSchedule';
 import { TRANSMISSION_VOLTAGE_OPTIONS } from '../models/projectModel';
 import AppIcon from '../../../components/AppIcon';
 import { Button, Input, Modal, Select } from '../../../components/ui';
 
 function ProjectFormModal({ open, isEditing, formData, setFormData, onSave, onCancel, onImportKml }) {
+  const [isSaving, setIsSaving] = useState(false);
   if (!open) return null;
+
+  // Guarda contra double-submit: desabilita "Salvar" enquanto onSave (async,
+  // saveProject) esta em voo, evitando criar/atualizar o empreendimento duas vezes.
+  async function handleSave() {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSave?.();
+    } finally {
+      setIsSaving(false);
+    }
+  }
 
   function toggleMonth(monthValue) {
     const month = Number(monthValue);
@@ -25,10 +39,10 @@ function ProjectFormModal({ open, isEditing, formData, setFormData, onSave, onCa
 
   const footer = (
     <>
-      <Button variant="outline" size="md" onClick={onCancel}><AppIcon name="close" />Cancelar</Button>
-      <Button variant="primary" size="md" onClick={onSave}>
+      <Button variant="outline" size="md" onClick={onCancel} disabled={isSaving}><AppIcon name="close" />Cancelar</Button>
+      <Button variant="primary" size="md" onClick={handleSave} disabled={isSaving}>
         <AppIcon name="save" />
-        Salvar
+        {isSaving ? 'Salvando...' : 'Salvar'}
       </Button>
     </>
   );

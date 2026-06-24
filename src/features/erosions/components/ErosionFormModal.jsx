@@ -84,7 +84,8 @@ function ErosionFormModal({
   const [coordinatesExpanded, setCoordinatesExpanded] = useState(false);
   const [showInteractiveMap, setShowInteractiveMap] = useState(false);
   const [step, setStep] = useState(0);
-  useEffect(() => { if (open) setStep(0); }, [open]);
+  const [isSaving, setIsSaving] = useState(false);
+  useEffect(() => { if (open) { setStep(0); setIsSaving(false); } }, [open]);
   const syncTimerRef = useRef(null);
   const safeFormData = formData && typeof formData === 'object' ? formData : {};
   const safeProjects = Array.isArray(projects) ? projects.filter((item) => item && typeof item === 'object') : [];
@@ -371,9 +372,22 @@ function ErosionFormModal({
     });
   }
 
+  // Guarda contra double-submit: desabilita "Salvar" enquanto onSave esta em voo
+  // (onSave pode ser async — saveErosion). Mesmo padrao de submitting do
+  // CompoundWizard/DeliveryUploadModal.
+  async function handleSave() {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSave?.();
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   const footer = (
     <>
-      <Button variant="outline" size="md" onClick={onCancel}>
+      <Button variant="outline" size="md" onClick={onCancel} disabled={isSaving}>
         <AppIcon name="close" />
         Cancelar
       </Button>
@@ -389,9 +403,9 @@ function ErosionFormModal({
           <AppIcon name="chevron-right" />
         </Button>
       ) : null}
-      <Button variant="primary" size="md" onClick={onSave}>
+      <Button variant="primary" size="md" onClick={handleSave} disabled={isSaving}>
         <AppIcon name="save" />
-        Salvar
+        {isSaving ? 'Salvando...' : 'Salvar'}
       </Button>
     </>
   );

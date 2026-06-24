@@ -109,6 +109,78 @@ async function create(payload) {
     return getById(normalizedId);
 }
 
+/**
+ * Cria um archive alocando a proxima versao do compound de forma ATOMICA.
+ *
+ * O caminho antigo (getMaxVersionForCompound + create em statements separados)
+ * tem race: duas entregas concorrentes do mesmo compound leem o mesmo
+ * MAX(version)=N, ambas calculam N+1 e ambas inserem. Como existe
+ * UNIQUE (compound_id, version) (migration 0010), a segunda estoura violacao de
+ * unicidade (23505) e a rota devolve 500 — em vez de receber a versao N+2.
+ *
+ * Aqui um pg_advisory_xact_lock chaveado no compound serializa as entregas
+ * concorrentes daquele compound (e liberado automaticamente no COMMIT/ROLLBACK),
+ * de modo que cada uma le um MAX(version) ja atualizado e recebe v(N+1), v(N+2)...
+ * O lock por compound nao bloqueia entregas de compounds diferentes. Diferente de
+ * um SELECT ... FOR UPDATE nas linhas-filhas, funciona tambem na 1a entrega
+ * (quando ainda nao ha nenhum archive para travar).
+ */
+async function createNextVersion(payload) {
+    const normalizedId = normalizeText(payload?.id);
+    const compoundId = normalizeText(payload?.compoundId);
+    const snapshotPayload = payload?.snapshotPayload && typeof payload.snapshotPayload === 'object'
+        ? payload.snapshotPayload
+        : {};
+
+    const client = await postgresStore.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [compoundId]);
+
+        const maxRes = await client.query(
+            'SELECT COALESCE(MAX(version), 0)::int AS max_version FROM report_archives WHERE compound_id = $1',
+            [compoundId],
+        );
+        const nextVersion = (maxRes.rows[0]?.max_version || 0) + 1;
+
+        const insertRes = await client.query(
+            `
+                INSERT INTO report_archives (
+                    id, compound_id, version, delivered_by,
+                    generated_media_id, generated_sha256,
+                    delivered_media_id, delivered_sha256,
+                    notes, snapshot_payload
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+                RETURNING id, compound_id, version, delivered_at, delivered_by,
+                          generated_media_id, generated_sha256,
+                          delivered_media_id, delivered_sha256,
+                          notes, snapshot_payload, created_at, updated_at
+            `,
+            [
+                normalizedId,
+                compoundId,
+                nextVersion,
+                normalizeText(payload?.deliveredBy) || null,
+                normalizeText(payload?.generatedMediaId),
+                normalizeText(payload?.generatedSha256) || null,
+                normalizeText(payload?.deliveredMediaId) || null,
+                normalizeText(payload?.deliveredSha256) || null,
+                normalizeText(payload?.notes) || null,
+                JSON.stringify(snapshotPayload),
+            ],
+        );
+
+        await client.query('COMMIT');
+        return hydrateRow(insertRes.rows[0]);
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+    } finally {
+        client.release();
+    }
+}
+
 async function attachDeliveredMedia(id, { mediaId, sha256, notes }) {
     const normalizedId = normalizeText(id);
     const result = await postgresStore.query(
@@ -142,6 +214,7 @@ module.exports = {
     getById,
     getMaxVersionForCompound,
     create,
+    createNextVersion,
     attachDeliveredMedia,
     remove,
 };

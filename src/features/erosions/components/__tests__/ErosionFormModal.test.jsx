@@ -238,4 +238,35 @@ describe('ErosionFormModal', () => {
     act(() => { localizacaoStep.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     expect(wrapperOf('Localização geográfica').hasAttribute('hidden')).toBe(false);
   });
+
+  it('bloqueia double-submit: Salvar dispara onSave uma vez e desabilita enquanto em voo', async () => {
+    let resolveSave;
+    const onSave = vi.fn(() => new Promise((resolve) => { resolveSave = resolve; }));
+    renderModal(root, { onSave });
+
+    const salvar = [...container.querySelectorAll('button')].find((b) => (b.textContent || '').includes('Salvar'));
+    expect(salvar).toBeTruthy();
+
+    // Primeiro clique: onSave fica pendente, botao deve travar.
+    await act(async () => {
+      salvar.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(salvar.disabled).toBe(true);
+    expect(salvar.textContent).toContain('Salvando');
+
+    // Segundo clique enquanto a primeira chamada ainda esta em voo: ignorado.
+    await act(async () => {
+      salvar.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    // Ao concluir, o botao volta a ficar habilitado.
+    await act(async () => {
+      resolveSave();
+      await Promise.resolve();
+    });
+    const salvarFinal = [...container.querySelectorAll('button')].find((b) => (b.textContent || '').includes('Salvar'));
+    expect(salvarFinal.disabled).toBe(false);
+  });
 });

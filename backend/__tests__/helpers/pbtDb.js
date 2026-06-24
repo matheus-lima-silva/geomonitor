@@ -14,6 +14,8 @@ async function truncateAllPbtTables() {
         TRUNCATE
             workspace_members,
             report_workspaces,
+            report_archives,
+            report_photos,
             users
         RESTART IDENTITY CASCADE
     `);

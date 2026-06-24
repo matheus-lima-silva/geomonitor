@@ -355,9 +355,6 @@ router.post('/:id/deliver', verifyToken, requireEditor, async (req, res) => {
             // sha256 e opcional no snapshot; segue sem bloquear.
         }
 
-        const previousMax = await reportArchiveRepository.getMaxVersionForCompound(compound.id);
-        const nextVersion = Number(previousMax) + 1;
-
         const body = req.body && typeof req.body === 'object' ? req.body : {};
         const data = body.data && typeof body.data === 'object' ? body.data : {};
 
@@ -377,10 +374,9 @@ router.post('/:id/deliver', verifyToken, requireEditor, async (req, res) => {
             capturedAt: new Date().toISOString(),
         };
 
-        const created = await reportArchiveRepository.create({
+        const created = await reportArchiveRepository.createNextVersion({
             id: archiveId,
             compoundId: compound.id,
-            version: nextVersion,
             deliveredBy: req.user?.email || normalizeText(body.meta?.updatedBy) || 'API',
             generatedMediaId,
             generatedSha256,
