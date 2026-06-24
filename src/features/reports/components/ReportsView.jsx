@@ -82,6 +82,7 @@ import {
   triggerBlobDownload,
   triggerUrlDownload,
 } from '../utils/reportUtils';
+import { readGpsFromFile } from '../../../utils/exifGps';
 import { parseCaptionsFile } from '../utils/captionsIO';
 import BibliotecaTab from './BibliotecaTab';
 import CompoundsTab from './CompoundsTab';
@@ -692,6 +693,10 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
 
     const photoId = `RPH-${Date.now()}-${index}-${Math.random().toString(16).slice(2, 8)}`;
     const inferredTowerId = metadata.inferredTowerId || '';
+    // Captura a coordenada do EXIF da propria foto (fotos soltas / subpastas nao
+    // trazem placemark como o KMZ). Best-effort: sem EXIF/GPS o upload segue sem
+    // coordenada. O backend popula geom + distance_to_tower_m via PostGIS ao salvar.
+    const gps = await readGpsFromFile(file);
     await saveReportWorkspacePhoto(workspace.id, photoId, {
       mediaAssetId: mediaAsset?.id,
       caption: buildDefaultCaption(file.name),
@@ -700,6 +705,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
       importSource,
       towerId: inferredTowerId || undefined,
       towerSource: inferredTowerId ? 'folder_path' : 'pending',
+      ...(gps ? { gpsLat: gps.gpsLat, gpsLon: gps.gpsLon } : {}),
     }, { updatedBy: userEmail || 'web' });
 
     return { mediaAssetId: mediaAsset?.id, photoId };
