@@ -10,9 +10,9 @@ import {
   compareTowerNumbers,
   formatInspectionPeriod,
   getInspectionDayCount,
-  getInspectionPendency,
   getInspectionStatusKey,
   getInspectionStatusMeta,
+  isErosionPendingForInspection,
 } from '../utils/inspectionWorkflow';
 
 const BASE_FORM = {
@@ -101,12 +101,8 @@ function InspectionsView({
         return;
       }
 
-      const pending = (erosions || []).filter((erosion) => {
-        if (String(erosion?.projetoId || '').trim() !== projectId) return false;
-        const pendency = getInspectionPendency(erosion, inspectionId);
-        const hasVisitDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
-        return !hasVisitDate;
-      });
+      const pending = (erosions || []).filter((erosion) =>
+        isErosionPendingForInspection({ erosion, inspection, inspections }));
 
       const towers = [...new Set(pending.map((item) => String(item?.torreRef || '').trim()).filter(Boolean))]
         .sort(compareTowerNumbers);
