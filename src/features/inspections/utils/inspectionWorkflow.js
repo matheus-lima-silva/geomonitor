@@ -143,14 +143,96 @@ export function findExistingInspections(projetoId, dataInicio, inspections) {
   );
 }
 
-export function getPendingErosionsForInspection({ erosions, projectId, inspectionId }) {
+/**
+ * Vistoria de deteccao (origem) da erosao: a vistoria vinculada mais antiga por
+ * `dataInicio` (ISO `YYYY-MM-DD` -> comparacao lexicografica = cronologica). A erosao
+ * e vinculada primeiro a vistoria que a criou (a mais antiga); visitas posteriores tem
+ * datas maiores. Retorna o `id` da vistoria de origem ou '' quando indeterminavel.
+ */
+export function getErosionDetectionInspectionId(erosion, inspections = []) {
+  const linkedIds = new Set(normalizeLinkedInspectionIds(erosion));
+  if (linkedIds.size === 0) return '';
+  const list = Array.isArray(inspections) ? inspections : [];
+  const candidates = list
+    .filter((ins) => linkedIds.has(String(ins?.id || '').trim()))
+    .map((ins) => ({
+      id: String(ins?.id || '').trim(),
+      dataInicio: String(ins?.dataInicio || '').trim(),
+    }))
+    .filter((item) => item.id);
+  if (candidates.length === 0) return '';
+  candidates.sort((a, b) => {
+    if (a.dataInicio && b.dataInicio) {
+      const byDate = a.dataInicio.localeCompare(b.dataInicio);
+      return byDate !== 0 ? byDate : a.id.localeCompare(b.id);
+    }
+    if (a.dataInicio) return -1; // datas vazias vao por ultimo
+    if (b.dataInicio) return 1;
+    return a.id.localeCompare(b.id);
+  });
+  return candidates[0].id;
+}
+
+function getInspectionStartById(inspections, inspectionId) {
+  const iid = String(inspectionId || '').trim();
+  if (!iid) return '';
+  const list = Array.isArray(inspections) ? inspections : [];
+  const found = list.find((ins) => String(ins?.id || '').trim() === iid);
+  return String(found?.dataInicio || '').trim();
+}
+
+/**
+ * A vistoria e posterior a vistoria de deteccao? Exclui a propria origem; quando ha
+ * datas em ambas, exige `dataInicio` estritamente maior. Sem origem conhecida ou sem
+ * datas para comparar, nao exclui (degrada para o comportamento legado).
+ */
+function isInspectionAfterDetection(inspection, originId, inspections) {
+  const inspectionId = String(inspection?.id || '').trim();
+  const origin = String(originId || '').trim();
+  if (!origin) return true;
+  if (inspectionId === origin) return false;
+  const originStart = getInspectionStartById(inspections, origin);
+  const thisStart = String(inspection?.dataInicio || '').trim();
+  if (originStart && thisStart) return thisStart > originStart;
+  return true;
+}
+
+/**
+ * Predicado do card "EROSOES SEM DATA DE VISITA": a erosao e pendente para a vistoria
+ * quando pertence ao projeto, a vistoria e posterior a de deteccao (origem excluida) e
+ * nao ha pendencia `visitada` + `dia`. Nao exige pendencia existente, preservando o
+ * carry-forward para todas as vistorias futuras.
+ */
+export function isErosionPendingForInspection({ erosion, inspection, inspections = [] }) {
+  const projectId = String(inspection?.projetoId || '').trim();
+  const inspectionId = String(inspection?.id || '').trim();
+  if (!projectId || !inspectionId) return false;
+  if (String(erosion?.projetoId || '').trim() !== projectId) return false;
+
+  const originId = getErosionDetectionInspectionId(erosion, inspections);
+  if (originId && !isInspectionAfterDetection(inspection, originId, inspections)) return false;
+
+  const pendency = getInspectionPendency(erosion, inspectionId);
+  const hasVisitDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
+  return !hasVisitDate;
+}
+
+export function getPendingErosionsForInspection({ erosions, projectId, inspectionId, inspections }) {
   const pid = String(projectId || '').trim();
   const iid = String(inspectionId || '').trim();
   if (!pid || !iid) return [];
+  const inspectionList = Array.isArray(inspections) ? inspections : null;
+  const targetInspection = inspectionList
+    ? inspectionList.find((ins) => String(ins?.id || '').trim() === iid)
+    : null;
   return (erosions || []).filter((erosion) => {
     if (String(erosion?.projetoId || '').trim() !== pid) return false;
     const pendency = getInspectionPendency(erosion, iid);
     if (!pendency) return false;
+    if (inspectionList && targetInspection) {
+      const originId = getErosionDetectionInspectionId(erosion, inspectionList);
+      if (originId && !isInspectionAfterDetection(targetInspection, originId, inspectionList)) return false;
+    }
     const hasVisitDate = pendency?.status === 'visitada' && String(pendency?.dia || '').trim();
     return !hasVisitDate;
   });

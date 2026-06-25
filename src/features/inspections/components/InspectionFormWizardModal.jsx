@@ -791,6 +791,7 @@ function InspectionFormWizardModal({
       erosions,
       projectId: normalizedProjectId,
       inspectionId: normalizedInspectionId,
+      inspections,
     });
 
     if (pending.length > 0) {

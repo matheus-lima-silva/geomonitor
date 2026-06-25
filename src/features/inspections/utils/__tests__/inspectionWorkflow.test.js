@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   ensurePendingTowersVisibleInDays,
   findDuplicateTowersAcrossDays,
+  getErosionDetectionInspectionId,
   getPendingErosionsForInspection,
   isBrDateValid,
   isErosionLinkedToInspection,
+  isErosionPendingForInspection,
   normalizeInspectionPendencies,
   normalizeLinkedInspectionIds,
   upsertInspectionPendency,
@@ -74,6 +76,102 @@ describe('inspectionWorkflow', () => {
     });
 
     expect(out.map((item) => item.id)).toEqual(['ER-1']);
+  });
+
+  it('getErosionDetectionInspectionId returns the earliest linked inspection by dataInicio', () => {
+    const inspections = [
+      { id: 'VA', projetoId: 'P1', dataInicio: '2026-05-07' },
+      { id: 'VB', projetoId: 'P1', dataInicio: '2026-08-12' },
+    ];
+    const erosion = { vistoriaId: 'VB', vistoriaIds: ['VA', 'VB'] };
+    expect(getErosionDetectionInspectionId(erosion, inspections)).toBe('VA');
+  });
+
+  it('getErosionDetectionInspectionId handles single, none, empty-list and orphan cases', () => {
+    const inspections = [{ id: 'VA', dataInicio: '2026-05-07' }];
+    expect(getErosionDetectionInspectionId({ vistoriaId: 'VA' }, inspections)).toBe('VA');
+    expect(getErosionDetectionInspectionId({}, inspections)).toBe('');
+    expect(getErosionDetectionInspectionId({ vistoriaId: 'VA' }, [])).toBe('');
+    // erosion links VA (present) + VZ (orphan, not in list) -> VA wins, orphan ignored.
+    expect(getErosionDetectionInspectionId({ vistoriaIds: ['VA', 'VZ'] }, inspections)).toBe('VA');
+  });
+
+  it('getErosionDetectionInspectionId breaks same-date ties by lowest id', () => {
+    const inspections = [
+      { id: 'VS-0002', dataInicio: '2026-05-07' },
+      { id: 'VS-0001', dataInicio: '2026-05-07' },
+    ];
+    expect(getErosionDetectionInspectionId({ vistoriaIds: ['VS-0002', 'VS-0001'] }, inspections)).toBe('VS-0001');
+  });
+
+  it('isErosionPendingForInspection excludes the detection inspection (origin)', () => {
+    const inspections = [
+      { id: 'VA', projetoId: 'P1', dataInicio: '2026-05-07' },
+      { id: 'VB', projetoId: 'P1', dataInicio: '2026-08-12' },
+    ];
+    // Erosion created in VA (origin), pendency only on VA.
+    const erosion = {
+      id: 'ER-1',
+      projetoId: 'P1',
+      torreRef: '610',
+      vistoriaId: 'VA',
+      vistoriaIds: ['VA'],
+      pendenciasVistoria: [{ vistoriaId: 'VA', status: 'pendente', dia: '' }],
+    };
+    // Origin card -> not pending.
+    expect(isErosionPendingForInspection({ erosion, inspection: inspections[0], inspections })).toBe(false);
+    // Later inspection -> pending (mandatory visit).
+    expect(isErosionPendingForInspection({ erosion, inspection: inspections[1], inspections })).toBe(true);
+  });
+
+  it('isErosionPendingForInspection clears once visited with a date', () => {
+    const inspections = [
+      { id: 'VA', projetoId: 'P1', dataInicio: '2026-05-07' },
+      { id: 'VB', projetoId: 'P1', dataInicio: '2026-08-12' },
+    ];
+    const erosion = {
+      id: 'ER-1',
+      projetoId: 'P1',
+      torreRef: '610',
+      vistoriaId: 'VA',
+      vistoriaIds: ['VA', 'VB'],
+      pendenciasVistoria: [
+        { vistoriaId: 'VA', status: 'pendente', dia: '' },
+        { vistoriaId: 'VB', status: 'visitada', dia: '12/08/2026' },
+      ],
+    };
+    expect(isErosionPendingForInspection({ erosion, inspection: inspections[1], inspections })).toBe(false);
+  });
+
+  it('isErosionPendingForInspection ignores other projects and falls back without inspections', () => {
+    const inspection = { id: 'VB', projetoId: 'P1', dataInicio: '2026-08-12' };
+    const erosion = { id: 'ER-9', projetoId: 'P2', pendenciasVistoria: [] };
+    expect(isErosionPendingForInspection({ erosion, inspection, inspections: [] })).toBe(false);
+    // Without an inspections list, the origin cannot be derived -> legacy behavior (pending).
+    const sameProject = { id: 'ER-1', projetoId: 'P1', pendenciasVistoria: [] };
+    expect(isErosionPendingForInspection({ erosion: sameProject, inspection })).toBe(true);
+  });
+
+  it('getPendingErosionsForInspection with inspections excludes the origin inspection', () => {
+    const inspections = [
+      { id: 'VA', projetoId: 'P1', dataInicio: '2026-05-07' },
+      { id: 'VB', projetoId: 'P1', dataInicio: '2026-08-12' },
+    ];
+    const erosions = [
+      {
+        id: 'ER-1',
+        projetoId: 'P1',
+        vistoriaId: 'VA',
+        vistoriaIds: ['VA'],
+        pendenciasVistoria: [{ vistoriaId: 'VA', status: 'pendente', dia: '' }],
+      },
+    ];
+    // On the origin (VA) the just-created erosion is not a pending visit.
+    expect(getPendingErosionsForInspection({ erosions, projectId: 'P1', inspectionId: 'VA', inspections }))
+      .toEqual([]);
+    // Without inspections the legacy behavior keeps it (pendency exists, not visited).
+    expect(getPendingErosionsForInspection({ erosions, projectId: 'P1', inspectionId: 'VA' })
+      .map((item) => item.id)).toEqual(['ER-1']);
   });
 
   it('ensurePendingTowersVisibleInDays keeps towers in their original day', () => {

@@ -143,19 +143,35 @@ describe('InspectionsView wizard flow', () => {
           responsavel: 'Ana',
           detalhesDias: [],
         },
+        {
+          id: 'VS-P2-15032026-0001',
+          projetoId: 'P2',
+          dataInicio: '2026-03-15',
+          dataFim: '2026-03-16',
+          responsavel: 'Ana',
+          detalhesDias: [],
+        },
       ],
       erosions: [
         {
           id: 'ER-1',
           projetoId: 'P2',
           torreRef: '7',
+          vistoriaId: 'VS-P2-10012026-0001',
+          vistoriaIds: ['VS-P2-10012026-0001'],
           pendenciasVistoria: [{ vistoriaId: 'VS-P2-10012026-0001', status: 'pendente', dia: '' }],
         },
       ],
     });
 
-    expect(container.textContent).toContain('Erosoes sem data de visita');
-    expect(container.textContent).toContain('Torre 7');
+    const findCard = (id) => [...container.querySelectorAll('article')].find((el) => el.textContent.includes(id));
+    const originCard = findCard('VS-P2-10012026-0001');
+    const laterCard = findCard('VS-P2-15032026-0001');
+    // Vistoria de origem: a erosao acabou de ser criada aqui, nao e visita pendente.
+    expect(originCard.textContent).not.toContain('Erosoes sem data de visita');
+    // Vistoria posterior: visita obrigatoria ate marcar a data.
+    expect(laterCard.textContent).toContain('Erosoes sem data de visita');
+    expect(laterCard.textContent).toContain('Torre 7');
 
     await clickByText('Nova Vistoria');
     expect(document.querySelector('[role="dialog"]')).toBeTruthy();
