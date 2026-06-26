@@ -1,4 +1,8 @@
-const { erosionSaveSchema } = require('../../schemas/erosionSchemas');
+const { erosionSaveSchema, erosionSimulateSchema } = require('../../schemas/erosionSchemas');
+const {
+    normalizeErosionTechnicalFields,
+    buildCriticalityInputFromErosion,
+} = require('../../utils/erosionUtils_dist');
 
 function makeFoto(overrides = {}) {
     return {
@@ -130,5 +134,65 @@ describe('erosionSaveSchema campos tecnicos (contrato do frontend)', () => {
             data: { sinaisAvanco: ['sim'] },
         });
         expect(result.success).toBe(false);
+    });
+});
+
+describe('erosionDataSchema campos numericos em branco (null)', () => {
+    // Regressao: parseDecimal devolve null para campo numerico vazio e
+    // buildCriticalityInputFromErosion repassa esse null no payload do /simulate
+    // (chamado dentro do handleSave). Com .optional() (que nao aceita null) qualquer
+    // erosao nova com profundidade/declividade/distancia em branco caia em
+    // VALIDATION_ERROR, abortando o save. Os campos numericos devem aceitar null.
+    it('aceita null nos campos numericos e de coordenada', () => {
+        const result = erosionSaveSchema.safeParse({
+            data: {
+                profundidadeMetros: null,
+                declividadeGraus: null,
+                distanciaEstruturaMetros: null,
+                latitude: null,
+                longitude: null,
+            },
+        });
+        expect(result.success).toBe(true);
+    });
+
+    it('ainda aceita string e number nos campos numericos', () => {
+        const result = erosionSaveSchema.safeParse({
+            data: { profundidadeMetros: '1.5', declividadeGraus: 30, distanciaEstruturaMetros: '' },
+        });
+        expect(result.success).toBe(true);
+    });
+
+    it('aceita o payload real do /simulate quando os numericos ficam em branco', () => {
+        // Reproduz exatamente o que o frontend envia em handleSave: form com
+        // localizacao preenchida mas numericos vazios -> parseDecimal => null.
+        const rawForm = {
+            status: 'Ativa',
+            tiposFeicao: ['sulco'],
+            usosSolo: ['pasto'],
+            saturacaoPorAgua: 'nao',
+            tipoSolo: 'argiloso',
+            presencaAguaFundo: 'nao',
+            sinaisAvanco: false,
+            vegetacaoInterior: false,
+            dimensionamento: 'Talude de 5m.',
+            profundidadeMetros: '',
+            declividadeGraus: '',
+            distanciaEstruturaMetros: '',
+            localContexto: { localTipo: 'base_torre', estruturaProxima: 'torre' },
+            latitude: '-22.5',
+            longitude: '-43.2',
+            locationCoordinates: { latitude: '-22.5', longitude: '-43.2' },
+        };
+        const criticalityInput = buildCriticalityInputFromErosion(
+            normalizeErosionTechnicalFields(rawForm),
+        );
+        expect(criticalityInput.profundidadeMetros).toBeNull();
+
+        const result = erosionSimulateSchema.safeParse({
+            data: criticalityInput,
+            meta: { rulesConfig: {} },
+        });
+        expect(result.success).toBe(true);
     });
 });
