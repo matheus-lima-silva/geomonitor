@@ -28,16 +28,20 @@ const VARIANTE_PATH = path.join(__dirname, 'data', 'variante-itatpr-c2-torres.js
 const ACTOR = 'reconcile-iabtpr2';
 
 function parseArgs(argv) {
-  const out = { commit: false };
+  const out = { commit: false, workspaceOnly: false };
   for (let i = 2; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--commit') out.commit = true;
+    else if (a === '--workspace-only') out.workspaceOnly = true;
     else if (a === '--current-project') out.project = argv[++i];
     else if (a === '--current-inspection') out.inspection = argv[++i];
     else throw new Error(`Argumento desconhecido: ${a}`);
   }
-  if (!out.project || !out.inspection) {
-    throw new Error('Uso: --current-project <json> --current-inspection <json> [--commit]');
+  // --workspace-only repara so os caches denormalizados de torre do workspace (curationDrafts
+  // + payload.towerId), sincronizando-os com report_photos.tower_id (ja correto). Nao precisa
+  // dos arquivos de projeto/vistoria.
+  if (!out.workspaceOnly && (!out.project || !out.inspection)) {
+    throw new Error('Uso: --current-project <json> --current-inspection <json> [--commit] | --workspace-only [--commit]');
   }
   return out;
 }
@@ -73,6 +77,10 @@ function sqlStr(s) {
 function main() {
   const args = parseArgs(process.argv);
   const stamp = new Date().toISOString();
+
+  if (args.workspaceOnly) {
+    return mainWorkspaceOnly(args, stamp);
+  }
 
   // 1. Torres da variante (artefato revisado) -> shape do banco { numero, origem, lat, lon }.
   const varianteRaw = JSON.parse(fs.readFileSync(VARIANTE_PATH, 'utf8')).towers;
@@ -170,6 +178,69 @@ function main() {
   out.push('');
 
   process.stdout.write(out.join('\n'));
+}
+
+// Reparo do workspace: propaga report_photos.tower_id (ja correto) para os caches
+// denormalizados de torre que a reconciliacao inicial nao tocou — curationDrafts
+// (draft_state + payload.draftState, AUTORITATIVO na UI) e payload.towerId das fotos.
+// Drivado pela coluna (join por id da foto), sem name-map.
+function mainWorkspaceOnly(args, stamp) {
+  const log = (...m) => process.stderr.write(m.join(' ') + '\n');
+  log(`[reconcile ${PROJECT_ID} workspace-only] modo: ${args.commit ? 'APPLY (COMMIT)' : 'DRY-RUN (ROLLBACK)'}`);
+  log(`sincroniza curationDrafts + payload.towerId do workspace ${WORKSPACE_ID} com report_photos.tower_id`);
+
+  // Subquery que reconstroi um objeto curationDrafts setando cada towerId = tower_id da foto.
+  const rebuiltCurationDrafts = (jsonbPath) => `(
+    SELECT COALESCE(jsonb_object_agg(
+             e.k,
+             CASE WHEN rp.tower_id IS NOT NULL AND rp.tower_id <> ''
+                  THEN jsonb_set(e.v, '{towerId}', to_jsonb(rp.tower_id))
+                  ELSE e.v END
+           ), '{}'::jsonb)
+    FROM jsonb_each(${jsonbPath}) AS e(k, v)
+    LEFT JOIN report_photos rp ON rp.id = e.k AND rp.workspace_id = w.id
+  )`;
+
+  const out = [];
+  out.push('-- Reparo workspace IABTPR2 — sincroniza caches de torre com a coluna report_photos.tower_id');
+  out.push(`-- ${stamp} — ${args.commit ? 'APPLY' : 'DRY-RUN'}`);
+  out.push('SET statement_timeout = 0;');
+  out.push('BEGIN;');
+  out.push('');
+  out.push('-- 1) payload.towerId das fotos <- coluna tower_id (higiene; hydrate ja sobrescreve na leitura)');
+  out.push(`UPDATE report_photos SET payload = jsonb_set(payload, '{towerId}', to_jsonb(tower_id)), updated_at = now(), updated_by = ${sqlStr(ACTOR)}`);
+  out.push(`WHERE workspace_id = ${sqlStr(WORKSPACE_ID)} AND COALESCE(payload->>'towerId','') <> COALESCE(tower_id,'');`);
+  out.push('');
+  out.push('-- 2) curationDrafts (draft_state coluna = AUTORITATIVO na UI) e payload.draftState <- coluna da foto');
+  out.push(`UPDATE report_workspaces w SET`);
+  out.push(`  draft_state = jsonb_set(w.draft_state, '{curationDrafts}', ${rebuiltCurationDrafts("w.draft_state->'curationDrafts'")}),`);
+  out.push(`  payload = jsonb_set(w.payload, '{draftState,curationDrafts}', ${rebuiltCurationDrafts("w.payload->'draftState'->'curationDrafts'")}),`);
+  out.push(`  updated_at = now(), updated_by = ${sqlStr(ACTOR)}`);
+  out.push(`WHERE w.id = ${sqlStr(WORKSPACE_ID)};`);
+  out.push('');
+  out.push('-- 3) Verificacao');
+  out.push(workspaceVerificationSql());
+  out.push('');
+  out.push(args.commit ? 'COMMIT;' : 'ROLLBACK;');
+  out.push('');
+
+  process.stdout.write(out.join('\n'));
+}
+
+function workspaceVerificationSql() {
+  return `\\echo '== entradas de curationDrafts com towerId divergente da coluna (esperado 0) =='
+SELECT count(*) AS divergentes
+FROM report_workspaces w
+CROSS JOIN LATERAL jsonb_each(w.draft_state->'curationDrafts') AS e(k, v)
+LEFT JOIN report_photos rp ON rp.id = e.k AND rp.workspace_id = w.id
+WHERE w.id = ${sqlStr(WORKSPACE_ID)} AND COALESCE(e.v->>'towerId','') <> COALESCE(rp.tower_id,'');
+\\echo '== towerIds distintos no curationDrafts (esperado 604/605A..642A/637B/638A) =='
+SELECT DISTINCT e.v->>'towerId' AS tower
+FROM report_workspaces w, jsonb_each(w.draft_state->'curationDrafts') AS e(k, v)
+WHERE w.id = ${sqlStr(WORKSPACE_ID)} ORDER BY 1;
+\\echo '== fotos com payload.towerId divergente da coluna (esperado 0) =='
+SELECT count(*) AS payload_divergente FROM report_photos
+WHERE workspace_id = ${sqlStr(WORKSPACE_ID)} AND COALESCE(payload->>'towerId','') <> COALESCE(tower_id,'');`;
 }
 
 function geometryUpsertSql(projectId) {
