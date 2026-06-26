@@ -19,6 +19,39 @@
   font-display: swap;
 }
 
+/* DM Sans — auto-hospedada (OFL). Mesmas estaticas que o template AXIA embute no
+   DOCX (worker/assets/fonts). Usada apenas pela previa do relatorio (docx-preview),
+   que referencia a font-family "DM Sans" gravada no .docx. Nao muda a fonte da app
+   (continua Inter via :root); estes @font-face so resolvem quando algo usa "DM Sans". */
+@font-face {
+  font-family: 'DM Sans';
+  src: url('/fonts/DMSans-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DM Sans';
+  src: url('/fonts/DMSans-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DM Sans';
+  src: url('/fonts/DMSans-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DM Sans';
+  src: url('/fonts/DMSans-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: #0f172a;
