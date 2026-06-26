@@ -6,9 +6,17 @@ const { z } = require('zod');
 // (1) fechar mass assignment no top-level (rejeitar campos nao esperados),
 // (2) garantir tipos basicos dos campos mais comuns.
 
+// Campos numericos do formulario chegam como string (''), number ou null:
+// normalizeErosionTechnicalFields/parseDecimal devolvem null quando o campo fica
+// em branco, e buildCriticalityInputFromErosion repassa esse null no payload do
+// /simulate (chamado dentro do handleSave). .optional() aceita undefined mas NAO
+// null, entao um campo numerico vazio derrubava o save inteiro com VALIDATION_ERROR.
+// .nullish() aceita null e undefined.
+const numericLike = z.union([z.string(), z.number()]).nullish();
+
 const locationSchema = z.object({
-    latitude: z.union([z.string(), z.number()]).optional(),
-    longitude: z.union([z.string(), z.number()]).optional(),
+    latitude: numericLike,
+    longitude: numericLike,
 }).passthrough().optional();
 
 const impactoViaSchema = z.object({
@@ -49,9 +57,9 @@ const erosionDataSchema = z.object({
     usoSoloOutro: z.string().optional(),
     saturacaoPorAgua: z.string().optional(),
     tipoSolo: z.string().optional(),
-    profundidadeMetros: z.union([z.string(), z.number()]).optional(),
-    declividadeGraus: z.union([z.string(), z.number()]).optional(),
-    distanciaEstruturaMetros: z.union([z.string(), z.number()]).optional(),
+    profundidadeMetros: numericLike,
+    declividadeGraus: numericLike,
+    distanciaEstruturaMetros: numericLike,
     sinaisAvanco: z.boolean().optional(),
     vegetacaoInterior: z.boolean().optional(),
     presencaAguaFundo: z.string().optional(),
@@ -61,8 +69,8 @@ const erosionDataSchema = z.object({
     fotosLinks: z.array(z.string()).optional(),
     fotosPrincipais: fotosPrincipaisSchema,
     backfillEstimado: z.boolean().optional(),
-    latitude: z.union([z.string(), z.number()]).optional(),
-    longitude: z.union([z.string(), z.number()]).optional(),
+    latitude: numericLike,
+    longitude: numericLike,
     locationCoordinates: locationSchema,
     localContexto: z.any().optional(),
     criticalidade: z.any().optional(),
