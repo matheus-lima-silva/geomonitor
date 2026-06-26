@@ -198,6 +198,48 @@ describe('kmlUtils', () => {
     expect(parsed.rows.map((r) => r.numero)).toEqual(['1A', '2B']);
   });
 
+  it('parses bare digit-led tower names without the "T" prefix (e.g. 610A, 0163A)', () => {
+    const kml = `
+      <kml>
+        <Document>
+          <Placemark>
+            <name>610A</name>
+            <description>22711</description>
+            <Point><coordinates>-46.5,-23.8,0</coordinates></Point>
+          </Placemark>
+          <Placemark>
+            <name>0163A</name>
+            <Point><coordinates>-46.4,-23.7,0</coordinates></Point>
+          </Placemark>
+        </Document>
+      </kml>
+    `;
+
+    const parsed = parseKmlTowers(kml);
+    // Antes do fix, "610A" caia na guarda de token misto unico e puxava "22711" da descricao.
+    expect(parsed.rows.map((r) => r.numero)).toEqual(['610A', '163A']);
+  });
+
+  it('still ignores letter-led single mixed tokens (sigla-like) as towers', () => {
+    const kml = `
+      <kml>
+        <Document>
+          <Placemark>
+            <name>C2</name>
+            <Point><coordinates>-46.5,-23.8,0</coordinates></Point>
+          </Placemark>
+          <Placemark>
+            <name>SIMRLE1</name>
+            <Point><coordinates>-46.4,-23.7,0</coordinates></Point>
+          </Placemark>
+        </Document>
+      </kml>
+    `;
+
+    const parsed = parseKmlTowers(kml);
+    expect(parsed.rows).toEqual([]);
+  });
+
   it('assigns unique suffixes for multiple distinct porticos', () => {
     const kml = `
       <kml>

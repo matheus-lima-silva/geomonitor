@@ -67,9 +67,14 @@ function findTowerIdFromSource(source) {
     const normalized = normalizeTowerToken(token);
     if (!normalized) continue;
 
-    const isSingleMixedToken =
-      tokens.length === 1 && /[A-Za-z]/.test(token) && /\d/.test(token);
-    if (isSingleMixedToken) continue;
+    // Tokens unicos alfanumericos sao ambiguos: "C2"/"SIMRLE1" sao siglas (iniciam por
+    // letra) e nao devem virar torre; "610A"/"0163A" sao IDs de torre (iniciam por digito)
+    // e devem ser aceitos. Sem essa distincao, um Placemark nomeado so "610A" nao parseia o
+    // numero e acaba puxando lixo da descricao.
+    const startsWithDigit = /^\d/.test(token);
+    const isSingleAmbiguousToken =
+      tokens.length === 1 && /[A-Za-z]/.test(token) && /\d/.test(token) && !startsWithDigit;
+    if (isSingleAmbiguousToken) continue;
 
     return normalized;
   }
