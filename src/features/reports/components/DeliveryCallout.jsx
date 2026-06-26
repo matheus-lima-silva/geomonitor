@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
 import { Button } from '../../../components/ui';
+import ReportPreviewModal from './ReportPreviewModal';
 import { listArchives } from '../../../services/reportArchiveService';
 import { fmt } from '../utils/reportUtils';
 
@@ -20,6 +21,7 @@ export default function DeliveryCallout({
 }) {
   const [latestArchive, setLatestArchive] = useState(null);
   const [totalArchives, setTotalArchives] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (!compound?.id || !compound?.outputDocxMediaId) {
@@ -81,6 +83,15 @@ export default function DeliveryCallout({
 
           <Button
             variant="outline"
+            onClick={() => setPreviewOpen(true)}
+            data-testid="delivery-callout-preview"
+          >
+            <AppIcon name="eye" />
+            Pré-visualizar
+          </Button>
+
+          <Button
+            variant="outline"
             onClick={() => onUploadDelivery?.(compound)}
             data-testid="delivery-callout-upload"
           >
@@ -107,6 +118,15 @@ export default function DeliveryCallout({
           </p>
         ) : null}
       </div>
+
+      <ReportPreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        mediaId={mediaId}
+        fileName={compoundDownloadFileName}
+        onDownload={onDownloadDocx}
+        showToast={showToast}
+      />
     </div>
   );
 }

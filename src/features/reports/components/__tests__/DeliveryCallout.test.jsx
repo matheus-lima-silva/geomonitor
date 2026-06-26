@@ -6,6 +6,12 @@ vi.mock('../../../../services/reportArchiveService', () => ({
   listArchives: vi.fn(),
 }));
 
+// Isola o modal de previa (que carrega docx-preview) — aqui so verificamos a fiacao.
+vi.mock('../ReportPreviewModal', () => ({
+  default: ({ open, mediaId }) =>
+    open ? <div data-testid="report-preview-modal-mock" data-media={mediaId} /> : null,
+}));
+
 import DeliveryCallout from '../DeliveryCallout';
 import { listArchives } from '../../../../services/reportArchiveService';
 
@@ -86,5 +92,29 @@ describe('DeliveryCallout', () => {
     });
     act(() => container.querySelector('[data-testid="delivery-callout-download"]').click());
     expect(onDownloadDocx).toHaveBeenCalledWith('MED-D', 'rel.docx');
+  });
+
+  it('abre a previa ao clicar em "Pre-visualizar"', async () => {
+    listArchives.mockResolvedValue([]);
+    await act(async () => {
+      root.render(
+        <DeliveryCallout
+          compound={{ id: 'RC-5', outputDocxMediaId: 'MED-P' }}
+          compoundDownloadFileName="rel.docx"
+          onDownloadDocx={vi.fn()}
+          onUploadDelivery={vi.fn()}
+        />,
+      );
+    });
+
+    const previewBtn = container.querySelector('[data-testid="delivery-callout-preview"]');
+    expect(previewBtn).not.toBeNull();
+    expect(container.querySelector('[data-testid="report-preview-modal-mock"]')).toBeNull();
+
+    act(() => previewBtn.click());
+
+    const modal = container.querySelector('[data-testid="report-preview-modal-mock"]');
+    expect(modal).not.toBeNull();
+    expect(modal.getAttribute('data-media')).toBe('MED-P');
   });
 });

@@ -215,6 +215,7 @@ Testes: [src/features/reports/utils/__tests__/towerCurationStatus.test.js](../sr
 | [PhotoLocationMiniMap.jsx](../src/features/reports/components/PhotoLocationMiniMap.jsx) | Mini-mapa Leaflet do lightbox: torre (`torresCoordenadas`) + ponto GPS da foto, distancia e direcao |
 | [CreateErosionHandoffModal.jsx](../src/features/reports/components/CreateErosionHandoffModal.jsx) | Modal de chamada do handoff "criar erosao a partir da foto" (reusa `pendingErosionDraft` do DashboardView) |
 | [CompoundsTab.jsx](../src/features/reports/components/CompoundsTab.jsx) | Listagem e edicao de compounds; geracao DOCX |
+| [ReportPreviewModal.jsx](../src/features/reports/components/ReportPreviewModal.jsx) | Previa do DOCX gerado antes do download (renderiza o `.docx` no navegador via `docx-preview`, fonte DM Sans auto-hospedada). Acionado pelo botao "Pre-visualizar" do [DeliveryCallout.jsx](../src/features/reports/components/DeliveryCallout.jsx) |
 | [DossierTab.jsx](../src/features/reports/components/DossierTab.jsx) | Dossies de projeto (licencas, erosoes, workspaces) |
 | [BibliotecaTab.jsx](../src/features/reports/components/BibliotecaTab.jsx) | Biblioteca de fotos do projeto (agregacao multi-workspace) |
 

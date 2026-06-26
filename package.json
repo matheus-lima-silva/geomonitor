@@ -16,6 +16,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "docx-preview": "^0.3.7",
     "fflate": "^0.8.3",
     "html2canvas": "^1.4.1",
     "leaflet": "^1.9.4",
