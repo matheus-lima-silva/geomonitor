@@ -137,3 +137,22 @@ export const POST_TEXT_SECTION_KEYS = [
   'analise_evolucao',
   'observacoes',
 ];
+
+// Marcador, dentro do texto de uma secao, que o worker substitui pela tabela do
+// Quadro 1 de graduacao de criticidade ao gerar o DOCX.
+// MANTER EM SINCRONIA com QUADRO_CRITICIDADE_MARKER em worker/docx_renderer.py
+// (mesma paridade JS<->Python das cores e dos presets de estilo).
+export const QUADRO_CRITICIDADE_MARKER = '[inserir Quadro 1 de graduação de criticidade]';
+
+// Textos tipicos prontos para inserir em cada secao via botao "Inserir texto
+// padrao" do RichTextMini. Paragrafos separados por "\n\n" (formato esperado
+// pelo split do worker). O texto entra como ponto de partida editavel.
+export const SECTION_TEMPLATES = {
+  descricao_atividades: [
+    'A vistoria foi realizada ao longo da variante da LT com o objetivo de verificar as condições de estabilidade das torres e dos taludes associados, bem como da faixa de servidão, dos vãos entre torres e das vias de acesso às estruturas. A inspeção foi conduzida in loco e complementada pela utilização de drone, recurso empregado tanto para o sobrevoo de torres de difícil acesso quanto para a obtenção de uma visão geral das áreas em que foram identificados focos erosivos. Considerando a inserção da variante no Parque Estadual da Serra do Mar e em sua Zona de Amortecimento, foi dada atenção especial aos dispositivos de drenagem e às estruturas de contenção instaladas nas vias de acesso, em razão da declividade acentuada e da suscetibilidade do terreno ao carreamento de solo. As atividades de campo foram precedidas de notificação prévia à Fundação Florestal, gestora do PESM, conforme exigência da Licença de Operação.',
+    'Todas as torres visitadas foram fotografadas, e os taludes, a faixa de servidão e as vias de acesso foram inspecionados integralmente. Nos pontos em que foram detectados focos erosivos — na base das torres, nos vãos entre estruturas, na faixa de servidão ou nas vias de acesso — as feições foram fotografadas e cadastradas, e, conforme a severidade observada, classificadas segundo o Quadro 1, apresentado a seguir.',
+    'Tabela 1 – Graduação de criticidade.',
+    QUADRO_CRITICIDADE_MARKER,
+    'O Quadro 1 define quatro níveis de criticidade (baixo, médio, alto e muito alto) a partir de critérios técnicos que incluem o tipo de erosão — desde perdas superficiais (erosão laminar) até sulcos, ravinas e voçorocas com movimentos de massa —, a profundidade das feições, a declividade do terreno, o tipo e a suscetibilidade do solo, além de características morfológicas associadas à intensidade das chuvas e ao volume de solo removido. Para cada categoria de criticidade, o quadro indica medidas prioritárias de controle e recuperação, que variam de práticas preventivas (cobertura vegetal, curvas de nível) a obras de contenção e bioengenharia nos casos de maior severidade. A adoção desse critério de classificação permite priorizar as intervenções e orientar as soluções de engenharia a serem aplicadas em cada ponto vistoriado.',
+  ].join('\n\n'),
+};

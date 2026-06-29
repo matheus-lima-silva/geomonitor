@@ -66,4 +66,37 @@ describe('RichTextMini', () => {
     const boldBtn = container.querySelector('[data-testid="richtextmini-bold"]');
     expect(boldBtn.disabled).toBe(true);
   });
+
+  it('nao renderiza o botao de texto padrao sem a prop template', () => {
+    renderWith('');
+    expect(container.querySelector('[data-testid="richtextmini-template"]')).toBeNull();
+  });
+
+  it('insere o texto padrao no cursor preenchendo o campo vazio', () => {
+    const onChange = vi.fn();
+    act(() => {
+      root.render(
+        <RichTextMini id="t3" value="" onChange={onChange} template="Texto típico." />,
+      );
+    });
+    const btn = container.querySelector('[data-testid="richtextmini-template"]');
+    act(() => { btn.click(); });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0].target.value).toBe('Texto típico.');
+  });
+
+  it('insere o texto padrao no cursor sem apagar o conteudo existente', () => {
+    const onChange = vi.fn();
+    act(() => {
+      root.render(
+        <RichTextMini id="t4" value="AB" onChange={onChange} template="X" />,
+      );
+    });
+    const textarea = container.querySelector('[data-testid="t4-textarea"]');
+    textarea.focus();
+    textarea.setSelectionRange(1, 1); // entre A e B
+    const btn = container.querySelector('[data-testid="richtextmini-template"]');
+    act(() => { btn.click(); });
+    expect(onChange.mock.calls[0][0].target.value).toBe('AXB');
+  });
 });
