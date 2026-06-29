@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+from docx.image.image import Image
 from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
@@ -20,6 +21,10 @@ from worker.kmz_renderer import build_tower_lookup, normalize_tower_id
 
 
 MAX_IMAGE_WIDTH_CM = 15
+# Teto de altura para fotos verticais (retrato): a 15cm de largura uma foto 3:4
+# vira 20cm e uma 9:16 vira ~27cm, estourando a area util A4 (~23,7cm). Travamos
+# a altura para a foto nao transbordar nem empurrar a legenda para outra pagina.
+MAX_IMAGE_HEIGHT_CM = 16
 
 # Paleta institucional AXIA Energia (Manual de Comunicacao Visual, secao 4),
 # aplicada no re-skin do relatorio composto (Monitoramento de Processo Erosivo).
@@ -763,6 +768,24 @@ def add_workspace_summary(document, workspaces):
         row[3].text = format_timestamp(workspace.get("importedAt"))
 
 
+def _picture_size_kwargs(buffer):
+    """Decide a dimensao da foto ao inserir: largura 15cm por padrao, mas se a
+    foto for alta a ponto de passar de MAX_IMAGE_HEIGHT_CM, trava pela altura
+    (retrato nao estoura a pagina nem empurra a legenda). Reusa o parser nativo
+    do python-docx para ler px sem depender de Pillow; em qualquer falha, cai no
+    default de largura. O add_picture calcula a outra dimensao pelo aspect.
+    """
+    try:
+        img = Image.from_blob(buffer)
+        if img.px_width and img.px_height:
+            aspect = img.px_height / img.px_width
+            if MAX_IMAGE_WIDTH_CM * aspect > MAX_IMAGE_HEIGHT_CM:
+                return {"height": Cm(MAX_IMAGE_HEIGHT_CM)}
+    except Exception:  # pragma: no cover - formato desconhecido cai no default
+        pass
+    return {"width": Cm(MAX_IMAGE_WIDTH_CM)}
+
+
 def add_photo_entry(document, photo, image_loader, photo_index):
     media_asset_id = normalize_text(photo.get("mediaAssetId"))
     if not media_asset_id:
@@ -777,7 +800,7 @@ def add_photo_entry(document, photo, image_loader, photo_index):
             buffer = media.get("buffer") if isinstance(media, dict) else None
             if not buffer:
                 raise ValueError("conteudo vazio")
-            document.add_picture(io.BytesIO(buffer), width=Cm(MAX_IMAGE_WIDTH_CM))
+            document.add_picture(io.BytesIO(buffer), **_picture_size_kwargs(buffer))
             document.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
         except Exception as exc:  # pragma: no cover - defensive fallback
             logger.warning(
