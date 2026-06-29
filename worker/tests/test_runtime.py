@@ -23,6 +23,21 @@ SAMPLE_PNG_BYTES = base64.b64decode(
 )
 
 
+def build_png(width, height):
+    """Monta um PNG RGB minimo (IHDR + IDAT + IEND) via stdlib (sem Pillow),
+    usado para exercitar o teto de altura de fotos verticais."""
+    import zlib
+
+    def _chunk(typ, data):
+        body = typ + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+
+    sig = b"\x89PNG\r\n\x1a\n"
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    raw = b"".join(b"\x00" + b"\xff\x00\x00" * width for _ in range(height))
+    return sig + _chunk(b"IHDR", ihdr) + _chunk(b"IDAT", zlib.compress(raw)) + _chunk(b"IEND", b"")
+
+
 def build_minimal_jpeg_with_gps(
     lat_dms=(22, 30, 0),
     lat_ref="S",
@@ -831,6 +846,60 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertTrue(image_p.paragraph_format.keep_with_next)
         self.assertTrue(image_p.paragraph_format.keep_together)
         self.assertTrue(caption_p.paragraph_format.keep_together)
+
+    def test_picture_size_kwargs_caps_portrait_height(self):
+        """Retrato alto trava pela altura (16cm); paisagem/quadrado/lixo -> largura 15cm."""
+        from worker.docx_renderer import (
+            MAX_IMAGE_HEIGHT_CM,
+            MAX_IMAGE_WIDTH_CM,
+            _picture_size_kwargs,
+        )
+
+        self.assertEqual(
+            _picture_size_kwargs(build_png(1500, 2000)),  # retrato 3:4
+            {"height": Cm(MAX_IMAGE_HEIGHT_CM)},
+        )
+        self.assertEqual(
+            _picture_size_kwargs(build_png(1080, 1920)),  # retrato 9:16
+            {"height": Cm(MAX_IMAGE_HEIGHT_CM)},
+        )
+        self.assertEqual(
+            _picture_size_kwargs(build_png(2000, 1500)),  # paisagem 4:3
+            {"width": Cm(MAX_IMAGE_WIDTH_CM)},
+        )
+        # Quadrado 1x1 (15x15 <= 16) e bytes invalidos caem no default de largura.
+        self.assertEqual(_picture_size_kwargs(SAMPLE_PNG_BYTES), {"width": Cm(MAX_IMAGE_WIDTH_CM)})
+        self.assertEqual(_picture_size_kwargs(b"nao e imagem"), {"width": Cm(MAX_IMAGE_WIDTH_CM)})
+
+    def test_add_photo_entry_caps_vertical_photo_height(self):
+        """Foto retrato inserida fica com altura ~16cm e largura < 15cm; paisagem mantem 15cm."""
+        from docx import Document
+        from worker.docx_renderer import (
+            MAX_IMAGE_HEIGHT_CM,
+            MAX_IMAGE_WIDTH_CM,
+            add_photo_entry,
+        )
+
+        document = Document()
+        add_photo_entry(
+            document,
+            {"mediaAssetId": "MED-V", "caption": "Vertical"},
+            lambda _m: {"buffer": build_png(1500, 2000), "contentType": "image/png"},
+            1,
+        )
+        shape = document.inline_shapes[-1]
+        self.assertAlmostEqual(shape.height, Cm(MAX_IMAGE_HEIGHT_CM), delta=Cm(0.05))
+        self.assertLess(shape.width, Cm(MAX_IMAGE_WIDTH_CM))
+
+        document2 = Document()
+        add_photo_entry(
+            document2,
+            {"mediaAssetId": "MED-H", "caption": "Horizontal"},
+            lambda _m: {"buffer": build_png(2000, 1500), "contentType": "image/png"},
+            1,
+        )
+        shape2 = document2.inline_shapes[-1]
+        self.assertAlmostEqual(shape2.width, Cm(MAX_IMAGE_WIDTH_CM), delta=Cm(0.05))
 
     def test_report_compound_header_size_unaffected_by_body_shrink(self):
         """Reducao do corpo (11pt) nao vaza para o cabecalho.
