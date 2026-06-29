@@ -401,7 +401,19 @@ def _resolve_heading_style(document):
 # DM Sans is not bundled with Windows/Office; viewers without it installed see
 # a substituted fallback font (python-docx cannot embed fonts).
 BODY_FONT_NAME = "DM Sans"
-BODY_FONT_SIZE_PT = 14
+BODY_FONT_SIZE_PT = 11
+
+# Hierarquia de titulos do relatorio composto (corpo = 11pt). O estilo Ttulo1 do
+# template nao tem <w:sz> proprio (basedOn Normal), entao herdaria o corpo e
+# encolheria junto; fixamos o tamanho de secao em runtime. O subtitulo de torre
+# (ilvl>=1) usa o mesmo estilo Ttulo1 com override direto de tamanho.
+HEADING_SECTION_SIZE_PT = 14  # secao (ilvl0): "INTRODUCAO", "ILUSTRACAO FOTOGRAFICA"...
+HEADING_SUB_SIZE_PT = 12      # subtitulo (ilvl>=1): "Torre X"
+
+# Linhas fixas canonicas da capa (padrao institucional, modelo OOSEMB.RT.075).
+# A linha da LT vem do contexto (normalizada e em CAIXA ALTA na capa).
+COVER_PROGRAM_LINE = "Programa de Monitoramento e Controle de Processos Erosivos"
+COVER_REPORT_LINE = "Relatório de Inspeção Técnica"
 
 
 def _clear_autospacing(style):
@@ -434,8 +446,11 @@ def apply_body_font(document, font_name=BODY_FONT_NAME):
     """Set the body typeface/size on the document's base styles.
 
     Mutates Normal, Normal (Web) and the template heading style in place so
-    every paragraph that inherits from them renders in the body font. Heading
-    keeps the template's size/bold/numbering — only the typeface changes.
+    every paragraph that inherits from them renders in the body font. The
+    heading typeface is set to the body font, and its size is pinned to
+    HEADING_SECTION_SIZE_PT: Ttulo1 has no <w:sz> of its own (basedOn Normal),
+    so without this it would float with the body size and collapse to the body
+    size when BODY_FONT_SIZE_PT shrinks. Bold/numbering stay from the template.
     The font family is overridable so report style presets can pick Arial.
     """
     styles = document.styles
@@ -457,6 +472,7 @@ def apply_body_font(document, font_name=BODY_FONT_NAME):
     try:
         heading = styles[TEMPLATE_HEADING_STYLE]
         heading.font.name = font_name
+        heading.font.size = Pt(HEADING_SECTION_SIZE_PT)
     except KeyError:
         pass
 
@@ -520,14 +536,16 @@ def apply_axia_formatting_compound(document, preset=None):
         pass
 
     # --- 3. NormalWeb (body paragraphs via _add_body_paragraph) ---
-    # Justified, 12pt before/after, single line spacing.
+    # Justified, entrelinha apertada (manual secao 3): single line spacing e
+    # respiro entre paragrafos reduzido (before 0 / after 6pt), espelhando o
+    # modelo institucional. Em 11pt o bloco fica visivelmente mais compacto.
     try:
         body = document.styles["Normal (Web)"]
         body.font.italic = False
         fmt = body.paragraph_format
         fmt.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        fmt.space_before = Pt(12)
-        fmt.space_after = Pt(12)
+        fmt.space_before = Pt(0)
+        fmt.space_after = Pt(6)
         fmt.line_spacing_rule = WD_LINE_SPACING.SINGLE
         _clear_autospacing(body)
     except KeyError:
@@ -552,6 +570,15 @@ def add_heading_paragraph(document, text, ilvl=0):
         numPr.append(ilvl_el)
         numPr.append(numId_el)
         pPr.append(numPr)
+    # Realce institucional Azul-marinho em todos os niveis (manual secao 4) e,
+    # para subtitulos (ilvl>=1, "Torre X"), tamanho menor que a secao para criar
+    # hierarquia — o estilo Ttulo1 e o mesmo em todos os niveis, so a numeracao
+    # muda, entao a diferenca de tamanho vem de um override direto no run.
+    if p.runs:
+        run = p.runs[0]
+        run.font.color.rgb = RGBColor.from_string(AXIA_MARINHO)
+        if ilvl >= 1:
+            run.font.size = Pt(HEADING_SUB_SIZE_PT)
     return p
 
 
@@ -581,16 +608,55 @@ def _set_paragraph_runs_text(runs, new_text):
     return True
 
 
-def update_cover_page_body(document, lt_name, titulo_programa):
-    """Replace cover textbox paragraphs via deterministic anchors.
+def _apply_cover_style(paragraph_el, runs, font_name):
+    """Centraliza a linha da capa e fixa o typeface no primeiro run de texto.
 
-    The institutional template has three lines per cover textbox:
-      p0: "LT <...>"                                    -> lt_name
-      p1: "Programa de monitoramento..."                -> titulo_programa
-      p2: "Inspeção Técnica do Programa..."             -> left untouched
+    A capa mantem negrito/tamanho(12pt)/cor preta do template (igual ao modelo);
+    so adicionamos centralizacao explicita e fonte explicita para a linha nao
+    depender de heranca do tema (importa no preset de compatibilidade Arial).
+    """
+    pPr = paragraph_el.find(qn("w:pPr"))
+    if pPr is None:
+        pPr = OxmlElement("w:pPr")
+        paragraph_el.insert(0, pPr)
+    jc = pPr.find(qn("w:jc"))
+    if jc is None:
+        jc = OxmlElement("w:jc")
+        # w:rPr (props da marca de paragrafo) deve ser o ultimo filho de pPr.
+        rpr_in_ppr = pPr.find(qn("w:rPr"))
+        if rpr_in_ppr is not None:
+            rpr_in_ppr.addprevious(jc)
+        else:
+            pPr.append(jc)
+    jc.set(qn("w:val"), "center")
+    for r in runs:
+        if r.find(qn("w:t")) is None:
+            continue
+        rPr = r.find(qn("w:rPr"))
+        if rPr is None:
+            rPr = OxmlElement("w:rPr")
+            r.insert(0, rPr)
+        rFonts = rPr.find(qn("w:rFonts"))
+        if rFonts is None:
+            rFonts = OxmlElement("w:rFonts")
+            rPr.insert(0, rFonts)
+        rFonts.set(qn("w:ascii"), font_name)
+        rFonts.set(qn("w:hAnsi"), font_name)
+        break
 
-    We match by explicit prefixes instead of loose substring heuristics to
-    avoid clobbering legitimate subtitles on customized templates.
+
+def update_cover_page_body(document, lt_name, titulo_programa, body_font=BODY_FONT_NAME):
+    """Padroniza as 3 linhas da capa (padrao institucional, modelo OOSEMB.RT.075).
+
+    O template tem tres linhas por textbox da capa:
+      p0: "LT <...>"                       -> nome da LT em CAIXA ALTA
+      p1: "Programa de monitoramento..."   -> titulo_programa ou COVER_PROGRAM_LINE
+      p2: "Inspeção Técnica do Programa..."-> COVER_REPORT_LINE
+
+    Casa por prefixo explicito (nao posicional) para nao estragar subtitulos
+    legitimos de templates customizados. Cada linha trocada recebe centralizacao
+    e fonte explicita via _apply_cover_style. A LT vai em CAIXA ALTA SO na capa
+    (normalize_lt_name continua caixa mista para o cabecalho).
     """
     body = document._element.body
     normalized_lt = normalize_lt_name(lt_name) if lt_name else None
@@ -605,13 +671,19 @@ def update_cover_page_body(document, lt_name, titulo_programa):
             if not text:
                 continue
             if normalized_lt and text.startswith("LT "):
-                _set_paragraph_runs_text(runs, normalized_lt)
+                _set_paragraph_runs_text(runs, normalized_lt.upper())
+                _apply_cover_style(p, runs, body_font)
                 continue
-            if titulo_programa and text.startswith("Programa") and not text.startswith("Programa de"):
-                # Custom program title already exists — don't overwrite.
+            if text.startswith("Programa") and not text.startswith("Programa de"):
+                # Titulo de programa ja customizado — nao sobrescrever.
                 continue
-            if titulo_programa and text.startswith("Programa de"):
-                _set_paragraph_runs_text(runs, titulo_programa)
+            if text.startswith("Programa de"):
+                _set_paragraph_runs_text(runs, titulo_programa or COVER_PROGRAM_LINE)
+                _apply_cover_style(p, runs, body_font)
+                continue
+            if text.startswith("Inspeção") or text.startswith("Relatório de Inspeção"):
+                _set_paragraph_runs_text(runs, COVER_REPORT_LINE)
+                _apply_cover_style(p, runs, body_font)
 
 
 def add_cover(document, title, subtitle_lines):
@@ -719,10 +791,20 @@ def add_photo_entry(document, photo, image_loader, photo_index):
             )
             document.add_paragraph("[Imagem indisponível]")
 
+    # Mantem a foto colada a sua legenda: keepNext gruda o paragrafo da imagem
+    # ao da legenda (vao juntos para a proxima pagina se nao couberem) e
+    # keepLines impede que a imagem seja fatiada entre paginas. Vale para a
+    # imagem e para o fallback "[Imagem indisponivel]".
+    image_paragraph = document.paragraphs[-1]
+    image_paragraph.paragraph_format.keep_with_next = True
+    image_paragraph.paragraph_format.keep_together = True
+
     caption = normalize_text(photo.get("caption"))
     caption_style = "Legenda" if _has_style(document, "Legenda") else None
     paragraph = document.add_paragraph(style=caption_style) if caption_style else document.add_paragraph()
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # Legenda de 2+ linhas nao se parte entre paginas.
+    paragraph.paragraph_format.keep_together = True
 
     run_prefix = paragraph.add_run("Foto ")
     run_prefix.bold = False
@@ -1099,7 +1181,12 @@ def render_report_compound_docx(context, output_path, image_loader):
     titulo_programa = normalize_text(shared.get("titulo_programa"))
 
     if used_template:
-        update_cover_page_body(document, lt_name, titulo_programa)
+        update_cover_page_body(
+            document,
+            lt_name,
+            titulo_programa,
+            body_font=report_style.get("body_font", BODY_FONT_NAME),
+        )
     else:
         subtitle_lines = []
         if titulo_programa:

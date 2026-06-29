@@ -378,19 +378,20 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertAlmostEqual(back_cover.left_margin, Cm(0), delta=margin_tolerance)
         self.assertAlmostEqual(back_cover.bottom_margin, Cm(0), delta=margin_tolerance)
 
-        # Normal: DM Sans 14.
+        # Normal: DM Sans 11 (corpo reduzido + entrelinha apertada, manual secao 3).
         normal = document.styles["Normal"]
         self.assertEqual(normal.font.name, "DM Sans")
-        self.assertEqual(normal.font.size, Pt(14))
+        self.assertEqual(normal.font.size, Pt(11))
 
-        # NormalWeb (body paragraph style) — justified DM Sans 14 with 12pt spacing.
+        # NormalWeb (body paragraph style) — justified DM Sans 11, entrelinha
+        # apertada: single line spacing, before 0 / after 6pt.
         body = document.styles["Normal (Web)"]
         self.assertEqual(body.font.name, "DM Sans")
-        self.assertEqual(body.font.size, Pt(14))
+        self.assertEqual(body.font.size, Pt(11))
         self.assertFalse(body.font.italic)
         self.assertEqual(body.paragraph_format.alignment, WD_ALIGN_PARAGRAPH.JUSTIFY)
-        self.assertEqual(body.paragraph_format.space_before, Pt(12))
-        self.assertEqual(body.paragraph_format.space_after, Pt(12))
+        self.assertEqual(body.paragraph_format.space_before, Pt(0))
+        self.assertEqual(body.paragraph_format.space_after, Pt(6))
 
         # Autospacing flags on NormalWeb must be cleared so space_before/after take effect.
         pPr = body.element.find("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pPr")
@@ -406,9 +407,11 @@ class WorkerRuntimeTests(unittest.TestCase):
             spacing_el.attrib,
         )
 
-        # Heading do template: troca apenas o typeface, tamanho/bold ficam do template.
+        # Heading do template: troca o typeface e FIXA o tamanho de secao (14pt),
+        # senao o Ttulo1 (sem sz proprio) herdaria o corpo de 11pt e encolheria.
         heading = document.styles["Ttulo1"]
         self.assertEqual(heading.font.name, "DM Sans")
+        self.assertEqual(heading.font.size, Pt(14))
         # Cor institucional Azul-marinho AXIA fixada em runtime (manual secao 4).
         self.assertEqual(heading.font.color.rgb, RGBColor.from_string("0A003C"))
 
@@ -427,10 +430,12 @@ class WorkerRuntimeTests(unittest.TestCase):
         apply_body_font(document)
 
         self.assertEqual(document.styles["Normal"].font.name, "DM Sans")
-        self.assertEqual(document.styles["Normal"].font.size, Pt(14))
+        self.assertEqual(document.styles["Normal"].font.size, Pt(11))
         self.assertEqual(document.styles["Normal (Web)"].font.name, "DM Sans")
-        self.assertEqual(document.styles["Normal (Web)"].font.size, Pt(14))
+        self.assertEqual(document.styles["Normal (Web)"].font.size, Pt(11))
         self.assertEqual(document.styles["Ttulo1"].font.name, "DM Sans")
+        # Tamanho de secao fixado para nao flutuar com o corpo (basedOn Normal).
+        self.assertEqual(document.styles["Ttulo1"].font.size, Pt(14))
 
     def test_run_once_completes_workspace_kmz_job(self):
         job = {"id": "JOB-KMZ-1", "kind": "workspace_kmz"}
@@ -719,13 +724,15 @@ class WorkerRuntimeTests(unittest.TestCase):
             msg=f"expected >=2 sectPr (content + quarta capa), got {sectpr_count}",
         )
 
-    def test_report_compound_cover_only_replaces_program_subtitle(self):
-        """T2 — titulo_programa only overwrites the 'Programa de ...' line.
+    def test_report_compound_cover_custom_program_and_standard_report_line(self):
+        """titulo_programa custom vai na linha 2; linha 3 vira a canonica.
 
-        The template cover has three textbox lines: LT, Programa subtitle,
-        and 'Inspeção Técnica ...'. The deterministic matcher must only
-        touch the middle line; the third line must remain intact.
+        A capa do template tem tres linhas: LT, subtitulo do Programa e a linha
+        do relatorio. Com titulo_programa custom, a linha 2 recebe o custom; a
+        linha 3 e SEMPRE padronizada para COVER_REPORT_LINE (modelo OOSEMB.RT.075),
+        substituindo o texto longo do template.
         """
+        from worker.docx_renderer import COVER_REPORT_LINE
         context = build_compound_context()
         context["renderModel"]["compound"]["sharedTextsJson"] = {
             "introducao": "Introducao global",
@@ -735,8 +742,42 @@ class WorkerRuntimeTests(unittest.TestCase):
         docx = self._run_compound(context, job_id="JOB-T2")
         plain = read_docx_plain_text(docx)
         self.assertIn("Programa Personalizado", plain)
-        # The inspection subtitle from the template must still be present.
-        self.assertIn("Inspe", plain)
+        self.assertIn(COVER_REPORT_LINE, plain)
+        # O texto longo antigo da linha 3 foi padronizado (nao aparece mais).
+        self.assertNotIn("Inspeção Técnica do Programa de Monitoramento", plain)
+
+    def test_report_compound_cover_standardized(self):
+        """Capa padronizada: linhas 2/3 canonicas, LT em CAIXA ALTA, centralizada.
+
+        Sem titulo_programa, a linha 2 usa o padrao institucional COVER_PROGRAM_LINE.
+        A LT vai em CAIXA ALTA SO na capa (o cabecalho mantem caixa mista). As
+        linhas da capa ficam centralizadas e com fonte explicita (DM Sans no
+        preset padrao).
+        """
+        from worker.docx_renderer import COVER_PROGRAM_LINE, COVER_REPORT_LINE
+        context = build_compound_context()
+        context["renderModel"]["compound"]["sharedTextsJson"] = {
+            "introducao": "Introducao global",
+            "nome_lt": "Projeto Alfa",
+        }
+        docx = self._run_compound(context, job_id="JOB-COVER-STD")
+        plain = read_docx_plain_text(docx)
+        self.assertIn(COVER_PROGRAM_LINE, plain)
+        self.assertIn(COVER_REPORT_LINE, plain)
+        self.assertNotIn("Inspeção Técnica do Programa de Monitoramento", plain)
+
+        # LT em CAIXA ALTA na capa, mas caixa mista no cabecalho.
+        self.assertIn("LT PROJETO ALFA", plain)
+        header_xml = read_metadata_header(docx)
+        self.assertIn("LT Projeto Alfa", header_xml)
+        self.assertNotIn("LT PROJETO ALFA", header_xml)
+
+        # Linhas da capa (textboxes) centralizadas e em DM Sans explicito.
+        doc_xml = read_docx_entry(docx, "word/document.xml")
+        txbx = "".join(re.findall(r"<w:txbxContent>.*?</w:txbxContent>", doc_xml, re.S))
+        self.assertTrue(txbx, "textbox da capa nao encontrado")
+        self.assertIn('<w:jc w:val="center"', txbx)
+        self.assertIn('w:ascii="DM Sans"', txbx)
 
     def test_report_compound_output_keeps_axia_brand(self):
         """O re-skin AXIA sobrevive ao render: tema, fontes e heading institucional.
@@ -767,6 +808,81 @@ class WorkerRuntimeTests(unittest.TestCase):
         )
         self.assertIsNotNone(ttulo1)
         self.assertIn('<w:color w:val="0A003C"', ttulo1.group(0))
+
+    def test_add_photo_entry_keeps_photo_with_caption(self):
+        """Foto colada a legenda: keepNext+keepLines na imagem, keepLines na legenda."""
+        from docx import Document
+        from worker.docx_renderer import add_photo_entry
+
+        document = Document()
+
+        def loader(_media_id):
+            return {"buffer": SAMPLE_PNG_BYTES, "contentType": "image/png"}
+
+        add_photo_entry(
+            document,
+            {"mediaAssetId": "MED-X", "caption": "Erosao na base da torre"},
+            loader,
+            1,
+        )
+        # paragrafos finais: [..., imagem, legenda]
+        caption_p = document.paragraphs[-1]
+        image_p = document.paragraphs[-2]
+        self.assertTrue(image_p.paragraph_format.keep_with_next)
+        self.assertTrue(image_p.paragraph_format.keep_together)
+        self.assertTrue(caption_p.paragraph_format.keep_together)
+
+    def test_report_compound_header_size_unaffected_by_body_shrink(self):
+        """Reducao do corpo (11pt) nao vaza para o cabecalho.
+
+        Os estilos Cabealho/Rodap herdam o tamanho do Normal, mas todos os runs
+        de texto do header2 tem <w:sz> explicito (7/8/9pt = 14/16/18 half-pt),
+        entao a mudanca do corpo nao altera o cabecalho.
+        """
+        docx = self._run_compound(build_compound_context(), job_id="JOB-HDR-SZ")
+        header_xml = read_metadata_header(docx)
+        self.assertTrue(header_xml, "header com 'N° do Documento:' nao encontrado")
+        sizes = set(re.findall(r'<w:sz w:val="(\d+)"', header_xml))
+        # Tamanhos do cabecalho permanecem 7/8/9pt...
+        self.assertTrue(
+            {"14", "16", "18"} & sizes,
+            f"esperava sz 14/16/18 (7/8/9pt) no cabecalho, achei {sizes}",
+        )
+        # ...e o corpo de 11pt (sz 22) nao vazou via heranca do Normal.
+        self.assertNotIn("22", sizes)
+
+    def test_report_compound_heading_hierarchy_sizes_and_navy(self):
+        """Secao 14pt (estilo Ttulo1) e subtitulo de torre 12pt navy (override direto)."""
+        ctx = build_compound_context()
+        ctx["renderModel"]["compound"]["sharedTextsJson"] = {"introducao": "Intro"}
+        ctx["renderModel"]["workspaces"] = [
+            {
+                "workspace": {"id": "RW-1", "nome": "Workspace 1", "status": "draft"},
+                "project": {"id": "PRJ-01", "nome": "Projeto 1"},
+                "photos": [
+                    {"id": "RPH-1", "caption": "X1", "towerId": "T-01",
+                     "includeInReport": True, "mediaAssetId": "MED-A"},
+                ],
+            },
+        ]
+        ctx["renderModel"]["compound"]["orderJson"] = ["RW-1"]
+        ctx["renderModel"]["compound"]["workspaceIds"] = ["RW-1"]
+        docx = self._run_compound(ctx, job_id="JOB-HEAD-HIER")
+
+        # Secao: estilo Ttulo1 fixado em 14pt (sz 28 half-pt).
+        styles_xml = read_docx_entry(docx, "word/styles.xml")
+        ttulo1 = re.search(
+            r'<w:style [^>]*w:styleId="Ttulo1".*?</w:style>', styles_xml, re.S
+        ).group(0)
+        self.assertIn('<w:sz w:val="28"', ttulo1)
+
+        # Subtitulo de torre (ilvl1): run com 12pt (sz 24) e navy 0A003C.
+        doc_xml = read_docx_entry(docx, "word/document.xml")
+        paras = re.findall(r"<w:p[ >].*?</w:p>", doc_xml, re.S)
+        torre = [p for p in paras if "Torre T-01" in p]
+        self.assertTrue(torre, "paragrafo 'Torre T-01' nao encontrado")
+        self.assertIn('<w:sz w:val="24"', torre[0])
+        self.assertIn('<w:color w:val="0A003C"', torre[0])
 
     def _normal_rfonts(self, docx):
         styles = read_docx_entry(docx, "word/styles.xml")
