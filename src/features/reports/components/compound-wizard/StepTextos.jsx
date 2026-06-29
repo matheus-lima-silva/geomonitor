@@ -1,6 +1,7 @@
 import RichTextMini from '../RichTextMini';
 import {
   SECTION_EXAMPLES,
+  SECTION_TEMPLATES,
   PRE_TEXT_SECTION_KEYS,
   CARACTERIZACAO_KEYS,
   POST_TEXT_SECTION_KEYS,
@@ -29,6 +30,7 @@ export default function StepTextos({ draft, onChange }) {
         rows={6}
         value={draft[key] || ''}
         onChange={setField(key)}
+        template={SECTION_TEMPLATES[key] || ''}
       />
     );
   }

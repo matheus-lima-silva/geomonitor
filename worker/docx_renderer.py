@@ -2,6 +2,7 @@ import io
 import logging
 import os
 import re
+import unicodedata
 import zipfile
 from datetime import datetime, timezone
 
@@ -57,6 +58,124 @@ def resolve_report_style(value):
 HEADING_NUM_ID = "12"
 SIGNATURE_LINE = "_________________________________________"
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "assets", "template_relatorio.docx")
+
+# Marcador que, dentro do texto de uma secao, e substituido pela tabela do
+# Quadro 1 de graduacao de criticidade. MANTER EM SINCRONIA com
+# QUADRO_CRITICIDADE_MARKER em
+# src/features/reports/components/compound-wizard/wizardConstants.js.
+QUADRO_CRITICIDADE_MARKER = "[inserir Quadro 1 de graduação de criticidade]"
+
+# Conteudo do Quadro 1 (Graduacao de Criticidade). Header + 12 linhas de
+# criterio, uma coluna por nivel de criticidade. Renderizado como tabela.
+QUADRO_CRITICIDADE_HEADER = [
+    "",
+    "Grau de Criticidade Baixo",
+    "Grau de Criticidade Médio",
+    "Grau de Criticidade Alto",
+    "Grau de Criticidade Muito Alto",
+]
+QUADRO_CRITICIDADE_ROWS = [
+    (
+        "Tipo de Erosão",
+        "Laminar e Splash",
+        "Erosão Laminar Acentuada e Sulcos Erosivos e Ravinas Incipientes",
+        "Sulcos Erosivos Profundos e Ravinamento bem desenvolvido e avanço ativo, Estágio Inicial de Voçorocas",
+        "Voçorocas Ativas e movimentos de massa associados (deslizamentos, solapamento de margens)",
+    ),
+    (
+        "Tipos de Erosão Critérios técnicos",
+        "Perda superficial sem instabilidade",
+        "Sulcos e ravinas iniciais",
+        "Ravinas profundas e avanço ativo",
+        "Voçorocas e instabilidade estrutural",
+    ),
+    (
+        "Profundidade",
+        "Milímetros a poucos centímetros",
+        "30 – 50 centímetros",
+        "50 centímetros até vários metros de profundidade",
+        "Grandes cavidades erosivas de vários metros à dezenas de metros de profundidade",
+    ),
+    (
+        "Declividade do Terreno",
+        "< 6%",
+        "6 – 12 %",
+        "12 – 20 %",
+        "> 20 %",
+    ),
+    (
+        "Medidas Prioritárias – Declividade",
+        "Curvas de nível; cobertura vegetal",
+        "Terraços; plantio em faixas; barraginhas",
+        "Bioengenharia; drenagem controlada; restrição de uso",
+        "Obras de contenção; revegetação arbórea; preservação",
+    ),
+    (
+        "Tipo de Solo",
+        "Laterítico",
+        "Argiloso",
+        "Solos Rasos",
+        "Arenoso",
+    ),
+    (
+        "Medidas Prioritárias – Tipos de Solo – Susceptibilidade",
+        "Manejo do uso; controle do fluxo concentrado",
+        "Drenagem adequada; terraços; revegetação",
+        "Restrição de uso; revegetação; evitar cortes",
+        "Cobertura vegetal permanente; redução do escoamento; barraginhas; bioengenharia",
+    ),
+    (
+        "Diretriz Técnica – Tipos de Solo",
+        "Laterítico – Manejo do uso do solo e controle pontual",
+        "Argiloso – Controle de drenagem superficial e estabilização",
+        "Solos Rasos – Restrição de uso e revegetação permanente",
+        "Arenoso – Priorizar cobertura vegetal contínua e dissipação de energia",
+    ),
+    (
+        "Clima",
+        "Precipitação bem distribuída, baixa intensidade de chuvas",
+        "Períodos de chuva intensa ocasional",
+        "Chuvas intensas e concentradas",
+        "Eventos de chuva extrema frequentes",
+    ),
+    (
+        "Características Técnicas",
+        "Perda superficial de solo, sem concentração de fluxo",
+        "Sulcos visíveis, início de concentração de escoamento",
+        "Feições profundas, avanço ativo",
+        "Grande instabilidade, alto volume de solo removido",
+    ),
+    (
+        "Medidas de Controle e Recuperação",
+        "Preventiva",
+        "Corretiva Leve",
+        "Corretiva Estrutural",
+        "Engenharia e recuperação ambiental",
+    ),
+    (
+        "Medidas Previstas",
+        "Cobertura vegetal; plantio direto; curvas de nível; mulching; controle de tráfego de máquinas; valetas rasas",
+        "Revegetação dirigida; hidrossemeadura; barraginhas; terraços; canaletas vegetadas; dissipadores simples",
+        "Diques de contenção; escadas hidráulicas; gabiões; biomantas; reconformação de taludes; drenagem integrada",
+        "Canalização definitiva; barragens; muros de arrimo; PRAD específico; revegetação com espécies nativas; monitoramento contínuo",
+    ),
+]
+
+
+def _strip_accents(value):
+    return "".join(
+        ch for ch in unicodedata.normalize("NFKD", value) if not unicodedata.combining(ch)
+    )
+
+
+def is_quadro_criticidade_marker(text):
+    """Detecta a linha-marcador do Quadro 1, tolerante a acentos/caixa.
+
+    Casa apenas linhas que comecam com "[inserir quadro 1" (normalizado), o que
+    evita falso-positivo no paragrafo "O Quadro 1 define quatro niveis...".
+    """
+    normalized = _strip_accents(normalize_text(text)).lower()
+    return normalized.startswith("[inserir quadro 1")
 
 
 def normalize_text(value):
@@ -747,6 +866,36 @@ def add_record_table(document, title, records, columns):
             table_row[index].text = value
 
 
+def _set_cell_text(cell, text, *, bold=False, size_pt=7.5):
+    """Escreve texto em uma celula com fonte compacta (tabela densa em A4)."""
+    cell.text = ""
+    paragraph = cell.paragraphs[0]
+    run = paragraph.add_run(normalize_text(text))
+    run.bold = bold
+    run.font.size = Pt(size_pt)
+
+
+def add_criticality_grading_table(document):
+    """Renderiza o Quadro 1 (Graduacao de Criticidade) como tabela.
+
+    Fonte compacta + retrato A4: a tabela tem 5 colunas densas. Header e a 1a
+    coluna (rotulo do criterio) em negrito.
+    """
+    total_rows = 1 + len(QUADRO_CRITICIDADE_ROWS)
+    table = document.add_table(rows=total_rows, cols=len(QUADRO_CRITICIDADE_HEADER))
+    table.style = "Table Grid"
+
+    for index, header in enumerate(QUADRO_CRITICIDADE_HEADER):
+        _set_cell_text(table.rows[0].cells[index], header, bold=True)
+
+    for row_index, row in enumerate(QUADRO_CRITICIDADE_ROWS, start=1):
+        cells = table.rows[row_index].cells
+        for col_index, value in enumerate(row):
+            _set_cell_text(cells[col_index], value, bold=(col_index == 0))
+
+    document.add_paragraph("")
+
+
 def add_workspace_summary(document, workspaces):
     rows = safe_list(workspaces)
     add_heading_paragraph(document, "Workspaces")
@@ -993,12 +1142,16 @@ def resolve_template_metadata(defaults=None, source=None):
     }
 
 
-def add_numbered_text_section(document, title, text):
+def add_numbered_text_section(document, title, text, marker_predicate=None, marker_renderer=None):
     add_heading_paragraph(document, title, ilvl=0)
     for paragraph_text in text.split("\n\n"):
         stripped = normalize_text(paragraph_text)
-        if stripped:
-            _add_body_paragraph(document, stripped)
+        if not stripped:
+            continue
+        if marker_predicate is not None and marker_renderer is not None and marker_predicate(stripped):
+            marker_renderer(document)
+            continue
+        _add_body_paragraph(document, stripped)
 
 
 def format_registro(person):
@@ -1247,7 +1400,13 @@ def render_report_compound_docx(context, output_path, image_loader):
 
     descricao_text = normalize_text(shared.get("descricao_atividades"))
     if descricao_text:
-        add_numbered_text_section(document, "DESCRIÇÃO DAS ATIVIDADES", descricao_text)
+        add_numbered_text_section(
+            document,
+            "DESCRIÇÃO DAS ATIVIDADES",
+            descricao_text,
+            marker_predicate=is_quadro_criticidade_marker,
+            marker_renderer=add_criticality_grading_table,
+        )
 
     include_tower_coords = bool(shared.get("includeTowerCoordinates"))
     tower_coord_format = normalize_text(shared.get("towerCoordinateFormat")) or "decimal"

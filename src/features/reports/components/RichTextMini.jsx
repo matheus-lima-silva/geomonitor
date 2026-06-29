@@ -35,6 +35,20 @@ function insertLineListMarker(textareaEl) {
   return { nextValue, nextSelectionStart, nextSelectionEnd: nextSelectionStart };
 }
 
+// Insere um texto pronto no ponto do cursor, substituindo a selecao atual (se
+// houver). Nao-destrutivo: campo vazio -> preenche; campo com conteudo ->
+// insere onde o cursor esta, sem apagar o resto (undo funciona).
+function insertPlainText(textareaEl, text) {
+  const start = textareaEl.selectionStart;
+  const end = textareaEl.selectionEnd;
+  const value = textareaEl.value;
+  const before = value.slice(0, start);
+  const after = value.slice(end);
+  const nextValue = `${before}${text}${after}`;
+  const nextSelectionStart = start + text.length;
+  return { nextValue, nextSelectionStart, nextSelectionEnd: nextSelectionStart };
+}
+
 export default function RichTextMini({
   label,
   id,
@@ -45,19 +59,11 @@ export default function RichTextMini({
   placeholder = '',
   disabled = false,
   className = '',
+  template = '',
 }) {
   const textareaRef = useRef(null);
 
-  function apply(type) {
-    const el = textareaRef.current;
-    if (!el || disabled) return;
-    let result;
-    if (type === 'list') {
-      result = insertLineListMarker(el);
-    } else {
-      const { prefix, suffix } = WRAPPERS[type];
-      result = insertAroundSelection(el, prefix, suffix);
-    }
+  function applyResult(result) {
     if (typeof onChange === 'function') {
       const syntheticEvent = { target: { value: result.nextValue } };
       onChange(syntheticEvent);
@@ -70,13 +76,34 @@ export default function RichTextMini({
     });
   }
 
-  const toolbarButtonClass = [
-    'inline-flex h-7 w-7 items-center justify-center rounded-md',
+  function apply(type) {
+    const el = textareaRef.current;
+    if (!el || disabled) return;
+    let result;
+    if (type === 'list') {
+      result = insertLineListMarker(el);
+    } else {
+      const { prefix, suffix } = WRAPPERS[type];
+      result = insertAroundSelection(el, prefix, suffix);
+    }
+    applyResult(result);
+  }
+
+  function insertTemplate() {
+    const el = textareaRef.current;
+    if (!el || disabled || !template) return;
+    applyResult(insertPlainText(el, template));
+  }
+
+  const toolbarButtonBase = [
+    'inline-flex h-7 items-center justify-center rounded-md',
     'border border-slate-200 bg-white text-slate-600',
     'hover:bg-slate-50 hover:text-slate-800',
     'disabled:opacity-40 disabled:cursor-not-allowed',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
   ].join(' ');
+  const toolbarButtonClass = `${toolbarButtonBase} w-7`;
+  const toolbarTextButtonClass = `${toolbarButtonBase} gap-1 px-2 text-2xs font-semibold uppercase tracking-wide`;
 
   const textareaClass = [
     'border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-800 bg-white w-full',
@@ -133,6 +160,20 @@ export default function RichTextMini({
         >
           <AppIcon name="list" size={14} />
         </button>
+        {template ? (
+          <button
+            type="button"
+            className={toolbarTextButtonClass}
+            onClick={insertTemplate}
+            disabled={disabled}
+            aria-label="Inserir texto padrão"
+            title="Inserir texto padrão no cursor"
+            data-testid="richtextmini-template"
+          >
+            <AppIcon name="file-plus-2" size={14} />
+            <span>Texto padrão</span>
+          </button>
+        ) : null}
       </div>
 
       <textarea
