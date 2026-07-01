@@ -54,6 +54,7 @@ function draftFromCompound(compound, signatariosCandidatos = []) {
     revisores: revisoresIds,
     includeTowerCoordinates: !!shared.includeTowerCoordinates,
     towerCoordinateFormat: shared.towerCoordinateFormat || 'decimal',
+    includeCriticidadeTable: !!shared.includeCriticidadeTable,
     anexoFichasMode: ['none', 'all', 'selected'].includes(shared.anexoFichasMode)
       ? shared.anexoFichasMode
       : 'none',

@@ -172,6 +172,40 @@ describe('CompoundWizard', () => {
     expect(nameInput.value).toBe('');
   });
 
+  it('toggle "tabela de criticidade" propaga includeCriticidadeTable ao onCreate e à revisão', async () => {
+    const onCreate = vi.fn().mockResolvedValue({ id: 'RC-NEW', nome: 'Relatório X' });
+    renderDefault({ onCreate });
+
+    // Nome obrigatorio no Step 1 (Cabecalho)
+    const nameInput = container.querySelector('#wizard-nome');
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(nameInput, 'Relatório X');
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    // Marca o checkbox da tabela de criticidade (Step Cabecalho)
+    const critCheckbox = Array.from(container.querySelectorAll('input[type="checkbox"]'))
+      .find((el) => el.closest('label')?.textContent?.toLowerCase().includes('criticidade'));
+    expect(critCheckbox).toBeDefined();
+    act(() => critCheckbox.click());
+
+    // A revisao reflete "Sim" para a tabela de criticidade
+    act(() => container.querySelector('[data-testid="wizard-step-bubble-revisao"]').click());
+    expect(container.textContent).toContain('Tabela de criticidade');
+
+    const submitBtn = container.querySelector('[data-testid="wizard-submit"]');
+    await act(async () => {
+      submitBtn.click();
+      await Promise.resolve();
+    });
+
+    expect(onCreate).toHaveBeenCalledTimes(1);
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ includeCriticidadeTable: true }),
+    );
+  });
+
   it('em modo edit, submit vira "Salvar alterações"', () => {
     renderDefault({
       mode: 'edit',
