@@ -1096,6 +1096,13 @@ spans:
   section: null
   label: Sistema móvel de extintores de incêndio
   reviewed: true
+  columns:
+  - key: tipo
+    label: Tipo
+  - key: capacidade
+    label: Capacidade
+  - key: quantidade
+    label: Quantidade
 - id: 98
   part: document
   color: yellow
@@ -1415,6 +1422,19 @@ spans:
   section: null
   label: Anexo IV — Relação de brigadistas
   reviewed: true
+  columns:
+  - key: item
+    label: Item
+  - key: nome
+    label: Nome
+  - key: endereco
+    label: Endereço
+  - key: telefone
+    label: Telefone
+  - key: telefone_interno
+    label: Telefone interno
+  - key: empresa
+    label: Empresa
 - id: 127
   part: document
   color: red
@@ -1426,6 +1446,15 @@ spans:
   section: null
   label: Anexo V — Recursos materiais (BEM)
   reviewed: true
+  columns:
+  - key: item
+    label: Item
+  - key: descricao_material
+    label: Descrição do material
+  - key: unidade
+    label: Unidade
+  - key: quantidade
+    label: Quantidade
 - id: 128
   part: document
   color: red
@@ -1437,6 +1466,13 @@ spans:
   section: null
   label: Pontos de encontro
   reviewed: true
+  columns:
+  - key: numero_ponto
+    label: Nº ponto de encontro
+  - key: local
+    label: Local
+  - key: instrucao
+    label: Instrução
 - id: 129
   part: document
   color: yellow

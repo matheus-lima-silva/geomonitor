@@ -182,6 +182,36 @@ def test_apply_tokeniza_campos_e_limpa_highlights():
     assert manifest["revisionLabel"] == "REV TESTE"
 
 
+def test_apply_repassa_columns_curadas_para_o_bloco():
+    """kind=list curado com `columns` (grade de brigadistas, recursos etc.)
+    repassa a coluna pro manifest; sem curadoria, cai em lista vazia (Fase 2
+    ainda decide as colunas manualmente na curadoria do mapping.yaml)."""
+    doc = Document()
+    doc.add_paragraph().add_run("ITEM | NOME").font.highlight_color = _COLORS["red"]
+    mapping = build_mapping(doc, "s.docx")
+    mapping["spans"][0]["columns"] = [
+        {"key": "item", "label": "Item"},
+        {"key": "nome", "label": "Nome"},
+    ]
+
+    manifest = apply_mapping(doc, mapping, "PAEC", "REV")
+
+    block = manifest["blocks"][0]
+    assert block["kind"] == "list"
+    assert block["columns"] == [
+        {"key": "item", "label": "Item"},
+        {"key": "nome", "label": "Nome"},
+    ]
+
+    other_doc = Document()
+    other_doc.add_paragraph().add_run("anexo VII - ROTA DE FUGA").font.highlight_color = (
+        _COLORS["yellow"]
+    )
+    other_mapping = build_mapping(other_doc, "s.docx")
+    other_manifest = apply_mapping(other_doc, other_mapping, "PAEC", "REV")
+    assert other_manifest["blocks"][0]["columns"] == []
+
+
 def test_apply_ignore_mantem_texto_mas_remove_realce():
     """kind=ignore preserva o texto original (rotulo estatico que nao varia
     por usina) mas remove o realce de curadoria; ao contrario de kind=field,

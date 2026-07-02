@@ -11,6 +11,10 @@ function genId() {
     return `PAEC-${crypto.randomUUID()}`;
 }
 
+function genListItemId() {
+    return `PAECLI-${crypto.randomUUID()}`;
+}
+
 function hydrateHeader(row) {
     return {
         id: row.id,
@@ -44,6 +48,23 @@ async function getFieldsMap(plantId) {
     return fields;
 }
 
+// Blocos tabulares (Fase 2 — brigadistas, recursos BEM, extintores, pontos de
+// encontro etc.): uma linha por item, agrupada por list_key na ordem salva.
+// A API fala `listItems: { listKey: [ {colKey: valor}, ... ] }`; a coluna
+// `row` e JSONB porque as colunas variam por bloco/revisao do manifest.
+async function getListItemsMap(plantId) {
+    const res = await postgresStore.query(
+        'SELECT list_key, row FROM paec_plant_list_items WHERE plant_id = $1 ORDER BY list_key ASC, sort_order ASC',
+        [plantId],
+    );
+    const listItems = {};
+    for (const row of res.rows) {
+        if (!listItems[row.list_key]) listItems[row.list_key] = [];
+        listItems[row.list_key].push(row.row);
+    }
+    return listItems;
+}
+
 async function getFull(id) {
     const plantId = normalizeText(id);
     const res = await postgresStore.query(`${SELECT_PLANT} WHERE id = $1 LIMIT 1`, [plantId]);
@@ -51,6 +72,7 @@ async function getFull(id) {
     return {
         ...hydrateHeader(res.rows[0]),
         fields: await getFieldsMap(plantId),
+        listItems: await getListItemsMap(plantId),
     };
 }
 
@@ -117,6 +139,38 @@ async function rewriteFields(client, plantId, fields, updatedBy) {
     }
 }
 
+function normalizeListItems(listItems) {
+    const entries = [];
+    if (listItems && typeof listItems === 'object') {
+        for (const [listKey, rows] of Object.entries(listItems)) {
+            const key = normalizeText(listKey);
+            if (!key || !Array.isArray(rows)) continue;
+            rows.forEach((row, index) => {
+                if (row && typeof row === 'object' && !Array.isArray(row)) {
+                    entries.push([key, index, row]);
+                }
+            });
+        }
+    }
+    return entries;
+}
+
+// Replace-on-save integral (ao contrario de rewriteFields, que preserva
+// updated_at por chave inalterada): a linha de um bloco tabular e uma
+// unidade so, sem auditoria por celula, entao reescrever tudo a cada save
+// e mais simples e evita diff de array reordenado.
+async function rewriteListItems(client, plantId, listItems, updatedBy) {
+    await client.query('DELETE FROM paec_plant_list_items WHERE plant_id = $1', [plantId]);
+    const entries = normalizeListItems(listItems);
+    for (const [listKey, sortOrder, row] of entries) {
+        await client.query(
+            `INSERT INTO paec_plant_list_items (id, plant_id, list_key, sort_order, row, created_at, updated_at, updated_by)
+             VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), $6)`,
+            [genListItemId(), plantId, listKey, sortOrder, JSON.stringify(row), updatedBy],
+        );
+    }
+}
+
 // 23505 no indice LOWER(name) e traduzido pela rota em 409 NAME_EXISTS.
 async function create(data) {
     const id = normalizeText(data.id) || genId();
@@ -139,14 +193,22 @@ async function create(data) {
             ],
         );
         if (data.copyFromId) {
+            const sourceId = normalizeText(data.copyFromId);
             await client.query(
                 `INSERT INTO paec_plant_fields (plant_id, field_key, value, updated_at, updated_by)
                  SELECT $1, field_key, value, NOW(), $3
                  FROM paec_plant_fields WHERE plant_id = $2`,
-                [id, normalizeText(data.copyFromId), updatedBy],
+                [id, sourceId, updatedBy],
+            );
+            await client.query(
+                `INSERT INTO paec_plant_list_items (id, plant_id, list_key, sort_order, row, created_at, updated_at, updated_by)
+                 SELECT gen_random_uuid()::text, $1, list_key, sort_order, row, NOW(), NOW(), $3
+                 FROM paec_plant_list_items WHERE plant_id = $2`,
+                [id, sourceId, updatedBy],
             );
         } else {
             await rewriteFields(client, id, data.fields, updatedBy);
+            await rewriteListItems(client, id, data.listItems, updatedBy);
         }
         await client.query('COMMIT');
     } catch (err) {
@@ -198,6 +260,7 @@ async function saveFull(id, data, expectedVersion) {
             ],
         );
         await rewriteFields(client, plantId, data.fields, updatedBy);
+        await rewriteListItems(client, plantId, data.listItems, updatedBy);
         await client.query('COMMIT');
     } catch (err) {
         await client.query('ROLLBACK');

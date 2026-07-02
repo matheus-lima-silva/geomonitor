@@ -373,6 +373,7 @@ def apply_mapping(document, mapping, template_name, revision_label):
                     "kind": kind,
                     "label": entry.get("label") or _humanize(key),
                     "anchorContext": entry["context"],
+                    "columns": entry.get("columns") or [],
                     "spanIds": [],
                 },
             )

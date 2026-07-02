@@ -255,6 +255,26 @@ describe('POST /api/paec/plants', () => {
         expect(res.body.data.installedCapacityMw).toBe(12.5);
     });
 
+    it('repassa listItems da Fase 2 pro repository', async () => {
+        paecTemplateRepository.getActive.mockResolvedValueOnce(sampleTemplate());
+        paecPlantRepository.create.mockResolvedValueOnce(samplePlant());
+        await request(app)
+            .post('/api/paec/plants')
+            .set('Authorization', 'Bearer t')
+            .send({
+                data: {
+                    name: 'PCH Anta',
+                    fields: { usina: 'PCH Anta' },
+                    listItems: { brigadistas: [{ nome: 'Fulano', telefone: '(11) 1111-1111' }] },
+                },
+            });
+        expect(paecPlantRepository.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                listItems: { brigadistas: [{ nome: 'Fulano', telefone: '(11) 1111-1111' }] },
+            }),
+        );
+    });
+
     it('400 com plantType invalido', async () => {
         paecTemplateRepository.getActive.mockResolvedValueOnce(sampleTemplate());
         const res = await request(app)
@@ -292,12 +312,23 @@ describe('GET /api/paec/plants/:id', () => {
         const res = await request(app).get('/api/paec/plants/PAEC-1').set('Authorization', 'Bearer t');
         expect(res.status).toBe(200);
         expect(res.body.data.templateRevisionLabel).toBe('REV 10');
-        // usina preenchida; cnpj_1 pendente; bloco brigadistas pendente fixo
+        // usina preenchida; cnpj_1 pendente; bloco brigadistas sem item -> pendente
         expect(res.body.data.pendencies).toEqual([
             expect.objectContaining({ kind: 'field', key: 'cnpj_1' }),
             expect.objectContaining({ kind: 'list', key: 'brigadistas' }),
         ]);
         expect(res.body.data.stats).toEqual({ fieldsFilled: 1, fieldsTotal: 2 });
+    });
+
+    it('bloco list com item salvo deixa de aparecer nas pendencias', async () => {
+        paecPlantRepository.getFull.mockResolvedValueOnce(samplePlant({
+            listItems: { brigadistas: [{ nome: 'Fulano de Tal' }] },
+        }));
+        paecTemplateRepository.getById.mockResolvedValueOnce(sampleTemplate());
+        const res = await request(app).get('/api/paec/plants/PAEC-1').set('Authorization', 'Bearer t');
+        expect(res.status).toBe(200);
+        expect(res.body.data.pendencies.some((p) => p.key === 'brigadistas')).toBe(false);
+        expect(res.body.data.listItems).toEqual({ brigadistas: [{ nome: 'Fulano de Tal' }] });
     });
 });
 

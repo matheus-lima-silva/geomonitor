@@ -20,6 +20,11 @@ const savePaecPlantSchema = z.object({
         version: z.coerce.number().int().optional(),
         copyFromId: z.string().trim().optional(),
         fields: z.record(z.string(), z.string()).optional().default({}),
+        // Blocos tabulares (Fase 2): { listKey: [ {colKey: valor, ...}, ... ] }
+        // conforme manifest.blocks[].columns. Linha replace-on-save integral.
+        listItems: z.record(z.string(), z.array(z.record(z.string(), z.string())))
+            .optional()
+            .default({}),
     }),
     meta: metaSchema,
 });

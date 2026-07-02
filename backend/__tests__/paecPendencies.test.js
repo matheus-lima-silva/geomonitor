@@ -38,6 +38,36 @@ describe('computePendencies', () => {
         expect(computePendencies(null, null)).toEqual([]);
         expect(computePendencies({}, {})).toEqual([]);
     });
+
+    it('bloco list sem nenhum item salvo continua pendencia (sem listItemsMap)', () => {
+        const pendencies = computePendencies(manifest, { usina: 'x', cnpj: 'y' });
+        expect(pendencies).toContainEqual(
+            { kind: 'list', key: 'brigadistas', label: 'Relacao de brigadistas', section: null },
+        );
+    });
+
+    it('bloco list com pelo menos 1 item salvo deixa de ser pendencia', () => {
+        const pendencies = computePendencies(manifest, { usina: 'x', cnpj: 'y' }, {
+            brigadistas: [{ nome: 'Fulano' }],
+        });
+        expect(pendencies.some((p) => p.key === 'brigadistas')).toBe(false);
+    });
+
+    it('bloco list com array vazio continua pendencia', () => {
+        const pendencies = computePendencies(manifest, { usina: 'x', cnpj: 'y' }, { brigadistas: [] });
+        expect(pendencies).toContainEqual(
+            { kind: 'list', key: 'brigadistas', label: 'Relacao de brigadistas', section: null },
+        );
+    });
+
+    it('bloco manual e sempre pendencia, independente de listItemsMap', () => {
+        const pendencies = computePendencies(manifest, { usina: 'x', cnpj: 'y' }, {
+            anexo_vii: [{ qualquer: 'coisa' }],
+        });
+        expect(pendencies).toContainEqual(
+            { kind: 'manual_block', key: 'anexo_vii', label: 'Rota de fuga', section: null },
+        );
+    });
 });
 
 describe('computeStats', () => {
