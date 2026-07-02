@@ -9,10 +9,14 @@ const metaSchema = z.object({
     updatedBy: z.string().optional(),
 }).optional();
 
+const PLANT_TYPES = ['UHE', 'PCH', 'CGH', 'Subestacao'];
+
 const savePaecPlantSchema = z.object({
     data: z.object({
         name: z.string().trim().min(1, 'Nome da usina e obrigatorio'),
         projectId: z.string().trim().optional().nullable(),
+        plantType: z.enum(PLANT_TYPES).optional().nullable(),
+        installedCapacityMw: z.coerce.number().min(0).optional().nullable(),
         version: z.coerce.number().int().optional(),
         copyFromId: z.string().trim().optional(),
         fields: z.record(z.string(), z.string()).optional().default({}),
@@ -51,6 +55,7 @@ const registerPaecTemplateSchema = z.object({
 });
 
 module.exports = {
+    PLANT_TYPES,
     savePaecPlantSchema,
     registerPaecTemplateSchema,
 };

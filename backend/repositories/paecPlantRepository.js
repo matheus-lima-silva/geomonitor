@@ -16,6 +16,8 @@ function hydrateHeader(row) {
         id: row.id,
         name: row.name,
         projectId: row.project_id || null,
+        plantType: row.plant_type || null,
+        installedCapacityMw: row.installed_capacity_mw == null ? null : Number(row.installed_capacity_mw),
         templateId: row.template_id,
         version: Number(row.version) || 1,
         createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
@@ -25,7 +27,8 @@ function hydrateHeader(row) {
 }
 
 const SELECT_PLANT = `
-    SELECT id, name, project_id, template_id, version, created_at, updated_at, updated_by
+    SELECT id, name, project_id, plant_type, installed_capacity_mw,
+           template_id, version, created_at, updated_at, updated_by
     FROM paec_plants
 `;
 
@@ -55,7 +58,8 @@ async function getFull(id) {
 // na rota contra o manifest do template — aqui so o agregado barato).
 async function list() {
     const res = await postgresStore.query(
-        `SELECT p.id, p.name, p.project_id, p.template_id, p.version,
+        `SELECT p.id, p.name, p.project_id, p.plant_type, p.installed_capacity_mw,
+                p.template_id, p.version,
                 p.created_at, p.updated_at, p.updated_by,
                 t.revision_label,
                 COUNT(f.field_key)::int AS filled_fields
@@ -122,12 +126,14 @@ async function create(data) {
     try {
         await client.query('BEGIN');
         await client.query(
-            `INSERT INTO paec_plants (id, name, project_id, template_id, version, created_at, updated_at, updated_by)
-             VALUES ($1, $2, $3, $4, 1, NOW(), NOW(), $5)`,
+            `INSERT INTO paec_plants (id, name, project_id, plant_type, installed_capacity_mw, template_id, version, created_at, updated_at, updated_by)
+             VALUES ($1, $2, $3, $4, $5, $6, 1, NOW(), NOW(), $7)`,
             [
                 id,
                 normalizeText(data.name),
                 normalizeText(data.projectId) || null,
+                normalizeText(data.plantType) || null,
+                data.installedCapacityMw == null ? null : Number(data.installedCapacityMw),
                 normalizeText(data.templateId),
                 updatedBy,
             ],
@@ -179,12 +185,14 @@ async function saveFull(id, data, expectedVersion) {
 
         await client.query(
             `UPDATE paec_plants
-             SET name = $1, project_id = $2, version = version + 1,
-                 updated_at = NOW(), updated_by = $3
-             WHERE id = $4`,
+             SET name = $1, project_id = $2, plant_type = $3, installed_capacity_mw = $4,
+                 version = version + 1, updated_at = NOW(), updated_by = $5
+             WHERE id = $6`,
             [
                 normalizeText(data.name),
                 normalizeText(data.projectId) || null,
+                normalizeText(data.plantType) || null,
+                data.installedCapacityMw == null ? null : Number(data.installedCapacityMw),
                 updatedBy,
                 plantId,
             ],

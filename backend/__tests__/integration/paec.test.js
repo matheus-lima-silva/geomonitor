@@ -116,6 +116,8 @@ function samplePlant(overrides = {}) {
         id: 'PAEC-1',
         name: 'PCH Anta',
         projectId: null,
+        plantType: 'PCH',
+        installedCapacityMw: 12.5,
         templateId: 'PAECT-1',
         version: 1,
         fields: { usina: 'PCH Anta' },
@@ -230,12 +232,38 @@ describe('POST /api/paec/plants', () => {
         const res = await request(app)
             .post('/api/paec/plants')
             .set('Authorization', 'Bearer t')
-            .send({ data: { name: 'PCH Anta', fields: { usina: 'PCH Anta' } } });
+            .send({
+                data: {
+                    name: 'PCH Anta',
+                    plantType: 'PCH',
+                    installedCapacityMw: 12.5,
+                    fields: { usina: 'PCH Anta' },
+                },
+            });
         expect(res.status).toBe(201);
         expect(paecPlantRepository.create).toHaveBeenCalledWith(
-            expect.objectContaining({ name: 'PCH Anta', templateId: 'PAECT-1', updatedBy: 'ana@empresa.com' }),
+            expect.objectContaining({
+                name: 'PCH Anta',
+                templateId: 'PAECT-1',
+                plantType: 'PCH',
+                installedCapacityMw: 12.5,
+                updatedBy: 'ana@empresa.com',
+            }),
         );
         expect(res.body.data._links.self.href).toContain('paec/plants/PAEC-1');
+        expect(res.body.data.plantType).toBe('PCH');
+        expect(res.body.data.installedCapacityMw).toBe(12.5);
+    });
+
+    it('400 com plantType invalido', async () => {
+        paecTemplateRepository.getActive.mockResolvedValueOnce(sampleTemplate());
+        const res = await request(app)
+            .post('/api/paec/plants')
+            .set('Authorization', 'Bearer t')
+            .send({ data: { name: 'PCH Anta', plantType: 'ETE' } });
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe('VALIDATION_ERROR');
+        expect(paecPlantRepository.create).not.toHaveBeenCalled();
     });
 
     it('409 NAME_EXISTS em unique violation', async () => {
@@ -279,12 +307,25 @@ describe('PUT /api/paec/plants/:id', () => {
         const res = await request(app)
             .put('/api/paec/plants/PAEC-1')
             .set('Authorization', 'Bearer t')
-            .send({ data: { name: 'PCH Anta', version: 1, fields: { usina: 'PCH Anta' } } });
+            .send({
+                data: {
+                    name: 'PCH Anta',
+                    version: 1,
+                    plantType: 'PCH',
+                    installedCapacityMw: 12.5,
+                    fields: { usina: 'PCH Anta' },
+                },
+            });
         expect(res.status).toBe(200);
         expect(res.body.data.version).toBe(2);
         expect(paecPlantRepository.saveFull).toHaveBeenCalledWith(
             'PAEC-1',
-            expect.objectContaining({ updatedBy: 'ana@empresa.com', fields: { usina: 'PCH Anta' } }),
+            expect.objectContaining({
+                updatedBy: 'ana@empresa.com',
+                fields: { usina: 'PCH Anta' },
+                plantType: 'PCH',
+                installedCapacityMw: 12.5,
+            }),
             1,
         );
     });

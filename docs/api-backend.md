@@ -143,7 +143,7 @@ Singleton por usuario (tabela `monthly_report_settings`, payload JSONB): cadastr
 
 ## PAEC (`/api/paec`)
 
-Modulo do portal relat.lima.rio.br (Plano de Atendimento as Emergencias da Central). Ficha "titulo chave -> texto valor" por usina, **unica e compartilhada entre editores** (nao user-owned). Modelo relacional (migration `0026`): `paec_templates` (revisoes do modelo canonico tokenizado — docx `{{placeholders}}` no storage de midia + `manifest` JSONB gerado por `worker/tools/paec_tokenizer.py`; no maximo 1 `active` por `name`) + `paec_plants` (header por usina com `version` para concorrencia otimista) + `paec_plant_fields` (uma linha por campo preenchido, auditavel). Body validado por `backend/schemas/paecSchemas.js` (envelope `{ data, meta }`). Pendencias computadas server-side por `backend/utils/paecPendencies.js` (fonte unica: rota de detalhe, contexto do worker e `resultMeta` do job).
+Modulo do portal relat.lima.rio.br (Plano de Atendimento as Emergencias da Central). Ficha "titulo chave -> texto valor" por usina, **unica e compartilhada entre editores** (nao user-owned). Modelo relacional (migration `0026`, `0027`): `paec_templates` (revisoes do modelo canonico tokenizado — docx `{{placeholders}}` no storage de midia + `manifest` JSONB gerado por `worker/tools/paec_tokenizer.py`; no maximo 1 `active` por `name`) + `paec_plants` (header por usina com `version` para concorrencia otimista, mais `plant_type`/`installed_capacity_mw` — identidade basica da usina, fora do manifest tokenizado, nao entra no DOCX) + `paec_plant_fields` (uma linha por campo preenchido, auditavel). Body validado por `backend/schemas/paecSchemas.js` (envelope `{ data, meta }`). Pendencias computadas server-side por `backend/utils/paecPendencies.js` (fonte unica: rota de detalhe, contexto do worker e `resultMeta` do job).
 
 | Metodo | Rota | Permissao | Descricao |
 |---|---|---|---|
@@ -158,7 +158,7 @@ Modulo do portal relat.lima.rio.br (Plano de Atendimento as Emergencias da Centr
 | DELETE | `/api/paec/plants/:id` | `requireAdmin` | Remove a ficha (CASCADE nos campos) |
 | POST | `/api/paec/plants/:id/generate` | `requireEditor` | Enfileira `report_job` (`kind=paec_report`; `paecPlantId`+`paecTemplateId` no payload — `template_id` da tabela tem FK para `report_templates` e nao e usado); 422 `TEMPLATE_UNAVAILABLE` sem docx tokenizado; 202 com link para `GET /report-jobs/:id` |
 
-`data` do plant: `{ name, projectId?, version?, copyFromId?, fields{ <chave do manifest>: <valor> } }`. O DOCX e renderizado pelo worker (`worker/paec_renderer.py`, `kind=paec_report`): baixa o template tokenizado, substitui `{{chave}}`/`{{chave|upper|title}}`, campo sem valor vira `[[PENDENTE: <label>]]` com realce amarelo, e devolve `resultMeta{pendencies,stats}` no `PUT /report-jobs/:id/complete` (persistido no payload do job; exposto no `GET /report-jobs/:id`). Contexto: `buildPaecContext` em `backend/utils/reportJobContext.js`.
+`data` do plant: `{ name, projectId?, plantType?, installedCapacityMw?, version?, copyFromId?, fields{ <chave do manifest>: <valor> } }`. `plantType` in `UHE|PCH|CGH|Subestacao`. O DOCX e renderizado pelo worker (`worker/paec_renderer.py`, `kind=paec_report`): baixa o template tokenizado, substitui `{{chave}}`/`{{chave|upper|title}}`, campo sem valor vira `[[PENDENTE: <label>]]` com realce amarelo, e devolve `resultMeta{pendencies,stats}` no `PUT /report-jobs/:id/complete` (persistido no payload do job; exposto no `GET /report-jobs/:id`). Contexto: `buildPaecContext` em `backend/utils/reportJobContext.js`.
 
 ---
 
