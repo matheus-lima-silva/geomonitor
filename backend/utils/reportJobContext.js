@@ -13,9 +13,12 @@ const {
     workspaceKmzRequestRepository,
     monthlyReportRepository,
     monthlyReportSettingsRepository,
+    paecTemplateRepository,
+    paecPlantRepository,
 } = require('../repositories');
 
 const { convertDecimalToUtm, normalizeLocationCoordinates } = require('./erosionCoordinates_dist');
+const { computePendencies, computeStats } = require('./paecPendencies');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -465,6 +468,47 @@ async function buildMonthlyReportContext(job) {
     };
 }
 
+// Contexto COMPLETO do PAEC: o worker nao faz query extra — recebe o docx
+// tokenizado (media id), o catalogo do manifest, os valores da ficha e as
+// pendencias ja computadas (worker complementa com unresolved_token).
+async function buildPaecContext(job) {
+    const plantId = normalizeText(job.paecPlantId);
+    const plant = await paecPlantRepository.getFull(plantId);
+    if (!plant) {
+        throw createMissingResourceError(`Ficha PAEC '${plantId}' nao encontrada para o job.`);
+    }
+    const template = await paecTemplateRepository.getById(
+        normalizeText(job.paecTemplateId) || plant.templateId,
+    );
+    if (!template || !normalizeText(template.tokenizedDocxMediaId)) {
+        throw createMissingResourceError(
+            `Template PAEC do job nao encontrado ou sem docx tokenizado (ficha '${plantId}').`,
+        );
+    }
+    const manifest = template.manifest || {};
+
+    return {
+        job,
+        project: null,
+        defaults: null,
+        renderModel: {
+            paecReport: {
+                plant: { id: plant.id, name: plant.name },
+                template: {
+                    id: template.id,
+                    revisionLabel: template.revisionLabel,
+                    tokenizedDocxMediaId: template.tokenizedDocxMediaId,
+                },
+                fields: Array.isArray(manifest.fields) ? manifest.fields : [],
+                blocks: Array.isArray(manifest.blocks) ? manifest.blocks : [],
+                values: plant.fields,
+                pendencies: computePendencies(manifest, plant.fields),
+                stats: computeStats(manifest, plant.fields),
+            },
+        },
+    };
+}
+
 async function buildReportJobContext(jobId) {
     const job = await reportJobRepository.getById(jobId);
     if (!job) {
@@ -489,6 +533,10 @@ async function buildReportJobContext(jobId) {
 
     if (job.kind === 'monthly_report') {
         return buildMonthlyReportContext(job);
+    }
+
+    if (job.kind === 'paec_report') {
+        return buildPaecContext(job);
     }
 
     const error = new Error(`Nao existe contexto de renderizacao para jobs do tipo '${job.kind}'.`);

@@ -22,6 +22,8 @@ const rulesConfigRepository = require('./rulesConfigRepository');
 const workspaceMemberRepository = require('./workspaceMemberRepository');
 const monthlyReportRepository = require('./monthlyReportRepository');
 const monthlyReportSettingsRepository = require('./monthlyReportSettingsRepository');
+const paecTemplateRepository = require('./paecTemplateRepository');
+const paecPlantRepository = require('./paecPlantRepository');
 const adminSqlAuditRepository = require('./adminSqlAuditRepository');
 const adminSqlSnippetsRepository = require('./adminSqlSnippetsRepository');
 const systemAlertsRepository = require('./systemAlertsRepository');
@@ -54,4 +56,6 @@ module.exports = {
     workspaceMemberRepository,
     monthlyReportRepository,
     monthlyReportSettingsRepository,
+    paecTemplateRepository,
+    paecPlantRepository,
 };

@@ -196,6 +196,20 @@ def set_run_text(run, text):
                 run.append(t)
 
 
+def set_run_highlight(run, color):
+    """Add/replace the ``w:highlight`` of a run (e.g. the yellow mark on
+    ``[[PENDENTE]]`` placeholders in generated PAECs)."""
+    rpr = run.find(qn("w:rPr"))
+    if rpr is None:
+        rpr = run.makeelement(qn("w:rPr"), {})
+        run.insert(0, rpr)
+    hl = rpr.find(qn("w:highlight"))
+    if hl is None:
+        hl = rpr.makeelement(qn("w:highlight"), {})
+        rpr.append(hl)
+    hl.set(qn("w:val"), color)
+
+
 def replace_span_text(span, new_text, drop_highlight=True):
     """Collapse ``span`` into its first run carrying ``new_text``.
 

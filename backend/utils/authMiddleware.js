@@ -170,6 +170,9 @@ const requireEditor = requireRoles(['Admin', 'Administrador', 'Editor', 'Gerente
 const requireAdmin = requireRoles(['Admin', 'Administrador']);
 const requireActiveUserOrWorker = allowWorkerOrRunStack([verifyToken, requireActiveUser]);
 const requireEditorOrWorker = allowWorkerOrRunStack([verifyToken, ...requireEditor]);
+// Rotas administrativas que scripts internos chamam com WORKER_API_TOKEN
+// (ex.: registro de template PAEC via backend/scripts/registerPaecTemplate.js).
+const requireAdminOrWorker = allowWorkerOrRunStack([verifyToken, ...requireAdmin]);
 
 module.exports = {
     verifyToken,
@@ -178,6 +181,7 @@ module.exports = {
     requireAdmin,
     requireActiveUserOrWorker,
     requireEditorOrWorker,
+    requireAdminOrWorker,
     getCachedProfile,
     setCachedProfile,
     invalidateCachedProfile,

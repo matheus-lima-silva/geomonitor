@@ -211,6 +211,11 @@ async function markComplete(id, outputIds = {}, meta = {}) {
         statusExecucao: 'completed',
         outputDocxMediaId: normalizeText(outputIds.outputDocxMediaId) || job.outputDocxMediaId,
         outputKmzMediaId: normalizeText(outputIds.outputKmzMediaId) || job.outputKmzMediaId,
+        // Metadados do resultado devolvidos pelo worker (ex.: pendencias do
+        // PAEC). Persistem no payload JSONB do job e voltam no GET /:id.
+        ...(outputIds.resultMeta && typeof outputIds.resultMeta === 'object'
+            ? { resultMeta: outputIds.resultMeta }
+            : {}),
         updatedAt: new Date().toISOString(),
         updatedBy: normalizeText(meta.updatedBy) || job.updatedBy || 'API',
     };
