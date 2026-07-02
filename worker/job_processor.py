@@ -8,6 +8,7 @@ import tempfile
 from worker.docx_renderer import render_context_to_docx
 from worker.kmz_renderer import render_context_to_kmz
 from worker.monthly_report_renderer import render_context_to_docx as render_monthly_report_to_docx
+from worker.paec_renderer import render_paec_to_docx
 from worker.logging_utils import timed_phase
 
 
@@ -180,6 +181,13 @@ def build_output_file_name(context):
         mm = f"{int(ref_month) + 1:02d}" if ref_month is not None and normalize_text(ref_month) != "" else "mes"
         return f"relatorio-atividades-{ref_year}-{mm}.docx"
 
+    if kind == "paec_report":
+        paec = render_model.get("paecReport") if isinstance(render_model, dict) else {}
+        plant = paec.get("plant") if isinstance(paec, dict) else {}
+        plant_name = normalize_text(plant.get("name")) or normalize_text(job.get("paecPlantId")) or "usina"
+        safe_name = "".join(c if c.isalnum() or c in " -_." else "-" for c in plant_name).strip() or "usina"
+        return f"PAEC - {safe_name}.docx"
+
     return f"relatorio-{normalize_text(job.get('id')) or 'job'}.docx"
 
 
@@ -298,6 +306,59 @@ def process_monthly_report_job(client, job_id, context, staging_dir):
     }
 
 
+def process_paec_report_job(client, job_id, context, staging_dir):
+    file_name = build_output_file_name(context)
+    output_path = os.path.join(staging_dir, file_name)
+
+    render_model = context.get("renderModel") if isinstance(context, dict) else {}
+    paec = render_model.get("paecReport") if isinstance(render_model, dict) else {}
+    template = paec.get("template") if isinstance(paec, dict) else {}
+    template_media_id = normalize_text(template.get("tokenizedDocxMediaId"))
+    if not template_media_id:
+        return {
+            "status": "failed",
+            "errorLog": f"Contexto do job '{job_id}' sem tokenizedDocxMediaId do template PAEC.",
+        }
+
+    with timed_phase(logger, "download_template", job_id=job_id, mediaId=template_media_id):
+        downloaded = client.download_media_content(template_media_id)
+    template_bytes = (downloaded or {}).get("buffer")
+    if not template_bytes:
+        return {
+            "status": "failed",
+            "errorLog": f"Template PAEC '{template_media_id}' veio vazio para o job '{job_id}'.",
+        }
+
+    with timed_phase(logger, "render_paec", job_id=job_id, fileName=file_name):
+        result_meta = render_paec_to_docx(context, template_bytes, output_path)
+
+    with timed_phase(logger, "read_output", job_id=job_id, path=output_path):
+        with open(output_path, "rb") as handle:
+            content = handle.read()
+
+    if not content:
+        return {
+            "status": "failed",
+            "errorLog": f"O arquivo DOCX gerado para '{job_id}' ficou vazio.",
+        }
+
+    with timed_phase(logger, "upload_output", job_id=job_id, sizeBytes=len(content)):
+        media_id = upload_output_media(
+            client,
+            job_id,
+            file_name=file_name,
+            content_type=DOCX_CONTENT_TYPE,
+            purpose="paec_report_docx",
+            content=content,
+        )
+
+    return {
+        "status": "completed",
+        "outputDocxMediaId": media_id,
+        "resultMeta": result_meta,
+    }
+
+
 def process_workspace_kmz_job(client, job_id, context, staging_dir):
     file_name = build_output_file_name(context)
     output_path = os.path.join(staging_dir, file_name)
@@ -367,6 +428,9 @@ def process_claimed_job(client, job):
 
             if kind == "monthly_report":
                 return process_monthly_report_job(client, job_id, context, staging_dir)
+
+            if kind == "paec_report":
+                return process_paec_report_job(client, job_id, context, staging_dir)
 
             if kind == "workspace_kmz":
                 return process_workspace_kmz_job(client, job_id, context, staging_dir)

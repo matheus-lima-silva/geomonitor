@@ -616,11 +616,11 @@ spans:
   text: Endereço
   context: Endereço
   kind: field
-  key: endereco
+  key: endereco_instalacao
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: 'Identificação da instalação'
+  label: Endereço
+  reviewed: true
 - id: 55
   part: document
   color: yellow
@@ -726,11 +726,11 @@ spans:
   text: ' Nome'
   context: Nome
   kind: field
-  key: nome
+  key: nome_representante_legal_usina
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: 'Representante legal (Usina)'
+  label: Nome
+  reviewed: true
 - id: 65
   part: document
   color: yellow
@@ -748,11 +748,11 @@ spans:
   text: ' Endereço'
   context: Endereço
   kind: field
-  key: endereco
+  key: endereco_representante_legal_usina
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: 'Representante legal (Usina)'
+  label: Endereço
+  reviewed: true
 - id: 67
   part: document
   color: yellow
@@ -814,22 +814,22 @@ spans:
   text: ' E-mail'
   context: E-mail
   kind: field
-  key: e_mail
+  key: email_representante_legal_usina
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: 'Representante legal (Usina)'
+  label: E-mail
+  reviewed: true
 - id: 73
   part: document
   color: yellow
   text: Nome
   context: Nome
   kind: field
-  key: nome
+  key: nome_representante_legal_subestacao
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: 'Representante legal (Subestação)'
+  label: Nome
+  reviewed: true
 - id: 74
   part: document
   color: yellow
@@ -847,11 +847,11 @@ spans:
   text: Endereço
   context: Endereço
   kind: field
-  key: endereco
+  key: endereco_representante_legal_subestacao
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: 'Representante legal (Subestação)'
+  label: Endereço
+  reviewed: true
 - id: 76
   part: document
   color: yellow
@@ -891,11 +891,11 @@ spans:
   text: E-mail
   context: E-mail
   kind: field
-  key: e_mail
+  key: email_representante_legal_subestacao
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: 'Representante legal (Subestação)'
+  label: E-mail
+  reviewed: true
 - id: 80
   part: document
   color: yellow

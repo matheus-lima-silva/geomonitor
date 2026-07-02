@@ -1,0 +1,178 @@
+import io
+import json
+import os
+from unittest.mock import Mock
+
+import pytest
+from docx import Document
+from docx.enum.text import WD_COLOR_INDEX
+
+from worker.docx_runs import collect_all_spans
+from worker.paec_renderer import render_paec_to_docx
+from worker.job_processor import build_output_file_name, process_paec_report_job
+from worker.runtime import WorkerClient
+
+FIXTURE_PATH = os.path.join(os.path.dirname(__file__), "fixtures", "paec_render_model.json")
+
+
+def _load_fixture():
+    with open(FIXTURE_PATH, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _build_context(overrides=None):
+    fixture = _load_fixture()
+    paec = dict(fixture["paecReport"])
+    paec.update(overrides or {})
+    return {
+        "job": {"id": "JOB-1", "kind": "paec_report", "paecPlantId": paec["plant"]["id"]},
+        "renderModel": {"paecReport": paec},
+    }
+
+
+def _template_bytes():
+    """Template tokenizado sintetico com os padroes reais: placeholder puro,
+    com transform, com indentacao de capa e em celula de tabela."""
+    doc = Document()
+    doc.add_paragraph("Plano da usina {{usina}}.")
+    doc.add_paragraph("PROTEGER AS INSTALACOES DA {{usina|upper}};")
+    doc.add_paragraph("          {{usina}} ")
+    table = doc.add_table(rows=2, cols=2)
+    table.rows[0].cells[0].paragraphs[0].add_run("CNPJ")
+    table.rows[0].cells[1].paragraphs[0].add_run("{{cnpj_1}}")
+    table.rows[1].cells[0].paragraphs[0].add_run("Endereco")
+    table.rows[1].cells[1].paragraphs[0].add_run("{{endereco_rep}}")
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
+
+
+def _all_text(path):
+    doc = Document(path)
+    chunks = [p.text for p in doc.paragraphs]
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    chunks.append(p.text)
+    return "\n".join(chunks)
+
+
+def _render(tmp_path, overrides=None, template=None):
+    output = os.path.join(str(tmp_path), "out.docx")
+    result = render_paec_to_docx(_build_context(overrides), template or _template_bytes(), output)
+    return output, result
+
+
+# ---------------------------------------------------------------------------
+# render_paec_to_docx
+# ---------------------------------------------------------------------------
+def test_substitui_placeholders_com_transform(tmp_path):
+    output, _result = _render(tmp_path)
+    text = _all_text(output)
+    assert "Plano da usina PCH Anta." in text
+    assert "PROTEGER AS INSTALACOES DA PCH ANTA;" in text
+    assert "{{usina" not in text
+
+
+def test_preserva_indentacao_da_capa(tmp_path):
+    output, _result = _render(tmp_path)
+    doc = Document(output)
+    cover = [p.text for p in doc.paragraphs if p.text.strip() == "PCH Anta" and p.text != "PCH Anta"]
+    assert cover, "paragrafo de capa indentado deveria manter os espacos"
+    assert cover[0].startswith("          ")
+
+
+def test_valor_multilinha_vira_quebras_reais(tmp_path):
+    output, _result = _render(tmp_path)
+    doc = Document(output)
+    endereco_cell = doc.tables[0].rows[1].cells[1]
+    assert endereco_cell.paragraphs[0].text == "Rua A, 123\nCentro - Sapucaia/RJ".replace("\n", "\n")
+    # o \n do valor vira w:br (nao texto literal "\\n")
+    xml = endereco_cell.paragraphs[0]._p.xml
+    assert "<w:br/>" in xml
+
+
+def test_campo_sem_valor_vira_pendente_realcado(tmp_path):
+    output, result = _render(tmp_path)
+    text = _all_text(output)
+    assert "[[PENDENTE: CNPJ]]" in text
+
+    doc = Document(output)
+    spans = collect_all_spans(doc)
+    assert any(s.color == "yellow" and "PENDENTE: CNPJ" in s.text for s in spans)
+
+    fields = [p for p in result["pendencies"] if p["kind"] == "field"]
+    assert [p["key"] for p in fields] == ["cnpj_1"]
+    assert fields[0]["label"] == "CNPJ"
+
+
+def test_token_desconhecido_vira_unresolved_token(tmp_path):
+    doc = Document()
+    doc.add_paragraph("{{image:rota_de_fuga}}")
+    buffer = io.BytesIO()
+    doc.save(buffer)
+
+    output, result = _render(tmp_path, template=buffer.getvalue())
+    unresolved = [p for p in result["pendencies"] if p["kind"] == "unresolved_token"]
+    assert len(unresolved) == 1
+    assert "image:rota_de_fuga" in unresolved[0]["key"]
+    # o token permanece visivel e realcado no documento
+    assert "{{image:rota_de_fuga}}" in _all_text(output)
+
+
+def test_repassa_pendencias_de_blocos_do_backend(tmp_path):
+    _output, result = _render(tmp_path)
+    kinds = [(p["kind"], p["key"]) for p in result["pendencies"]]
+    assert ("list", "brigadistas") in kinds
+    assert ("manual_block", "anexo_vii_rota_de_fuga") in kinds
+    assert result["stats"] == {"fieldsFilled": 2, "fieldsTotal": 3}
+
+
+def test_ficha_completa_nao_gera_pendencia_de_campo(tmp_path):
+    values = {"usina": "PCH Anta", "cnpj_1": "00.001.180/0038-18", "endereco_rep": "Rua A"}
+    _output, result = _render(tmp_path, overrides={"values": values})
+    assert [p for p in result["pendencies"] if p["kind"] in ("field", "unresolved_token")] == []
+
+
+# ---------------------------------------------------------------------------
+# job_processor: handler + nome de arquivo
+# ---------------------------------------------------------------------------
+def test_build_output_file_name_paec():
+    context = _build_context()
+    assert build_output_file_name(context) == "PAEC - PCH Anta.docx"
+
+
+def test_process_paec_report_job_baixa_template_e_completa(tmp_path):
+    client = Mock(spec=WorkerClient)
+    client.download_media_content.return_value = {
+        "statusCode": 200,
+        "buffer": _template_bytes(),
+        "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+    client.create_output_media.return_value = {
+        "id": "MEDIA-out",
+        "upload": {"href": "/api/media/MEDIA-out/upload", "method": "PUT"},
+    }
+
+    result = process_paec_report_job(client, "JOB-1", _build_context(), str(tmp_path))
+
+    client.download_media_content.assert_called_once_with("MEDIA-tok")
+    assert result["status"] == "completed"
+    assert result["outputDocxMediaId"] == "MEDIA-out"
+    assert any(p["key"] == "cnpj_1" for p in result["resultMeta"]["pendencies"])
+
+    created = client.create_output_media.call_args
+    assert created.kwargs["purpose"] == "paec_report_docx"
+    assert created.kwargs["file_name"] == "PAEC - PCH Anta.docx"
+    client.upload_media_binary.assert_called_once()
+    client.complete_media_upload.assert_called_once()
+
+
+def test_process_paec_report_job_falha_sem_template_media(tmp_path):
+    client = Mock(spec=WorkerClient)
+    context = _build_context({"template": {"id": "PAECT-1", "revisionLabel": "REV", "tokenizedDocxMediaId": ""}})
+    result = process_paec_report_job(client, "JOB-1", context, str(tmp_path))
+    assert result["status"] == "failed"
+    assert "tokenizedDocxMediaId" in result["errorLog"]
+    client.download_media_content.assert_not_called()

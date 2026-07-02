@@ -708,25 +708,15 @@
       ]
     },
     {
-      "key": "endereco",
-      "label": "Endereco",
-      "section": null,
+      "key": "endereco_instalacao",
+      "label": "Endereço",
+      "section": "Identificação da instalação",
       "type": "text",
       "required": true,
       "sampleValue": "Endereço",
       "occurrences": [
         {
           "spanId": 54,
-          "part": "document",
-          "transform": "none"
-        },
-        {
-          "spanId": 66,
-          "part": "document",
-          "transform": "none"
-        },
-        {
-          "spanId": 75,
           "part": "document",
           "transform": "none"
         }
@@ -853,9 +843,9 @@
       ]
     },
     {
-      "key": "nome",
+      "key": "nome_representante_legal_usina",
       "label": "Nome",
-      "section": null,
+      "section": "Representante legal (Usina)",
       "type": "text",
       "required": true,
       "sampleValue": "Nome",
@@ -864,9 +854,19 @@
           "spanId": 64,
           "part": "document",
           "transform": "none"
-        },
+        }
+      ]
+    },
+    {
+      "key": "endereco_representante_legal_usina",
+      "label": "Endereço",
+      "section": "Representante legal (Usina)",
+      "type": "text",
+      "required": true,
+      "sampleValue": "Endereço",
+      "occurrences": [
         {
-          "spanId": 73,
+          "spanId": 66,
           "part": "document",
           "transform": "none"
         }
@@ -948,9 +948,9 @@
       ]
     },
     {
-      "key": "e_mail",
-      "label": "E mail",
-      "section": null,
+      "key": "email_representante_legal_usina",
+      "label": "E-mail",
+      "section": "Representante legal (Usina)",
       "type": "text",
       "required": true,
       "sampleValue": "E-mail",
@@ -959,9 +959,19 @@
           "spanId": 72,
           "part": "document",
           "transform": "none"
-        },
+        }
+      ]
+    },
+    {
+      "key": "nome_representante_legal_subestacao",
+      "label": "Nome",
+      "section": "Representante legal (Subestação)",
+      "type": "text",
+      "required": true,
+      "sampleValue": "Nome",
+      "occurrences": [
         {
-          "spanId": 79,
+          "spanId": 73,
           "part": "document",
           "transform": "none"
         }
@@ -977,6 +987,21 @@
       "occurrences": [
         {
           "spanId": 74,
+          "part": "document",
+          "transform": "none"
+        }
+      ]
+    },
+    {
+      "key": "endereco_representante_legal_subestacao",
+      "label": "Endereço",
+      "section": "Representante legal (Subestação)",
+      "type": "text",
+      "required": true,
+      "sampleValue": "Endereço",
+      "occurrences": [
+        {
+          "spanId": 75,
           "part": "document",
           "transform": "none"
         }
@@ -1022,6 +1047,21 @@
       "occurrences": [
         {
           "spanId": 78,
+          "part": "document",
+          "transform": "none"
+        }
+      ]
+    },
+    {
+      "key": "email_representante_legal_subestacao",
+      "label": "E-mail",
+      "section": "Representante legal (Subestação)",
+      "type": "text",
+      "required": true,
+      "sampleValue": "E-mail",
+      "occurrences": [
+        {
+          "spanId": 79,
           "part": "document",
           "transform": "none"
         }
@@ -1499,7 +1539,7 @@
     }
   ],
   "stats": {
-    "unreviewedSpans": 133,
+    "unreviewedSpans": 126,
     "spans": 133,
     "yellow": 129,
     "red": 4

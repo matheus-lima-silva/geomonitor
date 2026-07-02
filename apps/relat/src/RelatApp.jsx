@@ -4,6 +4,7 @@ import { useAuth } from '@app/context/AuthContext';
 import { useToast } from '@app/context/ToastContext';
 import MonthlyReportPage from './features/monthly-report/MonthlyReportPage';
 import GeoPhotosKmzPage from './features/geo/GeoPhotosKmzPage';
+import PaecPage from './features/paec/PaecPage';
 
 /**
  * Shell do Portal de Relatorios (relat.lima.rio.br).
@@ -36,6 +37,10 @@ export default function RelatApp() {
     return <GeoPhotosKmzPage onExit={() => setActiveModule(null)} />;
   }
 
+  if (activeModule === 'paec') {
+    return <PaecPage onExit={() => setActiveModule(null)} />;
+  }
+
   return (
     <main className="min-h-screen bg-app-bg">
       <div className="mx-auto max-w-5xl px-6 py-8">
@@ -66,6 +71,16 @@ export default function RelatApp() {
               Um lote de fotos vira um KMZ com marcadores no GPS do EXIF — montado no navegador, sem upload.
             </p>
             <Button variant="primary" size="sm" onClick={() => setActiveModule('geo')}>
+              Abrir
+            </Button>
+          </Card>
+
+          <Card>
+            <h3 className="text-base font-semibold text-slate-800 m-0">PAEC — Planos de Emergência</h3>
+            <p className="text-sm text-slate-500 mt-1 mb-3">
+              Fichas de dados por usina e geração do Plano de Atendimento às Emergências atualizado.
+            </p>
+            <Button variant="primary" size="sm" onClick={() => setActiveModule('paec')}>
               Abrir
             </Button>
           </Card>

@@ -61,12 +61,14 @@ class WorkerClient:
         )
         return payload.get("data") if isinstance(payload, dict) else None
 
-    def mark_complete(self, job_id, output_docx_media_id=None, output_kmz_media_id=None):
+    def mark_complete(self, job_id, output_docx_media_id=None, output_kmz_media_id=None, result_meta=None):
         payload = {"data": {}}
         if normalize_text(output_docx_media_id):
             payload["data"]["outputDocxMediaId"] = normalize_text(output_docx_media_id)
         if normalize_text(output_kmz_media_id):
             payload["data"]["outputKmzMediaId"] = normalize_text(output_kmz_media_id)
+        if isinstance(result_meta, dict) and result_meta:
+            payload["data"]["resultMeta"] = result_meta
         return self._request_json(
             "PUT",
             f"/api/report-jobs/{parse.quote(normalize_text(job_id))}/complete",
@@ -481,6 +483,7 @@ class WorkerRuntime:
                         job_id,
                         output_docx_media_id=result.get("outputDocxMediaId"),
                         output_kmz_media_id=result.get("outputKmzMediaId"),
+                        result_meta=result.get("resultMeta"),
                     )
                 finished_at = utc_now()
                 self.state.note_completed(finished_at, job_id)
