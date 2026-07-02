@@ -53,3 +53,7 @@ Thumbs.db
 
 # Notas locais preservadas para Claude Code (escopo diferido)
 .claude-notes/
+
+# PAEC: docx do modelo canonico (marcado/tokenizado) vivem no MinIO, nao no git.
+# mapping.yaml e manifest.json (curadoria + catalogo) ficam versionados.
+worker/assets/paec/**/*.docx
