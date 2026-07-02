@@ -1,0 +1,5 @@
+# Dev-only tooling for the worker (CLI de tokenizacao do PAEC + testes).
+# O container de producao usa apenas requirements.txt.
+-r requirements.txt
+pytest
+PyYAML
