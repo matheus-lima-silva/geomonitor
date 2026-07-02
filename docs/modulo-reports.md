@@ -223,11 +223,13 @@ Testes: [src/features/reports/utils/__tests__/towerCurationStatus.test.js](../sr
 
 ## Anexo de fichas de erosao simplificada
 
-O wizard de criacao/edicao do compound tem uma etapa dedicada a anexar fichas de erosao simplificada **apos as assinaturas** no DOCX final. O conteudo aparece sob o heading `ANEXO - FICHAS DE EROSÃO SIMPLIFICADA`, com uma pagina por erosao e ordenacao crescente pelo numero da torre.
+O wizard de criacao/edicao do compound tem uma etapa dedicada a anexar fichas de erosao simplificada **apos as assinaturas** no DOCX final. O conteudo aparece sob o heading `ANEXO - FICHAS DE CADASTRO DE EROSÃO`, com uma pagina por erosao e ordenacao crescente pelo numero da torre.
 
 Persistencia no `sharedTextsJson` do compound:
 - `anexoFichasMode`: `none` (default) | `all` | `selected`.
 - `anexoFichasErosionIds`: usado quando `anexoFichasMode = 'selected'`; array de ids de `erosions` (uma entrada por ficha).
+
+> Nota de rotulos (jul/2026): a secao de fotos do compound usa o heading `INVENTÁRIO FOTOGRÁFICO` (antes `ILUSTRAÇÃO FOTOGRÁFICA`) e a ficha usa o rotulo `Altitude:` (antes o typo `Atitude:`). O toggle `includeCriticidadeTable` (default `false`) no [StepCabecalho.jsx](../src/features/reports/components/compound-wizard/StepCabecalho.jsx) insere a Tabela 1 (Grau de criticidade) na secao "Descricao das Atividades". O output do compound tambem forca `w:updateFields` para o Word recalcular o Sumario ao abrir.
 
 O backend monta `renderModel.compound.anexoFichas = { erosions, projectName }` em [buildReportCompoundContext](../backend/utils/reportJobContext.js) quando o modo nao e `none`, reaproveitando `enrichErosionWithUtm`. O worker usa o helper `append_fichas_cadastro_to_document` ([worker/ficha_cadastro_renderer.py](../worker/ficha_cadastro_renderer.py)) — o mesmo codigo que a rota standalone `POST /api/erosions/fichas-cadastro/generate`.
 

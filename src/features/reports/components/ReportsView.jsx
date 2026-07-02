@@ -126,6 +126,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
     revisores: [],
     includeTowerCoordinates: false,
     towerCoordinateFormat: 'decimal',
+    includeCriticidadeTable: false,
   });
   const [profissoes, setProfissoes] = useState([]);
   const [signatariosCandidatos, setSignatariosCandidatos] = useState([]);
@@ -1438,6 +1439,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
       revisores: revisoresArr,
       includeTowerCoordinates: !!draft.includeTowerCoordinates,
       towerCoordinateFormat: draft.towerCoordinateFormat || 'decimal',
+      includeCriticidadeTable: !!draft.includeCriticidadeTable,
       anexoFichasMode: ['none', 'all', 'selected'].includes(draft.anexoFichasMode)
         ? draft.anexoFichasMode
         : 'none',
@@ -1470,7 +1472,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
         nome: '', nome_lt: '', titulo_programa: '', codigo_documento: '', revisao: '00',
         introducao: '', geologia: '', geotecnia: '', geomorfologia: '', descricao_atividades: '',
         conclusoes: '', analise_evolucao: '', observacoes: '', elaboradores: [], revisores: [],
-        includeTowerCoordinates: false, towerCoordinateFormat: 'decimal',
+        includeTowerCoordinates: false, towerCoordinateFormat: 'decimal', includeCriticidadeTable: false,
       });
       await refreshCompounds();
       showToast('Relatório criado.', 'success');

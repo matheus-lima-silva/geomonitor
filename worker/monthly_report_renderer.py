@@ -269,13 +269,14 @@ def _float_picture_full_page(run, page_width, page_height):
 
 
 def _enable_update_fields(document):
-    """Word atualiza o TOC (numeros de pagina) ao abrir o documento."""
-    settings = document.settings.element
-    el = settings.find(qn("w:updateFields"))
-    if el is None:
-        el = OxmlElement("w:updateFields")
-        settings.append(el)
-    el.set(qn("w:val"), "true")
+    """Word atualiza o TOC (numeros de pagina) ao abrir o documento.
+
+    Delega ao helper compartilhado em docx_renderer (import tardio para evitar
+    ciclo de import no carregamento do modulo).
+    """
+    from worker.docx_renderer import enable_update_fields
+
+    enable_update_fields(document)
 
 
 def _add_toc_field(paragraph):

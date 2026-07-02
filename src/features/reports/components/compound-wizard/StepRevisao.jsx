@@ -65,6 +65,10 @@ export default function StepRevisao({
           value={draft.includeTowerCoordinates ? `Sim (${draft.towerCoordinateFormat || 'decimal'})` : 'Não'}
         />
         <SummaryRow
+          label="Tabela de criticidade"
+          value={draft.includeCriticidadeTable ? 'Sim' : 'Não'}
+        />
+        <SummaryRow
           label="Estilo do relatório"
           value={(REPORT_STYLES.find((style) => style.value === (draft.reportStyle || DEFAULT_REPORT_STYLE)) || REPORT_STYLES[0]).label}
         />

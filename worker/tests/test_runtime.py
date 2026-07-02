@@ -361,7 +361,7 @@ class WorkerRuntimeTests(unittest.TestCase):
         uploaded_docx = client.uploaded_media[0][1]
         document_text = read_docx_plain_text(uploaded_docx)
         self.assertIn("Introducao global", document_text)
-        self.assertIn("ILUSTRA\u00c7\u00c3O FOTOGR\u00c1FICA", document_text)
+        self.assertIn("INVENT\u00c1RIO FOTOGR\u00c1FICO", document_text)
         self.assertIn("Foto 1", document_text)
         self.assertIn("Foto 2", document_text)
 
@@ -1101,7 +1101,50 @@ class WorkerRuntimeTests(unittest.TestCase):
         self.assertGreaterEqual(idx_sig, 0, "assinatura deveria estar no DOCX")
         self.assertGreaterEqual(idx_anexo, 0, "heading ANEXO deveria estar no DOCX")
         self.assertGreater(idx_anexo, idx_sig, "ANEXO deve vir apos as assinaturas")
-        self.assertIn("FICHAS DE EROS", plain)
+        self.assertIn("FICHAS DE CADASTRO DE EROS", plain)
+
+    def test_report_compound_criticidade_table_included_when_toggled_on(self):
+        """includeCriticidadeTable=True insere a Tabela 1 na Descricao das Atividades."""
+        ctx = build_compound_context()
+        ctx["renderModel"]["compound"]["sharedTextsJson"] = {
+            "introducao": "Introducao global",
+            "descricao_atividades": "Metodologia de campo.",
+            "includeCriticidadeTable": True,
+        }
+        docx = self._run_compound(ctx, job_id="JOB-CRIT-ON")
+        plain = read_docx_plain_text(docx)
+        self.assertIn("Tabela 1 - Grau de criticidade.", plain)
+        self.assertIn("Grau de Criticidade Muito Alto", plain)
+
+    def test_report_compound_criticidade_table_absent_by_default(self):
+        """Sem o toggle, a Tabela 1 nao deve aparecer."""
+        ctx = build_compound_context()
+        ctx["renderModel"]["compound"]["sharedTextsJson"] = {
+            "introducao": "Introducao global",
+            "descricao_atividades": "Metodologia de campo.",
+        }
+        docx = self._run_compound(ctx, job_id="JOB-CRIT-OFF")
+        plain = read_docx_plain_text(docx)
+        self.assertNotIn("Tabela 1 - Grau de criticidade.", plain)
+
+    def test_report_compound_signature_includes_local(self):
+        """O bloco de assinatura emite a linha de local (default Rio de Janeiro)."""
+        ctx = build_compound_context()
+        ctx["renderModel"]["compound"]["sharedTextsJson"] = {
+            "introducao": "Introducao global",
+            "elaboradores": [
+                {"nome": "Fulano", "profissao": "Engenheiro", "registro": "CREA-RJ 123"}
+            ],
+        }
+        docx = self._run_compound(ctx, job_id="JOB-SIG-LOCAL")
+        plain = read_docx_plain_text(docx)
+        self.assertIn("Rio de Janeiro,", plain)
+
+    def test_report_compound_enables_update_fields(self):
+        """O output forca o Word a recalcular o Sumario (updateFields) ao abrir."""
+        docx = self._run_compound(build_compound_context(), job_id="JOB-UPDATE-FIELDS")
+        settings_xml = read_docx_entry(docx, "word/settings.xml")
+        self.assertIn("w:updateFields", settings_xml)
 
     def test_report_compound_without_anexo_fichas(self):
         """Sem anexoFichas, o heading ANEXO nao deve aparecer."""
@@ -1173,8 +1216,8 @@ class WorkerRuntimeTests(unittest.TestCase):
         plain = read_docx_plain_text(docx)
         # O heading nivel 1 de fallback aparece...
         self.assertIn("Fotos sem agrupamento", plain)
-        # ...e vem depois da secao de ilustracao, junto com as fotos.
-        idx_section = plain.find("ILUSTRA")
+        # ...e vem depois da secao de inventario fotografico, junto com as fotos.
+        idx_section = plain.find("INVENT")
         idx_fallback = plain.find("Fotos sem agrupamento")
         idx_foto1 = plain.find("Foto 1 - Y1")
         idx_foto2 = plain.find("Foto 2 - Y2")
@@ -1207,6 +1250,48 @@ class WorkerRuntimeTests(unittest.TestCase):
         body_len_before = len(document._element.body.getchildren())
         append_fichas_cadastro_to_document(document, [], "Projeto X")
         self.assertEqual(len(document._element.body.getchildren()), body_len_before)
+
+    def test_ficha_uses_altitude_label_not_atitude(self):
+        """A ficha usa o rotulo 'Altitude:' (typo 'Atitude' corrigido no template + codigo)."""
+        from docx import Document
+        from worker.ficha_cadastro_renderer import append_fichas_cadastro_to_document
+
+        erosions = [{
+            "id": "EROS-1",
+            "torreRef": "T-01",
+            "criticalityCode": "C1",
+            "locationCoordinates": {
+                "utmEasting": "500000",
+                "utmNorthing": "7000000",
+                "altitude": "820",
+            },
+        }]
+        document = Document()
+        append_fichas_cadastro_to_document(document, erosions, "Projeto Teste")
+        buf = io.BytesIO()
+        document.save(buf)
+        plain = read_docx_plain_text(buf.getvalue())
+        self.assertIn("Altitude:", plain)
+        self.assertNotIn("Atitude:", plain)
+
+    def test_classify_dimension_leaves_10_to_30m_unmarked(self):
+        """10-30m nao tem opcao no template: retorna None em vez de marcar '>30m'."""
+        from worker.ficha_cadastro_renderer import _classify_dimension
+
+        self.assertEqual(_classify_dimension(0.5), 0)   # Ate 1 metro
+        self.assertEqual(_classify_dimension(5), 1)      # 1 a 10 metros
+        self.assertIsNone(_classify_dimension(15))       # 10-30m -> sem opcao
+        self.assertEqual(_classify_dimension(45), 2)     # Maior que 30 metros
+        self.assertIsNone(_classify_dimension(None))
+
+    def test_format_date_long_ptbr(self):
+        """Data por extenso em pt-BR sem depender de locale."""
+        from worker.docx_renderer import format_date_long_ptbr
+
+        self.assertEqual(
+            format_date_long_ptbr("2026-07-01T16:15:00Z"),
+            "01 de julho de 2026",
+        )
 
     def test_project_dossier_photo_numbering_sequential(self):
         """T8 — multiple photos produce sequential 'Foto N' captions."""

@@ -16,7 +16,7 @@ FICHA_TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "assets", "templat
 # Row 2: Ficha n (cols 0-8), Data (cols 9-11)
 # Row 3: Profissional (1 merged cell)
 # Row 4: LOCALIZACAO (section header, skip)
-# Row 5: UTM E (cols 0-8), Atitude (cols 9-11)
+# Row 5: UTM E (cols 0-8), Altitude (cols 9-11)
 # Row 6: UTM S (cols 0-8), Fotos (cols 9-11)
 # Row 7: area checkboxes: Faixa Servidao (col 0), Area Terceiros (col 3), Area Publica (col 9)
 # Row 8: Referencia (1 merged cell)
@@ -138,13 +138,20 @@ def _classify_declividade(graus):
 
 
 def _classify_dimension(metros):
-    """Classify dimension in meters to template ranges: Ate 1m, 1-10m, >30m."""
+    """Classify dimension in meters to template ranges: Ate 1m, 1-10m, >30m.
+
+    O template so possui tres faixas (Ate 1m / 1 a 10m / Maior que 30m); nao ha
+    opcao para "10 a 30 metros". Nesse intervalo retornamos None (nenhuma opcao
+    marcada) em vez de marcar ">30m", que seria factualmente incorreto.
+    """
     if metros is None or not isinstance(metros, (int, float)):
         return None
     if metros <= 1:
         return 0  # Ate 1 metro
     if metros <= 10:
         return 1  # 1 a 10 metros
+    if metros <= 30:
+        return None  # faixa 10-30m sem opcao no template: nao marca nada
     return 2  # Maior que 30 metros
 
 
@@ -248,7 +255,7 @@ def _fill_ficha_table(table, erosion, project_name):
     if cell_prof:
         _append_text_to_label(cell_prof, "Profissional:", normalize_text(erosion.get("updatedBy")))
 
-    # --- Row 5: UTM E / Altitude ---
+    # --- Row 5: UTM E / Altitude (rotulo do template era "Atitude", corrigido) ---
     cells_r5 = _get_unique_cells(rows[5])
     cell_utme = _find_cell_by_col(cells_r5, 0)
     cell_alt = _find_cell_by_col(cells_r5, 9)
@@ -263,7 +270,7 @@ def _fill_ficha_table(table, erosion, project_name):
         _append_text_to_label(cell_utme, "UTM E:", f"{utm_e}{fuso_suffix}" if utm_e else "")
     if cell_alt:
         altitude = normalize_text(location.get("altitude"))
-        _append_text_to_label(cell_alt, "Atitude:", altitude)
+        _append_text_to_label(cell_alt, "Altitude:", altitude)
 
     # --- Row 6: UTM S / Fotos ---
     cells_r6 = _get_unique_cells(rows[6])

@@ -234,6 +234,45 @@ def format_emission_date(value=None):
         return text
 
 
+# Meses por extenso em pt-BR. Evita depender de `locale` (nao confiavel no
+# container distroless do worker) para formatar a data da linha de assinatura.
+_MESES_PTBR = [
+    "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+]
+
+
+def format_date_long_ptbr(value=None):
+    """Formata uma data como '01 de julho de 2026' (pt-BR, sem depender de locale)."""
+    parsed = None
+    text = normalize_text(value)
+    if text:
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            parsed = parsed.astimezone(timezone.utc)
+        except ValueError:
+            parsed = None
+    if parsed is None:
+        parsed = datetime.now(timezone.utc)
+    return f"{parsed.day:02d} de {_MESES_PTBR[parsed.month - 1]} de {parsed.year}"
+
+
+def enable_update_fields(document):
+    """Faz o Word recalcular campos (TOC/Sumário, SEQ Foto) ao abrir o documento.
+
+    Sem isso, o campo TOC herdado do template exibe entradas em cache (paginas
+    e titulos antigos) ate o usuario atualizar os campos manualmente.
+    """
+    settings = document.settings.element
+    el = settings.find(qn("w:updateFields"))
+    if el is None:
+        el = OxmlElement("w:updateFields")
+        settings.append(el)
+    el.set(qn("w:val"), "true")
+
+
 def normalize_lt_name(value, fallback="Relatorio"):
     text = normalize_text(value) or normalize_text(fallback) or "Relatorio"
     return text if text.upper().startswith("LT ") else f"LT {text}"
@@ -1008,11 +1047,159 @@ def add_photo_entry(document, photo, image_loader, photo_index):
         paragraph.add_run(f" - {caption}")
 
 
+# Tabela 1 - Grau de criticidade. Matriz de referencia estatica reproduzida do
+# relatorio finalizado (LT 750 kV Itabera - Tijuco Preto II). Colunas: rotulo +
+# os quatro graus (Baixo / Medio / Alto / Muito Alto). Fonte cruzada:
+# docs/metodologia-criticidade-v3.md.
+CRITICIDADE_TABLE_HEADER = [
+    "",
+    "Grau de Criticidade Baixo",
+    "Grau de Criticidade Médio",
+    "Grau de Criticidade Alto",
+    "Grau de Criticidade Muito Alto",
+]
+
+CRITICIDADE_TABLE_ROWS = [
+    (
+        "Tipo de Erosão",
+        "Laminar e Splash",
+        "Erosão Laminar Acentuada e Sulcos Erosivos e Ravinas Incipientes",
+        "Sulcos Erosivos Profundos e Ravinamento bem desenvolvido e avanço ativo, Estágio Inicial de Voçorocas",
+        "Voçorocas Ativas e movimentos de massa associados (deslizamentos, solapamento de margens)",
+    ),
+    (
+        "Tipos de Erosão Critérios técnicos",
+        "Perda superficial sem instabilidade",
+        "Sulcos e ravinas iniciais",
+        "Ravinas profundas e avanço ativo",
+        "Voçorocas e instabilidade estrutural",
+    ),
+    (
+        "Profundidade",
+        "Milímetros a poucos centímetros",
+        "30 – 50 centímetros",
+        "50 centímetros até vários metros de profundidade",
+        "Grandes cavidades erosivas de vários metros às dezenas de metros de profundidade",
+    ),
+    (
+        "Declividade do Terreno",
+        "< 6%",
+        "6 – 12 %",
+        "12 – 20 %",
+        "> 20 %",
+    ),
+    (
+        "Medidas Prioritárias – Declividade",
+        "Curvas de nível; cobertura vegetal",
+        "Terraços; plantio em faixas; barraginhas",
+        "Bioengenharia; drenagem controlada; restrição de uso",
+        "Obras de contenção; revegetação arbórea; preservação",
+    ),
+    (
+        "Tipo de Solo",
+        "Laterítico",
+        "Argiloso",
+        "Solos Rasos",
+        "Arenoso",
+    ),
+    (
+        "Medidas Prioritárias – Tipos de Solo – Susceptibilidade",
+        "Manejo do uso; controle do fluxo concentrado",
+        "Drenagem adequada; terraços; revegetação",
+        "Restrição de uso; revegetação; evitar cortes",
+        "Cobertura vegetal permanente; redução do escoamento; barraginhas; bioengenharia",
+    ),
+    (
+        "Diretriz Técnica – Tipos de Solo",
+        "Laterítico – Manejo do uso do solo e controle pontual",
+        "Argiloso – Controle de drenagem superficial e estabilização",
+        "Solos Rasos – Restrição de uso e revegetação permanente",
+        "Arenoso – Priorizar cobertura vegetal contínua e dissipação de energia",
+    ),
+    (
+        "Clima",
+        "Precipitação bem distribuída, baixa intensidade de chuvas",
+        "Períodos de chuva intensa ocasional",
+        "Chuvas intensas e concentradas",
+        "Eventos de chuva extrema frequentes",
+    ),
+    (
+        "Características Técnicas",
+        "Perda superficial de solo, sem concentração de fluxo",
+        "Sulcos visíveis, início de concentração de escoamento",
+        "Feições profundas, avanço ativo",
+        "Grande instabilidade, alto volume de solo removido",
+    ),
+    (
+        "Medidas de Controle e Recuperação",
+        "Preventiva",
+        "Corretiva Leve",
+        "Corretiva Estrutural",
+        "Engenharia e recuperação ambiental",
+    ),
+    (
+        "Medidas Previstas",
+        "Cobertura vegetal; plantio direto; curvas de nível; mulching; controle de tráfego de máquinas; valetas rasas",
+        "Revegetação dirigida; hidrossemeadura; barraginhas; terraços; canaletas vegetadas; dissipadores simples",
+        "Diques de contenção; escadas hidráulicas; gabiões; biomantas; reconformação de taludes; drenagem integrada",
+        "Canalização definitiva; barragens; muros de arrimo; PRAD específico; revegetação com espécies nativas; monitoramento contínuo",
+    ),
+]
+
+CRITICIDADE_TABLE_CAPTION = "Tabela 1 - Grau de criticidade."
+
+CRITICIDADE_TABLE_PARAGRAPHS = [
+    "A Tabela 1 define quatro níveis de criticidade (baixo, médio, alto e muito alto) a partir de critérios "
+    "técnicos que incluem o tipo de erosão – desde perdas superficiais (erosão laminar) até sulcos, ravinas e "
+    "voçorocas com movimentos de massa –, a profundidade das feições, a declividade do terreno, o tipo e a "
+    "suscetibilidade do solo, além de características morfológicas associadas à intensidade das chuvas e ao "
+    "volume de solo removido.",
+    "Para cada categoria de criticidade, a tabela indica medidas prioritárias de controle e recuperação, que "
+    "variam de práticas preventivas (cobertura vegetal, curvas de nível) a obras de contenção e bioengenharia "
+    "nos casos de maior severidade. A adoção desse critério de classificação permite priorizar as intervenções "
+    "e orientar as soluções de engenharia a serem aplicadas em cada ponto vistoriado.",
+]
+
+
+def add_criticidade_table(document):
+    """Insere a Tabela 1 (Grau de criticidade) + legenda + parágrafos explicativos.
+
+    Conteúdo estático de referência (não depende de dados do relatório). Deve ser
+    chamada dentro da seção "DESCRIÇÃO DAS ATIVIDADES" — não emite heading numerado.
+    """
+    table = document.add_table(rows=1, cols=len(CRITICIDADE_TABLE_HEADER))
+    table.style = "Table Grid"
+    for index, header in enumerate(CRITICIDADE_TABLE_HEADER):
+        cell = table.rows[0].cells[index]
+        cell.text = header
+        for paragraph in cell.paragraphs:
+            for run in paragraph.runs:
+                run.bold = True
+
+    for row in CRITICIDADE_TABLE_ROWS:
+        cells = table.add_row().cells
+        for index, value in enumerate(row):
+            cells[index].text = value
+        # Primeira coluna (rótulo do critério) em negrito.
+        for paragraph in cells[0].paragraphs:
+            for run in paragraph.runs:
+                run.bold = True
+
+    # Legenda centralizada (estilo "Legenda" do template, se existir).
+    caption_style = "Legenda" if _has_style(document, "Legenda") else None
+    caption = document.add_paragraph(style=caption_style) if caption_style else document.add_paragraph()
+    caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    caption.add_run(CRITICIDADE_TABLE_CAPTION)
+
+    for text in CRITICIDADE_TABLE_PARAGRAPHS:
+        _add_body_paragraph(document, text)
+
+
 def add_photos_section(
     document,
     photos,
     image_loader,
-    section_title="ILUSTRAÇÃO FOTOGRÁFICA",
+    section_title="INVENTÁRIO FOTOGRÁFICO",
     group_by_tower=True,
     tower_lookup=None,
     coordinate_format=None,
@@ -1169,7 +1356,7 @@ def format_registro(person):
     return " ".join(parts)
 
 
-def add_signature_block(document, elaboradores, revisores):
+def add_signature_block(document, elaboradores, revisores, local=None, data=None):
     # Only start a new page if there is signature content AND there is
     # already content on the current page; otherwise we risk emitting a
     # blank page (e.g. when the previous section ended with its own break).
@@ -1221,6 +1408,14 @@ def add_signature_block(document, elaboradores, revisores):
         spacer.paragraph_format.space_before = Pt(12)
         spacer.paragraph_format.space_after = Pt(0)
     _render_group("Revisto por:", safe_list(revisores))
+
+    # Linha de local + data por extenso (ex.: "Rio de Janeiro, 01 de julho de 2026").
+    local_data = ", ".join(part for part in (normalize_text(local), normalize_text(data)) if part)
+    if local_data and (safe_list(elaboradores) or safe_list(revisores)):
+        spacer = document.add_paragraph()
+        spacer.paragraph_format.space_before = Pt(24)
+        spacer.paragraph_format.space_after = Pt(0)
+        _add_centered(local_data)
 
 
 def render_project_dossier_docx(context, output_path, image_loader):
@@ -1408,6 +1603,12 @@ def render_report_compound_docx(context, output_path, image_loader):
             marker_renderer=add_criticality_grading_table,
         )
 
+    # Tabela 1 (Grau de criticidade) — opcional, controlada pelo toggle
+    # includeCriticidadeTable no wizard. Reproduz a matriz de referencia do
+    # relatorio finalizado; faz parte da secao Descricao das Atividades.
+    if bool(shared.get("includeCriticidadeTable")):
+        add_criticidade_table(document)
+
     include_tower_coords = bool(shared.get("includeTowerCoordinates"))
     tower_coord_format = normalize_text(shared.get("towerCoordinateFormat")) or "decimal"
 
@@ -1425,7 +1626,7 @@ def render_report_compound_docx(context, output_path, image_loader):
         use_tower_grouping = True
         ws = ensure_dict(bundle.get("workspace"))
         ws_name = normalize_text(ws.get("nome")) or normalize_text(ws.get("id"))
-        section_title = f"ILUSTRAÇÃO FOTOGRÁFICA - {ws_name}" if len(workspaces) > 1 and ws_name else "ILUSTRAÇÃO FOTOGRÁFICA"
+        section_title = f"INVENTÁRIO FOTOGRÁFICO - {ws_name}" if len(workspaces) > 1 and ws_name else "INVENTÁRIO FOTOGRÁFICO"
 
         tower_lookup = None
         if include_tower_coords:
@@ -1455,7 +1656,15 @@ def render_report_compound_docx(context, output_path, image_loader):
     elaboradores = safe_list(shared.get("elaboradores"))
     revisores = safe_list(shared.get("revisores"))
     if elaboradores or revisores:
-        add_signature_block(document, elaboradores, revisores)
+        local_assinatura = normalize_text(shared.get("local_assinatura")) or "Rio de Janeiro"
+        data_assinatura = format_date_long_ptbr(job.get("updatedAt") or job.get("createdAt"))
+        add_signature_block(
+            document,
+            elaboradores,
+            revisores,
+            local=local_assinatura,
+            data=data_assinatura,
+        )
 
     anexo_fichas = ensure_dict(compound.get("anexoFichas"))
     anexo_erosions = safe_list(anexo_fichas.get("erosions"))
@@ -1463,7 +1672,7 @@ def render_report_compound_docx(context, output_path, image_loader):
         from worker.ficha_cadastro_renderer import append_fichas_cadastro_to_document
 
         document.add_page_break()
-        add_heading_paragraph(document, "ANEXO - FICHAS DE EROSÃO SIMPLIFICADA", ilvl=0)
+        add_heading_paragraph(document, "ANEXO - FICHAS DE CADASTRO DE EROSÃO", ilvl=0)
         append_fichas_cadastro_to_document(
             document,
             anexo_erosions,
@@ -1481,6 +1690,9 @@ def render_report_compound_docx(context, output_path, image_loader):
             job.get("updatedAt") or job.get("createdAt"),
             revision,
         )
+        # O TOC (Sumário) herdado do template exibe entradas em cache até o Word
+        # recalcular os campos; forçamos a atualização ao abrir o documento.
+        enable_update_fields(document)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     document.save(output_path)

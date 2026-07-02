@@ -1,4 +1,4 @@
-import { Input, Select } from '../../../../components/ui';
+import { Input, Select, HintText } from '../../../../components/ui';
 import { REPORT_STYLES, DEFAULT_REPORT_STYLE } from './wizardConstants';
 
 // Step 1 — identificacao do documento. Este 'Cabecalho' e a metadata exibida
@@ -119,6 +119,24 @@ export default function StepCabecalho({ draft, onChange, missingRequired }) {
             </Select>
           </div>
         ) : null}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Opções de conteúdo
+        </p>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-brand-600"
+            checked={!!draft.includeCriticidadeTable}
+            onChange={(event) => set('includeCriticidadeTable', event.target.checked)}
+          />
+          <span>Incluir tabela de grau de criticidade (Tabela 1)</span>
+        </label>
+        <HintText className="mt-2">
+          Insere a matriz de referência de criticidade na seção Descrição das Atividades.
+        </HintText>
       </div>
     </div>
   );

@@ -58,6 +58,7 @@ export const DEFAULT_DRAFT = Object.freeze({
   revisores: [],
   includeTowerCoordinates: false,
   towerCoordinateFormat: 'decimal',
+  includeCriticidadeTable: false,
   anexoFichasMode: 'none',
   anexoFichasErosionIds: [],
   reportStyle: DEFAULT_REPORT_STYLE,
