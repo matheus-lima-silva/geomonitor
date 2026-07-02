@@ -129,6 +129,7 @@ router.put('/:id/complete', requireEditorOrWorker, async (req, res) => {
         const job = await reportJobRepository.markComplete(req.params.id, {
             outputDocxMediaId: data.outputDocxMediaId,
             outputKmzMediaId: data.outputKmzMediaId,
+            resultMeta: data.resultMeta,
         }, {
             updatedBy: resolveActor(req),
         });

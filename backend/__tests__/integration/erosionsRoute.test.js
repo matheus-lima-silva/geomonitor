@@ -13,6 +13,7 @@ jest.mock('../../utils/authMiddleware', () => {
         requireActiveUserOrWorker: pass,
         requireEditor: [pass],
         requireEditorOrWorker: pass,
+        requireAdminOrWorker: pass,
         requireAdmin: [pass],
         getCachedProfile: jest.fn(() => null),
         setCachedProfile: jest.fn(),

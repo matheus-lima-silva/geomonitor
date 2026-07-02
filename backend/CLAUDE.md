@@ -36,6 +36,7 @@ Em [utils/authMiddleware.js](utils/authMiddleware.js):
 - `requireEditor` — perfil em `{Admin, Administrador, Editor, Gerente}`.
 - `requireAdmin` — perfil em `{Admin, Administrador}`.
 - `requireActiveUserOrWorker` / `requireEditorOrWorker` — aceitam JWT **ou** header `x-worker-token` (usar em rotas que o worker Python chama).
+- `requireAdminOrWorker` — idem, mas exigindo perfil admin no caminho JWT (rotas administrativas que scripts internos chamam com `WORKER_API_TOKEN`, ex. registro de template PAEC).
 
 Passe via options do `createCrudRouter` (`listGuards`, `createGuards`, `updateGuards`, `deleteGuards`) ou aplique direto na rota.
 

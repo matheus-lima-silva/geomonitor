@@ -19,6 +19,7 @@ jest.mock('../../utils/authMiddleware', () => {
         requireActiveUserOrWorker: attach,
         requireEditor: [attach],
         requireEditorOrWorker: attach,
+        requireAdminOrWorker: attach,
         requireAdmin: [attach],
         getCachedProfile: jest.fn(() => null),
         setCachedProfile: jest.fn(),

@@ -1,0 +1,29 @@
+{
+  "paecReport": {
+    "plant": { "id": "PAEC-1", "name": "PCH Anta" },
+    "template": {
+      "id": "PAECT-1",
+      "revisionLabel": "OOSEMB.PL.003.2026 REV 10",
+      "tokenizedDocxMediaId": "MEDIA-tok"
+    },
+    "fields": [
+      { "key": "usina", "label": "Nome da usina", "section": "identificacao", "type": "text", "required": true },
+      { "key": "cnpj_1", "label": "CNPJ", "section": "identificacao", "type": "text", "required": true },
+      { "key": "endereco_rep", "label": "Endereco do representante", "section": "representantes", "type": "multiline", "required": true }
+    ],
+    "blocks": [
+      { "key": "brigadistas", "kind": "list", "label": "Relacao de brigadistas" },
+      { "key": "anexo_vii_rota_de_fuga", "kind": "manual", "label": "Rota de fuga" }
+    ],
+    "values": {
+      "usina": "PCH Anta",
+      "endereco_rep": "Rua A, 123\nCentro - Sapucaia/RJ"
+    },
+    "pendencies": [
+      { "kind": "field", "key": "cnpj_1", "label": "CNPJ", "section": "identificacao" },
+      { "kind": "list", "key": "brigadistas", "label": "Relacao de brigadistas", "section": null },
+      { "kind": "manual_block", "key": "anexo_vii_rota_de_fuga", "label": "Rota de fuga", "section": null }
+    ],
+    "stats": { "fieldsFilled": 2, "fieldsTotal": 3 }
+  }
+}

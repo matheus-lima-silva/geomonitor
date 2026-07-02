@@ -263,7 +263,7 @@ class StubClient:
     def report_job_progress(self, job_id, processed, total, phase="rendering"):
         self.progress_reports.append((job_id, processed, total, phase))
 
-    def mark_complete(self, job_id, output_docx_media_id=None, output_kmz_media_id=None):
+    def mark_complete(self, job_id, output_docx_media_id=None, output_kmz_media_id=None, result_meta=None):
         self.completed.append((job_id, output_docx_media_id, output_kmz_media_id))
 
     def mark_failed(self, job_id, error_log):
