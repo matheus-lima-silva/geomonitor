@@ -47,6 +47,25 @@ def _template_bytes():
     return buffer.getvalue()
 
 
+def _template_bytes_with_list_block():
+    """Template sintetico reproduzindo o padrao real: heading realcado de
+    vermelho (kind=list, ainda nao tokenizado nesta fase) seguido da tabela
+    com header + 1 linha-exemplo (a chave em COLUNAS do fixture e nome/telefone)."""
+    doc = Document()
+    doc.add_paragraph("Plano da usina {{usina}}.")
+    heading = doc.add_paragraph()
+    heading.add_run("anexo IV - RELACAO DE BRIGADISTAS").font.highlight_color = WD_COLOR_INDEX.RED
+    table = doc.add_table(rows=2, cols=2)
+    table.rows[0].cells[0].paragraphs[0].add_run("NOME")
+    table.rows[0].cells[1].paragraphs[0].add_run("TELEFONE")
+    table.rows[1].cells[0].paragraphs[0].add_run("Exemplo Marimbondo")
+    table.rows[1].cells[1].paragraphs[0].add_run("(00) 0000-0000")
+    doc.add_paragraph("depois da tabela")
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
+
+
 def _all_text(path):
     doc = Document(path)
     chunks = [p.text for p in doc.paragraphs]
@@ -127,6 +146,41 @@ def test_repassa_pendencias_de_blocos_do_backend(tmp_path):
     assert ("list", "brigadistas") in kinds
     assert ("manual_block", "anexo_vii_rota_de_fuga") in kinds
     assert result["stats"] == {"fieldsFilled": 2, "fieldsTotal": 3}
+
+
+def test_bloco_list_clona_linha_por_item_e_remove_realce_do_anexo(tmp_path):
+    output, _result = _render(tmp_path, template=_template_bytes_with_list_block())
+
+    doc = Document(output)
+    table = doc.tables[0]
+    assert [c.text for c in table.rows[0].cells] == ["NOME", "TELEFONE"]
+    assert [c.text for c in table.rows[1].cells] == ["Fulano de Tal", "(11) 1111-1111"]
+    assert [c.text for c in table.rows[2].cells] == ["Ciclana da Silva", "(11) 2222-2222"]
+    assert len(table.rows) == 3
+    # a linha-exemplo do modelo (Marimbondo) nao pode sobrar no documento
+    text = _all_text(output)
+    assert "Exemplo Marimbondo" not in text
+
+    spans = collect_all_spans(doc)
+    assert not any("RELACAO DE BRIGADISTAS" in s.text for s in spans), (
+        "realce do anexo devia ter sido removido apos a tabela ser renderizada"
+    )
+
+
+def test_bloco_list_sem_item_vira_uma_linha_pendente(tmp_path):
+    output, _result = _render(
+        tmp_path,
+        overrides={"listItems": {}},
+        template=_template_bytes_with_list_block(),
+    )
+    doc = Document(output)
+    table = doc.tables[0]
+    assert len(table.rows) == 2
+    assert table.rows[1].cells[0].text == "[[PENDENTE: Relacao de brigadistas]]"
+    assert table.rows[1].cells[1].text == ""
+
+    spans = collect_all_spans(doc)
+    assert any(s.color == "yellow" and "PENDENTE: Relacao de brigadistas" in s.text for s in spans)
 
 
 def test_ficha_completa_nao_gera_pendencia_de_campo(tmp_path):
