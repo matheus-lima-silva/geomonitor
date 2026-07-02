@@ -134,6 +134,30 @@ describe('usePaecPlant', () => {
     expect(api.current.plant.fields.usina).toBe('Do servidor');
   });
 
+  it('updateListItems agenda autosave e o PUT leva listItems no payload', async () => {
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderProbe();
+
+    act(() => {
+      api.current.updateListItems('brigadistas', [{ nome: 'Fulano', telefone: '(11) 1111-1111' }]);
+    });
+    await act(async () => { vi.advanceTimersByTime(AUTOSAVE_DELAY_MS + 50); });
+
+    expect(savePlant).toHaveBeenCalledTimes(1);
+    expect(savePlant.mock.calls[0][1].listItems).toEqual({
+      brigadistas: [{ nome: 'Fulano', telefone: '(11) 1111-1111' }],
+    });
+  });
+
+  it('save sem listItems na ficha manda {} no payload (nunca undefined)', async () => {
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderProbe();
+
+    act(() => { api.current.updateField('cnpj_1', 'x'); });
+    await act(async () => { vi.advanceTimersByTime(AUTOSAVE_DELAY_MS + 50); });
+    expect(savePlant.mock.calls[0][1].listItems).toEqual({});
+  });
+
   it('flush salva imediatamente sem esperar o debounce', async () => {
     fetchPlant.mockResolvedValueOnce(samplePlant());
     await renderProbe();
