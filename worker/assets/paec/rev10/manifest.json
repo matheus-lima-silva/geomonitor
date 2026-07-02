@@ -1069,6 +1069,20 @@
       "kind": "list",
       "label": "Sistema móvel de extintores de incêndio",
       "anchorContext": "12.1.9. Sistema Móvel de Extintores de Incêndio",
+      "columns": [
+        {
+          "key": "tipo",
+          "label": "Tipo"
+        },
+        {
+          "key": "capacidade",
+          "label": "Capacidade"
+        },
+        {
+          "key": "quantidade",
+          "label": "Quantidade"
+        }
+      ],
       "spanIds": [
         97
       ]
@@ -1078,6 +1092,7 @@
       "kind": "manual",
       "label": "Anexo II — Plano de comunicação de emergência (contatos externos)",
       "anchorContext": "anexo II – plano de comunicação de emergência – CONTATOS EXTERNOS – este copiar do anterior",
+      "columns": [],
       "spanIds": [
         125
       ]
@@ -1087,6 +1102,32 @@
       "kind": "list",
       "label": "Anexo IV — Relação de brigadistas",
       "anchorContext": "anexo IV – RELAÇÃO DE BRIGADISTAS",
+      "columns": [
+        {
+          "key": "item",
+          "label": "Item"
+        },
+        {
+          "key": "nome",
+          "label": "Nome"
+        },
+        {
+          "key": "endereco",
+          "label": "Endereço"
+        },
+        {
+          "key": "telefone",
+          "label": "Telefone"
+        },
+        {
+          "key": "telefone_interno",
+          "label": "Telefone interno"
+        },
+        {
+          "key": "empresa",
+          "label": "Empresa"
+        }
+      ],
       "spanIds": [
         126
       ]
@@ -1096,6 +1137,24 @@
       "kind": "list",
       "label": "Anexo V — Recursos materiais (BEM)",
       "anchorContext": "anexo V – RECURSOS MATERIAIS – BEM",
+      "columns": [
+        {
+          "key": "item",
+          "label": "Item"
+        },
+        {
+          "key": "descricao_material",
+          "label": "Descrição do material"
+        },
+        {
+          "key": "unidade",
+          "label": "Unidade"
+        },
+        {
+          "key": "quantidade",
+          "label": "Quantidade"
+        }
+      ],
       "spanIds": [
         127
       ]
@@ -1105,6 +1164,20 @@
       "kind": "list",
       "label": "Pontos de encontro",
       "anchorContext": "Nº PONTO DE ENCONTRO",
+      "columns": [
+        {
+          "key": "numero_ponto",
+          "label": "Nº ponto de encontro"
+        },
+        {
+          "key": "local",
+          "label": "Local"
+        },
+        {
+          "key": "instrucao",
+          "label": "Instrução"
+        }
+      ],
       "spanIds": [
         128
       ]
@@ -1114,6 +1187,7 @@
       "kind": "manual",
       "label": "Anexo VII — Rota de fuga",
       "anchorContext": "anexo VII – ROTA DE FUGA",
+      "columns": [],
       "spanIds": [
         129
       ]
@@ -1123,6 +1197,7 @@
       "kind": "manual",
       "label": "Anexo X — Arranjo das instalações (unifilar)",
       "anchorContext": "anexo X– ARRANJO DAS INSTALAÇÕES FÍSICAS DO SISTEMA ELÉTRICO (UNIFILAR)",
+      "columns": [],
       "spanIds": [
         130
       ]
