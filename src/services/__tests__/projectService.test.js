@@ -7,7 +7,7 @@ vi.mock('../../utils/tokenStorage', () => ({
   clearTokens: vi.fn(),
   hasStoredSession: vi.fn(() => true),
 }));
-import { createProject, removeProject, subscribeProjects, updateProject } from '../projectService';
+import { createProject, listProjects, removeProject, subscribeProjects, updateProject } from '../projectService';
 
 async function flushPromises() {
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -195,6 +195,26 @@ describe('projectService', () => {
 
     expect(fetchMock.mock.calls[0][0]).toContain('/projects/P-1');
     expect(fetchMock.mock.calls[0][1].method).toBe('DELETE');
+  });
+
+  it('listProjects busca lista pontual e retorna o array de data', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        data: [{ id: 'P-1', nome: 'Projeto A', tipo: 'Linha de Transmissão' }]
+      })
+    });
+
+    await expect(listProjects()).resolves.toEqual([
+      expect.objectContaining({ id: 'P-1', nome: 'Projeto A', tipo: 'Linha de Transmissão' })
+    ]);
+    expect(fetchMock.mock.calls[0][0]).toContain('/projects');
+    expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+  });
+
+  it('listProjects retorna array vazio quando a API nao devolve data', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({}) });
+    await expect(listProjects()).resolves.toEqual([]);
   });
 
   it('propaga erro de API ao criar projeto', async () => {
