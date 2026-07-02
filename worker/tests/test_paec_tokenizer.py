@@ -182,6 +182,25 @@ def test_apply_tokeniza_campos_e_limpa_highlights():
     assert manifest["revisionLabel"] == "REV TESTE"
 
 
+def test_apply_ignore_mantem_texto_mas_remove_realce():
+    """kind=ignore preserva o texto original (rotulo estatico que nao varia
+    por usina) mas remove o realce de curadoria; ao contrario de kind=field,
+    nao vira placeholder nem entra no manifest."""
+    doc = Document()
+    doc.add_paragraph().add_run("Razao Social").font.highlight_color = _COLORS["yellow"]
+    mapping = build_mapping(doc, "s.docx")
+    mapping["spans"][0]["kind"] = "ignore"
+    mapping["spans"][0]["reviewed"] = True
+
+    manifest = apply_mapping(doc, mapping, "PAEC", "REV")
+
+    assert document_text(doc) == "Razao Social"
+    remaining = collect_all_spans(doc)
+    assert remaining == []
+    assert manifest["fields"] == []
+    assert manifest["stats"]["unreviewedSpans"] == 0
+
+
 def test_apply_preserva_indentacao_da_capa():
     doc = Document()
     doc.add_paragraph().add_run("          Plano de Emergencia ").font.highlight_color = (

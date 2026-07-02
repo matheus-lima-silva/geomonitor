@@ -272,7 +272,8 @@ def _renumber_group(title):
 def apply_mapping(document, mapping, template_name, revision_label):
     """Tokeniza o documento em memoria conforme o mapping; retorna o manifest.
 
-    Spans kind=field viram ``{{chave}}``; whitespace so perde o realce; os
+    Spans kind=field viram ``{{chave}}``; whitespace e ignore so perdem o
+    realce (texto original preservado, sem virar campo no manifest); os
     demais kinds (list/image/manual/section_title) sao apenas catalogados no
     manifest nesta fase — as fases 2-4 evoluem a tokenizacao deles.
     """
@@ -318,7 +319,7 @@ def apply_mapping(document, mapping, template_name, revision_label):
         if kind == "whitespace":
             replace_span_text(span, span.text, drop_highlight=True)
         elif kind == "ignore":
-            continue
+            replace_span_text(span, span.text, drop_highlight=True)
         elif kind == "field":
             transform = entry.get("transform") or "none"
             placeholder = (
