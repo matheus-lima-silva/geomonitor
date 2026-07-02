@@ -1,11 +1,11 @@
 {
   "templateName": "PAEC AXIA",
-  "revisionLabel": "OOSEMB.PL.003.2026 REV 10",
+  "revisionLabel": "REV 10",
   "fields": [
     {
       "key": "uhe_marimbondo",
-      "label": "Uhe marimbondo",
-      "section": null,
+      "label": "Usina (capa)",
+      "section": "Capa",
       "type": "text",
       "required": true,
       "sampleValue": "UHE Marimbondo",
@@ -18,39 +18,9 @@
       ]
     },
     {
-      "key": "plano_de_atendimento_as",
-      "label": "Plano de atendimento as",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "Plano de Atendimento às",
-      "occurrences": [
-        {
-          "spanId": 1,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "emergencias_da_central_paec",
-      "label": "Emergencias da central paec",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "Emergências da Central (PAEC)",
-      "occurrences": [
-        {
-          "spanId": 2,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
       "key": "gerencia_regional_o_m_minas",
-      "label": "Gerencia regional o m minas",
-      "section": null,
+      "label": "Gerência Regional O&M",
+      "section": "Capa",
       "type": "text",
       "required": true,
       "sampleValue": "Gerência Regional O&M Minas Gerais",
@@ -69,8 +39,8 @@
     },
     {
       "key": "g_sudeste_oo_segsrm",
-      "label": "G sudeste oo segsrm",
-      "section": null,
+      "label": "G Sudeste / código",
+      "section": "Capa",
       "type": "text",
       "required": true,
       "sampleValue": "G SUDESTE – OO|SEGSRM",
@@ -84,8 +54,8 @@
     },
     {
       "key": "gerencia_de_o_m_marimbondo",
-      "label": "Gerencia de o m marimbondo",
-      "section": null,
+      "label": "Gerência de O&M",
+      "section": "Capa",
       "type": "text",
       "required": true,
       "sampleValue": "GERÊNCIA DE O&M MARIMBONDO E",
@@ -99,8 +69,8 @@
     },
     {
       "key": "p_colombia_g_sudeste_oo",
-      "label": "P colombia g sudeste oo",
-      "section": null,
+      "label": "Complemento gerência / código",
+      "section": "Capa",
       "type": "text",
       "required": true,
       "sampleValue": "P.COLÔMBIA G SUDESTE – OO|SEGSRMMB",
@@ -114,8 +84,8 @@
     },
     {
       "key": "regional_o_m_es_e",
-      "label": "Regional o m es e",
-      "section": null,
+      "label": "Regional O&M (Transmissão)",
+      "section": "Capa",
       "type": "text",
       "required": true,
       "sampleValue": "REGIONAL O&M ES E MINAS T SE – OO|SEPTRM",
@@ -129,8 +99,8 @@
     },
     {
       "key": "o_m_minas_gerais_t",
-      "label": "O m minas gerais t",
-      "section": null,
+      "label": "Complemento regional (Transmissão) / código",
+      "section": "Capa",
       "type": "text",
       "required": true,
       "sampleValue": "O&M MINAS GERAIS T SUDESTE – OO|SEPTRMMG",
@@ -144,8 +114,8 @@
     },
     {
       "key": "no_do_documento_oo_semb",
-      "label": "No do documento oo semb",
-      "section": null,
+      "label": "Nº do documento",
+      "section": "Capa",
       "type": "text",
       "required": true,
       "sampleValue": "Nº do Documento: OO|SEMB.PL.003.2026",
@@ -159,8 +129,8 @@
     },
     {
       "key": "g_sudeste",
-      "label": "G sudeste",
-      "section": null,
+      "label": "G Sudeste",
+      "section": "Identificação do documento",
       "type": "text",
       "required": true,
       "sampleValue": "G Sudeste",
@@ -174,8 +144,8 @@
     },
     {
       "key": "oo_segsrm",
-      "label": "Oo segsrm",
-      "section": null,
+      "label": "Código da unidade (OO|SEGSRM)",
+      "section": "Identificação do documento",
       "type": "text",
       "required": true,
       "sampleValue": "OO|SEGSRM",
@@ -194,8 +164,8 @@
     },
     {
       "key": "roberto_teixeira_siniscalchi",
-      "label": "Roberto teixeira siniscalchi",
-      "section": null,
+      "label": "Responsável — Gerência Regional O&M Minas Gerais",
+      "section": "Identificação do documento",
       "type": "text",
       "required": true,
       "sampleValue": "Roberto Teixeira Siniscalchi",
@@ -214,8 +184,8 @@
     },
     {
       "key": "gerencia_de_o_m_marimbondo_2",
-      "label": "Gerencia de o m marimbondo 2",
-      "section": null,
+      "label": "Gerência de O&M Marimbondo e Colômbia G Sudeste",
+      "section": "Identificação do documento",
       "type": "text",
       "required": true,
       "sampleValue": "Gerência de O&M Marimbondo e Colômbia G Sudeste",
@@ -229,8 +199,8 @@
     },
     {
       "key": "oo_segsrmmb",
-      "label": "Oo segsrmmb",
-      "section": null,
+      "label": "Código da unidade (OO|SEGSRMMB)",
+      "section": "Identificação do documento",
       "type": "text",
       "required": true,
       "sampleValue": "OO|SEGSRMMB",
@@ -274,8 +244,8 @@
     },
     {
       "key": "rodrigo_ferreira_moreno",
-      "label": "Rodrigo ferreira moreno",
-      "section": null,
+      "label": "Nome (responsável)",
+      "section": "Representante legal (Usina)",
       "type": "text",
       "required": true,
       "sampleValue": "Rodrigo Ferreira Moreno",
@@ -304,8 +274,8 @@
     },
     {
       "key": "regional_o_m_es_e_2",
-      "label": "Regional o m es e 2",
-      "section": null,
+      "label": "Regional O&M ES e Minas T SE",
+      "section": "Identificação do documento",
       "type": "text",
       "required": true,
       "sampleValue": "Regional O&M ES e Minas T SE",
@@ -324,8 +294,8 @@
     },
     {
       "key": "oo_septrm",
-      "label": "Oo septrm",
-      "section": null,
+      "label": "Código da unidade (OO|SEPTRM)",
+      "section": "Identificação do documento",
       "type": "text",
       "required": true,
       "sampleValue": "OO|SEPTRM",
@@ -344,8 +314,8 @@
     },
     {
       "key": "anderson_prado_azevedo",
-      "label": "Anderson prado azevedo",
-      "section": null,
+      "label": "Responsável — Regional O&M ES e Minas T SE",
+      "section": "Identificação do documento",
       "type": "text",
       "required": true,
       "sampleValue": "Anderson Prado Azevedo",
@@ -364,8 +334,8 @@
     },
     {
       "key": "o_m_minas_gerais_t_2",
-      "label": "O m minas gerais t 2",
-      "section": null,
+      "label": "O&M Minas Gerais T Sudeste",
+      "section": "Identificação do documento",
       "type": "text",
       "required": true,
       "sampleValue": "O&M Minas Gerais T Sudeste",
@@ -384,8 +354,8 @@
     },
     {
       "key": "oo_septrmmg",
-      "label": "Oo septrmmg",
-      "section": null,
+      "label": "Código da unidade (OO|SEPTRMMG)",
+      "section": "Identificação do documento",
       "type": "text",
       "required": true,
       "sampleValue": "OO|SEPTRMMG",
@@ -404,8 +374,8 @@
     },
     {
       "key": "alessandro_a_medeiros_cardoso",
-      "label": "Alessandro a medeiros cardoso",
-      "section": null,
+      "label": "Responsável — O&M Minas Gerais T Sudeste",
+      "section": "Identificação do documento",
       "type": "text",
       "required": true,
       "sampleValue": "Alessandro A. Medeiros Cardoso",
@@ -423,24 +393,9 @@
       ]
     },
     {
-      "key": "historico_de_revisoes",
-      "label": "Historico de revisoes",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "HISTÓRICO DE REVISÕES:",
-      "occurrences": [
-        {
-          "spanId": 24,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
       "key": "gerencia_regional_o_m_minas_2",
-      "label": "Gerencia regional o m minas 2",
-      "section": null,
+      "label": "Gerência Regional O&M Minas Gerais G Sudeste",
+      "section": "Histórico de revisões",
       "type": "text",
       "required": true,
       "sampleValue": "Gerência Regional O&M Minas Gerais G Sudeste",
@@ -454,8 +409,8 @@
     },
     {
       "key": "gerencia_de_o_m_marimbondo_3",
-      "label": "Gerencia de o m marimbondo 3",
-      "section": null,
+      "label": "Gerência de O&M Marimbondo e P. Colômbia G Sudeste",
+      "section": "Histórico de revisões",
       "type": "text",
       "required": true,
       "sampleValue": "Gerência de O&M Marimbondo e P. Colômbia G Sudeste",
@@ -474,8 +429,8 @@
     },
     {
       "key": "elvio_zampier_de_abreu_orlanilson",
-      "label": "Elvio zampier de abreu orlanilson",
-      "section": null,
+      "label": "Responsáveis pela revisão anterior",
+      "section": "Histórico de revisões",
       "type": "text",
       "required": true,
       "sampleValue": "Élvio Zampier de Abreu, Orlanilson da Silva Brito e Michele Melo Mendes",
@@ -489,8 +444,8 @@
     },
     {
       "key": "rodrigo_ferreira_moreno_douglas_de",
-      "label": "Rodrigo ferreira moreno douglas de",
-      "section": null,
+      "label": "Responsáveis pela revisão atual",
+      "section": "Histórico de revisões",
       "type": "text",
       "required": true,
       "sampleValue": "Rodrigo Ferreira Moreno, Douglas de Jesus Passos, Fabio Júnio de Faria",
@@ -503,24 +458,9 @@
       ]
     },
     {
-      "key": "sumario",
-      "label": "Sumario",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "Sumário",
-      "occurrences": [
-        {
-          "spanId": 41,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
       "key": "uhe_e_se_de_marimbondo",
-      "label": "Uhe e se de marimbondo",
-      "section": null,
+      "label": "Instalações do PAEC",
+      "section": "Objetivo do PAEC",
       "type": "text",
       "required": true,
       "sampleValue": "UHE e SE DE MARIMBONDO",
@@ -534,8 +474,8 @@
     },
     {
       "key": "proteger_as_instalacoes_da_uhe",
-      "label": "Proteger as instalacoes da uhe",
-      "section": null,
+      "label": "Objetivo — proteção das instalações",
+      "section": "Objetivo do PAEC",
       "type": "text",
       "required": true,
       "sampleValue": "Proteger as Instalações da UHE e SE DE MARIMBONDO;",
@@ -549,8 +489,8 @@
     },
     {
       "key": "manter_a_imagem_e_a",
-      "label": "Manter a imagem e a",
-      "section": null,
+      "label": "Objetivo — imagem e reputação",
+      "section": "Objetivo do PAEC",
       "type": "text",
       "required": true,
       "sampleValue": "Manter a Imagem e a Reputação da UHE e SE DE MARIMBONDO",
@@ -564,8 +504,8 @@
     },
     {
       "key": "a_gerencia_de_o_m",
-      "label": "A gerencia de o m",
-      "section": null,
+      "label": "Responsável pela operação — UHE",
+      "section": "Responsabilidade pela operação",
       "type": "text",
       "required": true,
       "sampleValue": "A Gerência de O&M Marimbondo e P. Colômbia G Sudeste - OO|SEGSRMMB é responsável pela operação da Usina Hidrelétrica de Marimbondo, sendo está subordinada à Gerência Regional O&M Minas Gerais G Sudeste - OO|SEGSRM.",
@@ -579,8 +519,8 @@
     },
     {
       "key": "a_o_m_minas_gerais",
-      "label": "A o m minas gerais",
-      "section": null,
+      "label": "Responsável pela operação — SE",
+      "section": "Responsabilidade pela operação",
       "type": "text",
       "required": true,
       "sampleValue": "A O&M Minas Gerais T Sudeste – OO|SEPTRMMG é responsável pela operação da SE de Marimbondo, sendo está subordinada à Regional O&M ES e Minas T SE - OO|SEPTRM",
@@ -593,69 +533,9 @@
       ]
     },
     {
-      "key": "caracteristicas_fisicas_gerais_da_usina",
-      "label": "Caracteristicas fisicas gerais da usina",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "CARACTERÍSTICAS FÍSICAS GERAIS DA USINA HIDRELÉTRICA e subestação DE marimbondo",
-      "occurrences": [
-        {
-          "spanId": 47,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "a_usina_hidreletrica_e_subestacao",
-      "label": "A usina hidreletrica e subestacao",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": ". A USINA HIDRELÉTRICA E SUBESTAÇÃO DE MARIMBONDO",
-      "occurrences": [
-        {
-          "spanId": 48,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "identificacao_da_instalacao",
-      "label": "Identificacao da instalacao",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "IDENTIFICAÇÃO DA INSTALAÇÃO",
-      "occurrences": [
-        {
-          "spanId": 49,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
       "key": "razao_social",
-      "label": "Razao social",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "Razão Social",
-      "occurrences": [
-        {
-          "spanId": 50,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "usina_hidreletrica_de_marimbondo",
-      "label": "Usina hidreletrica de marimbondo",
-      "section": null,
+      "label": "Razão Social",
+      "section": "Identificação da instalação",
       "type": "text",
       "required": true,
       "sampleValue": "Usina Hidrelétrica de Marimbondo",
@@ -669,23 +549,8 @@
     },
     {
       "key": "nome_fantasia",
-      "label": "Nome fantasia",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "Nome Fantasia",
-      "occurrences": [
-        {
-          "spanId": 52,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "uhe_de_marimbondo",
-      "label": "Uhe de marimbondo",
-      "section": null,
+      "label": "Nome Fantasia",
+      "section": "Identificação da instalação",
       "type": "text",
       "required": true,
       "sampleValue": "UHE DE MARIMBONDO",
@@ -713,21 +578,6 @@
       "section": "Identificação da instalação",
       "type": "text",
       "required": true,
-      "sampleValue": "Endereço",
-      "occurrences": [
-        {
-          "spanId": 54,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "rodovia_br_153_km_245",
-      "label": "Rodovia br 153 km 245",
-      "section": null,
-      "type": "text",
-      "required": true,
       "sampleValue": "Rodovia BR 153, km 245/246, Fronteira MG, Cep: 38.230-000 - Caixa postal: 25",
       "occurrences": [
         {
@@ -739,23 +589,8 @@
     },
     {
       "key": "cnpj_cgc_mf_no",
-      "label": "Cnpj cgc mf no",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "CNPJ (CGC/MF Nº)",
-      "occurrences": [
-        {
-          "spanId": 56,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "cnpj_1",
-      "label": "Cnpj 1",
-      "section": null,
+      "label": "CNPJ",
+      "section": "Identificação da instalação",
       "type": "text",
       "required": true,
       "sampleValue": "00.001.180/0038-18",
@@ -768,39 +603,9 @@
       ]
     },
     {
-      "key": "inscricao_estadual",
-      "label": "Inscricao estadual",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "Inscrição Estadual",
-      "occurrences": [
-        {
-          "spanId": 58,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "telefone_fax",
-      "label": "Telefone fax",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "Telefone/Fax",
-      "occurrences": [
-        {
-          "spanId": 59,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "telefone_1",
-      "label": "Telefone 1",
-      "section": null,
+      "key": "telefone_sala_controle",
+      "label": "Telefone — Sala de Controle",
+      "section": "Identificação da instalação",
       "type": "text",
       "required": true,
       "sampleValue": "(34) 99730-4626 (Sala de Controle)",
@@ -813,30 +618,15 @@
       ]
     },
     {
-      "key": "telefone_2",
-      "label": "Telefone 2",
-      "section": null,
+      "key": "telefone_portaria",
+      "label": "Telefone — Portaria",
+      "section": "Identificação da instalação",
       "type": "text",
       "required": true,
       "sampleValue": "(34) 3428-5295 (Portaria)",
       "occurrences": [
         {
           "spanId": 61,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "web",
-      "label": "Web",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "WEB",
-      "occurrences": [
-        {
-          "spanId": 62,
           "part": "document",
           "transform": "none"
         }
@@ -874,8 +664,8 @@
     },
     {
       "key": "rua_gago_coutinho_911_apto",
-      "label": "Rua gago coutinho 911 apto",
-      "section": null,
+      "label": "Endereço do representante",
+      "section": "Representante legal (Usina)",
       "type": "text",
       "required": true,
       "sampleValue": "Rua Gago Coutinho, 911, Apto 11, Higienópolis. São José do Rio Preto – SP",
@@ -889,23 +679,8 @@
     },
     {
       "key": "telefone_fax_2",
-      "label": "Telefone fax 2",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "Telefone / Fax",
-      "occurrences": [
-        {
-          "spanId": 68,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "telefone_3",
-      "label": "Telefone 3",
-      "section": null,
+      "label": "Telefone/Fax",
+      "section": "Representante legal (Usina)",
       "type": "text",
       "required": true,
       "sampleValue": "(34) 3428-5320",
@@ -920,22 +695,7 @@
     {
       "key": "celular_corporativo",
       "label": "Celular corporativo",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "Celular corporativo",
-      "occurrences": [
-        {
-          "spanId": 70,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "telefone_4",
-      "label": "Telefone 4",
-      "section": null,
+      "section": "Representante legal (Usina)",
       "type": "text",
       "required": true,
       "sampleValue": "(21) 99401-5162",
@@ -979,8 +739,8 @@
     },
     {
       "key": "alessandro_antonio_medeiros_cardoso",
-      "label": "Alessandro antonio medeiros cardoso",
-      "section": null,
+      "label": "Nome do representante",
+      "section": "Representante legal (Subestação)",
       "type": "text",
       "required": true,
       "sampleValue": "Alessandro Antônio Medeiros Cardoso",
@@ -1009,8 +769,8 @@
     },
     {
       "key": "av_dido_fontes_2355_jardim",
-      "label": "Av dido fontes 2355 jardim",
-      "section": null,
+      "label": "Endereço do representante",
+      "section": "Representante legal (Subestação)",
       "type": "text",
       "required": true,
       "sampleValue": "Av. Dido Fontes, 2355 - Jardim Tropical, Serra / ES, CEP 29.162-090",
@@ -1025,22 +785,7 @@
     {
       "key": "telefone_comercial",
       "label": "Telefone comercial",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "Telefone comercial",
-      "occurrences": [
-        {
-          "spanId": 77,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "telefone_5",
-      "label": "Telefone 5",
-      "section": null,
+      "section": "Representante legal (Subestação)",
       "type": "text",
       "required": true,
       "sampleValue": "(27) 3398-5210",
@@ -1069,8 +814,8 @@
     },
     {
       "key": "email_1",
-      "label": "Email 1",
-      "section": null,
+      "label": "E-mail do representante",
+      "section": "Representante legal (Subestação)",
       "type": "text",
       "required": true,
       "sampleValue": "acardoso@axia.com.br",
@@ -1083,24 +828,9 @@
       ]
     },
     {
-      "key": "6_localizacao",
-      "label": "6 localizacao",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "6. LOCALIZAÇÃO",
-      "occurrences": [
-        {
-          "spanId": 81,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
       "key": "to_de_oleo_na_uhe",
-      "label": "To de oleo na uhe",
-      "section": null,
+      "label": "Cenário — vazamento de óleo (instalação)",
+      "section": "Cenário acidental (MAIA)",
       "type": "text",
       "required": true,
       "sampleValue": "to de óleo na UHE e SE DE MARIMBONDO",
@@ -1119,8 +849,8 @@
     },
     {
       "key": "a_hipotese_de_maior_severidade",
-      "label": "A hipotese de maior severidade",
-      "section": null,
+      "label": "Descrição da hipótese de maior severidade",
+      "section": "Cenário acidental (MAIA)",
       "type": "text",
       "required": true,
       "sampleValue": "A hipótese de maior severidade, mapeada na MAIA, identifica o derramamento de 95.814 L de óleo isolante, assim detalhado a seguir:",
@@ -1134,8 +864,8 @@
     },
     {
       "key": "95_814_l",
-      "label": "95 814 l",
-      "section": null,
+      "label": "Volume da hipótese de maior severidade",
+      "section": "Cenário acidental (MAIA)",
       "type": "text",
       "required": true,
       "sampleValue": "95.814 L",
@@ -1149,8 +879,8 @@
     },
     {
       "key": "gerencia_de_o_m_de",
-      "label": "Gerencia de o m de",
-      "section": null,
+      "label": "Unidade responsável — item 10.4.4",
+      "section": "Estrutura organizacional de resposta",
       "type": "text",
       "required": true,
       "sampleValue": "Gerência de O&M de Marimbondo – OO|SEGSRMMB",
@@ -1164,8 +894,8 @@
     },
     {
       "key": "gerencia_da_operacao_de_meio",
-      "label": "Gerencia da operacao de meio",
-      "section": null,
+      "label": "Unidade responsável — item 10.4.6",
+      "section": "Estrutura organizacional de resposta",
       "type": "text",
       "required": true,
       "sampleValue": "Gerência da Operação de Meio Ambiente – OO|SEMB",
@@ -1179,8 +909,8 @@
     },
     {
       "key": "uhe_de_marimbondo_2",
-      "label": "Uhe de marimbondo 2",
-      "section": null,
+      "label": "Local de realização",
+      "section": "Local de realização (treinamentos/simulados)",
       "type": "text",
       "required": true,
       "sampleValue": "UHE de Marimbondo;",
@@ -1198,39 +928,9 @@
       ]
     },
     {
-      "key": "acoes_de_combate_e_atendimento",
-      "label": "Acoes de combate e atendimento",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "AÇÕES DE COMBATE E ATENDIMENTO ÀS EMERGÊNCIAS",
-      "occurrences": [
-        {
-          "spanId": 109,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
-      "key": "acoes_de_combate_e_atendimento_2",
-      "label": "Acoes de combate e atendimento 2",
-      "section": null,
-      "type": "text",
-      "required": true,
-      "sampleValue": "AÇÕES DE COMBATE E ATENDIMENTO ÀS EMERGÊNCIAS EM USINAS",
-      "occurrences": [
-        {
-          "spanId": 110,
-          "part": "document",
-          "transform": "none"
-        }
-      ]
-    },
-    {
       "key": "gerente_uhe_de_marimbondo",
-      "label": "Gerente uhe de marimbondo",
-      "section": null,
+      "label": "Cargo — topo da estrutura",
+      "section": "Estrutura organizacional de acionamento",
       "type": "text",
       "required": true,
       "sampleValue": "GERENTE UHE DE MARIMBONDO",
@@ -1244,8 +944,8 @@
     },
     {
       "key": "telefone_6",
-      "label": "Telefone 6",
-      "section": null,
+      "label": "Telefone — Gerente UHE",
+      "section": "Estrutura organizacional de acionamento",
       "type": "text",
       "required": true,
       "sampleValue": "(21) 99401 5162",
@@ -1259,8 +959,8 @@
     },
     {
       "key": "brigada_de_emergencia_coordenador_da",
-      "label": "Brigada de emergencia coordenador da",
-      "section": null,
+      "label": "Cargo — coordenador da BEM",
+      "section": "Estrutura organizacional de acionamento",
       "type": "text",
       "required": true,
       "sampleValue": "BRIGADA DE EMERGÊNCIA – Coordenador da BEM",
@@ -1274,8 +974,8 @@
     },
     {
       "key": "telefone_7",
-      "label": "Telefone 7",
-      "section": null,
+      "label": "Telefone — coordenador da BEM",
+      "section": "Estrutura organizacional de acionamento",
       "type": "text",
       "required": true,
       "sampleValue": "Tel.: 17 98820-6833",
@@ -1289,8 +989,8 @@
     },
     {
       "key": "nicola_prado",
-      "label": "Nicola prado",
-      "section": null,
+      "label": "Nome — coordenador da BEM",
+      "section": "Estrutura organizacional de acionamento",
       "type": "text",
       "required": true,
       "sampleValue": "Nicola Prado",
@@ -1304,8 +1004,8 @@
     },
     {
       "key": "sala_de_paineis_escritorio_central",
-      "label": "Sala de paineis escritorio central",
-      "section": null,
+      "label": "Local — plantão",
+      "section": "Estrutura organizacional de acionamento",
       "type": "text",
       "required": true,
       "sampleValue": "SALA DE PAINÉIS - ESCRITÓRIO CENTRAL",
@@ -1319,8 +1019,8 @@
     },
     {
       "key": "telefone_8",
-      "label": "Telefone 8",
-      "section": null,
+      "label": "Telefone — plantão",
+      "section": "Estrutura organizacional de acionamento",
       "type": "text",
       "required": true,
       "sampleValue": "(34) 99730-4626",
@@ -1334,8 +1034,8 @@
     },
     {
       "key": "plantao",
-      "label": "Plantao",
-      "section": null,
+      "label": "Turno/Regime",
+      "section": "Estrutura organizacional de acionamento",
       "type": "text",
       "required": true,
       "sampleValue": "Plantão",
@@ -1349,8 +1049,8 @@
     },
     {
       "key": "csse_g",
-      "label": "Csse g",
-      "section": null,
+      "label": "Setor/Código",
+      "section": "Estrutura organizacional de acionamento",
       "type": "text",
       "required": true,
       "sampleValue": "CSSE.G",
@@ -1367,7 +1067,7 @@
     {
       "key": "12_1_9_sistema_movel",
       "kind": "list",
-      "label": "12 1 9 sistema movel",
+      "label": "Sistema móvel de extintores de incêndio",
       "anchorContext": "12.1.9. Sistema Móvel de Extintores de Incêndio",
       "spanIds": [
         97
@@ -1376,7 +1076,7 @@
     {
       "key": "anexo_ii_plano_de_comunicacao",
       "kind": "manual",
-      "label": "Anexo ii plano de comunicacao",
+      "label": "Anexo II — Plano de comunicação de emergência (contatos externos)",
       "anchorContext": "anexo II – plano de comunicação de emergência – CONTATOS EXTERNOS – este copiar do anterior",
       "spanIds": [
         125
@@ -1385,7 +1085,7 @@
     {
       "key": "anexo_iv_relacao_de_brigadistas",
       "kind": "list",
-      "label": "Anexo iv relacao de brigadistas",
+      "label": "Anexo IV — Relação de brigadistas",
       "anchorContext": "anexo IV – RELAÇÃO DE BRIGADISTAS",
       "spanIds": [
         126
@@ -1394,7 +1094,7 @@
     {
       "key": "anexo_v_recursos_materiais_bem",
       "kind": "list",
-      "label": "Anexo v recursos materiais bem",
+      "label": "Anexo V — Recursos materiais (BEM)",
       "anchorContext": "anexo V – RECURSOS MATERIAIS – BEM",
       "spanIds": [
         127
@@ -1403,7 +1103,7 @@
     {
       "key": "no_ponto_de_encontro",
       "kind": "list",
-      "label": "No ponto de encontro",
+      "label": "Pontos de encontro",
       "anchorContext": "Nº PONTO DE ENCONTRO",
       "spanIds": [
         128
@@ -1412,7 +1112,7 @@
     {
       "key": "anexo_vii_rota_de_fuga",
       "kind": "manual",
-      "label": "Anexo vii rota de fuga",
+      "label": "Anexo VII — Rota de fuga",
       "anchorContext": "anexo VII – ROTA DE FUGA",
       "spanIds": [
         129
@@ -1421,7 +1121,7 @@
     {
       "key": "anexo_x_arranjo_das_instalacoes",
       "kind": "manual",
-      "label": "Anexo x arranjo das instalacoes",
+      "label": "Anexo X — Arranjo das instalações (unifilar)",
       "anchorContext": "anexo X– ARRANJO DAS INSTALAÇÕES FÍSICAS DO SISTEMA ELÉTRICO (UNIFILAR)",
       "spanIds": [
         130
@@ -1431,9 +1131,39 @@
   "imageSlots": [],
   "sections": [
     {
+      "sectionKey": "historico_de_revisoes",
+      "defaultTitle": "HISTÓRICO DE REVISÕES:",
+      "renumberGroup": null
+    },
+    {
+      "sectionKey": "sumario",
+      "defaultTitle": "Sumário",
+      "renumberGroup": null
+    },
+    {
+      "sectionKey": "caracteristicas_fisicas_gerais_da_usina",
+      "defaultTitle": "CARACTERÍSTICAS FÍSICAS GERAIS DA USINA HIDRELÉTRICA e subestação DE marimbondo",
+      "renumberGroup": null
+    },
+    {
+      "sectionKey": "a_usina_hidreletrica_e_subestacao",
+      "defaultTitle": ". A USINA HIDRELÉTRICA E SUBESTAÇÃO DE MARIMBONDO",
+      "renumberGroup": null
+    },
+    {
+      "sectionKey": "identificacao_da_instalacao",
+      "defaultTitle": "IDENTIFICAÇÃO DA INSTALAÇÃO",
+      "renumberGroup": null
+    },
+    {
       "sectionKey": "6_5_representante_legal_do",
       "defaultTitle": "6.5. REPRESENTANTE LEGAL DO EMPREENDIMENTO E COORDENADOR DAS AÇÕES DE RESPOSTA",
       "renumberGroup": "6"
+    },
+    {
+      "sectionKey": "6_localizacao",
+      "defaultTitle": "6. LOCALIZAÇÃO",
+      "renumberGroup": null
     },
     {
       "sectionKey": "12_1_recursos_internos",
@@ -1524,6 +1254,16 @@
       "sectionKey": "12_1_20_sede_da",
       "defaultTitle": "12.1.20. Sede da Brigada de Emergência – BEM",
       "renumberGroup": "12.1"
+    },
+    {
+      "sectionKey": "acoes_de_combate_e_atendimento",
+      "defaultTitle": "AÇÕES DE COMBATE E ATENDIMENTO ÀS EMERGÊNCIAS",
+      "renumberGroup": null
+    },
+    {
+      "sectionKey": "acoes_de_combate_e_atendimento_2",
+      "defaultTitle": "AÇÕES DE COMBATE E ATENDIMENTO ÀS EMERGÊNCIAS EM USINAS",
+      "renumberGroup": null
     }
   ],
   "pageAudit": [
@@ -1539,7 +1279,7 @@
     }
   ],
   "stats": {
-    "unreviewedSpans": 126,
+    "unreviewedSpans": 0,
     "spans": 133,
     "yellow": 129,
     "red": 4

@@ -19,31 +19,31 @@ spans:
   kind: field
   key: uhe_marimbondo
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Capa
+  label: Usina (capa)
+  reviewed: true
 - id: 1
   part: document
   color: yellow
   text: '                                          Plano de Atendimento às '
   context: Plano de Atendimento às
-  kind: field
+  kind: ignore
   key: plano_de_atendimento_as
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 2
   part: document
   color: yellow
   text: '                                          Emergências da Central (PAEC)'
   context: Emergências da Central (PAEC)
-  kind: field
+  kind: ignore
   key: emergencias_da_central_paec
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 3
   part: document
   color: yellow
@@ -52,9 +52,9 @@ spans:
   kind: field
   key: gerencia_regional_o_m_minas
   transform: upper
-  section: null
-  label: null
-  reviewed: false
+  section: Capa
+  label: Gerência Regional O&M
+  reviewed: true
 - id: 4
   part: document
   color: yellow
@@ -63,9 +63,9 @@ spans:
   kind: field
   key: g_sudeste_oo_segsrm
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Capa
+  label: G Sudeste / código
+  reviewed: true
 - id: 5
   part: document
   color: yellow
@@ -74,9 +74,9 @@ spans:
   kind: field
   key: gerencia_de_o_m_marimbondo
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Capa
+  label: Gerência de O&M
+  reviewed: true
 - id: 6
   part: document
   color: yellow
@@ -85,9 +85,9 @@ spans:
   kind: field
   key: p_colombia_g_sudeste_oo
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Capa
+  label: Complemento gerência / código
+  reviewed: true
 - id: 7
   part: document
   color: yellow
@@ -96,9 +96,9 @@ spans:
   kind: field
   key: regional_o_m_es_e
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Capa
+  label: Regional O&M (Transmissão)
+  reviewed: true
 - id: 8
   part: document
   color: yellow
@@ -107,9 +107,9 @@ spans:
   kind: field
   key: o_m_minas_gerais_t
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Capa
+  label: Complemento regional (Transmissão) / código
+  reviewed: true
 - id: 9
   part: document
   color: yellow
@@ -120,7 +120,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 10
   part: document
   color: yellow
@@ -129,9 +129,9 @@ spans:
   kind: field
   key: no_do_documento_oo_semb
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Capa
+  label: Nº do documento
+  reviewed: true
 - id: 11
   part: document
   color: yellow
@@ -142,7 +142,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 12
   part: document
   color: yellow
@@ -151,9 +151,9 @@ spans:
   kind: field
   key: g_sudeste
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação do documento
+  label: G Sudeste
+  reviewed: true
 - id: 13
   part: document
   color: yellow
@@ -162,9 +162,9 @@ spans:
   kind: field
   key: oo_segsrm
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação do documento
+  label: Código da unidade (OO|SEGSRM)
+  reviewed: true
 - id: 14
   part: document
   color: yellow
@@ -173,9 +173,9 @@ spans:
   kind: field
   key: roberto_teixeira_siniscalchi
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação do documento
+  label: Responsável — Gerência Regional O&M Minas Gerais
+  reviewed: true
 - id: 15
   part: document
   color: yellow
@@ -184,9 +184,9 @@ spans:
   kind: field
   key: gerencia_de_o_m_marimbondo_2
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação do documento
+  label: Gerência de O&M Marimbondo e Colômbia G Sudeste
+  reviewed: true
 - id: 16
   part: document
   color: yellow
@@ -195,9 +195,9 @@ spans:
   kind: field
   key: oo_segsrmmb
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação do documento
+  label: Código da unidade (OO|SEGSRMMB)
+  reviewed: true
 - id: 17
   part: document
   color: yellow
@@ -207,8 +207,8 @@ spans:
   key: rodrigo_ferreira_moreno
   transform: none
   section: null
-  label: null
-  reviewed: false
+  label: Nome (responsável)
+  reviewed: true
 - id: 18
   part: document
   color: yellow
@@ -217,9 +217,9 @@ spans:
   kind: field
   key: regional_o_m_es_e_2
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação do documento
+  label: Regional O&M ES e Minas T SE
+  reviewed: true
 - id: 19
   part: document
   color: yellow
@@ -228,9 +228,9 @@ spans:
   kind: field
   key: oo_septrm
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação do documento
+  label: Código da unidade (OO|SEPTRM)
+  reviewed: true
 - id: 20
   part: document
   color: yellow
@@ -239,9 +239,9 @@ spans:
   kind: field
   key: anderson_prado_azevedo
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação do documento
+  label: Responsável — Regional O&M ES e Minas T SE
+  reviewed: true
 - id: 21
   part: document
   color: yellow
@@ -250,9 +250,9 @@ spans:
   kind: field
   key: o_m_minas_gerais_t_2
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação do documento
+  label: O&M Minas Gerais T Sudeste
+  reviewed: true
 - id: 22
   part: document
   color: yellow
@@ -261,9 +261,9 @@ spans:
   kind: field
   key: oo_septrmmg
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação do documento
+  label: Código da unidade (OO|SEPTRMMG)
+  reviewed: true
 - id: 23
   part: document
   color: yellow
@@ -272,20 +272,20 @@ spans:
   kind: field
   key: alessandro_a_medeiros_cardoso
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação do documento
+  label: Responsável — O&M Minas Gerais T Sudeste
+  reviewed: true
 - id: 24
   part: document
   color: yellow
   text: 'HISTÓRICO DE REVISÕES:'
   context: 'HISTÓRICO DE REVISÕES:'
-  kind: field
+  kind: section_title
   key: historico_de_revisoes
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 25
   part: document
   color: yellow
@@ -294,9 +294,9 @@ spans:
   kind: field
   key: gerencia_regional_o_m_minas_2
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Histórico de revisões
+  label: Gerência Regional O&M Minas Gerais G Sudeste
+  reviewed: true
 - id: 26
   part: document
   color: yellow
@@ -307,7 +307,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 27
   part: document
   color: yellow
@@ -318,7 +318,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 28
   part: document
   color: yellow
@@ -327,9 +327,9 @@ spans:
   kind: field
   key: gerencia_de_o_m_marimbondo_3
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Histórico de revisões
+  label: Gerência de O&M Marimbondo e P. Colômbia G Sudeste
+  reviewed: true
 - id: 29
   part: document
   color: yellow
@@ -340,7 +340,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 30
   part: document
   color: yellow
@@ -351,7 +351,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 31
   part: document
   color: yellow
@@ -362,7 +362,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 32
   part: document
   color: yellow
@@ -373,7 +373,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 33
   part: document
   color: yellow
@@ -384,7 +384,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 34
   part: document
   color: yellow
@@ -395,7 +395,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 35
   part: document
   color: yellow
@@ -406,7 +406,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 36
   part: document
   color: yellow
@@ -417,7 +417,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 37
   part: document
   color: yellow
@@ -426,9 +426,9 @@ spans:
   kind: field
   key: elvio_zampier_de_abreu_orlanilson
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Histórico de revisões
+  label: Responsáveis pela revisão anterior
+  reviewed: true
 - id: 38
   part: document
   color: yellow
@@ -439,7 +439,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 39
   part: document
   color: yellow
@@ -450,7 +450,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 40
   part: document
   color: yellow
@@ -459,20 +459,20 @@ spans:
   kind: field
   key: rodrigo_ferreira_moreno_douglas_de
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Histórico de revisões
+  label: Responsáveis pela revisão atual
+  reviewed: true
 - id: 41
   part: document
   color: yellow
   text: Sumário
   context: Sumário
-  kind: field
+  kind: section_title
   key: sumario
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 42
   part: document
   color: yellow
@@ -482,9 +482,9 @@ spans:
   kind: field
   key: uhe_e_se_de_marimbondo
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Objetivo do PAEC
+  label: Instalações do PAEC
+  reviewed: true
 - id: 43
   part: document
   color: yellow
@@ -493,9 +493,9 @@ spans:
   kind: field
   key: proteger_as_instalacoes_da_uhe
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Objetivo do PAEC
+  label: Objetivo — proteção das instalações
+  reviewed: true
 - id: 44
   part: document
   color: yellow
@@ -504,9 +504,9 @@ spans:
   kind: field
   key: manter_a_imagem_e_a
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Objetivo do PAEC
+  label: Objetivo — imagem e reputação
+  reviewed: true
 - id: 45
   part: document
   color: yellow
@@ -517,9 +517,9 @@ spans:
   kind: field
   key: a_gerencia_de_o_m
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Responsabilidade pela operação
+  label: Responsável pela operação — UHE
+  reviewed: true
 - id: 46
   part: document
   color: yellow
@@ -530,96 +530,96 @@ spans:
   kind: field
   key: a_o_m_minas_gerais
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Responsabilidade pela operação
+  label: Responsável pela operação — SE
+  reviewed: true
 - id: 47
   part: document
   color: yellow
   text: CARACTERÍSTICAS FÍSICAS GERAIS DA USINA HIDRELÉTRICA e subestação DE marimbondo
   context: CARACTERÍSTICAS FÍSICAS GERAIS DA USINA HIDRELÉTRICA e subestação DE marimbondo
-  kind: field
+  kind: section_title
   key: caracteristicas_fisicas_gerais_da_usina
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 48
   part: document
   color: yellow
   text: . A USINA HIDRELÉTRICA E SUBESTAÇÃO DE MARIMBONDO
   context: 6.2. A USINA HIDRELÉTRICA E SUBESTAÇÃO DE MARIMBONDO
-  kind: field
+  kind: section_title
   key: a_usina_hidreletrica_e_subestacao
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 49
   part: document
   color: yellow
   text: IDENTIFICAÇÃO DA INSTALAÇÃO
   context: 6.3. IDENTIFICAÇÃO DA INSTALAÇÃO
-  kind: field
+  kind: section_title
   key: identificacao_da_instalacao
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 50
   part: document
   color: yellow
   text: Razão Social
   context: Razão Social
-  kind: field
+  kind: ignore
   key: razao_social
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 51
   part: document
   color: yellow
   text: Usina Hidrelétrica de Marimbondo
   context: Usina Hidrelétrica de Marimbondo
   kind: field
-  key: usina_hidreletrica_de_marimbondo
+  key: razao_social
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação da instalação
+  label: Razão Social
+  reviewed: true
 - id: 52
   part: document
   color: yellow
   text: Nome Fantasia
   context: Nome Fantasia
-  kind: field
+  kind: ignore
   key: nome_fantasia
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 53
   part: document
   color: yellow
   text: UHE DE MARIMBONDO
   context: UHE DE MARIMBONDO
   kind: field
-  key: uhe_de_marimbondo
+  key: nome_fantasia
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação da instalação
+  label: Nome Fantasia
+  reviewed: true
 - id: 54
   part: document
   color: yellow
   text: Endereço
   context: Endereço
-  kind: field
+  kind: ignore
   key: endereco_instalacao
   transform: none
-  section: 'Identificação da instalação'
-  label: Endereço
+  section: null
+  label: null
   reviewed: true
 - id: 55
   part: document
@@ -627,88 +627,88 @@ spans:
   text: 'Rodovia BR 153, km 245/246, Fronteira MG, Cep: 38.230-000 - Caixa postal: 25'
   context: 'Rodovia BR 153, km 245/246, Fronteira MG, Cep: 38.230-000 - Caixa postal: 25'
   kind: field
-  key: rodovia_br_153_km_245
+  key: endereco_instalacao
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação da instalação
+  label: Endereço
+  reviewed: true
 - id: 56
   part: document
   color: yellow
   text: CNPJ (CGC/MF Nº)
   context: CNPJ (CGC/MF Nº)
-  kind: field
+  kind: ignore
   key: cnpj_cgc_mf_no
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 57
   part: document
   color: yellow
   text: 00.001.180/0038-18
   context: 00.001.180/0038-18
   kind: field
-  key: cnpj_1
+  key: cnpj_cgc_mf_no
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação da instalação
+  label: CNPJ
+  reviewed: true
 - id: 58
   part: document
   color: yellow
   text: ' Inscrição Estadual'
   context: Inscrição Estadual
-  kind: field
+  kind: ignore
   key: inscricao_estadual
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 59
   part: document
   color: yellow
   text: Telefone/Fax
   context: Telefone/Fax
-  kind: field
+  kind: ignore
   key: telefone_fax
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 60
   part: document
   color: yellow
   text: (34) 99730-4626 (Sala de Controle)
   context: (34) 99730-4626 (Sala de Controle)
   kind: field
-  key: telefone_1
+  key: telefone_sala_controle
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação da instalação
+  label: Telefone — Sala de Controle
+  reviewed: true
 - id: 61
   part: document
   color: yellow
   text: (34) 3428-5295 (Portaria)
   context: (34) 3428-5295 (Portaria)
   kind: field
-  key: telefone_2
+  key: telefone_portaria
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Identificação da instalação
+  label: Telefone — Portaria
+  reviewed: true
 - id: 62
   part: document
   color: yellow
   text: WEB
   context: WEB
-  kind: field
+  kind: ignore
   key: web
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 63
   part: document
   color: yellow
@@ -719,7 +719,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 64
   part: document
   color: yellow
@@ -728,7 +728,7 @@ spans:
   kind: field
   key: nome_representante_legal_usina
   transform: none
-  section: 'Representante legal (Usina)'
+  section: Representante legal (Usina)
   label: Nome
   reviewed: true
 - id: 65
@@ -739,9 +739,9 @@ spans:
   kind: field
   key: rodrigo_ferreira_moreno
   transform: none
-  section: null
+  section: Representante legal (Usina)
   label: null
-  reviewed: false
+  reviewed: true
 - id: 66
   part: document
   color: yellow
@@ -750,7 +750,7 @@ spans:
   kind: field
   key: endereco_representante_legal_usina
   transform: none
-  section: 'Representante legal (Usina)'
+  section: Representante legal (Usina)
   label: Endereço
   reviewed: true
 - id: 67
@@ -761,53 +761,53 @@ spans:
   kind: field
   key: rua_gago_coutinho_911_apto
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Representante legal (Usina)
+  label: Endereço do representante
+  reviewed: true
 - id: 68
   part: document
   color: yellow
   text: ' Telefone / Fax'
   context: Telefone / Fax
-  kind: field
+  kind: ignore
   key: telefone_fax_2
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 69
   part: document
   color: yellow
   text: (34) 3428-5320
   context: (34) 3428-5320
   kind: field
-  key: telefone_3
+  key: telefone_fax_2
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Representante legal (Usina)
+  label: Telefone/Fax
+  reviewed: true
 - id: 70
   part: document
   color: yellow
   text: Celular corporativo
   context: Celular corporativo
-  kind: field
+  kind: ignore
   key: celular_corporativo
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 71
   part: document
   color: yellow
   text: (21) 99401-5162
   context: (21) 99401-5162
   kind: field
-  key: telefone_4
+  key: celular_corporativo
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Representante legal (Usina)
+  label: Celular corporativo
+  reviewed: true
 - id: 72
   part: document
   color: yellow
@@ -816,7 +816,7 @@ spans:
   kind: field
   key: email_representante_legal_usina
   transform: none
-  section: 'Representante legal (Usina)'
+  section: Representante legal (Usina)
   label: E-mail
   reviewed: true
 - id: 73
@@ -827,7 +827,7 @@ spans:
   kind: field
   key: nome_representante_legal_subestacao
   transform: none
-  section: 'Representante legal (Subestação)'
+  section: Representante legal (Subestação)
   label: Nome
   reviewed: true
 - id: 74
@@ -838,9 +838,9 @@ spans:
   kind: field
   key: alessandro_antonio_medeiros_cardoso
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Representante legal (Subestação)
+  label: Nome do representante
+  reviewed: true
 - id: 75
   part: document
   color: yellow
@@ -849,7 +849,7 @@ spans:
   kind: field
   key: endereco_representante_legal_subestacao
   transform: none
-  section: 'Representante legal (Subestação)'
+  section: Representante legal (Subestação)
   label: Endereço
   reviewed: true
 - id: 76
@@ -860,31 +860,31 @@ spans:
   kind: field
   key: av_dido_fontes_2355_jardim
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Representante legal (Subestação)
+  label: Endereço do representante
+  reviewed: true
 - id: 77
   part: document
   color: yellow
   text: Telefone comercial
   context: Telefone comercial
-  kind: field
+  kind: ignore
   key: telefone_comercial
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 78
   part: document
   color: yellow
   text: (27) 3398-5210
   context: (27) 3398-5210
   kind: field
-  key: telefone_5
+  key: telefone_comercial
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Representante legal (Subestação)
+  label: Telefone comercial
+  reviewed: true
 - id: 79
   part: document
   color: yellow
@@ -893,7 +893,7 @@ spans:
   kind: field
   key: email_representante_legal_subestacao
   transform: none
-  section: 'Representante legal (Subestação)'
+  section: Representante legal (Subestação)
   label: E-mail
   reviewed: true
 - id: 80
@@ -904,20 +904,20 @@ spans:
   kind: field
   key: email_1
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Representante legal (Subestação)
+  label: E-mail do representante
+  reviewed: true
 - id: 81
   part: document
   color: yellow
   text: 6. LOCALIZAÇÃO
   context: 6.6. LOCALIZAÇÃO
-  kind: field
+  kind: section_title
   key: 6_localizacao
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 82
   part: document
   color: yellow
@@ -926,9 +926,9 @@ spans:
   kind: field
   key: to_de_oleo_na_uhe
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Cenário acidental (MAIA)
+  label: Cenário — vazamento de óleo (instalação)
+  reviewed: true
 - id: 83
   part: document
   color: yellow
@@ -939,7 +939,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 84
   part: document
   color: yellow
@@ -950,9 +950,9 @@ spans:
   kind: field
   key: a_hipotese_de_maior_severidade
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Cenário acidental (MAIA)
+  label: Descrição da hipótese de maior severidade
+  reviewed: true
 - id: 85
   part: document
   color: yellow
@@ -961,9 +961,9 @@ spans:
   kind: field
   key: 95_814_l
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Cenário acidental (MAIA)
+  label: Volume da hipótese de maior severidade
+  reviewed: true
 - id: 86
   part: document
   color: yellow
@@ -972,9 +972,9 @@ spans:
   kind: field
   key: gerencia_de_o_m_de
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Estrutura organizacional de resposta
+  label: Unidade responsável — item 10.4.4
+  reviewed: true
 - id: 87
   part: document
   color: yellow
@@ -983,9 +983,9 @@ spans:
   kind: field
   key: gerencia_da_operacao_de_meio
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Estrutura organizacional de resposta
+  label: Unidade responsável — item 10.4.6
+  reviewed: true
 - id: 88
   part: document
   color: yellow
@@ -996,7 +996,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 89
   part: document
   color: yellow
@@ -1007,7 +1007,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 90
   part: document
   color: yellow
@@ -1018,7 +1018,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 91
   part: document
   color: yellow
@@ -1029,7 +1029,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 92
   part: document
   color: yellow
@@ -1040,7 +1040,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 93
   part: document
   color: yellow
@@ -1051,7 +1051,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 94
   part: document
   color: yellow
@@ -1062,7 +1062,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 95
   part: document
   color: yellow
@@ -1073,7 +1073,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 96
   part: document
   color: yellow
@@ -1084,7 +1084,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 97
   part: document
   color: red
@@ -1094,8 +1094,8 @@ spans:
   key: 12_1_9_sistema_movel
   transform: none
   section: null
-  label: null
-  reviewed: false
+  label: Sistema móvel de extintores de incêndio
+  reviewed: true
 - id: 98
   part: document
   color: yellow
@@ -1106,7 +1106,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 99
   part: document
   color: yellow
@@ -1117,7 +1117,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 100
   part: document
   color: yellow
@@ -1128,7 +1128,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 101
   part: document
   color: yellow
@@ -1139,7 +1139,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 102
   part: document
   color: yellow
@@ -1150,7 +1150,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 103
   part: document
   color: yellow
@@ -1161,7 +1161,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 104
   part: document
   color: yellow
@@ -1172,7 +1172,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 105
   part: document
   color: yellow
@@ -1183,7 +1183,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 106
   part: document
   color: yellow
@@ -1194,7 +1194,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 107
   part: document
   color: yellow
@@ -1203,9 +1203,9 @@ spans:
   kind: field
   key: uhe_de_marimbondo_2
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Local de realização (treinamentos/simulados)
+  label: Local de realização
+  reviewed: true
 - id: 108
   part: document
   color: yellow
@@ -1216,29 +1216,29 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 109
   part: document
   color: yellow
   text: AÇÕES DE COMBATE E ATENDIMENTO ÀS EMERGÊNCIAS
   context: AÇÕES DE COMBATE E ATENDIMENTO ÀS EMERGÊNCIAS
-  kind: field
+  kind: section_title
   key: acoes_de_combate_e_atendimento
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 110
   part: document
   color: yellow
   text: 'AÇÕES DE COMBATE E ATENDIMENTO ÀS EMERGÊNCIAS EM USINAS '
   context: AÇÕES DE COMBATE E ATENDIMENTO ÀS EMERGÊNCIAS EM USINAS
-  kind: field
+  kind: section_title
   key: acoes_de_combate_e_atendimento_2
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 111
   part: document
   color: yellow
@@ -1249,7 +1249,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 112
   part: document
   color: yellow
@@ -1260,7 +1260,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 113
   part: document
   color: yellow
@@ -1269,9 +1269,9 @@ spans:
   kind: field
   key: gerente_uhe_de_marimbondo
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Estrutura organizacional de acionamento
+  label: Cargo — topo da estrutura
+  reviewed: true
 - id: 114
   part: document
   color: yellow
@@ -1280,9 +1280,9 @@ spans:
   kind: field
   key: telefone_6
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Estrutura organizacional de acionamento
+  label: Telefone — Gerente UHE
+  reviewed: true
 - id: 115
   part: document
   color: yellow
@@ -1293,7 +1293,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 116
   part: document
   color: yellow
@@ -1304,7 +1304,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 117
   part: document
   color: yellow
@@ -1313,9 +1313,9 @@ spans:
   kind: field
   key: brigada_de_emergencia_coordenador_da
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Estrutura organizacional de acionamento
+  label: Cargo — coordenador da BEM
+  reviewed: true
 - id: 118
   part: document
   color: yellow
@@ -1324,9 +1324,9 @@ spans:
   kind: field
   key: telefone_7
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Estrutura organizacional de acionamento
+  label: Telefone — coordenador da BEM
+  reviewed: true
 - id: 119
   part: document
   color: yellow
@@ -1335,9 +1335,9 @@ spans:
   kind: field
   key: nicola_prado
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Estrutura organizacional de acionamento
+  label: Nome — coordenador da BEM
+  reviewed: true
 - id: 120
   part: document
   color: yellow
@@ -1348,7 +1348,7 @@ spans:
   transform: none
   section: null
   label: null
-  reviewed: false
+  reviewed: true
 - id: 121
   part: document
   color: yellow
@@ -1357,9 +1357,9 @@ spans:
   kind: field
   key: sala_de_paineis_escritorio_central
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Estrutura organizacional de acionamento
+  label: Local — plantão
+  reviewed: true
 - id: 122
   part: document
   color: yellow
@@ -1368,9 +1368,9 @@ spans:
   kind: field
   key: telefone_8
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Estrutura organizacional de acionamento
+  label: Telefone — plantão
+  reviewed: true
 - id: 123
   part: document
   color: yellow
@@ -1379,9 +1379,9 @@ spans:
   kind: field
   key: plantao
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Estrutura organizacional de acionamento
+  label: Turno/Regime
+  reviewed: true
 - id: 124
   part: document
   color: yellow
@@ -1390,9 +1390,9 @@ spans:
   kind: field
   key: csse_g
   transform: none
-  section: null
-  label: null
-  reviewed: false
+  section: Estrutura organizacional de acionamento
+  label: Setor/Código
+  reviewed: true
 - id: 125
   part: document
   color: yellow
@@ -1402,8 +1402,8 @@ spans:
   key: anexo_ii_plano_de_comunicacao
   transform: none
   section: null
-  label: null
-  reviewed: false
+  label: Anexo II — Plano de comunicação de emergência (contatos externos)
+  reviewed: true
 - id: 126
   part: document
   color: red
@@ -1413,8 +1413,8 @@ spans:
   key: anexo_iv_relacao_de_brigadistas
   transform: none
   section: null
-  label: null
-  reviewed: false
+  label: Anexo IV — Relação de brigadistas
+  reviewed: true
 - id: 127
   part: document
   color: red
@@ -1424,8 +1424,8 @@ spans:
   key: anexo_v_recursos_materiais_bem
   transform: none
   section: null
-  label: null
-  reviewed: false
+  label: Anexo V — Recursos materiais (BEM)
+  reviewed: true
 - id: 128
   part: document
   color: red
@@ -1435,8 +1435,8 @@ spans:
   key: no_ponto_de_encontro
   transform: none
   section: null
-  label: null
-  reviewed: false
+  label: Pontos de encontro
+  reviewed: true
 - id: 129
   part: document
   color: yellow
@@ -1446,8 +1446,8 @@ spans:
   key: anexo_vii_rota_de_fuga
   transform: none
   section: null
-  label: null
-  reviewed: false
+  label: Anexo VII — Rota de fuga
+  reviewed: true
 - id: 130
   part: document
   color: yellow
@@ -1457,27 +1457,27 @@ spans:
   key: anexo_x_arranjo_das_instalacoes
   transform: none
   section: null
-  label: null
-  reviewed: false
+  label: Anexo X — Arranjo das instalações (unifilar)
+  reviewed: true
 - id: 131
   part: document
   color: yellow
   text: UHE DE MARIMBONDO
   context: 'NOTA: Os desenhos de drenagem da UHE DE MARIMBONDO estão disponíveis no Portal da DO, bem como na área operacional'
   kind: field
-  key: uhe_de_marimbondo
+  key: nome_fantasia
   transform: none
   section: null
-  label: null
-  reviewed: false
+  label: Nome Fantasia
+  reviewed: true
 - id: 132
   part: document
   color: yellow
   text: UHE DE MARIMBONDO
   context: 'NOTA: A Planilha MAIA da UHE DE MARIMBONDO encontra-se em anexo próprio no Portal do Meio Ambiente.'
   kind: field
-  key: uhe_de_marimbondo
+  key: nome_fantasia
   transform: none
   section: null
-  label: null
-  reviewed: false
+  label: Nome Fantasia
+  reviewed: true
