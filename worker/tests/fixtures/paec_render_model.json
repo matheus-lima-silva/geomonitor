@@ -12,12 +12,27 @@
       { "key": "endereco_rep", "label": "Endereco do representante", "section": "representantes", "type": "multiline", "required": true }
     ],
     "blocks": [
-      { "key": "brigadistas", "kind": "list", "label": "Relacao de brigadistas" },
+      {
+        "key": "brigadistas",
+        "kind": "list",
+        "label": "Relacao de brigadistas",
+        "anchorContext": "anexo IV - RELACAO DE BRIGADISTAS",
+        "columns": [
+          { "key": "nome", "label": "Nome" },
+          { "key": "telefone", "label": "Telefone" }
+        ]
+      },
       { "key": "anexo_vii_rota_de_fuga", "kind": "manual", "label": "Rota de fuga" }
     ],
     "values": {
       "usina": "PCH Anta",
       "endereco_rep": "Rua A, 123\nCentro - Sapucaia/RJ"
+    },
+    "listItems": {
+      "brigadistas": [
+        { "nome": "Fulano de Tal", "telefone": "(11) 1111-1111" },
+        { "nome": "Ciclana da Silva", "telefone": "(11) 2222-2222" }
+      ]
     },
     "pendencies": [
       { "kind": "field", "key": "cnpj_1", "label": "CNPJ", "section": "identificacao" },
