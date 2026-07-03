@@ -8,7 +8,7 @@ export default function SectionNav({ sections, activeId, onSectionClick, pendenc
   const percent = fieldsTotal > 0 ? Math.round((fieldsFilled / fieldsTotal) * 100) : 0;
 
   return (
-    <nav aria-label="Seções da ficha" className="hidden lg:flex flex-col gap-3 sticky top-[76px]">
+    <nav aria-label="Seções da ficha" className="hidden lg:flex flex-col gap-3 min-h-0 overflow-y-auto">
       <div>
         <p className="m-0 mb-1 text-2xs font-bold uppercase tracking-wide text-slate-400">Seções</p>
         <p className="m-0 mb-1.5 text-xs text-slate-500">{fieldsFilled} / {fieldsTotal} completos</p>
