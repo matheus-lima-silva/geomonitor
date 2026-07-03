@@ -6,6 +6,7 @@ from unittest.mock import Mock
 import pytest
 from docx import Document
 from docx.enum.text import WD_COLOR_INDEX
+from docx.oxml.ns import qn
 
 from worker.docx_runs import collect_all_spans
 from worker.paec_renderer import render_paec_to_docx
@@ -82,6 +83,29 @@ def _template_bytes_with_generated_list_block():
     buffer = io.BytesIO()
     doc.save(buffer)
     return buffer.getvalue()
+
+
+def _template_bytes_with_sections():
+    """Template sintetico reproduzindo o padrao real das secoes 12.1.x:
+    heading realcado (kind=section_title, nunca tokenizado pelo apply)
+    seguido de paragrafos de conteudo ate o proximo heading."""
+    doc = Document()
+    doc.add_paragraph("Plano da usina {{usina}}.")
+    for number, label in [("12.1.1", "Recurso A"), ("12.1.2", "Recurso B"), ("12.1.3", "Recurso C")]:
+        heading = doc.add_paragraph()
+        heading.add_run(f"{number}. {label}").font.highlight_color = WD_COLOR_INDEX.YELLOW
+        doc.add_paragraph(f"Conteudo do {label}.")
+    doc.add_paragraph("Fim do documento.")
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
+
+
+SAMPLE_SECTIONS = [
+    {"sectionKey": "recurso_a", "defaultTitle": "12.1.1. Recurso A", "renumberGroup": "12.1"},
+    {"sectionKey": "recurso_b", "defaultTitle": "12.1.2. Recurso B", "renumberGroup": "12.1"},
+    {"sectionKey": "recurso_c", "defaultTitle": "12.1.3. Recurso C", "renumberGroup": "12.1"},
+]
 
 
 def _all_text(path):
@@ -232,6 +256,77 @@ def test_bloco_list_sem_span_localiza_pela_tabela_via_headerMatch(tmp_path):
     assert [c.text for c in table.rows[1].cells] == ["Gerente", "(21) 1111-1111"]
     assert len(table.rows) == 2
     assert "Exemplo Marimbondo" not in _all_text(output)
+
+
+def test_secao_desligada_some_do_documento_e_remanescentes_renumeram(tmp_path):
+    output, _result = _render(
+        tmp_path,
+        overrides={
+            "sections": SAMPLE_SECTIONS,
+            "sectionFlags": {"recurso_b": {"enabled": False}},
+        },
+        template=_template_bytes_with_sections(),
+    )
+    text = _all_text(output)
+    assert "Recurso B" not in text
+    assert "Conteudo do Recurso B" not in text
+    assert "12.1.1. Recurso A" in text
+    assert "Conteudo do Recurso A." in text
+    # Recurso C era 12.1.3, com B fora vira 12.1.2 (renumeracao sequencial)
+    assert "12.1.2. Recurso C" in text
+    assert "12.1.3. Recurso C" not in text
+    assert "Conteudo do Recurso C." in text
+    assert "Fim do documento." in text
+
+
+def test_secao_com_title_override_troca_o_titulo_mantendo_a_posicao(tmp_path):
+    output, _result = _render(
+        tmp_path,
+        overrides={
+            "sections": SAMPLE_SECTIONS,
+            "sectionFlags": {"recurso_b": {"titleOverride": "Recurso B Customizado"}},
+        },
+        template=_template_bytes_with_sections(),
+    )
+    doc = Document(output)
+    headings = [p.text for p in doc.paragraphs if p.text.startswith("12.1.")]
+    assert headings == ["12.1.1. Recurso A", "12.1.2. Recurso B Customizado", "12.1.3. Recurso C"]
+    # conteudo da secao (nao e o heading) continua intacto, so o titulo mudou
+    assert "Conteudo do Recurso B." in _all_text(output)
+
+
+def test_secoes_processadas_perdem_o_realce_mesmo_sem_flag(tmp_path):
+    output, _result = _render(
+        tmp_path,
+        overrides={"sections": SAMPLE_SECTIONS, "sectionFlags": {}},
+        template=_template_bytes_with_sections(),
+    )
+    doc = Document(output)
+    spans = collect_all_spans(doc)
+    assert not any("Recurso" in s.text for s in spans)
+
+
+def test_secao_desligada_marca_toc_para_atualizar(tmp_path):
+    output, _result = _render(
+        tmp_path,
+        overrides={
+            "sections": SAMPLE_SECTIONS,
+            "sectionFlags": {"recurso_b": {"enabled": False}},
+        },
+        template=_template_bytes_with_sections(),
+    )
+    doc = Document(output)
+    assert doc.settings.element.find(qn("w:updateFields")) is not None
+
+
+def test_sem_secoes_flags_nao_marca_toc(tmp_path):
+    output, _result = _render(
+        tmp_path,
+        overrides={"sections": SAMPLE_SECTIONS, "sectionFlags": {}},
+        template=_template_bytes_with_sections(),
+    )
+    doc = Document(output)
+    assert doc.settings.element.find(qn("w:updateFields")) is None
 
 
 def test_ficha_completa_nao_gera_pendencia_de_campo(tmp_path):
