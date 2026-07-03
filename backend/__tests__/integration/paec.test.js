@@ -295,6 +295,26 @@ describe('POST /api/paec/plants', () => {
         );
     });
 
+    it('repassa assets da Fase 4 pro repository', async () => {
+        paecTemplateRepository.getActive.mockResolvedValueOnce(sampleTemplate());
+        paecPlantRepository.create.mockResolvedValueOnce(samplePlant());
+        await request(app)
+            .post('/api/paec/plants')
+            .set('Authorization', 'Bearer t')
+            .send({
+                data: {
+                    name: 'PCH Anta',
+                    fields: { usina: 'PCH Anta' },
+                    assets: { anexo_vii_rota_de_fuga: ['MEDIA-1', 'MEDIA-2'] },
+                },
+            });
+        expect(paecPlantRepository.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                assets: { anexo_vii_rota_de_fuga: ['MEDIA-1', 'MEDIA-2'] },
+            }),
+        );
+    });
+
     it('400 com plantType invalido', async () => {
         paecTemplateRepository.getActive.mockResolvedValueOnce(sampleTemplate());
         const res = await request(app)

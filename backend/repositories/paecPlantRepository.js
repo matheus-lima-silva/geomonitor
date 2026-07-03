@@ -80,6 +80,22 @@ async function getSectionFlagsMap(plantId) {
     return flags;
 }
 
+// Anexos com imagem (Fase 4 — rota de fuga, unifilar): uma linha por imagem
+// de um slot, na ordem de insercao no DOCX. A API fala
+// `assets: { assetKey: [mediaAssetId, ...] }`.
+async function getAssetsMap(plantId) {
+    const res = await postgresStore.query(
+        'SELECT asset_key, media_asset_id FROM paec_plant_assets WHERE plant_id = $1 ORDER BY asset_key ASC, sort_order ASC',
+        [plantId],
+    );
+    const assets = {};
+    for (const row of res.rows) {
+        if (!assets[row.asset_key]) assets[row.asset_key] = [];
+        assets[row.asset_key].push(row.media_asset_id);
+    }
+    return assets;
+}
+
 async function getFull(id) {
     const plantId = normalizeText(id);
     const res = await postgresStore.query(`${SELECT_PLANT} WHERE id = $1 LIMIT 1`, [plantId]);
@@ -89,6 +105,7 @@ async function getFull(id) {
         fields: await getFieldsMap(plantId),
         listItems: await getListItemsMap(plantId),
         sectionFlags: await getSectionFlagsMap(plantId),
+        assets: await getAssetsMap(plantId),
     };
 }
 
@@ -229,6 +246,34 @@ async function rewriteSectionFlags(client, plantId, sectionFlags, updatedBy) {
     }
 }
 
+function normalizeAssets(assets) {
+    const entries = [];
+    if (assets && typeof assets === 'object') {
+        for (const [assetKey, mediaIds] of Object.entries(assets)) {
+            const key = normalizeText(assetKey);
+            if (!key || !Array.isArray(mediaIds)) continue;
+            mediaIds.forEach((mediaId, index) => {
+                const id = normalizeText(mediaId);
+                if (id) entries.push([key, index, id]);
+            });
+        }
+    }
+    return entries;
+}
+
+// Replace-on-save integral, mesmo padrao de rewriteListItems: a lista de
+// imagens de um slot e uma unidade so (a ordem importa e vem do array).
+async function rewriteAssets(client, plantId, assets, updatedBy) {
+    await client.query('DELETE FROM paec_plant_assets WHERE plant_id = $1', [plantId]);
+    for (const [assetKey, sortOrder, mediaAssetId] of normalizeAssets(assets)) {
+        await client.query(
+            `INSERT INTO paec_plant_assets (plant_id, asset_key, sort_order, media_asset_id, created_at, updated_at, updated_by)
+             VALUES ($1, $2, $3, $4, NOW(), NOW(), $5)`,
+            [plantId, assetKey, sortOrder, mediaAssetId, updatedBy],
+        );
+    }
+}
+
 // 23505 no indice LOWER(name) e traduzido pela rota em 409 NAME_EXISTS.
 async function create(data) {
     const id = normalizeText(data.id) || genId();
@@ -270,10 +315,17 @@ async function create(data) {
                  FROM paec_plant_section_flags WHERE plant_id = $2`,
                 [id, sourceId, updatedBy],
             );
+            await client.query(
+                `INSERT INTO paec_plant_assets (plant_id, asset_key, sort_order, media_asset_id, created_at, updated_at, updated_by)
+                 SELECT $1, asset_key, sort_order, media_asset_id, NOW(), NOW(), $3
+                 FROM paec_plant_assets WHERE plant_id = $2`,
+                [id, sourceId, updatedBy],
+            );
         } else {
             await rewriteFields(client, id, data.fields, updatedBy);
             await rewriteListItems(client, id, data.listItems, updatedBy);
             await rewriteSectionFlags(client, id, data.sectionFlags, updatedBy);
+            await rewriteAssets(client, id, data.assets, updatedBy);
         }
         await client.query('COMMIT');
     } catch (err) {
@@ -327,6 +379,7 @@ async function saveFull(id, data, expectedVersion) {
         await rewriteFields(client, plantId, data.fields, updatedBy);
         await rewriteListItems(client, plantId, data.listItems, updatedBy);
         await rewriteSectionFlags(client, plantId, data.sectionFlags, updatedBy);
+        await rewriteAssets(client, plantId, data.assets, updatedBy);
         await client.query('COMMIT');
     } catch (err) {
         await client.query('ROLLBACK');

@@ -68,6 +68,28 @@ describe('computePendencies', () => {
             { kind: 'manual_block', key: 'anexo_vii', label: 'Rota de fuga', section: null },
         );
     });
+
+    it('imageSlot sem nenhuma imagem salva vira pendencia image', () => {
+        const withSlots = {
+            ...manifest,
+            imageSlots: [{ assetKey: 'rota_de_fuga', label: 'Rota de fuga (imagens)', maxImages: 5 }],
+        };
+        const pendencies = computePendencies(withSlots, { usina: 'x', cnpj: 'y' }, {}, {});
+        expect(pendencies).toContainEqual(
+            { kind: 'image', key: 'rota_de_fuga', label: 'Rota de fuga (imagens)', section: null },
+        );
+    });
+
+    it('imageSlot com pelo menos 1 imagem deixa de ser pendencia', () => {
+        const withSlots = {
+            ...manifest,
+            imageSlots: [{ assetKey: 'rota_de_fuga', label: 'Rota de fuga (imagens)', maxImages: 5 }],
+        };
+        const pendencies = computePendencies(withSlots, { usina: 'x', cnpj: 'y' }, {}, {
+            rota_de_fuga: ['MEDIA-1'],
+        });
+        expect(pendencies.some((p) => p.key === 'rota_de_fuga')).toBe(false);
+    });
 });
 
 describe('computeStats', () => {

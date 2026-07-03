@@ -212,6 +212,34 @@ def test_apply_repassa_columns_curadas_para_o_bloco():
     assert other_manifest["blocks"][0]["columns"] == []
 
 
+def test_apply_kind_image_vira_image_slot_com_max_images():
+    """Anexo com imagem variavel por usina (rota de fuga, unifilar) curado
+    como kind=image + maxImages vira imageSlot no manifest, fora de blocks.
+    Sem maxImages curado, default 1 (slot simples)."""
+    doc = Document()
+    doc.add_paragraph().add_run("anexo VII - ROTA DE FUGA").font.highlight_color = (
+        _COLORS["yellow"]
+    )
+    doc.add_paragraph().add_run("anexo X - UNIFILAR").font.highlight_color = (
+        _COLORS["yellow"]
+    )
+    mapping = build_mapping(doc, "s.docx")
+    mapping["spans"][0]["kind"] = "image"
+    mapping["spans"][0]["maxImages"] = 5
+    mapping["spans"][1]["kind"] = "image"
+
+    manifest = apply_mapping(doc, mapping, "PAEC", "REV")
+
+    assert manifest["blocks"] == []
+    assert len(manifest["imageSlots"]) == 2
+    rota, unifilar = manifest["imageSlots"]
+    assert rota["assetKey"] == "anexo_vii_rota_de_fuga"
+    assert rota["maxImages"] == 5
+    assert rota["anchorContext"] == "anexo VII - ROTA DE FUGA"
+    assert rota["page"] == {"preset": "a4-portrait"}
+    assert unifilar["maxImages"] == 1
+
+
 def test_apply_generated_list_blocks_entram_no_manifest_sem_span():
     """Tabelas sem NENHUM span marcado (nem o cabecalho) -- ex. contatos
     internos/externos no REV 10 -- entram no manifest via

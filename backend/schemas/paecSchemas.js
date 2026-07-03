@@ -33,6 +33,12 @@ const savePaecPlantSchema = z.object({
         }))
             .optional()
             .default({}),
+        // Anexos com imagem (Fase 4): { assetKey: [mediaAssetId, ...] } conforme
+        // manifest.imageSlots[]. Array na ordem de insercao no DOCX;
+        // replace-on-save integral.
+        assets: z.record(z.string(), z.array(z.string().trim().min(1)))
+            .optional()
+            .default({}),
     }),
     meta: metaSchema,
 });
