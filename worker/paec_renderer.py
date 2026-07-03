@@ -17,8 +17,11 @@ import re
 from collections import OrderedDict
 
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
+from docx.text.paragraph import Paragraph as DocxParagraph
 
+from worker.docx_renderer import _picture_size_kwargs
 from worker.docx_runs import (
     collect_all_spans,
     iter_parts,
@@ -362,12 +365,112 @@ def _render_section_flags(document, sections, section_flags):
     return {section["sectionKey"] for section, _span in resolved}
 
 
-def render_paec_to_docx(context, template_bytes, output_path):
+_ANNEX_HEADING_RE = re.compile(r"^anexo\b", re.IGNORECASE)
+
+
+def _find_image_slot_region(anchor_paragraph):
+    """Paragrafos irmaos apos a ancora ate o heading do proximo anexo
+    (``anexo ...``, case-insensitive) ou um elemento nao-paragrafo — a
+    regiao de conteudo do slot. No REV 10 a regiao pode intercalar legendas
+    de texto com as imagens (ex. o unifilar tem "Diagrama de Operação;"
+    antes de cada painel), entao ela NAO para no primeiro texto."""
+    parent = anchor_paragraph.getparent()
+    if parent is None:
+        return []
+    siblings = list(parent)
+    idx = siblings.index(anchor_paragraph)
+    region = []
+    for sibling in siblings[idx + 1 :]:
+        if sibling.tag != qn("w:p"):
+            break
+        if _ANNEX_HEADING_RE.match(paragraph_text(sibling).strip()):
+            break
+        region.append(sibling)
+    return region
+
+
+def _insert_image_paragraph(document, after_element, buffer):
+    """Insere um paragrafo novo com a imagem centralizada logo apos
+    ``after_element``. Mistura lxml (posicao) com a API alta do python-docx
+    (add_picture cuida do relationship/part da imagem); dimensionamento
+    reusa a regra ja calibrada dos outros renderers (largura 15cm, teto de
+    altura pra retrato)."""
+    new_p = after_element.makeelement(qn("w:p"), {})
+    after_element.addnext(new_p)
+    paragraph = DocxParagraph(new_p, document)
+    run = paragraph.add_run()
+    run.add_picture(io.BytesIO(buffer), **_picture_size_kwargs(buffer))
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    return new_p
+
+
+def _insert_pending_paragraph(after_element, label):
+    """Paragrafo de texto ``[[PENDENTE: <label>]]`` realcado de amarelo no
+    lugar das imagens de um slot vazio — nao da pra 'realcar' uma imagem que
+    nao existe, entao a pendencia vira texto visivel."""
+    new_p = after_element.makeelement(qn("w:p"), {})
+    after_element.addnext(new_p)
+    run = new_p.makeelement(qn("w:r"), {})
+    new_p.append(run)
+    set_run_text(run, f"{PENDING_PREFIX}{label}{PENDING_SUFFIX}")
+    set_run_highlight(run, "yellow")
+    return new_p
+
+
+def _render_image_slots(document, image_slots, assets, image_loader):
+    """Renderiza os slots de imagem (Fase 4 — rota de fuga, unifilar):
+    localiza a ancora do slot (span kind=image, ainda realcado no template),
+    REMOVE as imagens-exemplo do modelo (nunca deixa diagrama de outra usina
+    no documento gerado — mesmo principio dos blocos tabulares) e insere uma
+    imagem da ficha por mediaAssetId, na ordem. Slot sem imagem nenhuma vira
+    um paragrafo ``[[PENDENTE]]``. Retorna as assetKeys que NAO deu pra
+    renderizar (ancora nao encontrada) — ficam com as imagens-exemplo
+    originais, visiveis pra auditoria manual."""
+    unrendered = []
+    for slot in image_slots or []:
+        if not isinstance(slot, dict):
+            continue
+        anchor_span = _find_block_anchor_span(document, slot)
+        if anchor_span is None:
+            unrendered.append(slot.get("assetKey"))
+            continue
+
+        anchor_paragraph = anchor_span.paragraph
+        for element in _find_image_slot_region(anchor_paragraph):
+            if list(element.iter(qn("w:drawing"))):
+                element.getparent().remove(element)
+
+        media_ids = assets.get(slot.get("assetKey")) if isinstance(assets, dict) else None
+        media_ids = [m for m in (media_ids or []) if m]
+
+        insert_after = anchor_paragraph
+        if media_ids and image_loader is not None:
+            for media_id in media_ids:
+                try:
+                    media = image_loader(media_id)
+                    buffer = media.get("buffer") if isinstance(media, dict) else None
+                    if not buffer:
+                        raise ValueError("conteudo vazio")
+                    insert_after = _insert_image_paragraph(document, insert_after, buffer)
+                except Exception:
+                    insert_after = _insert_pending_paragraph(
+                        insert_after, f"Imagem indisponivel — {slot.get('label') or media_id}"
+                    )
+        else:
+            _insert_pending_paragraph(anchor_paragraph, slot.get("label") or slot.get("assetKey"))
+
+        replace_span_text(anchor_span, anchor_span.text, drop_highlight=True)
+    return unrendered
+
+
+def render_paec_to_docx(context, template_bytes, output_path, image_loader=None):
     """Renderiza o PAEC e retorna ``{"pendencies": [...], "stats": {...}}``.
 
     ``context`` e o retorno de buildPaecContext (backend): renderModel.paecReport
     com fields (catalogo do manifest), values (ficha) e pendencies pre-computadas
-    (blocos manuais etc. — repassadas e complementadas aqui).
+    (blocos manuais etc. — repassadas e complementadas aqui). ``image_loader``
+    (mediaAssetId -> {"buffer": bytes}) vem do cache de prefetch do
+    job_processor; sem ele os imageSlots viram só o placeholder de pendencia.
     """
     render_model = context.get("renderModel") if isinstance(context, dict) else {}
     paec = render_model.get("paecReport") if isinstance(render_model, dict) else {}
@@ -412,6 +515,9 @@ def render_paec_to_docx(context, template_bytes, output_path):
     _render_list_blocks(document, paec.get("blocks"), list_items_map)
 
     _render_section_flags(document, paec.get("sections"), paec.get("sectionFlags"))
+
+    assets_map = paec.get("assets") if isinstance(paec.get("assets"), dict) else {}
+    _render_image_slots(document, paec.get("imageSlots"), assets_map, image_loader)
 
     pendencies = []
     seen = set()
