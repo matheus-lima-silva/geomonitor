@@ -14,6 +14,7 @@ job. Falha dura so por template inacessivel/corrompido.
 import copy
 import io
 import re
+from collections import OrderedDict
 
 from docx import Document
 from docx.oxml.ns import qn
@@ -248,6 +249,119 @@ def _render_list_blocks(document, blocks, list_items_map):
     return unrendered
 
 
+def _find_section_heading_span(document, section):
+    """Localiza o span kind=section_title ainda realcado (apply_mapping nunca
+    tokeniza esse kind) que corresponde a secao, casando pelo texto salvo em
+    ``defaultTitle`` — igual ``_find_block_anchor_span`` faz pros blocos."""
+    title = (section.get("defaultTitle") or "").strip()
+    if not title:
+        return None
+    for span in collect_all_spans(document):
+        if span.text.strip() == title:
+            return span
+    return None
+
+
+def _remove_section_range(paragraph, next_paragraph):
+    """Remove ``paragraph`` (o heading) e todo elemento irmao ate
+    ``next_paragraph`` (exclusive) — o conteudo da secao termina onde comeca
+    o proximo heading do documento, seja ele do mesmo grupo ou nao. Sem
+    ``next_paragraph`` (ultima secao do documento), remove ate o fim do pai."""
+    parent = paragraph.getparent()
+    if parent is None:
+        return
+    siblings = list(parent)
+    start_idx = siblings.index(paragraph)
+    if next_paragraph is not None and next_paragraph.getparent() is parent:
+        end_idx = siblings.index(next_paragraph)
+    else:
+        end_idx = len(siblings)
+    for element in siblings[start_idx:end_idx]:
+        parent.remove(element)
+
+
+_HEADING_NUMBER_RE = re.compile(r"^\s*\d+(?:\.\d+)*\.?\s*")
+
+
+def _renumber_title(title, new_number):
+    """Troca o prefixo numerico do titulo (``12.1.3. Rede de Hidrantes`` com
+    ``new_number='12.1.2'`` vira ``12.1.2. Rede de Hidrantes``); titulo sem
+    prefixo numerico (ex. title_override sem numero) so ganha o prefixo."""
+    rest = _HEADING_NUMBER_RE.sub("", title, count=1).strip()
+    return f"{new_number}. {rest}" if rest else f"{new_number}."
+
+
+def _mark_toc_dirty(document):
+    """Injeta ``<w:updateFields w:val=\"true\"/>`` em settings.xml — o Word
+    oferece atualizar o sumario ao abrir o documento (nao recomputamos o TOC
+    na mao). Idempotente: nao duplica se ja presente."""
+    settings = document.settings.element
+    if settings.find(qn("w:updateFields")) is not None:
+        return
+    element = settings.makeelement(qn("w:updateFields"), {qn("w:val"): "true"})
+    settings.insert(0, element)
+
+
+def _render_section_flags(document, sections, section_flags):
+    """Aplica sectionFlags (Fase 3): remove o conteudo das secoes desligadas
+    (do heading ate o proximo heading do documento) e renumera
+    sequencialmente as remanescentes de cada ``renumberGroup``, aplicando
+    ``titleOverride`` quando presente. Marca o TOC como desatualizado se
+    alguma secao mudou. Retorna o conjunto de sectionKeys processadas.
+    """
+    section_flags = section_flags or {}
+    resolved = []
+    for section in sections or []:
+        if not isinstance(section, dict):
+            continue
+        span = _find_section_heading_span(document, section)
+        if span is not None:
+            resolved.append((section, span))
+
+    changed = False
+    disabled_keys = set()
+    for index, (section, span) in enumerate(resolved):
+        flag = section_flags.get(section.get("sectionKey")) or {}
+        if flag.get("enabled") is False:
+            disabled_keys.add(section["sectionKey"])
+            next_paragraph = resolved[index + 1][1].paragraph if index + 1 < len(resolved) else None
+            _remove_section_range(span.paragraph, next_paragraph)
+            changed = True
+
+    groups = OrderedDict()
+    for section, span in resolved:
+        if section["sectionKey"] in disabled_keys:
+            continue
+        group = section.get("renumberGroup")
+        if group:
+            groups.setdefault(group, []).append((section, span))
+
+    renumbered_keys = set()
+    for group, items in groups.items():
+        for position, (section, span) in enumerate(items, start=1):
+            flag = section_flags.get(section["sectionKey"]) or {}
+            base_title = flag.get("titleOverride") or section.get("defaultTitle") or ""
+            new_text = _renumber_title(base_title, f"{group}.{position}")
+            if new_text != span.text:
+                changed = True
+            replace_span_text(span, new_text, drop_highlight=True)
+            renumbered_keys.add(section["sectionKey"])
+
+    # Demais headings resolvidos (sem grupo, ou grupo mas sem entrada em
+    # sections/renumberGroup) so perdem o realce -- nunca fica marca de
+    # curadoria visivel num documento final gerado.
+    for section, span in resolved:
+        key = section["sectionKey"]
+        if key in disabled_keys or key in renumbered_keys:
+            continue
+        replace_span_text(span, span.text, drop_highlight=True)
+
+    if changed:
+        _mark_toc_dirty(document)
+
+    return {section["sectionKey"] for section, _span in resolved}
+
+
 def render_paec_to_docx(context, template_bytes, output_path):
     """Renderiza o PAEC e retorna ``{"pendencies": [...], "stats": {...}}``.
 
@@ -296,6 +410,8 @@ def render_paec_to_docx(context, template_bytes, output_path):
 
     list_items_map = paec.get("listItems") if isinstance(paec.get("listItems"), dict) else {}
     _render_list_blocks(document, paec.get("blocks"), list_items_map)
+
+    _render_section_flags(document, paec.get("sections"), paec.get("sectionFlags"))
 
     pendencies = []
     seen = set()
