@@ -122,6 +122,28 @@ describe('PaecFichaPage', () => {
     expect(container.textContent).toContain('3 pendências');
   });
 
+  it('colunas do shell tem contencao de scroll propria (regressao: grid cortada com muitas pendencias)', async () => {
+    // Sem min-h-0 + overflow nas colunas laterais, a linha da grid cresce com
+    // o conteudo do painel de pendencias e estoura o shell h-screen
+    // overflow-hidden — tudo abaixo da dobra fica inalcancavel.
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderPage();
+
+    const editor = container.querySelector('main');
+    const grid = editor.parentElement;
+    const panel = container.querySelector('#paec-pendencies-panel');
+    const nav = container.querySelector('nav[aria-label="Seções da ficha"]');
+
+    expect(grid.className).toContain('overflow-y-auto');
+    expect(grid.className).toContain('lg:overflow-hidden');
+    expect(editor.className).toContain('lg:min-h-0');
+    expect(editor.className).toContain('lg:overflow-y-auto');
+    expect(panel.className).toContain('lg:min-h-0');
+    expect(panel.className).toContain('lg:overflow-y-auto');
+    expect(nav.className).toContain('min-h-0');
+    expect(nav.className).toContain('overflow-y-auto');
+  });
+
   it('editar um campo agenda autosave', async () => {
     fetchPlant.mockResolvedValueOnce(samplePlant());
     await renderPage();

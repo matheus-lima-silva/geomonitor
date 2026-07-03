@@ -131,7 +131,7 @@ export default function PaecFichaPage({ plantId, onExit }) {
         </div>
       ) : null}
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)_320px] gap-6 px-6 pt-4">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)_320px] gap-6 px-6 pt-4 overflow-y-auto lg:overflow-hidden">
         {loading ? (
           <p className="text-sm text-slate-500 col-span-full" aria-live="polite">Carregando ficha…</p>
         ) : error ? (
@@ -149,7 +149,7 @@ export default function PaecFichaPage({ plantId, onExit }) {
               stats={plant.stats}
             />
 
-            <main ref={editorRef} className="overflow-y-auto pb-10 scroll-smooth min-w-0">
+            <main ref={editorRef} className="lg:min-h-0 lg:overflow-y-auto pb-10 scroll-smooth min-w-0">
               <fieldset disabled={conflict} className="flex flex-col gap-5 min-w-0">
                 {sections.map(({ section, fields }, i) => (
                   <SectionCard key={section} id={sectionAnchorId(section, i)} number={i + 1} title={section}>
@@ -207,7 +207,7 @@ export default function PaecFichaPage({ plantId, onExit }) {
               </fieldset>
             </main>
 
-            <div id="paec-pendencies-panel">
+            <div id="paec-pendencies-panel" className="lg:min-h-0 lg:overflow-y-auto lg:pb-6">
               <PendenciesPanel pendencies={pendencies} onFieldClick={scrollToField} onBlockClick={scrollToBlock} />
             </div>
           </>
