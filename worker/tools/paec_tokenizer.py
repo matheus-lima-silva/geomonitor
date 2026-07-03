@@ -276,6 +276,10 @@ def apply_mapping(document, mapping, template_name, revision_label):
     realce (texto original preservado, sem virar campo no manifest); os
     demais kinds (list/image/manual/section_title) sao apenas catalogados no
     manifest nesta fase — as fases 2-4 evoluem a tokenizacao deles.
+    ``mapping["generatedListBlocks"]`` (opcional) adiciona blocos kind=list
+    sem span marcado no documento (tabela existe mas nao foi realcada na
+    marcacao original) -- entram direto no manifest, localizados no render
+    por texto do cabecalho da tabela em vez de por realce.
     """
     spans = collect_all_spans(document)
     entries = mapping["spans"]
@@ -378,6 +382,24 @@ def apply_mapping(document, mapping, template_name, revision_label):
                 },
             )
             block["spanIds"].append(entry["id"])
+
+    # Blocos tabulares sem span marcado no modelo (ex. contatos internos e
+    # externos, plantoes das gerencias no REV 10 — a tabela existe e tem
+    # dados reais, mas nem o cabecalho foi realcado na marcacao original).
+    # Curados manualmente em `generatedListBlocks` (fora de `spans`, pois nao
+    # correspondem a nenhum span real do documento); localizados no render
+    # por texto do cabecalho (`headerMatch`), nao por realce.
+    for generated in mapping.get("generatedListBlocks") or []:
+        key = generated["key"]
+        blocks[key] = {
+            "key": key,
+            "kind": "list",
+            "label": generated.get("label") or _humanize(key),
+            "anchorContext": None,
+            "headerMatch": generated.get("headerMatch") or [],
+            "columns": generated.get("columns") or [],
+            "spanIds": [],
+        }
 
     manifest = OrderedDict(
         [
