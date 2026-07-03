@@ -83,6 +83,23 @@ describe('PendenciesPanel', () => {
     expect(onBlockClick).toHaveBeenCalledWith('brigadistas');
   });
 
+  it('clicar num anexo sem imagem chama onBlockClick com a assetKey', async () => {
+    const onBlockClick = vi.fn();
+    await act(async () => {
+      root.render(
+        <PendenciesPanel
+          pendencies={[{ kind: 'image', key: 'anexo_vii_rota_de_fuga', label: 'Anexo VII — Rota de fuga', section: null }]}
+          onFieldClick={vi.fn()}
+          onBlockClick={onBlockClick}
+        />,
+      );
+    });
+    expect(container.textContent).toContain('Anexos sem imagem');
+    const button = Array.from(container.querySelectorAll('button')).find((b) => b.textContent.includes('Rota de fuga'));
+    await click(button);
+    expect(onBlockClick).toHaveBeenCalledWith('anexo_vii_rota_de_fuga');
+  });
+
   it('mostra banner de campos completos quando so restam blocos', async () => {
     await act(async () => {
       root.render(

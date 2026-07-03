@@ -10,6 +10,7 @@ import SectionCard from './editor/SectionCard';
 import FieldRow from './editor/FieldRow';
 import BlockPlaceholderCard from './editor/BlockPlaceholderCard';
 import EditableListTable from './editor/EditableListTable';
+import ImageSlotsCard from './editor/ImageSlotsCard';
 import SectionTogglesCard from './editor/SectionTogglesCard';
 import PendenciesPanel from './PendenciesPanel';
 import GenerateResultModal from './modals/GenerateResultModal';
@@ -23,7 +24,7 @@ import GenerateResultModal from './modals/GenerateResultModal';
 export default function PaecFichaPage({ plantId, onExit }) {
   const {
     plant, manifest, loading, error, saveStatus, conflict,
-    updateField, updateListItems, updateSectionFlags, flush, reload,
+    updateField, updateListItems, updateSectionFlags, updateAssets, flush, reload,
   } = usePaecPlant(plantId);
 
   const editorRef = useRef(null);
@@ -44,6 +45,7 @@ export default function PaecFichaPage({ plantId, onExit }) {
     [pendencies],
   );
   const blocks = manifest?.blocks || [];
+  const imageSlots = manifest?.imageSlots || [];
   const toggleableSections = useMemo(
     () => (manifest?.sections || []).filter((s) => s.renumberGroup),
     [manifest],
@@ -144,7 +146,7 @@ export default function PaecFichaPage({ plantId, onExit }) {
                   </SectionCard>
                 ) : null}
 
-                {blocks.length > 0 ? (
+                {blocks.length > 0 || imageSlots.length > 0 ? (
                   <SectionCard
                     id="paec-section-blocks"
                     number={sections.length + (toggleableSections.length > 0 ? 2 : 1)}
@@ -161,6 +163,15 @@ export default function PaecFichaPage({ plantId, onExit }) {
                       ) : (
                         <BlockPlaceholderCard key={block.key} block={block} />
                       )
+                    ))}
+                    {imageSlots.map((slot) => (
+                      <ImageSlotsCard
+                        key={slot.assetKey}
+                        slot={slot}
+                        mediaIds={plant.assets?.[slot.assetKey]}
+                        plantId={plant.id}
+                        onChange={updateAssets}
+                      />
                     ))}
                   </SectionCard>
                 ) : null}

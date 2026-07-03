@@ -46,6 +46,7 @@ export function usePaecPlant(plantId) {
       fields: current.fields || {},
       listItems: current.listItems || {},
       sectionFlags: current.sectionFlags || {},
+      assets: current.assets || {},
     };
 
     persistingRef.current = (async () => {
@@ -107,6 +108,12 @@ export function usePaecPlant(plantId) {
   // updateField — cada secao e uma chave independente do mapa.
   const updateSectionFlags = useCallback((sectionKey, flag) => {
     updatePlant((prev) => ({ ...prev, sectionFlags: { ...prev.sectionFlags, [sectionKey]: flag } }));
+  }, [updatePlant]);
+
+  // Substitui as imagens de um slot por inteiro (Fase 4 — mesma semantica
+  // replace-on-save de updateListItems; o array manda na ordem).
+  const updateAssets = useCallback((assetKey, mediaIds) => {
+    updatePlant((prev) => ({ ...prev, assets: { ...prev.assets, [assetKey]: mediaIds } }));
   }, [updatePlant]);
 
   const flush = useCallback(async () => {
@@ -172,6 +179,7 @@ export function usePaecPlant(plantId) {
     updateField,
     updateListItems,
     updateSectionFlags,
+    updateAssets,
     flush,
     reload,
   };
