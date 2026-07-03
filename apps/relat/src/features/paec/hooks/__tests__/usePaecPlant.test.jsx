@@ -158,6 +158,30 @@ describe('usePaecPlant', () => {
     expect(savePlant.mock.calls[0][1].listItems).toEqual({});
   });
 
+  it('updateSectionFlags agenda autosave e o PUT leva sectionFlags no payload', async () => {
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderProbe();
+
+    act(() => {
+      api.current.updateSectionFlags('12_1_3_rede_de', { enabled: false });
+    });
+    await act(async () => { vi.advanceTimersByTime(AUTOSAVE_DELAY_MS + 50); });
+
+    expect(savePlant).toHaveBeenCalledTimes(1);
+    expect(savePlant.mock.calls[0][1].sectionFlags).toEqual({
+      '12_1_3_rede_de': { enabled: false },
+    });
+  });
+
+  it('save sem sectionFlags na ficha manda {} no payload (nunca undefined)', async () => {
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderProbe();
+
+    act(() => { api.current.updateField('cnpj_1', 'x'); });
+    await act(async () => { vi.advanceTimersByTime(AUTOSAVE_DELAY_MS + 50); });
+    expect(savePlant.mock.calls[0][1].sectionFlags).toEqual({});
+  });
+
   it('flush salva imediatamente sem esperar o debounce', async () => {
     fetchPlant.mockResolvedValueOnce(samplePlant());
     await renderProbe();

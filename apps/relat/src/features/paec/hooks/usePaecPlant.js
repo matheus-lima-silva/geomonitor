@@ -45,6 +45,7 @@ export function usePaecPlant(plantId) {
       version: current.version,
       fields: current.fields || {},
       listItems: current.listItems || {},
+      sectionFlags: current.sectionFlags || {},
     };
 
     persistingRef.current = (async () => {
@@ -100,6 +101,12 @@ export function usePaecPlant(plantId) {
   // save no backend — replace-on-save por listKey, sem merge por linha).
   const updateListItems = useCallback((listKey, rows) => {
     updatePlant((prev) => ({ ...prev, listItems: { ...prev.listItems, [listKey]: rows } }));
+  }, [updatePlant]);
+
+  // Substitui o flag de uma secao (enabled/titleOverride). Mesmo padrao de
+  // updateField — cada secao e uma chave independente do mapa.
+  const updateSectionFlags = useCallback((sectionKey, flag) => {
+    updatePlant((prev) => ({ ...prev, sectionFlags: { ...prev.sectionFlags, [sectionKey]: flag } }));
   }, [updatePlant]);
 
   const flush = useCallback(async () => {
@@ -164,6 +171,7 @@ export function usePaecPlant(plantId) {
     updatePlant,
     updateField,
     updateListItems,
+    updateSectionFlags,
     flush,
     reload,
   };

@@ -189,6 +189,34 @@ describe('PaecFichaPage', () => {
     expect(document.getElementById('paec-block-brigadistas')).not.toBeNull();
   });
 
+  it('secoes com renumberGroup renderizam o card de liga/desliga e autosalvam sectionFlags', async () => {
+    const manifestWithSections = {
+      ...sampleManifest(),
+      sections: [
+        { sectionKey: 'recurso_a', defaultTitle: '12.1.1. Recurso A', renumberGroup: '12.1' },
+        { sectionKey: 'recurso_b', defaultTitle: '12.1.2. Recurso B', renumberGroup: '12.1' },
+      ],
+    };
+    fetchTemplate.mockResolvedValue({ id: 'PAECT-1', manifest: manifestWithSections });
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderPage();
+
+    expect(container.textContent).toContain('Seções configuráveis');
+    expect(container.textContent).toContain('12.1.1. Recurso A');
+
+    const checkbox = container.querySelector('input[aria-label^="Incluir 12.1.2. Recurso B"]');
+    await act(async () => { checkbox.click(); });
+    await act(async () => { vi.advanceTimersByTime(AUTOSAVE_DELAY_MS + 50); });
+
+    expect(savePlant.mock.calls[0][1].sectionFlags).toEqual({ recurso_b: { enabled: false } });
+  });
+
+  it('manifest sem secoes com renumberGroup nao renderiza o card de liga/desliga', async () => {
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderPage();
+    expect(container.textContent).not.toContain('Seções configuráveis');
+  });
+
   it('gerar PAEC abre o modal de resultado com as pendencias do job', async () => {
     fetchPlant.mockResolvedValueOnce(samplePlant());
     await renderPage();
