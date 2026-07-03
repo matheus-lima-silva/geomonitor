@@ -53,7 +53,14 @@ export default function PlantCard({ plant, onOpen }) {
       </div>
 
       {plant.templateRevisionLabel ? (
-        <p className="m-0 mt-2 text-2xs text-slate-400">Modelo: {plant.templateRevisionLabel}</p>
+        <p className="m-0 mt-2 text-2xs text-slate-400">
+          Modelo: {plant.templateRevisionLabel}
+          {plant.templateOutdated ? (
+            <Badge tone="info" className="ml-1.5" title="Existe uma revisão ativa mais nova do modelo — abra a ficha para migrar">
+              revisão nova disponível
+            </Badge>
+          ) : null}
+        </p>
       ) : null}
 
       <Button

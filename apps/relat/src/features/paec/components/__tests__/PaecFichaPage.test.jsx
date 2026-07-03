@@ -16,6 +16,7 @@ vi.mock('../../services/paecService', () => {
     fetchPlant: vi.fn(),
     fetchTemplate: vi.fn(),
     savePlant: vi.fn(async (id, data) => ({ ...data, id, version: (data.version || 1) + 1 })),
+    migratePlantTemplate: vi.fn(),
     generatePaec: vi.fn(),
     getJobStatus: vi.fn(),
   };
@@ -33,7 +34,9 @@ vi.mock('@app/components/MediaImage', () => ({
 }));
 vi.mock('@app/features/reports/utils/reportUtils', () => ({ triggerBlobDownload: vi.fn() }));
 
-import { fetchPlant, fetchTemplate, savePlant, generatePaec, getJobStatus, VersionConflictError } from '../../services/paecService';
+import {
+  fetchPlant, fetchTemplate, savePlant, migratePlantTemplate, generatePaec, getJobStatus, VersionConflictError,
+} from '../../services/paecService';
 import { downloadMediaAsset } from '@app/services/mediaService';
 import { ToastProvider } from '@app/context/ToastContext';
 import PaecFichaPage from '../PaecFichaPage';
@@ -269,6 +272,34 @@ describe('PaecFichaPage', () => {
     expect(savePlant.mock.calls[0][1].assets).toEqual({
       anexo_vii_rota_de_fuga: ['MEDIA-2'],
     });
+  });
+
+  it('mostra o banner de revisao nova e migra ao clicar', async () => {
+    fetchPlant.mockResolvedValueOnce(samplePlant({
+      activeTemplate: { id: 'PAECT-2', revisionLabel: 'REV 11' },
+    }));
+    await renderPage();
+
+    expect(container.textContent).toContain('Nova revisão do modelo disponível (REV 11)');
+
+    migratePlantTemplate.mockResolvedValueOnce({ id: 'PAEC-1', templateId: 'PAECT-2' });
+    fetchPlant.mockResolvedValueOnce(samplePlant({
+      templateId: 'PAECT-2',
+      templateRevisionLabel: 'REV 11',
+      activeTemplate: null,
+    }));
+    const migrateButton = Array.from(container.querySelectorAll('button'))
+      .find((b) => b.textContent.includes('Migrar para a revisão nova'));
+    await act(async () => { migrateButton.click(); });
+
+    expect(migratePlantTemplate).toHaveBeenCalledWith('PAEC-1');
+    expect(container.textContent).not.toContain('Nova revisão do modelo disponível');
+  });
+
+  it('sem activeTemplate nao mostra o banner de migracao', async () => {
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderPage();
+    expect(container.textContent).not.toContain('Nova revisão do modelo disponível');
   });
 
   it('gerar PAEC abre o modal de resultado com as pendencias do job', async () => {

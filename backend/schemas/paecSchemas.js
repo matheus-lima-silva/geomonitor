@@ -43,6 +43,16 @@ const savePaecPlantSchema = z.object({
     meta: metaSchema,
 });
 
+// Migracao da ficha pra revisao ativa do modelo (Fase 5): so a version da
+// concorrencia otimista viaja no body — o destino e sempre a revisao ativa
+// do mesmo name, decidido server-side.
+const migratePaecPlantSchema = z.object({
+    data: z.object({
+        version: z.coerce.number().int().optional(),
+    }).optional().default({}),
+    meta: metaSchema,
+});
+
 // Manifest gerado por worker/tools/paec_tokenizer.py — validacao estrutural
 // minima (o conteudo detalhado e contrato do tokenizer, nao da API).
 const manifestSchema = z.object({
@@ -76,5 +86,6 @@ const registerPaecTemplateSchema = z.object({
 module.exports = {
     PLANT_TYPES,
     savePaecPlantSchema,
+    migratePaecPlantSchema,
     registerPaecTemplateSchema,
 };

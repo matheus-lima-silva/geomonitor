@@ -38,6 +38,7 @@ jest.mock('../../repositories', () => {
             getFull: jest.fn(async () => null),
             create: jest.fn(async () => null),
             saveFull: jest.fn(async () => ({ notFound: true })),
+            migrateTemplate: jest.fn(async () => ({ notFound: true })),
             remove: jest.fn(async () => {}),
         },
         monthlyReportRepository: {
@@ -466,6 +467,95 @@ describe('POST /api/paec/plants/:id/generate', () => {
             .post('/api/paec/plants/PAEC-x/generate')
             .set('Authorization', 'Bearer t');
         expect(res.status).toBe(404);
+    });
+});
+
+describe('POST /api/paec/plants/:id/migrate-template', () => {
+    it('200 migrando pra revisao ativa do mesmo modelo', async () => {
+        paecPlantRepository.getFull.mockResolvedValueOnce(samplePlant());
+        paecTemplateRepository.getById.mockResolvedValueOnce(sampleTemplate({ status: 'retired' }));
+        paecTemplateRepository.getActive.mockResolvedValueOnce(
+            sampleTemplate({ id: 'PAECT-2', revisionLabel: 'REV 11' }),
+        );
+        paecPlantRepository.migrateTemplate.mockResolvedValueOnce({
+            plant: samplePlant({ templateId: 'PAECT-2', version: 2 }),
+        });
+
+        const res = await request(app)
+            .post('/api/paec/plants/PAEC-1/migrate-template')
+            .set('Authorization', 'Bearer t')
+            .send({ data: { version: 1 } });
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.templateId).toBe('PAECT-2');
+        expect(res.body.data.templateRevisionLabel).toBe('REV 11');
+        expect(paecPlantRepository.migrateTemplate).toHaveBeenCalledWith(
+            'PAEC-1', 'PAECT-2', 1, 'ana@empresa.com',
+        );
+    });
+
+    it('422 ALREADY_CURRENT quando a ficha ja aponta pra revisao ativa', async () => {
+        paecPlantRepository.getFull.mockResolvedValueOnce(samplePlant());
+        paecTemplateRepository.getById.mockResolvedValueOnce(sampleTemplate());
+        paecTemplateRepository.getActive.mockResolvedValueOnce(sampleTemplate()); // mesmo id PAECT-1
+
+        const res = await request(app)
+            .post('/api/paec/plants/PAEC-1/migrate-template')
+            .set('Authorization', 'Bearer t')
+            .send({ data: {} });
+
+        expect(res.status).toBe(422);
+        expect(res.body.code).toBe('ALREADY_CURRENT');
+        expect(paecPlantRepository.migrateTemplate).not.toHaveBeenCalled();
+    });
+
+    it('409 VERSION_CONFLICT com currentVersion', async () => {
+        paecPlantRepository.getFull.mockResolvedValueOnce(samplePlant());
+        paecTemplateRepository.getById.mockResolvedValueOnce(sampleTemplate({ status: 'retired' }));
+        paecTemplateRepository.getActive.mockResolvedValueOnce(sampleTemplate({ id: 'PAECT-2' }));
+        paecPlantRepository.migrateTemplate.mockResolvedValueOnce({ conflict: true, currentVersion: 5 });
+
+        const res = await request(app)
+            .post('/api/paec/plants/PAEC-1/migrate-template')
+            .set('Authorization', 'Bearer t')
+            .send({ data: { version: 1 } });
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe('VERSION_CONFLICT');
+        expect(res.body.currentVersion).toBe(5);
+    });
+
+    it('404 quando a ficha nao existe', async () => {
+        paecPlantRepository.getFull.mockResolvedValueOnce(null);
+        const res = await request(app)
+            .post('/api/paec/plants/PAEC-x/migrate-template')
+            .set('Authorization', 'Bearer t')
+            .send({ data: {} });
+        expect(res.status).toBe(404);
+    });
+});
+
+describe('GET /api/paec/plants/:id — revisao ativa divergente', () => {
+    it('expoe activeTemplate quando existe revisao ativa mais nova', async () => {
+        paecPlantRepository.getFull.mockResolvedValueOnce(samplePlant());
+        paecTemplateRepository.getById.mockResolvedValueOnce(sampleTemplate({ status: 'retired' }));
+        paecTemplateRepository.getActive.mockResolvedValueOnce(
+            sampleTemplate({ id: 'PAECT-2', revisionLabel: 'REV 11' }),
+        );
+
+        const res = await request(app).get('/api/paec/plants/PAEC-1').set('Authorization', 'Bearer t');
+        expect(res.status).toBe(200);
+        expect(res.body.data.activeTemplate).toEqual({ id: 'PAECT-2', revisionLabel: 'REV 11' });
+    });
+
+    it('activeTemplate e null quando a ficha ja esta na revisao ativa', async () => {
+        paecPlantRepository.getFull.mockResolvedValueOnce(samplePlant());
+        paecTemplateRepository.getById.mockResolvedValueOnce(sampleTemplate());
+        paecTemplateRepository.getActive.mockResolvedValueOnce(sampleTemplate());
+
+        const res = await request(app).get('/api/paec/plants/PAEC-1').set('Authorization', 'Bearer t');
+        expect(res.status).toBe(200);
+        expect(res.body.data.activeTemplate).toBeNull();
     });
 });
 

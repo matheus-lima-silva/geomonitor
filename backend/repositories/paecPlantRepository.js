@@ -390,6 +390,48 @@ async function saveFull(id, data, expectedVersion) {
     return { plant: await getFull(plantId) };
 }
 
+// Migra a ficha pra outra revisao do modelo (Fase 5). So muda o ponteiro
+// template_id — valores/itens/flags/imagens ficam intactos (as chaves do
+// manifest sao o contrato estavel entre revisoes): chaves orfas ficam
+// inertes no banco e campos novos viram pendencia automaticamente, porque
+// as pendencias sao computadas contra o manifest do template apontado.
+// Mesma concorrencia otimista do saveFull (lock + version).
+async function migrateTemplate(id, templateId, expectedVersion, updatedBy) {
+    const plantId = normalizeText(id);
+
+    const client = await postgresStore.connect();
+    try {
+        await client.query('BEGIN');
+        const lockRes = await client.query(
+            'SELECT version FROM paec_plants WHERE id = $1 FOR UPDATE',
+            [plantId],
+        );
+        if (lockRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return { notFound: true };
+        }
+        const currentVersion = Number(lockRes.rows[0].version) || 1;
+        if (expectedVersion != null && Number(expectedVersion) !== currentVersion) {
+            await client.query('ROLLBACK');
+            return { conflict: true, currentVersion };
+        }
+
+        await client.query(
+            `UPDATE paec_plants
+             SET template_id = $1, version = version + 1, updated_at = NOW(), updated_by = $2
+             WHERE id = $3`,
+            [normalizeText(templateId), normalizeText(updatedBy) || null, plantId],
+        );
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+    return { plant: await getFull(plantId) };
+}
+
 async function remove(id) {
     await postgresStore.query('DELETE FROM paec_plants WHERE id = $1', [normalizeText(id)]);
 }
@@ -399,5 +441,6 @@ module.exports = {
     list,
     create,
     saveFull,
+    migrateTemplate,
     remove,
 };

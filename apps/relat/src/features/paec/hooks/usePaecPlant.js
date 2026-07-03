@@ -3,7 +3,9 @@
 // recarregar). Mesmo padrao de apps/relat/src/features/monthly-report/hooks/useMonthlyReport.js.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchPlant, fetchTemplate, savePlant, VersionConflictError } from '../services/paecService';
+import {
+  fetchPlant, fetchTemplate, migratePlantTemplate, savePlant, VersionConflictError,
+} from '../services/paecService';
 
 export const AUTOSAVE_DELAY_MS = 1000;
 export const SAVED_FLASH_MS = 1300;
@@ -168,6 +170,30 @@ export function usePaecPlant(plantId) {
     await load();
   }, [load]);
 
+  // Migra a ficha pra revisao ativa do modelo (Fase 5): descarrega edicao
+  // pendente primeiro (flush), migra e recarrega — o reload traz o manifest
+  // da revisao nova, as pendencias novas e limpa o activeTemplate do banner.
+  // Sem version no body de proposito: a migracao so muda o ponteiro do
+  // template (nao sobrescreve valor nenhum) e o version pos-flush nao e
+  // legivel de forma confiavel via ref antes do re-render. 409 (edicao
+  // concorrente real) cai no mesmo modo conflito do autosave.
+  const migrateTemplate = useCallback(async () => {
+    const current = plantRef.current;
+    if (!current || conflictRef.current) return;
+    await flush();
+    try {
+      await migratePlantTemplate(current.id);
+    } catch (err) {
+      if (err instanceof VersionConflictError) {
+        setConflict(true);
+        conflictRef.current = true;
+        return;
+      }
+      throw err;
+    }
+    await load();
+  }, [flush, load]);
+
   return {
     plant,
     manifest,
@@ -180,6 +206,7 @@ export function usePaecPlant(plantId) {
     updateListItems,
     updateSectionFlags,
     updateAssets,
+    migrateTemplate,
     flush,
     reload,
   };
