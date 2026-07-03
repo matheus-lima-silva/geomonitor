@@ -55,10 +55,11 @@ async function login(config) {
         email: config.email,
         password: config.password,
     });
-    if (status !== 200 || !payload?.accessToken) {
+    const accessToken = payload?.data?.accessToken;
+    if (status !== 200 || !accessToken) {
         throw new Error(`Login falhou (${status}): ${JSON.stringify(payload).slice(0, 200)}`);
     }
-    config.token = payload.accessToken;
+    config.token = accessToken;
 }
 
 async function main() {
