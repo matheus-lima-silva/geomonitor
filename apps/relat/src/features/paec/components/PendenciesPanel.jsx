@@ -28,6 +28,7 @@ export default function PendenciesPanel({ pendencies, onFieldClick, onBlockClick
   const total = pendencies.length;
   const fieldGroups = groupFieldPendencies(pendencies);
   const listBlocks = pendencies.filter((p) => p.kind === 'list');
+  const imageSlots = pendencies.filter((p) => p.kind === 'image');
   const manualBlocks = pendencies.filter((p) => p.kind === 'manual_block');
   const fieldsPending = pendencies.filter((p) => p.kind === 'field').length;
 
@@ -87,6 +88,26 @@ export default function PendenciesPanel({ pendencies, onFieldClick, onBlockClick
                       className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-md text-sm text-slate-600 hover:bg-app-surfaceMuted hover:text-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-brand-500"
                     >
                       <AppIcon name="table" className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {imageSlots.length > 0 ? (
+            <div>
+              <p className="m-0 mb-1.5 text-2xs font-bold uppercase tracking-wide text-slate-400">Anexos sem imagem</p>
+              <ul className="m-0 p-0 list-none flex flex-col gap-1">
+                {imageSlots.map((item) => (
+                  <li key={item.key}>
+                    <button
+                      type="button"
+                      onClick={() => onBlockClick(item.key)}
+                      className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-md text-sm text-slate-600 hover:bg-app-surfaceMuted hover:text-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-brand-500"
+                    >
+                      <AppIcon name="image" className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span className="truncate">{item.label}</span>
                     </button>
                   </li>

@@ -182,6 +182,30 @@ describe('usePaecPlant', () => {
     expect(savePlant.mock.calls[0][1].sectionFlags).toEqual({});
   });
 
+  it('updateAssets agenda autosave e o PUT leva assets no payload', async () => {
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderProbe();
+
+    act(() => {
+      api.current.updateAssets('anexo_vii_rota_de_fuga', ['MEDIA-1', 'MEDIA-2']);
+    });
+    await act(async () => { vi.advanceTimersByTime(AUTOSAVE_DELAY_MS + 50); });
+
+    expect(savePlant).toHaveBeenCalledTimes(1);
+    expect(savePlant.mock.calls[0][1].assets).toEqual({
+      anexo_vii_rota_de_fuga: ['MEDIA-1', 'MEDIA-2'],
+    });
+  });
+
+  it('save sem assets na ficha manda {} no payload (nunca undefined)', async () => {
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderProbe();
+
+    act(() => { api.current.updateField('cnpj_1', 'x'); });
+    await act(async () => { vi.advanceTimersByTime(AUTOSAVE_DELAY_MS + 50); });
+    expect(savePlant.mock.calls[0][1].assets).toEqual({});
+  });
+
   it('flush salva imediatamente sem esperar o debounce', async () => {
     fetchPlant.mockResolvedValueOnce(samplePlant());
     await renderProbe();

@@ -21,7 +21,16 @@ vi.mock('../../services/paecService', () => {
   };
 });
 
-vi.mock('@app/services/mediaService', () => ({ downloadMediaAsset: vi.fn() }));
+vi.mock('@app/services/mediaService', () => ({
+  downloadMediaAsset: vi.fn(),
+  createMediaUpload: vi.fn(),
+  uploadMediaBinary: vi.fn(),
+  completeMediaUpload: vi.fn(),
+}));
+vi.mock('@app/services/reportArchiveService', () => ({ computeFileSha256: vi.fn() }));
+vi.mock('@app/components/MediaImage', () => ({
+  default: ({ mediaAssetId, alt }) => <img data-media-id={mediaAssetId} alt={alt} />,
+}));
 vi.mock('@app/features/reports/utils/reportUtils', () => ({ triggerBlobDownload: vi.fn() }));
 
 import { fetchPlant, fetchTemplate, savePlant, generatePaec, getJobStatus, VersionConflictError } from '../../services/paecService';
@@ -215,6 +224,51 @@ describe('PaecFichaPage', () => {
     fetchPlant.mockResolvedValueOnce(samplePlant());
     await renderPage();
     expect(container.textContent).not.toContain('Seções configuráveis');
+  });
+
+  it('imageSlots do manifest renderizam o card de anexos com as imagens da ficha', async () => {
+    const manifestWithSlots = {
+      ...sampleManifest(),
+      imageSlots: [{
+        assetKey: 'anexo_vii_rota_de_fuga',
+        label: 'Anexo VII — Rota de fuga',
+        maxImages: 5,
+      }],
+    };
+    fetchTemplate.mockResolvedValue({ id: 'PAECT-1', manifest: manifestWithSlots });
+    fetchPlant.mockResolvedValueOnce(samplePlant({
+      assets: { anexo_vii_rota_de_fuga: ['MEDIA-1', 'MEDIA-2'] },
+    }));
+    await renderPage();
+
+    expect(container.textContent).toContain('Anexo VII — Rota de fuga');
+    expect(container.textContent).toContain('2/5');
+    expect(container.querySelectorAll('img[data-media-id]')).toHaveLength(2);
+    expect(document.getElementById('paec-block-anexo_vii_rota_de_fuga')).not.toBeNull();
+  });
+
+  it('remover imagem de um slot autosalva assets sem esse mediaId', async () => {
+    const manifestWithSlots = {
+      ...sampleManifest(),
+      imageSlots: [{
+        assetKey: 'anexo_vii_rota_de_fuga',
+        label: 'Anexo VII — Rota de fuga',
+        maxImages: 5,
+      }],
+    };
+    fetchTemplate.mockResolvedValue({ id: 'PAECT-1', manifest: manifestWithSlots });
+    fetchPlant.mockResolvedValueOnce(samplePlant({
+      assets: { anexo_vii_rota_de_fuga: ['MEDIA-1', 'MEDIA-2'] },
+    }));
+    await renderPage();
+
+    const removeButton = container.querySelector('[aria-label^="Remover imagem 1"]');
+    await act(async () => { removeButton.click(); });
+    await act(async () => { vi.advanceTimersByTime(AUTOSAVE_DELAY_MS + 50); });
+
+    expect(savePlant.mock.calls[0][1].assets).toEqual({
+      anexo_vii_rota_de_fuga: ['MEDIA-2'],
+    });
   });
 
   it('gerar PAEC abre o modal de resultado com as pendencias do job', async () => {
