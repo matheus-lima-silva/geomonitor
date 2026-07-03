@@ -275,6 +275,26 @@ describe('POST /api/paec/plants', () => {
         );
     });
 
+    it('repassa sectionFlags da Fase 3 pro repository', async () => {
+        paecTemplateRepository.getActive.mockResolvedValueOnce(sampleTemplate());
+        paecPlantRepository.create.mockResolvedValueOnce(samplePlant());
+        await request(app)
+            .post('/api/paec/plants')
+            .set('Authorization', 'Bearer t')
+            .send({
+                data: {
+                    name: 'PCH Anta',
+                    fields: { usina: 'PCH Anta' },
+                    sectionFlags: { '12_1_3_rede_de': { enabled: false } },
+                },
+            });
+        expect(paecPlantRepository.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                sectionFlags: { '12_1_3_rede_de': { enabled: false } },
+            }),
+        );
+    });
+
     it('400 com plantType invalido', async () => {
         paecTemplateRepository.getActive.mockResolvedValueOnce(sampleTemplate());
         const res = await request(app)
