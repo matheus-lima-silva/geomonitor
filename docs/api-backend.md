@@ -151,10 +151,11 @@ Modulo do portal relat.lima.rio.br (Plano de Atendimento as Emergencias da Centr
 | GET | `/api/paec/templates/:id` | `requireActiveUser` | Revisao com manifest (o frontend monta a ficha a partir dele) |
 | POST | `/api/paec/templates` | `requireAdminOrWorker` | Registra revisao (draft); 409 `REVISION_EXISTS`. Usado por `backend/scripts/registerPaecTemplate.js` com `x-worker-token` |
 | POST | `/api/paec/templates/:id/activate` | `requireAdminOrWorker` | Ativa a revisao (a ativa anterior do mesmo `name` vira `retired`, transacional) |
-| GET | `/api/paec/plants` | `requireActiveUser` | Lista de usinas com `completeness` (campos preenchidos x total do manifest) |
+| GET | `/api/paec/plants` | `requireActiveUser` | Lista de usinas com `completeness` (campos preenchidos x total do manifest) + `templateOutdated` (bool — existe revisao ativa mais nova do modelo da ficha) |
 | POST | `/api/paec/plants` | `requireEditor` | Cria ficha vinculada ao template ativo; `copyFromId?` copia campos de outra usina; 409 `NAME_EXISTS`; 422 `NO_ACTIVE_TEMPLATE` |
-| GET | `/api/paec/plants/:id` | `requireActiveUser` | Ficha completa (`fields{chave:valor}` + `listItems{listKey:[{colKey:valor}]}` + `sectionFlags{sectionKey:{enabled,titleOverride}}` + `assets{assetKey:[mediaAssetId]}`) + `pendencies[]` + `stats` |
+| GET | `/api/paec/plants/:id` | `requireActiveUser` | Ficha completa (`fields{chave:valor}` + `listItems{listKey:[{colKey:valor}]}` + `sectionFlags{sectionKey:{enabled,titleOverride}}` + `assets{assetKey:[mediaAssetId]}`) + `pendencies[]` + `stats` + `activeTemplate{id,revisionLabel}` quando existe revisao ativa mais nova (senao `null`) |
 | PUT | `/api/paec/plants/:id` | `requireEditor` | Full-sync transacional; 409 `VERSION_CONFLICT` (com `currentVersion`) se `data.version` divergir |
+| POST | `/api/paec/plants/:id/migrate-template` | `requireEditor` | Move a ficha pra revisao ATIVA do mesmo modelo (Fase 5); valores/itens/flags/imagens intactos (chaves estaveis), campos novos viram pendencia; 422 `ALREADY_CURRENT`/`NO_ACTIVE_TEMPLATE`; 409 `VERSION_CONFLICT` se `data.version` (opcional) divergir |
 | DELETE | `/api/paec/plants/:id` | `requireAdmin` | Remove a ficha (CASCADE nos campos) |
 | POST | `/api/paec/plants/:id/generate` | `requireEditor` | Enfileira `report_job` (`kind=paec_report`; `paecPlantId`+`paecTemplateId` no payload — `template_id` da tabela tem FK para `report_templates` e nao e usado); 422 `TEMPLATE_UNAVAILABLE` sem docx tokenizado; 202 com link para `GET /report-jobs/:id` |
 

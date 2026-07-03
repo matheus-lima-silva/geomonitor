@@ -13,7 +13,7 @@ const { createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/h
 const { paecTemplateRepository, paecPlantRepository, reportJobRepository } = require('../repositories');
 const { triggerWorkerRun } = require('../utils/workerTrigger');
 const { computePendencies, computeStats } = require('../utils/paecPendencies');
-const { savePaecPlantSchema, registerPaecTemplateSchema } = require('../schemas/paecSchemas');
+const { savePaecPlantSchema, migratePaecPlantSchema, registerPaecTemplateSchema } = require('../schemas/paecSchemas');
 
 // Modulo PAEC (portal relat): fichas "titulo chave -> texto valor" por usina
 // e revisoes do modelo canonico tokenizado. Geracao de DOCX via report_jobs
@@ -105,9 +105,12 @@ router.get('/plants', verifyToken, requireActiveUser, asyncHandler(async (req, r
         paecTemplateRepository.list(),
     ]);
     const manifestTotals = new Map();
+    const activeByName = new Map();
     for (const t of templates) {
         manifestTotals.set(t.id, null); // total vem do manifest, carregado sob demanda abaixo
+        if (t.status === 'active') activeByName.set(t.name, t.id);
     }
+    const templateNameById = new Map(templates.map((t) => [t.id, t.name]));
 
     const data = [];
     for (const plant of plants) {
@@ -117,9 +120,11 @@ router.get('/plants', verifyToken, requireActiveUser, asyncHandler(async (req, r
             total = Array.isArray(template?.manifest?.fields) ? template.manifest.fields.length : 0;
             manifestTotals.set(plant.templateId, total);
         }
+        const activeId = activeByName.get(templateNameById.get(plant.templateId));
         data.push(plantResource(req, {
             ...plant,
             completeness: { fieldsFilled: plant.filledFields, fieldsTotal: total },
+            templateOutdated: Boolean(activeId && activeId !== plant.templateId),
         }));
     }
     return res.status(200).json({ status: 'success', data });
@@ -163,11 +168,18 @@ router.get('/plants/:id', verifyToken, requireActiveUser, asyncHandler(async (re
     }
     const template = await paecTemplateRepository.getById(plant.templateId);
     const manifest = template?.manifest || {};
+    // Revisao ativa do mesmo modelo, quando diferente da apontada pela ficha
+    // — alimenta o banner "nova revisao disponivel" no editor (Fase 5).
+    const active = template ? await paecTemplateRepository.getActive(template.name) : null;
+    const activeTemplate = active && active.id !== plant.templateId
+        ? { id: active.id, revisionLabel: active.revisionLabel }
+        : null;
     return res.status(200).json({
         status: 'success',
         data: plantResource(req, {
             ...plant,
             templateRevisionLabel: template?.revisionLabel || null,
+            activeTemplate,
             pendencies: computePendencies(manifest, plant.fields, plant.listItems, plant.assets),
             stats: computeStats(manifest, plant.fields),
         }),
@@ -194,6 +206,59 @@ router.put('/plants/:id', verifyToken, requireEditor, validateBody(savePaecPlant
         });
     }
     return res.status(200).json({ status: 'success', data: plantResource(req, result.plant) });
+}));
+
+// POST /plants/:id/migrate-template — move a ficha pra revisao ATIVA do
+// mesmo modelo (Fase 5). Valores/itens/flags/imagens ficam intactos (chaves
+// do manifest sao o contrato estavel); campos novos da revisao viram
+// pendencia automaticamente, orfaos ficam inertes no banco.
+router.post('/plants/:id/migrate-template', verifyToken, requireEditor, validateBody(migratePaecPlantSchema), asyncHandler(async (req, res) => {
+    const { data } = req.body;
+    const plant = await paecPlantRepository.getFull(req.params.id);
+    if (!plant) {
+        return res.status(404).json({ status: 'error', message: 'Ficha PAEC nao encontrada.' });
+    }
+    const current = await paecTemplateRepository.getById(plant.templateId);
+    const active = current ? await paecTemplateRepository.getActive(current.name) : null;
+    if (!active) {
+        return res.status(422).json({
+            status: 'error',
+            code: 'NO_ACTIVE_TEMPLATE',
+            message: 'Nenhuma revisao ativa do modelo desta ficha.',
+        });
+    }
+    if (active.id === plant.templateId) {
+        return res.status(422).json({
+            status: 'error',
+            code: 'ALREADY_CURRENT',
+            message: 'A ficha ja esta na revisao ativa do modelo.',
+        });
+    }
+
+    const result = await paecPlantRepository.migrateTemplate(
+        req.params.id,
+        active.id,
+        data.version,
+        req.user.email,
+    );
+    if (result.notFound) {
+        return res.status(404).json({ status: 'error', message: 'Ficha PAEC nao encontrada.' });
+    }
+    if (result.conflict) {
+        return res.status(409).json({
+            status: 'error',
+            code: 'VERSION_CONFLICT',
+            message: 'A ficha foi alterada em outra sessao. Recarregue antes de migrar.',
+            currentVersion: result.currentVersion,
+        });
+    }
+    return res.status(200).json({
+        status: 'success',
+        data: plantResource(req, {
+            ...result.plant,
+            templateRevisionLabel: active.revisionLabel,
+        }),
+    });
 }));
 
 // DELETE /plants/:id

@@ -16,10 +16,13 @@ vi.mock('../../services/paecService', () => {
     fetchPlant: vi.fn(),
     fetchTemplate: vi.fn(),
     savePlant: vi.fn(),
+    migratePlantTemplate: vi.fn(),
   };
 });
 
-import { fetchPlant, fetchTemplate, savePlant, VersionConflictError } from '../../services/paecService';
+import {
+  fetchPlant, fetchTemplate, savePlant, migratePlantTemplate, VersionConflictError,
+} from '../../services/paecService';
 import { usePaecPlant, AUTOSAVE_DELAY_MS } from '../usePaecPlant';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -214,6 +217,38 @@ describe('usePaecPlant', () => {
     await act(async () => { await api.current.flush(); });
     expect(savePlant).toHaveBeenCalledTimes(1);
     expect(savePlant.mock.calls[0][1].fields.cnpj_1).toBe('Fim');
+  });
+
+  it('migrateTemplate descarrega edicao pendente, migra e recarrega a ficha', async () => {
+    fetchPlant.mockResolvedValueOnce(samplePlant({ activeTemplate: { id: 'PAECT-2', revisionLabel: 'REV 11' } }));
+    await renderProbe();
+
+    act(() => { api.current.updateField('cnpj_1', 'novo valor'); });
+
+    migratePlantTemplate.mockResolvedValueOnce({ id: 'PAEC-1', templateId: 'PAECT-2', version: 3 });
+    fetchPlant.mockResolvedValueOnce(samplePlant({ templateId: 'PAECT-2', version: 3, activeTemplate: null }));
+    fetchTemplate.mockResolvedValueOnce({ id: 'PAECT-2', manifest: { fields: [{ key: 'campo_novo', label: 'Campo novo' }] } });
+
+    await act(async () => { await api.current.migrateTemplate(); });
+
+    // flush antes da migracao: a edicao pendente foi salva
+    expect(savePlant).toHaveBeenCalledTimes(1);
+    expect(savePlant.mock.calls[0][1].fields.cnpj_1).toBe('novo valor');
+    expect(migratePlantTemplate).toHaveBeenCalledWith('PAEC-1');
+    // reload trouxe a ficha e o manifest da revisao nova
+    expect(api.current.plant.templateId).toBe('PAECT-2');
+    expect(api.current.manifest.fields[0].key).toBe('campo_novo');
+  });
+
+  it('409 na migracao entra em modo conflito sem recarregar', async () => {
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderProbe();
+
+    migratePlantTemplate.mockRejectedValueOnce(new VersionConflictError(7));
+    await act(async () => { await api.current.migrateTemplate(); });
+
+    expect(api.current.conflict).toBe(true);
+    expect(fetchPlant).toHaveBeenCalledTimes(1); // so o load inicial
   });
 
   it('erro de carregamento popula error', async () => {

@@ -66,4 +66,20 @@ describe('PlantCard', () => {
     await click(button);
     expect(onOpen).toHaveBeenCalledWith('PAEC-1');
   });
+
+  it('mostra badge de revisao nova quando templateOutdated', async () => {
+    await render({
+      id: 'PAEC-4', name: 'PCH Anta', templateRevisionLabel: 'REV 10',
+      templateOutdated: true, completeness: { fieldsFilled: 0, fieldsTotal: 10 },
+    });
+    expect(container.textContent).toContain('revisão nova disponível');
+  });
+
+  it('sem templateOutdated nao mostra o badge de revisao', async () => {
+    await render({
+      id: 'PAEC-5', name: 'PCH Anta', templateRevisionLabel: 'REV 10',
+      completeness: { fieldsFilled: 0, fieldsTotal: 10 },
+    });
+    expect(container.textContent).not.toContain('revisão nova disponível');
+  });
 });

@@ -90,6 +90,29 @@ export async function savePlant(id, data, meta = {}) {
   return parseSuccess(response, 'Erro ao salvar a ficha.');
 }
 
+// Migra a ficha pra revisao ativa do modelo (Fase 5). Valores sobrevivem
+// (chaves do manifest sao o contrato estavel); campos novos viram pendencia.
+// Lanca VersionConflictError em 409 VERSION_CONFLICT.
+export async function migratePlantTemplate(id, version, meta = {}) {
+  const response = await authFetch(`/paec/plants/${encodeURIComponent(id)}/migrate-template`, {
+    method: 'POST',
+    body: { data: { version }, meta },
+  });
+  if (response.status === 409) {
+    let payload = null;
+    try { payload = await response.json(); } catch { /* corpo nao-JSON */ }
+    if (payload && payload.code === 'VERSION_CONFLICT') {
+      throw new VersionConflictError(payload.currentVersion);
+    }
+    throw new Error((payload && payload.message) || 'Conflito ao migrar a ficha.');
+  }
+  if (response.status === 422) {
+    const message = await extractApiErrorMessage(response, 'A ficha já está na revisão ativa do modelo.');
+    throw new Error(message);
+  }
+  return parseSuccess(response, 'Erro ao migrar a ficha para a revisão nova.');
+}
+
 export async function removePlant(id) {
   const response = await authFetch(`/paec/plants/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!response.ok) {

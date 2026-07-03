@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Button } from '@app/components/ui';
 import { usePaecPlant } from '../hooks/usePaecPlant';
 import { useGeneratePaecDocx } from '../hooks/useGeneratePaecDocx';
@@ -24,8 +24,10 @@ import GenerateResultModal from './modals/GenerateResultModal';
 export default function PaecFichaPage({ plantId, onExit }) {
   const {
     plant, manifest, loading, error, saveStatus, conflict,
-    updateField, updateListItems, updateSectionFlags, updateAssets, flush, reload,
+    updateField, updateListItems, updateSectionFlags, updateAssets,
+    migrateTemplate, flush, reload,
   } = usePaecPlant(plantId);
+  const [migrating, setMigrating] = useState(false);
 
   const editorRef = useRef(null);
 
@@ -99,6 +101,33 @@ export default function PaecFichaPage({ plantId, onExit }) {
             Esta ficha foi alterada em outra sessão. Recarregue para ver a versão mais recente — até lá, o formulário está em modo leitura.
           </p>
           <Button variant="outline" size="sm" onClick={() => reload()}>Recarregar</Button>
+        </div>
+      ) : null}
+
+      {!conflict && plant?.activeTemplate ? (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-3 bg-info-light border-b border-info-border px-5 py-2"
+        >
+          <p className="m-0 text-sm text-slate-700">
+            Nova revisão do modelo disponível ({plant.activeTemplate.revisionLabel}). Os valores preenchidos são
+            preservados; campos novos da revisão aparecem como pendência.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={migrating}
+            onClick={async () => {
+              setMigrating(true);
+              try {
+                await migrateTemplate();
+              } finally {
+                setMigrating(false);
+              }
+            }}
+          >
+            {migrating ? 'Migrando…' : 'Migrar para a revisão nova'}
+          </Button>
         </div>
       ) : null}
 
