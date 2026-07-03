@@ -1478,23 +1478,25 @@ spans:
   color: yellow
   text: anexo VII – ROTA DE FUGA
   context: anexo VII – ROTA DE FUGA
-  kind: manual
+  kind: image
   key: anexo_vii_rota_de_fuga
   transform: none
   section: null
   label: Anexo VII — Rota de fuga
   reviewed: true
+  maxImages: 5
 - id: 130
   part: document
   color: yellow
   text: anexo X– ARRANJO DAS INSTALAÇÕES FÍSICAS DO SISTEMA ELÉTRICO (UNIFILAR)
   context: anexo X– ARRANJO DAS INSTALAÇÕES FÍSICAS DO SISTEMA ELÉTRICO (UNIFILAR)
-  kind: manual
+  kind: image
   key: anexo_x_arranjo_das_instalacoes
   transform: none
   section: null
   label: Anexo X — Arranjo das instalações (unifilar)
   reviewed: true
+  maxImages: 5
 - id: 131
   part: document
   color: yellow

@@ -168,7 +168,7 @@ router.get('/plants/:id', verifyToken, requireActiveUser, asyncHandler(async (re
         data: plantResource(req, {
             ...plant,
             templateRevisionLabel: template?.revisionLabel || null,
-            pendencies: computePendencies(manifest, plant.fields, plant.listItems),
+            pendencies: computePendencies(manifest, plant.fields, plant.listItems, plant.assets),
             stats: computeStats(manifest, plant.fields),
         }),
     });

@@ -360,11 +360,15 @@ def apply_mapping(document, mapping, template_name, revision_label):
                 },
             )
         elif kind == "image":
+            # maxImages vem da curadoria (nao da pra descobrir pela marcacao
+            # quantas imagens o anexo comporta — ex. rota de fuga e unifilar
+            # do REV 10 tem 5 paineis cada); default 1 pra slot simples.
             image_slots.setdefault(
                 key,
                 {
                     "assetKey": key,
                     "label": entry.get("label") or _humanize(key),
+                    "maxImages": int(entry.get("maxImages") or 1),
                     "page": {"preset": "a4-portrait"},
                     "anchorContext": entry["context"],
                 },

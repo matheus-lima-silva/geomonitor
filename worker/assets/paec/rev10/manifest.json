@@ -1183,26 +1183,6 @@
       ]
     },
     {
-      "key": "anexo_vii_rota_de_fuga",
-      "kind": "manual",
-      "label": "Anexo VII — Rota de fuga",
-      "anchorContext": "anexo VII – ROTA DE FUGA",
-      "columns": [],
-      "spanIds": [
-        129
-      ]
-    },
-    {
-      "key": "anexo_x_arranjo_das_instalacoes",
-      "kind": "manual",
-      "label": "Anexo X — Arranjo das instalações (unifilar)",
-      "anchorContext": "anexo X– ARRANJO DAS INSTALAÇÕES FÍSICAS DO SISTEMA ELÉTRICO (UNIFILAR)",
-      "columns": [],
-      "spanIds": [
-        130
-      ]
-    },
-    {
       "key": "contatos_internos",
       "kind": "list",
       "label": "Contatos internos",
@@ -1342,7 +1322,26 @@
       "spanIds": []
     }
   ],
-  "imageSlots": [],
+  "imageSlots": [
+    {
+      "assetKey": "anexo_vii_rota_de_fuga",
+      "label": "Anexo VII — Rota de fuga",
+      "maxImages": 5,
+      "page": {
+        "preset": "a4-portrait"
+      },
+      "anchorContext": "anexo VII – ROTA DE FUGA"
+    },
+    {
+      "assetKey": "anexo_x_arranjo_das_instalacoes",
+      "label": "Anexo X — Arranjo das instalações (unifilar)",
+      "maxImages": 5,
+      "page": {
+        "preset": "a4-portrait"
+      },
+      "anchorContext": "anexo X– ARRANJO DAS INSTALAÇÕES FÍSICAS DO SISTEMA ELÉTRICO (UNIFILAR)"
+    }
+  ],
   "sections": [
     {
       "sectionKey": "historico_de_revisoes",

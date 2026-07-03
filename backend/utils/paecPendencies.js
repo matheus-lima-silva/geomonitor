@@ -7,16 +7,21 @@
 // Fase 2: blocos kind=list viram pendencia so quando NAO tem nenhuma linha
 // salva em paec_plant_list_items — com pelo menos 1 item, o bloco conta como
 // preenchido (a ficha nao exige um numero minimo de linhas).
+// Fase 4: imageSlots viram pendencia so quando NAO tem nenhuma imagem salva
+// em paec_plant_assets — mesma regra dos blocos list (1 imagem ja conta,
+// maxImages e teto de UI, nao minimo).
 
 function normalizeValue(value) {
     return value == null ? '' : String(value).trim();
 }
 
-function computePendencies(manifest, fieldsMap, listItemsMap) {
+function computePendencies(manifest, fieldsMap, listItemsMap, assetsMap) {
     const fields = Array.isArray(manifest?.fields) ? manifest.fields : [];
     const blocks = Array.isArray(manifest?.blocks) ? manifest.blocks : [];
+    const imageSlots = Array.isArray(manifest?.imageSlots) ? manifest.imageSlots : [];
     const values = fieldsMap && typeof fieldsMap === 'object' ? fieldsMap : {};
     const listItems = listItemsMap && typeof listItemsMap === 'object' ? listItemsMap : {};
+    const assets = assetsMap && typeof assetsMap === 'object' ? assetsMap : {};
 
     const pendencies = [];
     for (const field of fields) {
@@ -41,6 +46,16 @@ function computePendencies(manifest, fieldsMap, listItemsMap) {
             kind: 'manual_block',
             key: block.key,
             label: block.label || block.key,
+            section: null,
+        });
+    }
+    for (const slot of imageSlots) {
+        const mediaIds = Array.isArray(assets[slot.assetKey]) ? assets[slot.assetKey] : [];
+        if (mediaIds.length > 0) continue;
+        pendencies.push({
+            kind: 'image',
+            key: slot.assetKey,
+            label: slot.label || slot.assetKey,
             section: null,
         });
     }
