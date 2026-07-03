@@ -9,6 +9,7 @@ import SectionNav from './editor/SectionNav';
 import SectionCard from './editor/SectionCard';
 import FieldRow from './editor/FieldRow';
 import BlockPlaceholderCard from './editor/BlockPlaceholderCard';
+import EditableListTable from './editor/EditableListTable';
 import PendenciesPanel from './PendenciesPanel';
 import GenerateResultModal from './modals/GenerateResultModal';
 
@@ -20,7 +21,7 @@ import GenerateResultModal from './modals/GenerateResultModal';
  */
 export default function PaecFichaPage({ plantId, onExit }) {
   const {
-    plant, manifest, loading, error, saveStatus, conflict, updateField, flush, reload,
+    plant, manifest, loading, error, saveStatus, conflict, updateField, updateListItems, flush, reload,
   } = usePaecPlant(plantId);
 
   const editorRef = useRef(null);
@@ -55,6 +56,13 @@ export default function PaecFichaPage({ plantId, onExit }) {
         input.classList.add('ring-2', 'ring-brand-400');
         setTimeout(() => input.classList.remove('ring-2', 'ring-brand-400'), 1900);
       }
+    });
+  }
+
+  function scrollToBlock(blockKey) {
+    scrollTo('paec-section-blocks');
+    requestAnimationFrame(() => {
+      document.getElementById(`paec-block-${blockKey}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   }
 
@@ -123,7 +131,16 @@ export default function PaecFichaPage({ plantId, onExit }) {
                 {blocks.length > 0 ? (
                   <SectionCard id="paec-section-blocks" number={sections.length + 1} title="Tabelas e anexos">
                     {blocks.map((block) => (
-                      <BlockPlaceholderCard key={block.key} block={block} />
+                      block.kind === 'list' && (block.columns || []).length > 0 ? (
+                        <EditableListTable
+                          key={block.key}
+                          block={block}
+                          rows={plant.listItems?.[block.key]}
+                          onChange={updateListItems}
+                        />
+                      ) : (
+                        <BlockPlaceholderCard key={block.key} block={block} />
+                      )
                     ))}
                   </SectionCard>
                 ) : null}
@@ -131,7 +148,7 @@ export default function PaecFichaPage({ plantId, onExit }) {
             </main>
 
             <div id="paec-pendencies-panel">
-              <PendenciesPanel pendencies={pendencies} onFieldClick={scrollToField} />
+              <PendenciesPanel pendencies={pendencies} onFieldClick={scrollToField} onBlockClick={scrollToBlock} />
             </div>
           </>
         ) : null}

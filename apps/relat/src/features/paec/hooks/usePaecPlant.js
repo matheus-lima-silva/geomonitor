@@ -44,6 +44,7 @@ export function usePaecPlant(plantId) {
       installedCapacityMw: current.installedCapacityMw ?? null,
       version: current.version,
       fields: current.fields || {},
+      listItems: current.listItems || {},
     };
 
     persistingRef.current = (async () => {
@@ -93,6 +94,12 @@ export function usePaecPlant(plantId) {
   // Atalho comum: atualiza o valor de um unico campo do manifest.
   const updateField = useCallback((key, value) => {
     updatePlant((prev) => ({ ...prev, fields: { ...prev.fields, [key]: value } }));
+  }, [updatePlant]);
+
+  // Substitui as linhas de um bloco tabular por inteiro (mesma semantica do
+  // save no backend — replace-on-save por listKey, sem merge por linha).
+  const updateListItems = useCallback((listKey, rows) => {
+    updatePlant((prev) => ({ ...prev, listItems: { ...prev.listItems, [listKey]: rows } }));
   }, [updatePlant]);
 
   const flush = useCallback(async () => {
@@ -156,6 +163,7 @@ export function usePaecPlant(plantId) {
     conflict,
     updatePlant,
     updateField,
+    updateListItems,
     flush,
     reload,
   };

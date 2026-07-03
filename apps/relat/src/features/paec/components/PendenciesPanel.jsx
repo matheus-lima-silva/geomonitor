@@ -19,11 +19,12 @@ function groupFieldPendencies(pendencies) {
 }
 
 /**
- * Painel de pendencias (coluna direita fixa do editor). Campos de texto sao
- * clicaveis (rolam ate o campo); blocos de tabela/anexo ainda nao tem alvo de
- * edicao nesta fase, entao aparecem so como lista informativa.
+ * Painel de pendencias (coluna direita fixa do editor). Campos de texto e
+ * blocos de tabela (kind=list, editaveis desde a Fase 2) sao clicaveis e
+ * rolam ate o campo/bloco; anexos manuais (kind=manual) ainda nao tem alvo
+ * de edicao, entao aparecem so como lista informativa.
  */
-export default function PendenciesPanel({ pendencies, onFieldClick }) {
+export default function PendenciesPanel({ pendencies, onFieldClick, onBlockClick }) {
   const total = pendencies.length;
   const fieldGroups = groupFieldPendencies(pendencies);
   const listBlocks = pendencies.filter((p) => p.kind === 'list');
@@ -79,9 +80,15 @@ export default function PendenciesPanel({ pendencies, onFieldClick }) {
               <p className="m-0 mb-1.5 text-2xs font-bold uppercase tracking-wide text-slate-400">Tabelas em branco</p>
               <ul className="m-0 p-0 list-none flex flex-col gap-1">
                 {listBlocks.map((item) => (
-                  <li key={item.key} className="flex items-center gap-2 px-2 py-1.5 text-sm text-slate-500">
-                    <AppIcon name="table" className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="truncate">{item.label}</span>
+                  <li key={item.key}>
+                    <button
+                      type="button"
+                      onClick={() => onBlockClick(item.key)}
+                      className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-md text-sm text-slate-600 hover:bg-app-surfaceMuted hover:text-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-brand-500"
+                    >
+                      <AppIcon name="table" className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </button>
                   </li>
                 ))}
               </ul>

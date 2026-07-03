@@ -72,9 +72,10 @@ describe('PaecFichaPage', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     fetchTemplate.mockResolvedValue({ id: 'PAECT-1', manifest: sampleManifest() });
-    // jsdom nao implementa Element.scrollTo (nao ha layout real) — o editor
-    // usa scrollTo para o scroll-spy/navegacao por pendencia.
+    // jsdom nao implementa Element.scrollTo/scrollIntoView (nao ha layout
+    // real) — o editor usa os dois pro scroll-spy/navegacao por pendencia.
     Element.prototype.scrollTo = vi.fn();
+    Element.prototype.scrollIntoView = vi.fn();
   });
 
   afterEach(() => {
@@ -135,6 +136,57 @@ describe('PaecFichaPage', () => {
       await vi.advanceTimersByTimeAsync(20);
     });
     expect(document.activeElement.id).toBe('paec-field-cnpj_1');
+  });
+
+  it('bloco list com columns curadas renderiza tabela editavel e autosalva listItems', async () => {
+    const manifestWithColumns = {
+      ...sampleManifest(),
+      blocks: [{
+        key: 'brigadistas',
+        kind: 'list',
+        label: 'Relação de brigadistas',
+        columns: [{ key: 'nome', label: 'Nome' }, { key: 'telefone', label: 'Telefone' }],
+      }],
+    };
+    fetchTemplate.mockResolvedValue({ id: 'PAECT-1', manifest: manifestWithColumns });
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderPage();
+
+    expect(container.textContent).not.toContain('Edição chega em breve');
+    const addButton = Array.from(container.querySelectorAll('button')).find((b) => b.textContent.includes('Adicionar linha'));
+    await act(async () => { addButton.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    const nomeInput = container.querySelector('[aria-label="Nome"]');
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(nomeInput), 'value').set;
+    setter.call(nomeInput, 'Fulano de Tal');
+    await act(async () => { nomeInput.dispatchEvent(new Event('input', { bubbles: true })); });
+
+    await act(async () => { vi.advanceTimersByTime(AUTOSAVE_DELAY_MS + 50); });
+    expect(savePlant.mock.calls[0][1].listItems).toEqual({
+      brigadistas: [{ nome: 'Fulano de Tal', telefone: '' }],
+    });
+  });
+
+  it('clicar numa tabela em branco no painel de pendencias rola ate o bloco', async () => {
+    const manifestWithColumns = {
+      ...sampleManifest(),
+      blocks: [{
+        key: 'brigadistas',
+        kind: 'list',
+        label: 'Relação de brigadistas',
+        columns: [{ key: 'nome', label: 'Nome' }],
+      }],
+    };
+    fetchTemplate.mockResolvedValue({ id: 'PAECT-1', manifest: manifestWithColumns });
+    fetchPlant.mockResolvedValueOnce(samplePlant());
+    await renderPage();
+
+    const button = Array.from(container.querySelectorAll('button')).find((b) => b.textContent.includes('Relação de brigadistas'));
+    await act(async () => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(20);
+    });
+    expect(document.getElementById('paec-block-brigadistas')).not.toBeNull();
   });
 
   it('gerar PAEC abre o modal de resultado com as pendencias do job', async () => {

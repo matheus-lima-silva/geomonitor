@@ -67,6 +67,22 @@ describe('PendenciesPanel', () => {
     expect(onFieldClick).toHaveBeenCalledWith('cnpj_1');
   });
 
+  it('clicar num item de tabela em branco chama onBlockClick com a chave', async () => {
+    const onBlockClick = vi.fn();
+    await act(async () => {
+      root.render(
+        <PendenciesPanel
+          pendencies={[{ kind: 'list', key: 'brigadistas', label: 'Relação de brigadistas', section: null }]}
+          onFieldClick={vi.fn()}
+          onBlockClick={onBlockClick}
+        />,
+      );
+    });
+    const button = Array.from(container.querySelectorAll('button')).find((b) => b.textContent.includes('Relação de brigadistas'));
+    await click(button);
+    expect(onBlockClick).toHaveBeenCalledWith('brigadistas');
+  });
+
   it('mostra banner de campos completos quando so restam blocos', async () => {
     await act(async () => {
       root.render(
