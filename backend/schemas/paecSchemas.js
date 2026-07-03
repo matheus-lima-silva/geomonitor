@@ -25,6 +25,14 @@ const savePaecPlantSchema = z.object({
         listItems: z.record(z.string(), z.array(z.record(z.string(), z.string())))
             .optional()
             .default({}),
+        // Secoes 12.1.x liga/desliga (Fase 3): { sectionKey: {enabled?, titleOverride?} }
+        // conforme manifest.sections[]. Ausente = ligada com titulo padrao.
+        sectionFlags: z.record(z.string(), z.object({
+            enabled: z.boolean().optional(),
+            titleOverride: z.string().trim().optional().nullable(),
+        }))
+            .optional()
+            .default({}),
     }),
     meta: metaSchema,
 });

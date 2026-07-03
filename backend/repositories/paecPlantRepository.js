@@ -65,6 +65,21 @@ async function getListItemsMap(plantId) {
     return listItems;
 }
 
+// Secoes 12.1.x liga/desliga (Fase 3): so persiste linha pra secao que
+// desvia do padrao (desligada ou com titulo customizado) — ausente =
+// ligada com o titulo padrao do manifest.sections[].defaultTitle.
+async function getSectionFlagsMap(plantId) {
+    const res = await postgresStore.query(
+        'SELECT section_key, enabled, title_override FROM paec_plant_section_flags WHERE plant_id = $1 ORDER BY section_key ASC',
+        [plantId],
+    );
+    const flags = {};
+    for (const row of res.rows) {
+        flags[row.section_key] = { enabled: row.enabled, titleOverride: row.title_override || null };
+    }
+    return flags;
+}
+
 async function getFull(id) {
     const plantId = normalizeText(id);
     const res = await postgresStore.query(`${SELECT_PLANT} WHERE id = $1 LIMIT 1`, [plantId]);
@@ -73,6 +88,7 @@ async function getFull(id) {
         ...hydrateHeader(res.rows[0]),
         fields: await getFieldsMap(plantId),
         listItems: await getListItemsMap(plantId),
+        sectionFlags: await getSectionFlagsMap(plantId),
     };
 }
 
@@ -171,6 +187,48 @@ async function rewriteListItems(client, plantId, listItems, updatedBy) {
     }
 }
 
+function normalizeSectionFlags(sectionFlags) {
+    const entries = [];
+    if (sectionFlags && typeof sectionFlags === 'object') {
+        for (const [key, flag] of Object.entries(sectionFlags)) {
+            const sectionKey = normalizeText(key);
+            if (!sectionKey || !flag || typeof flag !== 'object') continue;
+            const enabled = flag.enabled !== false;
+            const titleOverride = normalizeText(flag.titleOverride) || null;
+            if (enabled && !titleOverride) continue; // estado padrao, nao precisa de linha
+            entries.push([sectionKey, enabled, titleOverride]);
+        }
+    }
+    return entries;
+}
+
+async function rewriteSectionFlags(client, plantId, sectionFlags, updatedBy) {
+    const entries = normalizeSectionFlags(sectionFlags);
+    const keys = entries.map(([key]) => key);
+
+    if (keys.length === 0) {
+        await client.query('DELETE FROM paec_plant_section_flags WHERE plant_id = $1', [plantId]);
+        return;
+    }
+
+    await client.query(
+        'DELETE FROM paec_plant_section_flags WHERE plant_id = $1 AND NOT (section_key = ANY($2))',
+        [plantId, keys],
+    );
+    for (const [sectionKey, enabled, titleOverride] of entries) {
+        await client.query(
+            `INSERT INTO paec_plant_section_flags (plant_id, section_key, enabled, title_override, updated_at, updated_by)
+             VALUES ($1, $2, $3, $4, NOW(), $5)
+             ON CONFLICT (plant_id, section_key)
+             DO UPDATE SET enabled = EXCLUDED.enabled, title_override = EXCLUDED.title_override,
+                            updated_at = NOW(), updated_by = EXCLUDED.updated_by
+             WHERE paec_plant_section_flags.enabled IS DISTINCT FROM EXCLUDED.enabled
+                OR paec_plant_section_flags.title_override IS DISTINCT FROM EXCLUDED.title_override`,
+            [plantId, sectionKey, enabled, titleOverride, updatedBy],
+        );
+    }
+}
+
 // 23505 no indice LOWER(name) e traduzido pela rota em 409 NAME_EXISTS.
 async function create(data) {
     const id = normalizeText(data.id) || genId();
@@ -206,9 +264,16 @@ async function create(data) {
                  FROM paec_plant_list_items WHERE plant_id = $2`,
                 [id, sourceId, updatedBy],
             );
+            await client.query(
+                `INSERT INTO paec_plant_section_flags (plant_id, section_key, enabled, title_override, updated_at, updated_by)
+                 SELECT $1, section_key, enabled, title_override, NOW(), $3
+                 FROM paec_plant_section_flags WHERE plant_id = $2`,
+                [id, sourceId, updatedBy],
+            );
         } else {
             await rewriteFields(client, id, data.fields, updatedBy);
             await rewriteListItems(client, id, data.listItems, updatedBy);
+            await rewriteSectionFlags(client, id, data.sectionFlags, updatedBy);
         }
         await client.query('COMMIT');
     } catch (err) {
@@ -261,6 +326,7 @@ async function saveFull(id, data, expectedVersion) {
         );
         await rewriteFields(client, plantId, data.fields, updatedBy);
         await rewriteListItems(client, plantId, data.listItems, updatedBy);
+        await rewriteSectionFlags(client, plantId, data.sectionFlags, updatedBy);
         await client.query('COMMIT');
     } catch (err) {
         await client.query('ROLLBACK');
