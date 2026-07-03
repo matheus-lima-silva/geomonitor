@@ -21,6 +21,7 @@ from docx.oxml.ns import qn
 from worker.docx_runs import (
     collect_all_spans,
     iter_parts,
+    paragraph_text,
     replace_span_text,
     run_text,
     set_run_highlight,
@@ -116,6 +117,36 @@ def _find_block_anchor_span(document, block):
     return None
 
 
+def _normalize_header_cell(text):
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _table_header_cells(table):
+    rows = table.findall(qn("w:tr"))
+    if not rows:
+        return []
+    return [
+        _normalize_header_cell(" ".join(paragraph_text(p) for p in tc.findall(qn("w:p"))))
+        for tc in rows[0].findall(qn("w:tc"))
+    ]
+
+
+def _find_table_by_header(document, header_match):
+    """Localiza a tabela pelo texto do cabecalho (linha 0), pra blocos sem
+    span nenhum marcado no documento (ex. contatos internos/externos no REV
+    10 — a tabela tem dado real mas nunca foi realcada na marcacao
+    original). Casa por igualdade exata apos normalizar espacos internos
+    (celulas de cabecalho as vezes tem varios paragrafos/quebras de linha)."""
+    expected = [_normalize_header_cell(h) for h in header_match or []]
+    if not expected:
+        return None
+    for _part, root in iter_parts(document):
+        for tbl in root.iter(qn("w:tbl")):
+            if _table_header_cells(tbl) == expected:
+                return tbl
+    return None
+
+
 def _set_cell_text(tc, text, highlight=None):
     """Substitui o texto de uma celula (``w:tc``), mantendo o primeiro
     paragrafo/run (herda formatacao) e removendo os demais. ``highlight``
@@ -147,16 +178,21 @@ def _render_list_block(document, block, items):
     na ordem. Sem item nenhum, uma unica linha ``[[PENDENTE]]`` substitui a
     linha-exemplo do modelo (nunca deixa dado de outra usina no documento
     gerado). Retorna True se conseguiu renderizar a tabela.
+
+    Duas estrategias de localizacao, conforme o bloco: ``anchorContext``
+    (span ainda realcado no template — extintores, brigadistas etc.) ou
+    ``headerMatch`` (tabela sem span nenhum marcado — contatos internos e
+    afins; so o texto do cabecalho identifica a tabela).
     """
     columns = block.get("columns") or []
     if not columns:
         return False
 
     anchor_span = _find_block_anchor_span(document, block)
-    if anchor_span is None:
-        return False
-
-    table = _find_block_table(anchor_span.paragraph)
+    if anchor_span is not None:
+        table = _find_block_table(anchor_span.paragraph)
+    else:
+        table = _find_table_by_header(document, block.get("headerMatch"))
     if table is None:
         return False
 
@@ -192,7 +228,8 @@ def _render_list_block(document, block, items):
         anchor.addnext(row)
         anchor = row
 
-    replace_span_text(anchor_span, anchor_span.text, drop_highlight=True)
+    if anchor_span is not None:
+        replace_span_text(anchor_span, anchor_span.text, drop_highlight=True)
     return True
 
 

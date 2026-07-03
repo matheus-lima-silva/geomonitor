@@ -66,6 +66,24 @@ def _template_bytes_with_list_block():
     return buffer.getvalue()
 
 
+def _template_bytes_with_generated_list_block():
+    """Template sintetico reproduzindo o padrao dos blocos SEM span marcado
+    (contatos internos/externos no REV 10): tabela com header + 1 linha-
+    exemplo, sem realce nenhum (nem no cabecalho, nem em nenhuma outra
+    parte perto dela) -- so o texto do header identifica a tabela."""
+    doc = Document()
+    doc.add_paragraph("Plano da usina {{usina}}.")
+    doc.add_paragraph("anexo II - plano de comunicacao - CONTATOS INTERNOS")
+    table = doc.add_table(rows=2, cols=2)
+    table.rows[0].cells[0].paragraphs[0].add_run("APOIO")
+    table.rows[0].cells[1].paragraphs[0].add_run("TELEFONE")
+    table.rows[1].cells[0].paragraphs[0].add_run("Exemplo Marimbondo")
+    table.rows[1].cells[1].paragraphs[0].add_run("(00) 0000-0000")
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
+
+
 def _all_text(path):
     doc = Document(path)
     chunks = [p.text for p in doc.paragraphs]
@@ -181,6 +199,39 @@ def test_bloco_list_sem_item_vira_uma_linha_pendente(tmp_path):
 
     spans = collect_all_spans(doc)
     assert any(s.color == "yellow" and "PENDENTE: Relacao de brigadistas" in s.text for s in spans)
+
+
+def test_bloco_list_sem_span_localiza_pela_tabela_via_headerMatch(tmp_path):
+    """Bloco gerado (mapping.yaml['generatedListBlocks']) nao tem
+    anchorContext -- nenhum span foi marcado no documento original pra essa
+    tabela. Precisa ser localizado so pelo texto do cabecalho."""
+    output, _result = _render(
+        tmp_path,
+        overrides={
+            "blocks": [{
+                "key": "contatos_internos",
+                "kind": "list",
+                "label": "Contatos internos",
+                "anchorContext": None,
+                "headerMatch": ["APOIO", "TELEFONE"],
+                "columns": [
+                    {"key": "apoio", "label": "Apoio"},
+                    {"key": "telefone", "label": "Telefone"},
+                ],
+            }],
+            "listItems": {
+                "contatos_internos": [{"apoio": "Gerente", "telefone": "(21) 1111-1111"}],
+            },
+        },
+        template=_template_bytes_with_generated_list_block(),
+    )
+
+    doc = Document(output)
+    table = doc.tables[0]
+    assert [c.text for c in table.rows[0].cells] == ["APOIO", "TELEFONE"]
+    assert [c.text for c in table.rows[1].cells] == ["Gerente", "(21) 1111-1111"]
+    assert len(table.rows) == 2
+    assert "Exemplo Marimbondo" not in _all_text(output)
 
 
 def test_ficha_completa_nao_gera_pendencia_de_campo(tmp_path):

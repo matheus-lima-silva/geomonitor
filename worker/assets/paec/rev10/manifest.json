@@ -1201,6 +1201,145 @@
       "spanIds": [
         130
       ]
+    },
+    {
+      "key": "contatos_internos",
+      "kind": "list",
+      "label": "Contatos internos",
+      "anchorContext": null,
+      "headerMatch": [
+        "APOIO",
+        "TELEFONES DE CONTATO",
+        "RESPONSÁVEL",
+        "ÓRGÃO"
+      ],
+      "columns": [
+        {
+          "key": "apoio",
+          "label": "Apoio"
+        },
+        {
+          "key": "telefones_de_contato",
+          "label": "Telefones de contato"
+        },
+        {
+          "key": "responsavel",
+          "label": "Responsável"
+        },
+        {
+          "key": "orgao",
+          "label": "Órgão"
+        }
+      ],
+      "spanIds": []
+    },
+    {
+      "key": "contatos_externos_hospitais",
+      "kind": "list",
+      "label": "Contatos externos — hospitais e prontos-socorros",
+      "anchorContext": null,
+      "headerMatch": [
+        "Cidade",
+        "Nome da instituição",
+        "Endereço",
+        "Distância e Tempo estimado de deslocamento",
+        "Especialidades de atendimento",
+        "Número de contato",
+        "Cidade com SORO para animal peçonhento"
+      ],
+      "columns": [
+        {
+          "key": "cidade",
+          "label": "Cidade"
+        },
+        {
+          "key": "instituicao",
+          "label": "Nome da instituição"
+        },
+        {
+          "key": "endereco",
+          "label": "Endereço"
+        },
+        {
+          "key": "distancia_tempo",
+          "label": "Distância e tempo estimado"
+        },
+        {
+          "key": "especialidades",
+          "label": "Especialidades de atendimento"
+        },
+        {
+          "key": "telefone",
+          "label": "Número de contato"
+        },
+        {
+          "key": "cidade_soro",
+          "label": "Cidade com soro para animal peçonhento"
+        }
+      ],
+      "spanIds": []
+    },
+    {
+      "key": "contatos_externos_gerais",
+      "kind": "list",
+      "label": "Contatos externos — gerais (bombeiros, defesa civil etc.)",
+      "anchorContext": null,
+      "headerMatch": [
+        "NOME COMPLETO",
+        "EMPRESA OU INSTITUIÇÃO",
+        "TELEFONE FIXO",
+        "ENDEREÇO"
+      ],
+      "columns": [
+        {
+          "key": "nome_completo",
+          "label": "Nome completo"
+        },
+        {
+          "key": "empresa_instituicao",
+          "label": "Empresa ou instituição"
+        },
+        {
+          "key": "telefone_fixo",
+          "label": "Telefone fixo"
+        },
+        {
+          "key": "endereco",
+          "label": "Endereço"
+        }
+      ],
+      "spanIds": []
+    },
+    {
+      "key": "plantoes_gerencias",
+      "kind": "list",
+      "label": "Plantões das gerências de produção",
+      "anchorContext": null,
+      "headerMatch": [
+        "GERÊNCIAS",
+        "LOCAL",
+        "Nº PLANTONISTAS",
+        "TELEFONES"
+      ],
+      "columns": [
+        {
+          "key": "gerencia",
+          "label": "Gerência"
+        },
+        {
+          "key": "local",
+          "label": "Local"
+        },
+        {
+          "key": "num_plantonistas",
+          "label": "Nº plantonistas"
+        },
+        {
+          "key": "telefones",
+          "label": "Telefones"
+        }
+      ],
+      "spanIds": []
     }
   ],
   "imageSlots": [],

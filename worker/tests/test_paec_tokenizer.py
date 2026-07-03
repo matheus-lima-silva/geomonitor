@@ -212,6 +212,38 @@ def test_apply_repassa_columns_curadas_para_o_bloco():
     assert other_manifest["blocks"][0]["columns"] == []
 
 
+def test_apply_generated_list_blocks_entram_no_manifest_sem_span():
+    """Tabelas sem NENHUM span marcado (nem o cabecalho) -- ex. contatos
+    internos/externos no REV 10 -- entram no manifest via
+    mapping['generatedListBlocks'], curado a parte de `spans`. Sem
+    anchorContext (nao ha span pra apontar); localizadas no render por
+    headerMatch."""
+    doc = Document()
+    mapping = build_mapping(doc, "s.docx")
+    mapping["generatedListBlocks"] = [
+        {
+            "key": "contatos_internos",
+            "label": "Contatos internos",
+            "headerMatch": ["APOIO", "TELEFONES DE CONTATO"],
+            "columns": [{"key": "apoio", "label": "Apoio"}, {"key": "telefones", "label": "Telefones"}],
+        },
+    ]
+
+    manifest = apply_mapping(doc, mapping, "PAEC", "REV")
+
+    assert len(manifest["blocks"]) == 1
+    block = manifest["blocks"][0]
+    assert block == {
+        "key": "contatos_internos",
+        "kind": "list",
+        "label": "Contatos internos",
+        "anchorContext": None,
+        "headerMatch": ["APOIO", "TELEFONES DE CONTATO"],
+        "columns": [{"key": "apoio", "label": "Apoio"}, {"key": "telefones", "label": "Telefones"}],
+        "spanIds": [],
+    }
+
+
 def test_apply_ignore_mantem_texto_mas_remove_realce():
     """kind=ignore preserva o texto original (rotulo estatico que nao varia
     por usina) mas remove o realce de curadoria; ao contrario de kind=field,
