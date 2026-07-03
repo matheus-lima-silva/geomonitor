@@ -1,0 +1,496 @@
+{
+  "name": "UHE Simplício",
+  "plantType": "UHE",
+  "installedCapacityMw": 305.7,
+  "fields": {
+    "uhe_marimbondo": "UHE Simplício",
+    "razao_social": "Usina Hidrelétrica de Simplício",
+    "nome_fantasia": "UHE SIMPLÍCIO",
+    "endereco_instalacao": "Rodovia BR 393, km 117/118, Via de Acesso a Furnas, km 03, Fazenda Simplício, S/N – Zona Rural - Além Paraíba – MG. CEP 36660-000",
+    "telefone_sala_controle": "(21) 2666-2536",
+    "rodrigo_ferreira_moreno": "Geovane Abraão Benfica",
+    "rua_gago_coutinho_911_apto": "Av. Graça Aranha, 26, Centro - Rio de Janeiro - RJ. CEP: 20030-000",
+    "telefone_fax_2": "(21) 2666-2536",
+    "celular_corporativo": "(21) 99469-2726",
+    "a_hipotese_de_maior_severidade": "A hipótese de maior severidade, mapeada na PRAI, identifica o derramamento de 22 m³ de Óleo Isolante, assim detalhado a seguir:",
+    "95_814_l": "22 m³"
+  },
+  "listItems": {
+    "12_1_9_sistema_movel": [
+      {
+        "tipo": "CO2",
+        "capacidade": "4 kg",
+        "quantidade": "2"
+      },
+      {
+        "tipo": "CO2",
+        "capacidade": "6 kg",
+        "quantidade": "19"
+      },
+      {
+        "tipo": "PQS",
+        "capacidade": "4 kg",
+        "quantidade": "22"
+      },
+      {
+        "tipo": "PQS",
+        "capacidade": "4kg",
+        "quantidade": "1"
+      },
+      {
+        "tipo": "PQS",
+        "capacidade": "50 kg",
+        "quantidade": "10"
+      },
+      {
+        "tipo": "PQS",
+        "capacidade": "6 kg",
+        "quantidade": "1"
+      },
+      {
+        "tipo": "ÁGUA",
+        "capacidade": "10 l",
+        "quantidade": "3"
+      }
+    ],
+    "contatos_internos": [
+      {
+        "apoio": "PLANTAO DA GRN.O",
+        "telefones_de_contato": "(21) 2666-2530 e 99482-4810",
+        "responsavel": "",
+        "orgao": "DRN.O"
+      },
+      {
+        "apoio": "GERENTE DA GRN.O",
+        "telefones_de_contato": "(21) 99482-4810 e 2666-2530",
+        "responsavel": "Marcos Antônio dos Santos Lima",
+        "orgao": "DRN.O"
+      },
+      {
+        "apoio": "GERENTE DA USINA DE SIMPLÍCIO",
+        "telefones_de_contato": "(21) 99469-2726 e 3362-2884",
+        "responsavel": "Geovane Abraão Benfica",
+        "orgao": "DOSP.O"
+      },
+      {
+        "apoio": "BRIGADA DE EMERGÊNCIA",
+        "telefones_de_contato": "(32) 99139-3130 e 3362-2885",
+        "responsavel": "Romerson Pereira de Mattos",
+        "orgao": "DOSP.O"
+      },
+      {
+        "apoio": "DIVISÃO DE GESTÃO FUNDIÁRIA - CSGF.G",
+        "telefones_de_contato": "(21) 96899-8530",
+        "responsavel": "Sandra Verboonen",
+        "orgao": "CSGF.G"
+      },
+      {
+        "apoio": "SALA DE MONITORAMENTO 24 h – (CENTRAL)",
+        "telefones_de_contato": "(21) 2528-4112",
+        "responsavel": "",
+        "orgao": "CSSE.G"
+      },
+      {
+        "apoio": "DIVISÃO DE SEGURANÇA PATRIMONIAL – CSSE.G",
+        "telefones_de_contato": "(21) 97527-5066",
+        "responsavel": "Marco Antônio Macedo Santos",
+        "orgao": "CSSE.G"
+      },
+      {
+        "apoio": "DIVISÃO DE SEGURANÇA PATRIMONIAL – CSSE.G",
+        "telefones_de_contato": "(21) 98863-8224",
+        "responsavel": "Denilson Gonzaga Ferreira",
+        "orgao": "CSSE.G"
+      },
+      {
+        "apoio": "DIVISAO DE GESTAO DE FROTAS E VIAGENS - CSFV.G",
+        "telefones_de_contato": "(21) 97528-3420",
+        "responsavel": "Cláudio Luiz F. Barbosa",
+        "orgao": "CSFV.G"
+      },
+      {
+        "apoio": "DIVISAO DE GESTAO DE FROTAS E VIAGENS - CSFV.G",
+        "telefones_de_contato": "(21) 99563-6104",
+        "responsavel": "Gerlania Maria Ferreira",
+        "orgao": "CSFV.G"
+      },
+      {
+        "apoio": "DEPARTAMENTO DE SAUDE SEGURANCA E BEM ESTAR NO TRABALHO - DSS.G",
+        "telefones_de_contato": "(21) 2528-2983 (21) 97527-2361",
+        "responsavel": "Plantão Serviço Social",
+        "orgao": "DSS.G"
+      },
+      {
+        "apoio": "DEPARTAMENTO DE SAUDE SEGURANCA E BEM ESTAR NO TRABALHO - DSS.G",
+        "telefones_de_contato": "(21) 2528-3184 (21) 97528-6418",
+        "responsavel": "Sérgio Ricardo F. da Silva",
+        "orgao": "DSS.G"
+      },
+      {
+        "apoio": "DEPARTAMENTO DE SAUDE SEGURANCA E BEM ESTAR NO TRABALHO - DSS.G",
+        "telefones_de_contato": "(21)2528-2527 (21) 97528-8967",
+        "responsavel": "Túlio Oliveira",
+        "orgao": "DSS.G"
+      },
+      {
+        "apoio": "MEIO AMBIENTE - ENGENHARIA AMBIENTAL",
+        "telefones_de_contato": "(21) 97529-2270",
+        "responsavel": "Plantão: Ákilla Brito",
+        "orgao": "DGS.E"
+      },
+      {
+        "apoio": "MEIO AMBIENTE - ENGENHARIA AMBIENTAL",
+        "telefones_de_contato": "(21) 97528-6346",
+        "responsavel": "Márcia de Sena Melo",
+        "orgao": "DGS.E"
+      },
+      {
+        "apoio": "MEIO AMBIENTE – LICENCIAMENTO AMBIENTAL",
+        "telefones_de_contato": "(21) 2528-5020 / 97529-2518",
+        "responsavel": "Grace Moreira Drumond",
+        "orgao": "DLA.E"
+      },
+      {
+        "apoio": "MEIO AMBIENTE – LICENCIAMENTO AMBIENTAL",
+        "telefones_de_contato": "(21) 99993-0556",
+        "responsavel": "Marcia Campos dos santos",
+        "orgao": "DLA.E"
+      },
+      {
+        "apoio": "DEPARTAMENTO JURÍDICO - CSJ.G",
+        "telefones_de_contato": "(21) 99982-4639",
+        "responsavel": "José Vicente Vargas Junior",
+        "orgao": "CSJ.G"
+      },
+      {
+        "apoio": "DEPARTAMENTO JURÍDICO - CSJ.G",
+        "telefones_de_contato": "21) 97148-0908",
+        "responsavel": "Claudia Regina Guariento",
+        "orgao": "CSJT.G"
+      },
+      {
+        "apoio": "DEPARTAMENTO JURÍDICO - CSJ.G",
+        "telefones_de_contato": "(21)97527-1576 (21)99608-9104",
+        "responsavel": "Catarine da Fonseca de Souza",
+        "orgao": "CSJC.G"
+      },
+      {
+        "apoio": "SUPERINTENDENCIA DE COMUNICACAO - CR.P",
+        "telefones_de_contato": "(21) 99465-0286 e (21) 2528–5694",
+        "responsavel": "Ana Claudia Fernandes Gesteira",
+        "orgao": "CR.P"
+      },
+      {
+        "apoio": "SUPERINTENDENCIA DE COMUNICACAO - CR.P",
+        "telefones_de_contato": "(21) 99469-9306 e (21) 2528- 4594",
+        "responsavel": "Marcos Machado de Almeida",
+        "orgao": "CR.P"
+      },
+      {
+        "apoio": "SUPERINTENDENCIA DE COMUNICACAO - CR.P",
+        "telefones_de_contato": "(21) 99119-8275 e (21) 2528- 4723",
+        "responsavel": "Júlio César Dias Morgado",
+        "orgao": "CR.P"
+      },
+      {
+        "apoio": "SUPERINTENDENCIA DE COORDENACAO REGIONAL DO CSC SUDESTE - CS.G",
+        "telefones_de_contato": "(21) 97528-6364",
+        "responsavel": "Leonardo Fernandes de Medina Coeli",
+        "orgao": "CS.G"
+      },
+      {
+        "apoio": "DEPARTAMENTO DE INFRAESTRUTURA E SERVICOS GERAIS - CSI.G",
+        "telefones_de_contato": "(21) 99727-2406",
+        "responsavel": "Sandra Rodrigues de Lima Neves",
+        "orgao": "CSI.G"
+      },
+      {
+        "apoio": "DEPARTAMENTO DE SUPRIMENTOS - CSP.G",
+        "telefones_de_contato": "(35) 99981-2247 (21)97529-2041",
+        "responsavel": "Ramon Alves Bernardes",
+        "orgao": "CSMG.G"
+      },
+      {
+        "apoio": "DIVISAO DE GESTAO DE CONTRATOS - CSGC.G",
+        "telefones_de_contato": "(11)98379-1348",
+        "responsavel": "Felipe de Araújo Amaral Braga",
+        "orgao": "CSGC.G"
+      },
+      {
+        "apoio": "DIVISÃO DE INFRAESTRUTURA E SERVIÇOS GERAIS MG – CSMG.G",
+        "telefones_de_contato": "(35) 98448-1678",
+        "responsavel": "Ricardo Leão de Moraes",
+        "orgao": "CSMG.G"
+      }
+    ],
+    "contatos_externos_hospitais": [
+      {
+        "cidade": "",
+        "instituicao": "Pronto Socorro",
+        "endereco": "Praça da Bandeira, 12 Sapucaia- RJ",
+        "distancia_tempo": "",
+        "especialidades": "",
+        "telefone": "(24) 2271-1200",
+        "cidade_soro": ""
+      },
+      {
+        "cidade": "",
+        "instituicao": "Hospital São Salvador",
+        "endereco": "Rua Almirante Dr° Paulo Fonseca, 1178, 310, Laroca Além Paraíba- MG",
+        "distancia_tempo": "",
+        "especialidades": "",
+        "telefone": "(32) 3462-4366",
+        "cidade_soro": ""
+      },
+      {
+        "cidade": "",
+        "instituicao": "Unidade de Pronto Atendimento Silvio Geraldo França",
+        "endereco": "Rua 24 de março, 118, Jardim Paraíso - Além Paraíba- MG",
+        "distancia_tempo": "",
+        "especialidades": "",
+        "telefone": "(32) 3462-9637",
+        "cidade_soro": ""
+      },
+      {
+        "cidade": "",
+        "instituicao": "Hospital Nossa Senhora da Conceição",
+        "endereco": "Rua Maestro Costa Barros, 642, Centro, Três Rios- RJ",
+        "distancia_tempo": "",
+        "especialidades": "",
+        "telefone": "(24) 2255-0600",
+        "cidade_soro": ""
+      },
+      {
+        "cidade": "",
+        "instituicao": "Hospital das Clínicas de Teresópolis",
+        "endereco": "Av. Delfim Moreira, 2211, Vale do Paraíso -Teresópolis- RJ",
+        "distancia_tempo": "",
+        "especialidades": "",
+        "telefone": "(21) 2741-4900",
+        "cidade_soro": ""
+      }
+    ],
+    "contatos_externos_gerais": [
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "Batalhão de Leopoldina",
+        "telefone_fixo": "193 (32) 3441-3766 (32) 98445-4802 (32) 99963-3355",
+        "endereco": "Rua José Péres, 684, Centro – Leopoldina/MG"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "Sapucaia",
+        "telefone_fixo": "(24) 2271- 1039",
+        "endereco": "BR 398 -Sapucaia- RJ"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "Três Rios",
+        "telefone_fixo": "(24) 2255- 8192",
+        "endereco": "BR 040 – KM, Três Rios- RJ"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "109ª Delegacia de Polícia",
+        "telefone_fixo": "(24) 2271- 1055",
+        "endereco": "Sapucaia- RJ"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "ACCIONA",
+        "telefone_fixo": "(24) 2491- 9600",
+        "endereco": "BR 393 / Sapucaia- RJ"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "Ibama",
+        "telefone_fixo": "(61) 3316-1677/1212",
+        "endereco": "Linha Verde -0800-618080 E-mail: emergenciasambientais.sede@ibama.gov.br Sítio: http://www.ibama.gov.br/"
+      },
+      {
+        "nome_completo": "No momento do acidente, a Gerência de Licenciamento Ambiental- DLA.E – Grace Moreira Drumond e Marcia Campos serão as responsáveis por informar ao IBAMA",
+        "empresa_instituicao": "No momento do acidente, a Gerência de Licenciamento Ambiental- DLA.E – Grace Moreira Drumond e Marcia Campos serão as responsáveis por informar ao IBAMA",
+        "telefone_fixo": "(21) 2528-4535 / 97529-2518 (21) 2528-2871/(21) 99993-0556",
+        "endereco": "DLA.E"
+      }
+    ],
+    "plantoes_gerencias": [
+      {
+        "gerencia": "DRN.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(21) 3362 2846 e 97528 8372"
+      },
+      {
+        "gerencia": "DRV.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(27) 3398 5200"
+      },
+      {
+        "gerencia": "DRR.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(21) 3985 4331"
+      },
+      {
+        "gerencia": "DRQ.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(11) 4714 1024 e (15) 3214 1634"
+      },
+      {
+        "gerencia": "DRP.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(45) 3576 5959"
+      },
+      {
+        "gerencia": "DRL.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(11) 4793 6299"
+      },
+      {
+        "gerencia": "DRB.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(61)3458 4290"
+      },
+      {
+        "gerencia": "DRT.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(34) 3428 5280"
+      },
+      {
+        "gerencia": "DRG.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(64)3432 2259"
+      },
+      {
+        "gerencia": "DRM.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(35)3523 4535"
+      }
+    ],
+    "anexo_iv_relacao_de_brigadistas": [
+      {
+        "item": "1",
+        "nome": "Romerson Pereira de Mattos (Coordenador)",
+        "endereco": "",
+        "telefone": "890-2782 (21) 3362-2782 (32) 9139-3130",
+        "telefone_interno": "",
+        "empresa": "Furnas (legado 2021)"
+      },
+      {
+        "item": "2",
+        "nome": "Agnelo Garcia Pacheco (Subs. Coordenador)",
+        "endereco": "",
+        "telefone": "890-6104 (32) 99106-7178",
+        "telefone_interno": "",
+        "empresa": "Furnas (legado 2021)"
+      },
+      {
+        "item": "3",
+        "nome": "Paulo César do Nascimento (Equipe de apoio (Secretário))",
+        "endereco": "",
+        "telefone": "890-2885 (24) 9925-9682",
+        "telefone_interno": "",
+        "empresa": "Furnas (legado 2021)"
+      },
+      {
+        "item": "4",
+        "nome": "Andrea Giffoni (Equipe de apoio (Subs. Secretário))",
+        "endereco": "",
+        "telefone": "890-6102 (21) 3362-2885",
+        "telefone_interno": "",
+        "empresa": "Furnas (legado 2021)"
+      },
+      {
+        "item": "5",
+        "nome": "Denis Gomes Samia (Combatente)",
+        "endereco": "",
+        "telefone": "890-2786 / 6174",
+        "telefone_interno": "",
+        "empresa": "Furnas (legado 2021)"
+      },
+      {
+        "item": "6",
+        "nome": "Edilson Pereira da Silva (Combatente)",
+        "endereco": "",
+        "telefone": "890-6108 (32) 9137-9003",
+        "telefone_interno": "",
+        "empresa": "Furnas (legado 2021)"
+      },
+      {
+        "item": "7",
+        "nome": "Douglas Santos Erbisti (Combatente)",
+        "endereco": "",
+        "telefone": "890-6127 (32) 99106-7178",
+        "telefone_interno": "",
+        "empresa": "Furnas (legado 2021)"
+      },
+      {
+        "item": "8",
+        "nome": "Carlos Augusto Abreu de Freitas (Combatente)",
+        "endereco": "",
+        "telefone": "890-6126 (24) 98137-1609",
+        "telefone_interno": "",
+        "empresa": "Furnas (legado 2021)"
+      },
+      {
+        "item": "9",
+        "nome": "Janízaro Pereira da Silva Júnior (Combatente)",
+        "endereco": "",
+        "telefone": "890-2887 / 6111",
+        "telefone_interno": "",
+        "empresa": "Furnas (legado 2021)"
+      },
+      {
+        "item": "10",
+        "nome": "Renderson Clayton dos Santos Lopes (Combatente)",
+        "endereco": "",
+        "telefone": "890-6111 (21) 3362-2887",
+        "telefone_interno": "",
+        "empresa": "Furnas (legado 2021)"
+      },
+      {
+        "item": "11",
+        "nome": "Renato Cunha Freitas (Combatente)",
+        "endereco": "",
+        "telefone": "890-2887 / 6111 / 6121 (21) 3362-2887",
+        "telefone_interno": "",
+        "empresa": "Furnas (legado 2021)"
+      },
+      {
+        "item": "12",
+        "nome": "Eduardo Emídio de W. Alves Ribeiro (Combatente)",
+        "endereco": "",
+        "telefone": "898-6107",
+        "telefone_interno": "",
+        "empresa": "Furnas (legado 2021)"
+      }
+    ],
+    "no_ponto_de_encontro": [
+      {
+        "numero_ponto": "01",
+        "local": "Lateral direita do Canal de Fuga da Usina de Simplício",
+        "instrucao": "Deslocam-se para este ponto todos os empregados no interior das instalações da UHE Simplício, em casos de emergência."
+      },
+      {
+        "numero_ponto": "02",
+        "local": "Em frente ao portão principal de entrada da Subestação",
+        "instrucao": "Deslocam-se para este ponto todos os empregados no interior das instalações da UHE Simplício, em casos de emergência."
+      },
+      {
+        "numero_ponto": "03",
+        "local": "Bota-Fora 34",
+        "instrucao": "Deslocam-se para este ponto todos os empregados, terceiros (população fixa) e visitantes (população flutuante), em caso de ameaça de rompimento de barragem."
+      }
+    ]
+  },
+  "sectionFlags": {}
+}

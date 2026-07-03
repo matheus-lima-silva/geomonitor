@@ -1,0 +1,363 @@
+{
+  "name": "PCH Anta",
+  "plantType": "PCH",
+  "installedCapacityMw": 28,
+  "fields": {
+    "uhe_marimbondo": "PCH Anta",
+    "razao_social": "Pequena Central Hidrelétrica de Anta",
+    "nome_fantasia": "PCH ANTA",
+    "endereco_instalacao": "Rodovia BR 393, km 142/143, s/nº, Via de Acesso a Furnas km 1,3, Distrito de Anta, Sapucaia - RJ. CEP: 25880-000",
+    "cnpj_cgc_mf_no": "23.274.194/0101-81",
+    "telefone_sala_controle": "(21) 2666-2533",
+    "rodrigo_ferreira_moreno": "Geovane Abraão Benfica",
+    "rua_gago_coutinho_911_apto": "Rua Izabel Herdy Alves, 183, bairro São José - Além Paraíba – MG. CEP: 36660-000",
+    "telefone_fax_2": "(21) 2666-2536",
+    "celular_corporativo": "(21) 99469-2726",
+    "a_hipotese_de_maior_severidade": "A hipótese de maior severidade, mapeada na PRAI, identifica o derramamento de 11 m³ de Óleo Isolante, assim detalhado a seguir:",
+    "95_814_l": "11 m³"
+  },
+  "listItems": {
+    "12_1_9_sistema_movel": [
+      {
+        "tipo": "CO2",
+        "capacidade": "6 kg",
+        "quantidade": "24"
+      },
+      {
+        "tipo": "PQS",
+        "capacidade": "4 kg",
+        "quantidade": "3"
+      },
+      {
+        "tipo": "PQS",
+        "capacidade": "50 kg",
+        "quantidade": "8"
+      },
+      {
+        "tipo": "ÁGUA",
+        "capacidade": "10 l",
+        "quantidade": "3"
+      }
+    ],
+    "contatos_internos": [
+      {
+        "apoio": "GERENTE DO DRN.O",
+        "telefones_de_contato": "(21) 99482-4810 e 2666-2530",
+        "responsavel": "Marcos Antônio dos Santos Lima",
+        "orgao": "DRN.O"
+      },
+      {
+        "apoio": "GERENTE DA PCH ANTA",
+        "telefones_de_contato": "(21) 99469-2726 e 2666-2536",
+        "responsavel": "Geovane Abraão Benfica",
+        "orgao": "DOSP.O"
+      },
+      {
+        "apoio": "BRIGADA DE EMERGÊNCIA",
+        "telefones_de_contato": "(32) 98484-0863 e (21) 26662544",
+        "responsavel": "Renderson Clayton dos Santos Lopes",
+        "orgao": "DOSP.O"
+      },
+      {
+        "apoio": "DEPARTAMENTO DE GESTÃO DO MEIO FÍSICO-BIÓTICO",
+        "telefones_de_contato": "(21) 97529-2171",
+        "responsavel": "Renê Gomes Reis Júnior",
+        "orgao": "DGB.E"
+      },
+      {
+        "apoio": "SALA SEGURANÇA - ESCRITÓRIO CENTRAL 24 h",
+        "telefones_de_contato": "(21) 2528-4200/4295/4495",
+        "responsavel": "",
+        "orgao": "CSSE.G"
+      },
+      {
+        "apoio": "CENTRO INTEGRADO DE SEGURANÇA PATRIMONIAL (24 horas)",
+        "telefones_de_contato": "(21) 97527-5066",
+        "responsavel": "Marco Antônio Macedo Santos",
+        "orgao": "CSSE.G"
+      },
+      {
+        "apoio": "CENTRO INTEGRADO DE SEGURANÇA PATRIMONIAL (24 horas)",
+        "telefones_de_contato": "(21) 96809-3643",
+        "responsavel": "Marcos Martinelli Borges",
+        "orgao": "CSSE.G"
+      },
+      {
+        "apoio": "CENTRO INTEGRADO DE SEGURANÇA PATRIMONIAL (24 horas)",
+        "telefones_de_contato": "(21) 98863-8224",
+        "responsavel": "Denilson Gonzaga Ferreira",
+        "orgao": "CSSE.G"
+      },
+      {
+        "apoio": "TRANSPORTE TERRESTRE E ÁEREO",
+        "telefones_de_contato": "(21) 97528-3420",
+        "responsavel": "Cláudio Luiz F. Barbosa",
+        "orgao": "CSFV.G"
+      },
+      {
+        "apoio": "TRANSPORTE TERRESTRE E ÁEREO",
+        "telefones_de_contato": "(21) 99563-6104",
+        "responsavel": "Gerlânia Maria Ferreira",
+        "orgao": "CSFV.G"
+      },
+      {
+        "apoio": "ASSISTÊNCIA SOCIAL, SAÚDE E SEGURANÇA INDUSTRIAL",
+        "telefones_de_contato": "(21) 2528-2983 e 97527-2361",
+        "responsavel": "Plantão Serviço Social",
+        "orgao": "DSS.G"
+      },
+      {
+        "apoio": "ASSISTÊNCIA SOCIAL, SAÚDE E SEGURANÇA INDUSTRIAL",
+        "telefones_de_contato": "(21) 2528-3184 e 97528-6418",
+        "responsavel": "Sérgio Ricardo F. da Silva",
+        "orgao": "DSS.G"
+      },
+      {
+        "apoio": "MEIO AMBIENTE - ENGENHARIA AMBIENTAL",
+        "telefones_de_contato": "(21) 97529-2270",
+        "responsavel": "Plantão:",
+        "orgao": "DGS.E"
+      },
+      {
+        "apoio": "MEIO AMBIENTE - ENGENHARIA AMBIENTAL",
+        "telefones_de_contato": "(21) 2528-2856",
+        "responsavel": "Marcia de Sena Melo",
+        "orgao": "DGS.E"
+      },
+      {
+        "apoio": "MEIO AMBIENTE – LICENCIAMENTO AMBIENTAL",
+        "telefones_de_contato": "(21) 2528-4535 / 97529-2518",
+        "responsavel": "Grace Moreira Drummond",
+        "orgao": "DLA.E"
+      },
+      {
+        "apoio": "MEIO AMBIENTE – LICENCIAMENTO AMBIENTAL",
+        "telefones_de_contato": "(21) 2528-2871",
+        "responsavel": "Márcia Campos dos Santos",
+        "orgao": "DLA.E"
+      },
+      {
+        "apoio": "JURÍDICO",
+        "telefones_de_contato": "(21) 2528-2252/5295",
+        "responsavel": "Carlos Eduardo de M. Reis",
+        "orgao": "DCI.P"
+      },
+      {
+        "apoio": "JURÍDICO",
+        "telefones_de_contato": "(21) 2528-3018",
+        "responsavel": "Felipe Silva da Conceição",
+        "orgao": "DCI.P"
+      },
+      {
+        "apoio": "COMUNICAÇÃO",
+        "telefones_de_contato": "(21) 2528-2675 / (21) 97212-5108",
+        "responsavel": "Isabel Hermanny T. Cunha",
+        "orgao": "DCA.P"
+      },
+      {
+        "apoio": "COMUNICAÇÃO",
+        "telefones_de_contato": "(21) 99470-4437",
+        "responsavel": "Plantão Imprensa",
+        "orgao": "DCA.P"
+      },
+      {
+        "apoio": "SUPERINTENDÊNCIA DE COORDENAÇÃO REGIONAL DO CSC SUDESTE - CS.G",
+        "telefones_de_contato": "(21) 2528-6348",
+        "responsavel": "Leonardo Fernandes de Medina Coeli",
+        "orgao": "CS.G"
+      },
+      {
+        "apoio": "SUPERINTENDÊNCIA DE COORDENAÇÃO REGIONAL DO CSC SUDESTE - CS.G",
+        "telefones_de_contato": "(21) 99941-2273 e 2446-9337",
+        "responsavel": "Aluísio Pereira",
+        "orgao": "CSRJ.G"
+      }
+    ],
+    "contatos_externos_hospitais": [
+      {
+        "cidade": "",
+        "instituicao": "Pronto Socorro Sapucaia",
+        "endereco": "Praça da Bandeira, 12 Sapucaia-RJ",
+        "distancia_tempo": "",
+        "especialidades": "",
+        "telefone": "(24) 2271-1200",
+        "cidade_soro": ""
+      },
+      {
+        "cidade": "",
+        "instituicao": "Hospital de Clínicas Nossa Senhora da Conceição",
+        "endereco": "Rua Maestro Costa Barros, 642, Centro, Três Rios- RJ",
+        "distancia_tempo": "",
+        "especialidades": "",
+        "telefone": "(24) 2255-0600",
+        "cidade_soro": ""
+      },
+      {
+        "cidade": "",
+        "instituicao": "Hospital das Clínicas de Teresópolis",
+        "endereco": "Av. Delfim Moreira, 2211, Vale do Paraíso-Teresópolis-RJ",
+        "distancia_tempo": "",
+        "especialidades": "",
+        "telefone": "(21) 2741-4900",
+        "cidade_soro": ""
+      }
+    ],
+    "contatos_externos_gerais": [
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "Posto Avançado BM – Além Paraíba / MG",
+        "telefone_fixo": "193 / (32) 3462-7241",
+        "endereco": "BR 116 Km 810 Povoado de São João Zona Rural, Além Paraíba - MG"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "Corpo de Bombeiros",
+        "telefone_fixo": "193 / (22) 2537-2600",
+        "endereco": "R. Sen. Dantas, 1090-1124 - Centro, Carmo - RJ"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "Corpo de Bombeiros Militar",
+        "telefone_fixo": "193",
+        "endereco": "R. Tiradentes, 287 - Cantagalo, Três Rios - RJ"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "Base Descentralizada de Sapucaia – RJ",
+        "telefone_fixo": "194 / (24) 2271-1167",
+        "endereco": "Rua Papa João XXIII, s/n, Centro, Sapucaia – RJ."
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "Sapucaia",
+        "telefone_fixo": "(21) 3503-2362",
+        "endereco": "Rod. Lúcio Meira, Sapucaia/RJ BR 393, Km 137 Sapucaia/RJ"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "UOP Moura Brasil - Três Rios",
+        "telefone_fixo": "(21) 3503-2361",
+        "endereco": "BR-040, Km 022, Três Rios/RJ"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "109ª Delegacia de Polícia",
+        "telefone_fixo": "(24) 2271-1055",
+        "endereco": "R. Quinze de Novembro, 40 - Beira Rio, Sapucaia - RJ"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "108ª Delegacia de Polícia",
+        "telefone_fixo": "(24) 2252-4633",
+        "endereco": "Av. Castro Alves, 120 - Portão Vermelho, Três Rios - RJ"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "Delegacia de Polícia",
+        "telefone_fixo": "(32) 3276-1326 (32) 3205-1121",
+        "endereco": "Rua Antônio Joaquim da Costa, 41 – Centro – Chiador / MG"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "Delegacia de Polícia",
+        "telefone_fixo": "(32) 3276-1359",
+        "endereco": "R. Alfredo Lagrota, Mar de Espanha - MG"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "PMERJ",
+        "telefone_fixo": "190",
+        "endereco": "R. Paulino Fernandes, 5, Sapucaia – RJ"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "4° GPM",
+        "telefone_fixo": "(32) 3276-1737 (32) 3276-1692",
+        "endereco": "R. Ladeira da Matriz, nº 20 - Mar de Espanha - MG"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "K INFRA",
+        "telefone_fixo": "(24) 2491-9600",
+        "endereco": "BR 393 / Sapucaia- RJ"
+      },
+      {
+        "nome_completo": "",
+        "empresa_instituicao": "IBAMA",
+        "telefone_fixo": "(61) 3316-1677/1212",
+        "endereco": "Linha Verde -0800-618080 E-mail: emergenciasambientais.sede@ibama.gov.br Sítio: http://www.ibama.gov.br/"
+      }
+    ],
+    "plantoes_gerencias": [
+      {
+        "gerencia": "DRN.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(21) 2666-2530 e 99482-4810"
+      },
+      {
+        "gerencia": "DRV.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(27) 3398-5200"
+      },
+      {
+        "gerencia": "DRR.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(21) 3985-4331"
+      },
+      {
+        "gerencia": "DRQ.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(11) 4714-1024 e (15) 3214-1634"
+      },
+      {
+        "gerencia": "DRP.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(45) 3576-5959"
+      },
+      {
+        "gerencia": "DRL.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(11) 4793-6299"
+      },
+      {
+        "gerencia": "DRB.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(61)3458-4290"
+      },
+      {
+        "gerencia": "DRT.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(34) 3428-5280"
+      },
+      {
+        "gerencia": "DRG.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(64) 3432-2259"
+      },
+      {
+        "gerencia": "DRM.O",
+        "local": "SEDE",
+        "num_plantonistas": "1",
+        "telefones": "(35) 3523-4535"
+      }
+    ],
+    "anexo_iv_relacao_de_brigadistas": [],
+    "no_ponto_de_encontro": [
+      {
+        "numero_ponto": "01",
+        "local": "PONTO DE ENCONTRO DE EMERGÊNCIA E AMEAÇA DE ROMPIMENTO DE BARRAGEM: em frente ao local onde serão construídas as novas edificações",
+        "instrucao": "Deslocam-se para este ponto toda a população (fixa e flutuante) presente no empreendimento."
+      }
+    ]
+  },
+  "sectionFlags": {}
+}
