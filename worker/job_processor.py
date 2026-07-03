@@ -67,6 +67,17 @@ def _collect_media_asset_ids(context):
     # workspace_kmz: renderModel.photos[*]
     _add_photo_ids(render_model.get("photos"))
 
+    # paec_report: renderModel.paecReport.assets = { assetKey: [mediaAssetId] }
+    paec = render_model.get("paecReport")
+    if isinstance(paec, dict) and isinstance(paec.get("assets"), dict):
+        for media_ids in paec["assets"].values():
+            if not isinstance(media_ids, list):
+                continue
+            for media_id in media_ids:
+                normalized = normalize_text(media_id)
+                if normalized:
+                    found.add(normalized)
+
     return found
 
 
@@ -329,8 +340,12 @@ def process_paec_report_job(client, job_id, context, staging_dir):
             "errorLog": f"Template PAEC '{template_media_id}' veio vazio para o job '{job_id}'.",
         }
 
+    media_ids = _collect_media_asset_ids(context)
+    image_cache = _prefetch_images(client, media_ids, job_id)
+    image_loader = _build_cached_image_loader(client, image_cache)
+
     with timed_phase(logger, "render_paec", job_id=job_id, fileName=file_name):
-        result_meta = render_paec_to_docx(context, template_bytes, output_path)
+        result_meta = render_paec_to_docx(context, template_bytes, output_path, image_loader)
 
     with timed_phase(logger, "read_output", job_id=job_id, path=output_path):
         with open(output_path, "rb") as handle:

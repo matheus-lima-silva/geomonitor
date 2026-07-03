@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import os
@@ -10,7 +11,11 @@ from docx.oxml.ns import qn
 
 from worker.docx_runs import collect_all_spans
 from worker.paec_renderer import render_paec_to_docx
-from worker.job_processor import build_output_file_name, process_paec_report_job
+from worker.job_processor import (
+    _collect_media_asset_ids,
+    build_output_file_name,
+    process_paec_report_job,
+)
 from worker.runtime import WorkerClient
 
 FIXTURE_PATH = os.path.join(os.path.dirname(__file__), "fixtures", "paec_render_model.json")
@@ -108,6 +113,45 @@ SAMPLE_SECTIONS = [
 ]
 
 
+SAMPLE_PNG_BYTES = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z2ioAAAAASUVORK5CYII="
+)
+
+SAMPLE_IMAGE_SLOTS = [
+    {
+        "assetKey": "anexo_vii_rota_de_fuga",
+        "label": "Anexo VII - Rota de fuga",
+        "maxImages": 5,
+        "page": {"preset": "a4-portrait"},
+        "anchorContext": "anexo VII - ROTA DE FUGA",
+    },
+]
+
+
+def _template_bytes_with_image_slot():
+    """Template sintetico reproduzindo o padrao real do anexo VII no
+    tokenized.docx: heading realcado (kind=image, nunca tokenizado no apply)
+    seguido de paragrafos vazios e paragrafos com as imagens-exemplo do
+    Marimbondo, ate o heading do proximo anexo."""
+    doc = Document()
+    doc.add_paragraph("Plano da usina {{usina}}.")
+    heading = doc.add_paragraph()
+    heading.add_run("anexo VII - ROTA DE FUGA").font.highlight_color = WD_COLOR_INDEX.YELLOW
+    doc.add_paragraph()
+    doc.add_picture(io.BytesIO(SAMPLE_PNG_BYTES))
+    doc.add_paragraph()
+    doc.add_picture(io.BytesIO(SAMPLE_PNG_BYTES))
+    doc.add_paragraph("anexo VIII - PROCEDIMENTOS OPERACIONAIS")
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
+
+
+def _count_drawings(path):
+    doc = Document(path)
+    return len(list(doc.element.body.iter(qn("w:drawing"))))
+
+
 def _all_text(path):
     doc = Document(path)
     chunks = [p.text for p in doc.paragraphs]
@@ -119,9 +163,11 @@ def _all_text(path):
     return "\n".join(chunks)
 
 
-def _render(tmp_path, overrides=None, template=None):
+def _render(tmp_path, overrides=None, template=None, image_loader=None):
     output = os.path.join(str(tmp_path), "out.docx")
-    result = render_paec_to_docx(_build_context(overrides), template or _template_bytes(), output)
+    result = render_paec_to_docx(
+        _build_context(overrides), template or _template_bytes(), output, image_loader
+    )
     return output, result
 
 
@@ -329,6 +375,93 @@ def test_sem_secoes_flags_nao_marca_toc(tmp_path):
     assert doc.settings.element.find(qn("w:updateFields")) is None
 
 
+def test_image_slot_troca_imagens_exemplo_pelas_da_ficha(tmp_path):
+    loaded = []
+
+    def image_loader(media_id):
+        loaded.append(media_id)
+        return {"buffer": SAMPLE_PNG_BYTES}
+
+    output, _result = _render(
+        tmp_path,
+        overrides={
+            "imageSlots": SAMPLE_IMAGE_SLOTS,
+            "assets": {"anexo_vii_rota_de_fuga": ["MEDIA-A", "MEDIA-B", "MEDIA-C"]},
+        },
+        template=_template_bytes_with_image_slot(),
+        image_loader=image_loader,
+    )
+
+    # 2 imagens-exemplo do modelo sairam; 3 da ficha entraram
+    assert loaded == ["MEDIA-A", "MEDIA-B", "MEDIA-C"]
+    assert _count_drawings(output) == 3
+    text = _all_text(output)
+    assert "anexo VII - ROTA DE FUGA" in text
+    assert "anexo VIII - PROCEDIMENTOS OPERACIONAIS" in text
+    assert "PENDENTE" not in text
+
+    # ancora perdeu o realce apos renderizar
+    doc = Document(output)
+    spans = collect_all_spans(doc)
+    assert not any("ROTA DE FUGA" in s.text for s in spans)
+
+
+def test_image_slot_vazio_remove_exemplos_e_vira_pendente(tmp_path):
+    output, _result = _render(
+        tmp_path,
+        overrides={"imageSlots": SAMPLE_IMAGE_SLOTS, "assets": {}},
+        template=_template_bytes_with_image_slot(),
+        image_loader=lambda media_id: {"buffer": SAMPLE_PNG_BYTES},
+    )
+
+    # nunca deixa diagrama de outra usina no documento gerado
+    assert _count_drawings(output) == 0
+    text = _all_text(output)
+    assert "[[PENDENTE: Anexo VII - Rota de fuga]]" in text
+
+    doc = Document(output)
+    spans = collect_all_spans(doc)
+    assert any(s.color == "yellow" and "PENDENTE: Anexo VII" in s.text for s in spans)
+
+
+def test_image_slot_falha_de_download_vira_pendente_sem_derrubar_o_resto(tmp_path):
+    def image_loader(media_id):
+        if media_id == "MEDIA-RUIM":
+            raise RuntimeError("download falhou")
+        return {"buffer": SAMPLE_PNG_BYTES}
+
+    output, _result = _render(
+        tmp_path,
+        overrides={
+            "imageSlots": SAMPLE_IMAGE_SLOTS,
+            "assets": {"anexo_vii_rota_de_fuga": ["MEDIA-A", "MEDIA-RUIM"]},
+        },
+        template=_template_bytes_with_image_slot(),
+        image_loader=image_loader,
+    )
+
+    assert _count_drawings(output) == 1
+    assert "Imagem indisponivel" in _all_text(output)
+
+
+def test_image_slot_sem_ancora_fica_intocado(tmp_path):
+    output, _result = _render(
+        tmp_path,
+        overrides={
+            "imageSlots": [{
+                "assetKey": "slot_fantasma",
+                "label": "Slot sem ancora",
+                "anchorContext": "TEXTO QUE NAO EXISTE NO TEMPLATE",
+            }],
+            "assets": {"slot_fantasma": ["MEDIA-A"]},
+        },
+        template=_template_bytes_with_image_slot(),
+        image_loader=lambda media_id: {"buffer": SAMPLE_PNG_BYTES},
+    )
+    # imagens-exemplo do template preservadas (auditoria manual)
+    assert _count_drawings(output) == 2
+
+
 def test_ficha_completa_nao_gera_pendencia_de_campo(tmp_path):
     values = {"usina": "PCH Anta", "cnpj_1": "00.001.180/0038-18", "endereco_rep": "Rua A"}
     _output, result = _render(tmp_path, overrides={"values": values})
@@ -338,6 +471,16 @@ def test_ficha_completa_nao_gera_pendencia_de_campo(tmp_path):
 # ---------------------------------------------------------------------------
 # job_processor: handler + nome de arquivo
 # ---------------------------------------------------------------------------
+def test_collect_media_asset_ids_inclui_assets_do_paec():
+    context = _build_context({
+        "assets": {
+            "anexo_vii_rota_de_fuga": ["MEDIA-A", "MEDIA-B"],
+            "anexo_x_unifilar": ["MEDIA-C", "", None],
+        },
+    })
+    assert _collect_media_asset_ids(context) == {"MEDIA-A", "MEDIA-B", "MEDIA-C"}
+
+
 def test_build_output_file_name_paec():
     context = _build_context()
     assert build_output_file_name(context) == "PAEC - PCH Anta.docx"
