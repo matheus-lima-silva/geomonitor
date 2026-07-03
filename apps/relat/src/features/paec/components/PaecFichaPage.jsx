@@ -10,6 +10,7 @@ import SectionCard from './editor/SectionCard';
 import FieldRow from './editor/FieldRow';
 import BlockPlaceholderCard from './editor/BlockPlaceholderCard';
 import EditableListTable from './editor/EditableListTable';
+import SectionTogglesCard from './editor/SectionTogglesCard';
 import PendenciesPanel from './PendenciesPanel';
 import GenerateResultModal from './modals/GenerateResultModal';
 
@@ -21,7 +22,8 @@ import GenerateResultModal from './modals/GenerateResultModal';
  */
 export default function PaecFichaPage({ plantId, onExit }) {
   const {
-    plant, manifest, loading, error, saveStatus, conflict, updateField, updateListItems, flush, reload,
+    plant, manifest, loading, error, saveStatus, conflict,
+    updateField, updateListItems, updateSectionFlags, flush, reload,
   } = usePaecPlant(plantId);
 
   const editorRef = useRef(null);
@@ -42,6 +44,10 @@ export default function PaecFichaPage({ plantId, onExit }) {
     [pendencies],
   );
   const blocks = manifest?.blocks || [];
+  const toggleableSections = useMemo(
+    () => (manifest?.sections || []).filter((s) => s.renumberGroup),
+    [manifest],
+  );
 
   function scrollToField(fieldKey) {
     const field = (manifest?.fields || []).find((f) => f.key === fieldKey);
@@ -128,8 +134,22 @@ export default function PaecFichaPage({ plantId, onExit }) {
                   </SectionCard>
                 ))}
 
+                {toggleableSections.length > 0 ? (
+                  <SectionCard id="paec-section-toggles" number={sections.length + 1} title="Seções configuráveis">
+                    <SectionTogglesCard
+                      sections={toggleableSections}
+                      sectionFlags={plant.sectionFlags}
+                      onChange={updateSectionFlags}
+                    />
+                  </SectionCard>
+                ) : null}
+
                 {blocks.length > 0 ? (
-                  <SectionCard id="paec-section-blocks" number={sections.length + 1} title="Tabelas e anexos">
+                  <SectionCard
+                    id="paec-section-blocks"
+                    number={sections.length + (toggleableSections.length > 0 ? 2 : 1)}
+                    title="Tabelas e anexos"
+                  >
                     {blocks.map((block) => (
                       block.kind === 'list' && (block.columns || []).length > 0 ? (
                         <EditableListTable
