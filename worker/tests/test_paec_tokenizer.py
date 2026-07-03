@@ -9,6 +9,7 @@ from worker.tools.paec_tokenizer import (
     apply_mapping,
     build_mapping,
     document_text,
+    rebase_mapping,
     render_values,
     sample_values,
 )
@@ -373,3 +374,104 @@ def test_roundtrip_com_campo_multilinha():
     unresolved = render_values(doc, sample_values(manifest))
     assert unresolved == []
     assert document_text(doc) == original_text
+
+
+# ---------------------------------------------------------------------------
+# rebase (evolucao de revisao)
+# ---------------------------------------------------------------------------
+def _rev_old_doc():
+    """REV antiga sintetica: campo, heading, anexo de imagem e um campo que
+    sera REMOVIDO na REV nova."""
+    doc = Document()
+    doc.add_paragraph().add_run("Marimbondo").font.highlight_color = _COLORS["yellow"]
+    doc.add_paragraph().add_run("12.1.1. Rede de Hidrantes").font.highlight_color = _COLORS["yellow"]
+    doc.add_paragraph().add_run("anexo VII - ROTA DE FUGA").font.highlight_color = _COLORS["yellow"]
+    doc.add_paragraph().add_run("Campo Removido Na Rev Nova").font.highlight_color = _COLORS["yellow"]
+    return doc
+
+
+def _rev_new_doc():
+    """REV nova: mantem Marimbondo e o anexo identicos, muda a CAIXA do
+    heading (casamento aproximado), remove um campo e adiciona um inedito."""
+    doc = Document()
+    doc.add_paragraph().add_run("Marimbondo").font.highlight_color = _COLORS["yellow"]
+    doc.add_paragraph().add_run("12.1.1. REDE DE HIDRANTES").font.highlight_color = _COLORS["yellow"]
+    doc.add_paragraph().add_run("anexo VII - ROTA DE FUGA").font.highlight_color = _COLORS["yellow"]
+    doc.add_paragraph().add_run("Campo Novo Da Rev").font.highlight_color = _COLORS["yellow"]
+    return doc
+
+
+def _curated_old_mapping():
+    mapping = build_mapping(_rev_old_doc(), "rev_antiga.docx")
+    entries = {e["text"].strip(): e for e in mapping["spans"]}
+
+    campo = entries["Marimbondo"]
+    campo.update({"section": "Identificação", "label": "Usina", "reviewed": True})
+
+    heading = entries["12.1.1. Rede de Hidrantes"]
+    heading["reviewed"] = True
+
+    anexo = entries["anexo VII - ROTA DE FUGA"]
+    anexo.update({"kind": "image", "maxImages": 5, "label": "Rota de fuga", "reviewed": True})
+
+    removido = entries["Campo Removido Na Rev Nova"]
+    removido.update({"label": "Sai na proxima", "reviewed": True})
+
+    mapping["generatedListBlocks"] = [
+        {"key": "contatos_internos", "label": "Contatos internos",
+         "headerMatch": ["APOIO"], "columns": [{"key": "apoio", "label": "Apoio"}]},
+    ]
+    return mapping
+
+
+def test_rebase_herda_curadoria_por_texto_identico_preservando_reviewed():
+    new_mapping, report = rebase_mapping(_rev_new_doc(), _curated_old_mapping(), "rev_nova.docx")
+    entries = {e["text"].strip(): e for e in new_mapping["spans"]}
+
+    campo = entries["Marimbondo"]
+    assert campo["section"] == "Identificação"
+    assert campo["label"] == "Usina"
+    assert campo["reviewed"] is True
+
+    anexo = entries["anexo VII - ROTA DE FUGA"]
+    assert anexo["kind"] == "image"
+    assert anexo["maxImages"] == 5
+    assert anexo["reviewed"] is True
+
+    assert report["matchedExact"] == 2
+
+
+def test_rebase_casamento_aproximado_herda_mas_volta_pra_nao_revisado():
+    new_mapping, report = rebase_mapping(_rev_new_doc(), _curated_old_mapping(), "rev_nova.docx")
+    heading = next(e for e in new_mapping["spans"] if "REDE DE HIDRANTES" in e["text"])
+
+    # herdou kind/key da curadoria antiga (mesmo texto normalizado)...
+    assert heading["kind"] == "section_title"
+    assert heading["key"] == "12_1_1_rede_de"
+    # ...mas caixa mudou -> conferir de novo
+    assert heading["reviewed"] is False
+    assert report["matchedFuzzy"] == 1
+
+
+def test_rebase_reporta_ineditos_e_orfaos():
+    new_mapping, report = rebase_mapping(_rev_new_doc(), _curated_old_mapping(), "rev_nova.docx")
+
+    novo = next(e for e in new_mapping["spans"] if e["text"].strip() == "Campo Novo Da Rev")
+    assert novo["reviewed"] is False
+    assert novo["kind"] == "field"  # sugestao heuristica intacta
+    assert [s["text"] for s in report["newSpans"]] == ["Campo Novo Da Rev"]
+
+    assert [s["text"] for s in report["orphanedSpans"]] == ["Campo Removido Na Rev Nova"]
+    assert report["orphanedSpans"][0]["key"] == "campo_removido_na_rev_nova"
+
+
+def test_rebase_carrega_generated_list_blocks_e_o_apply_funciona():
+    doc = _rev_new_doc()
+    new_mapping, _report = rebase_mapping(doc, _curated_old_mapping(), "rev_nova.docx")
+    assert new_mapping["generatedListBlocks"][0]["key"] == "contatos_internos"
+
+    # o mapping rebased alinha com o documento novo — apply nao pode divergir
+    manifest = apply_mapping(doc, new_mapping, "PAEC", "REV NOVA")
+    assert [s["assetKey"] for s in manifest["imageSlots"]] == ["anexo_vii_rota_de_fuga"]
+    assert manifest["imageSlots"][0]["maxImages"] == 5
+    assert any(b["key"] == "contatos_internos" for b in manifest["blocks"])

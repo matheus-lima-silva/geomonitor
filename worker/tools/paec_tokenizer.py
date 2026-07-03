@@ -26,6 +26,16 @@ Subcomandos:
             extract -> apply -> render com os valores originais e compara o
             texto com o modelo marcado. Deve ser identico.
 
+  rebase    NOVO_MARCADO.docx -m mapping_anterior.yaml -o mapping_novo.yaml
+            Extrai a REV nova e cruza com o mapping CURADO da revisao
+            anterior: span com texto identico herda a curadoria inteira
+            (kind/key/section/label/...) e continua revisado; texto so
+            aproximado (caixa/acentos/espacos) herda mas volta pra
+            reviewed: false (conferir); span inedito fica na sugestao
+            heuristica. A curadoria da revisao nova vira um diff, nao um
+            trabalho do zero. Emite tambem o relatorio do cruzamento
+            (novos + orfaos da revisao anterior).
+
 Uso: python -m worker.tools.paec_tokenizer <subcomando> ...
 """
 
@@ -243,6 +253,101 @@ def build_mapping(document, source_name):
             ("spans", entries),
         ]
     )
+
+
+# ---------------------------------------------------------------------------
+# rebase (evolucao de revisao do modelo — fase 5)
+# ---------------------------------------------------------------------------
+# Curadoria que o rebase carrega da revisao anterior quando o span casa.
+_CURATED_FIELDS = ("kind", "key", "transform", "section", "label")
+_CURATED_OPTIONAL = ("columns", "maxImages")
+
+
+def _span_summary(entry):
+    return {
+        "id": entry.get("id"),
+        "kind": entry.get("kind"),
+        "key": entry.get("key"),
+        "text": (entry.get("text") or "").strip()[:80],
+    }
+
+
+def rebase_mapping(new_document, old_mapping, source_name):
+    """Extrai a REV nova e herda a curadoria do mapping anterior.
+
+    Casamento em duas passadas, consumindo cada span antigo no maximo uma
+    vez, em ordem de documento: primeiro por texto EXATO (strip); depois por
+    texto normalizado (caixa/acentos/espacos). Exato herda tudo e preserva
+    ``reviewed``; aproximado herda tudo mas volta pra ``reviewed: false``
+    (curadoria carregada, conferir); sem casamento fica a sugestao
+    heuristica do extract. ``generatedListBlocks`` (blocos por headerMatch,
+    nao ancorados em span) atravessam a revisao verbatim.
+
+    Retorna ``(mapping_novo, report)`` — o report lista os spans ineditos e
+    os orfaos da revisao anterior (curadoria que nao encontrou destino; as
+    chaves orfaas continuam validas nas fichas, so deixam de ser geradas).
+    """
+    new_mapping = build_mapping(new_document, source_name)
+    old_entries = old_mapping.get("spans") or []
+
+    by_exact = {}
+    by_norm = {}
+    for entry in old_entries:
+        by_exact.setdefault((entry.get("text") or "").strip(), []).append(entry)
+        by_norm.setdefault(normalize_for_grouping(entry.get("text") or ""), []).append(entry)
+
+    consumed = set()
+
+    def _take(bucket_map, bucket_key):
+        for candidate in bucket_map.get(bucket_key, []):
+            if id(candidate) not in consumed:
+                consumed.add(id(candidate))
+                return candidate
+        return None
+
+    matched_exact = 0
+    matched_fuzzy = 0
+    new_spans = []
+    for entry in new_mapping["spans"]:
+        stripped = (entry.get("text") or "").strip()
+        old = _take(by_exact, stripped)
+        fuzzy = False
+        if old is None:
+            old = _take(by_norm, normalize_for_grouping(entry.get("text") or ""))
+            fuzzy = old is not None
+        if old is None:
+            new_spans.append(entry)
+            continue
+        for field_name in _CURATED_FIELDS:
+            entry[field_name] = old.get(field_name)
+        for field_name in _CURATED_OPTIONAL:
+            if field_name in old:
+                entry[field_name] = old[field_name]
+        if fuzzy:
+            matched_fuzzy += 1
+            entry["reviewed"] = False
+        else:
+            matched_exact += 1
+            entry["reviewed"] = bool(old.get("reviewed"))
+
+    orphaned = [
+        _span_summary(entry)
+        for entry in old_entries
+        if id(entry) not in consumed and entry.get("kind") != "whitespace"
+    ]
+
+    if old_mapping.get("generatedListBlocks"):
+        new_mapping["generatedListBlocks"] = old_mapping["generatedListBlocks"]
+
+    report = OrderedDict(
+        [
+            ("matchedExact", matched_exact),
+            ("matchedFuzzy", matched_fuzzy),
+            ("newSpans", [_span_summary(entry) for entry in new_spans]),
+            ("orphanedSpans", orphaned),
+        ]
+    )
+    return new_mapping, report
 
 
 # ---------------------------------------------------------------------------
@@ -551,6 +656,31 @@ def _cmd_roundtrip(args):
     return 1
 
 
+def _cmd_rebase(args):
+    doc = Document(args.docx)
+    old_mapping = _load_yaml(args.mapping)
+    new_mapping, report = rebase_mapping(doc, old_mapping, source_name=args.docx)
+    _dump_yaml(new_mapping, args.output)
+    if args.report:
+        with open(args.report, "w", encoding="utf-8") as handle:
+            json.dump(report, handle, ensure_ascii=False, indent=2)
+
+    unreviewed = sum(1 for e in new_mapping["spans"] if not e.get("reviewed"))
+    print(
+        f"{report['matchedExact']} spans herdados (texto identico), "
+        f"{report['matchedFuzzy']} aproximados (conferir), "
+        f"{len(report['newSpans'])} ineditos -> {args.output}"
+    )
+    if report["orphanedSpans"]:
+        print(f"AVISO: {len(report['orphanedSpans'])} spans da revisao anterior sem destino (orfaos):")
+        for span in report["orphanedSpans"][:10]:
+            print(f"  - [{span['kind']}] {span['key'] or '(sem chave)'}: {span['text']!r}")
+        if len(report["orphanedSpans"]) > 10:
+            print(f"  ... e mais {len(report['orphanedSpans']) - 10} (ver --report)")
+    if unreviewed:
+        print(f"{unreviewed} spans pendentes de curadoria na revisao nova")
+
+
 def _print_first_diffs(expected, actual, limit=10):
     shown = 0
     for i, (e, a) in enumerate(zip(expected.split("\n"), actual.split("\n"))):
@@ -590,6 +720,13 @@ def main(argv=None):
     p.add_argument("docx")
     p.add_argument("-m", "--mapping", required=True)
     p.set_defaults(func=_cmd_roundtrip)
+
+    p = sub.add_parser("rebase", help="cruza a REV nova com o mapping curado da anterior")
+    p.add_argument("docx", help="docx MARCADO da revisao nova")
+    p.add_argument("-m", "--mapping", required=True, help="mapping.yaml curado da revisao anterior")
+    p.add_argument("-o", "--output", required=True, help="mapping.yaml da revisao nova (pre-curadoria)")
+    p.add_argument("--report", help="grava o relatorio do cruzamento em JSON")
+    p.set_defaults(func=_cmd_rebase)
 
     args = parser.parse_args(argv)
     return args.func(args) or 0
