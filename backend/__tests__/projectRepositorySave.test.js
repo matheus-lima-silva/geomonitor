@@ -21,10 +21,18 @@ jest.mock('../repositories/projectGeometryRepository', () => ({
 const projectRepository = require('../repositories/projectRepository');
 
 describe('projectRepository.save', () => {
+    let consoleErrorSpy;
+
     beforeEach(() => {
         mockBaseSave.mockClear();
         mockUpsert.mockClear();
         mockUpsert.mockResolvedValue(undefined);
+        // Silencia o console.error esperado do caminho de falha da reconstrucao de geometria.
+        consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        consoleErrorSpy.mockRestore();
     });
 
     test('salva via base e reconstroi a geometria com o id salvo', async () => {
@@ -41,6 +49,7 @@ describe('projectRepository.save', () => {
 
         expect(saved.id).toBe('P2');
         expect(mockUpsert).toHaveBeenCalledWith('P2');
+        expect(consoleErrorSpy).toHaveBeenCalled(); // a falha da geometria foi logada
     });
 
     test('expoe os metodos do repositorio base', () => {

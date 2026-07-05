@@ -128,10 +128,18 @@ function seedTrashedWithAssets(n) {
     }
 }
 
+let consoleErrorSpy;
+
 beforeEach(() => {
     jest.clearAllMocks();
+    // Silencia o console.error esperado do caminho de falha de storage.
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     mockState.trashed = [];
     mockState.assetsById.clear();
+});
+
+afterEach(() => {
+    consoleErrorSpy.mockRestore();
 });
 
 describe('DELETE /:id/photos/trash (esvaziar lixeira)', () => {
@@ -183,6 +191,7 @@ describe('DELETE /:id/photos/trash (esvaziar lixeira)', () => {
         expect(response.status).toBe(200);
         // ASSET-1 falhou no storage -> nao entra no removeByIds
         expect(mockMediaAssetRepository.removeByIds).toHaveBeenCalledWith(['ASSET-0', 'ASSET-2']);
+        expect(consoleErrorSpy).toHaveBeenCalled(); // a falha de storage foi logada
     });
 
     it('retorna 404 quando o workspace nao existe', async () => {

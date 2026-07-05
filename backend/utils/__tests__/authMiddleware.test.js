@@ -11,6 +11,7 @@ describe('Auth Middleware', () => {
     let requireEditor;
     let requireAdmin;
     let invalidateCachedProfile;
+    let consoleErrorSpy;
 
     beforeEach(() => {
         jest.resetModules();
@@ -41,6 +42,12 @@ describe('Auth Middleware', () => {
         next = jest.fn();
         invalidateCachedProfile('user_123');
         jest.clearAllMocks();
+        // Silencia o console.error esperado do caminho de token invalido.
+        consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        consoleErrorSpy.mockRestore();
     });
 
     describe('verifyToken', () => {
@@ -59,6 +66,7 @@ describe('Auth Middleware', () => {
 
             expect(res.status).toHaveBeenCalledWith(403);
             expect(next).not.toHaveBeenCalled();
+            expect(consoleErrorSpy).toHaveBeenCalled(); // erro de auth foi logado
         });
 
         it('should call next if token is valid', async () => {
