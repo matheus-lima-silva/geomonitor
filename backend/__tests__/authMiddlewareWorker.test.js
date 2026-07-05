@@ -2,7 +2,7 @@
 // x-worker-token (scripts internos, ex. registerPaecTemplate.js) ou cai no
 // stack JWT+admin. Testa o middleware real, sem mock do proprio modulo.
 
-const { requireAdminOrWorker } = require('../utils/authMiddleware');
+const { requireAdminOrWorker, timingSafeStringEqual } = require('../utils/authMiddleware');
 
 function buildRes() {
     const res = {
@@ -66,5 +66,37 @@ describe('requireAdminOrWorker', () => {
 
         expect(next).not.toHaveBeenCalled();
         expect(res.statusCode).toBe(401);
+    });
+
+    it('403 com token de mesmo comprimento porem diferente (comparacao timing-safe)', () => {
+        process.env.WORKER_API_TOKEN = 'abcdef';
+        const req = { headers: { 'x-worker-token': 'abcdeg' } }; // mesmo tamanho, ultimo char difere
+        const res = buildRes();
+        const next = jest.fn();
+
+        requireAdminOrWorker(req, res, next);
+
+        expect(next).not.toHaveBeenCalled();
+        expect(res.statusCode).toBe(403);
+    });
+});
+
+describe('timingSafeStringEqual', () => {
+    it('true para strings iguais', () => {
+        expect(timingSafeStringEqual('token-123', 'token-123')).toBe(true);
+    });
+
+    it('false para conteudo diferente de mesmo comprimento', () => {
+        expect(timingSafeStringEqual('aaaa', 'aaab')).toBe(false);
+    });
+
+    it('false para comprimentos diferentes (sem lancar RangeError)', () => {
+        expect(timingSafeStringEqual('curto', 'muito-mais-longo')).toBe(false);
+    });
+
+    it('trata valores vazios/nulos sem lancar', () => {
+        expect(timingSafeStringEqual('', '')).toBe(true);
+        expect(timingSafeStringEqual(undefined, 'x')).toBe(false);
+        expect(timingSafeStringEqual(null, null)).toBe(true);
     });
 });

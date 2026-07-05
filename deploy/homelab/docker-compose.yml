@@ -11,7 +11,9 @@ services:
     # colunas geography (migracao 0023+). Mesmo formato de data dir do PG16, entao
     # o volume existente e compativel; rode `npm run migrate` apos o swap para
     # CREATE EXTENSION postgis. Backups: o restore exige imagem PostGIS tambem.
-    image: postgis/postgis:16-3.4
+    # Digest pinado (2026-07-05) para builds reproduziveis; a tag 16-3.4 continua
+    # legivel. Atualizar via: docker buildx imagetools inspect postgis/postgis:16-3.4
+    image: postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
     restart: unless-stopped
     env_file:
       - .env
@@ -30,7 +32,10 @@ services:
     networks: [internal]
 
   minio:
-    image: minio/minio:latest
+    # Pinado por digest (2026-07-05): a tag `latest` flutuava e um rebuild podia
+    # trazer uma release nao-testada. Atualizar via:
+    # docker buildx imagetools inspect minio/minio:latest
+    image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     restart: unless-stopped
     env_file:
       - .env
@@ -50,7 +55,9 @@ services:
 
   # Cria o bucket na primeira subida; idempotente.
   minio-init:
-    image: minio/mc:latest
+    # Pinado por digest (2026-07-05); mesma justificativa do servico minio.
+    # Atualizar via: docker buildx imagetools inspect minio/mc:latest
+    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     depends_on:
       minio:
         condition: service_healthy

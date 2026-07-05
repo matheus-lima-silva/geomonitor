@@ -43,6 +43,9 @@ async function applyMigration(pool, migrationPath, filename, checksum) {
         // Migracoes podem conter operacoes longas (backfill, CREATE INDEX, VALIDATE
         // CONSTRAINT). Desliga o statement_timeout do pool apenas para esta transacao.
         await client.query('SET LOCAL statement_timeout = 0');
+        // Idem para o idle_in_transaction_session_timeout do pool: uma migracao com
+        // varios statements e pausas entre eles nunca deve ser abortada por ociosidade.
+        await client.query('SET LOCAL idle_in_transaction_session_timeout = 0');
         await client.query(sql);
         await client.query(
             `

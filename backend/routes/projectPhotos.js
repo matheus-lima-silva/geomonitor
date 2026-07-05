@@ -69,6 +69,14 @@ async function buildProjectPhotoExportArchive(projectId, exported) {
     const photoEntries = [];
     const skippedEntries = [];
 
+    // Busca todas as medias em uma unica query (evita N+1: antes era um
+    // getById por foto, ~500 round-trips sequenciais em exports grandes).
+    const mediaAssetIds = [...new Set(
+        photos.map((photo) => normalizeText(photo.mediaAssetId)).filter(Boolean),
+    )];
+    const assets = await mediaAssetRepository.listByIds(mediaAssetIds);
+    const assetById = new Map(assets.map((asset) => [normalizeText(asset.id), asset]));
+
     for (const photo of photos) {
         const mediaAssetId = normalizeText(photo.mediaAssetId);
         if (!mediaAssetId) {
@@ -76,7 +84,7 @@ async function buildProjectPhotoExportArchive(projectId, exported) {
             continue;
         }
 
-        const asset = await mediaAssetRepository.getById(mediaAssetId);
+        const asset = assetById.get(mediaAssetId);
         if (!asset) {
             skippedEntries.push(`- ${photo.id}: media ${mediaAssetId} nao encontrada.`);
             continue;

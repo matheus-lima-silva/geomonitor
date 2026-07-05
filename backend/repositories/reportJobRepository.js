@@ -39,6 +39,17 @@ const JOB_SELECT = `
     FROM report_jobs
 `;
 
+// Chave do "pai" que um job sincroniza (dossier/compound/kmz), ou null se o
+// job nao tem pai. Usada para deduplicar sincronizacoes em batch.
+function parentKeyForJob(job) {
+    if (!job || typeof job !== 'object') return null;
+    const kind = normalizeText(job.kind);
+    if (kind === 'project_dossier' && normalizeText(job.dossierId)) return `dossier:${job.dossierId}`;
+    if (kind === 'report_compound' && normalizeText(job.compoundId)) return `compound:${job.compoundId}`;
+    if (kind === 'workspace_kmz' && normalizeText(job.workspaceKmzToken)) return `kmz:${job.workspaceKmzToken}`;
+    return null;
+}
+
 async function syncParentJobStatus(job, overrides = {}) {
     if (!job || typeof job !== 'object') return;
 
@@ -146,17 +157,25 @@ async function reclaimStuckJobs(meta = {}) {
     );
 
     const reclaimed = result.rows.map((row) => hydrateRow(row));
+
+    // Deduplica por pai (last-wins, mesma semantica da antiga sincronizacao
+    // sequencial) e sincroniza os pais concorrentemente. Antes era um
+    // read+save por job em serie (N+1); jobs do mesmo pai geravam escritas
+    // redundantes. Agora: 1 sync por pai distinto, em paralelo.
+    const jobByParent = new Map();
     for (const job of reclaimed) {
-        try {
-            await syncParentJobStatus(job, {
-                status: 'queued',
-                updatedBy,
-                lastError: String(job.errorLog || ''),
-            });
-        } catch (error) {
-            console.error(`[report-jobs] falha ao sincronizar parent durante reclaim do job ${job.id}:`, error);
-        }
+        const key = parentKeyForJob(job);
+        if (key) jobByParent.set(key, job);
     }
+    await Promise.all([...jobByParent.values()].map((job) => (
+        syncParentJobStatus(job, {
+            status: 'queued',
+            updatedBy,
+            lastError: String(job.errorLog || ''),
+        }).catch((error) => {
+            console.error(`[report-jobs] falha ao sincronizar parent durante reclaim do job ${job.id}:`, error);
+        })
+    )));
     return reclaimed;
 }
 

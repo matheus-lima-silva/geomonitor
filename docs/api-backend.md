@@ -589,17 +589,23 @@ Tabela Postgres: `workspace_members` (primary key composta `(workspace_id, user_
 
 Tabela Postgres: `report_compounds`. Composto = agrupamento de varios workspaces em um unico relatorio final.
 
+**Acesso por membership de workspace** (alem do guard de role da coluna abaixo): como um composto agrega `workspaceIds`, o acesso respeita a membership desses workspaces. Superuser global (`Admin`/`Administrador`/`Gerente`) ve/altera tudo. Caso contrario: **leitura** (GET, `preflight`) exige membership em **pelo menos um** workspace do composto e a listagem `GET /` so devolve os compostos visiveis ao usuario; **escrita** (`POST` create, `PUT`, `add/remove-workspace`, `reorder`, `generate`, `deliver`, `trash`, `restore`, `DELETE`) exige papel de escrita (`owner`/`editor`) em **todos** os workspaces envolvidos — `add-workspace` inclui o workspace sendo adicionado. Composto sem workspaces e escrivel pelo editor global (bootstrap). Implementado em [routes/reportCompounds.js](../backend/routes/reportCompounds.js) via `ensureCompoundReadAccess`/`ensureCompoundWriteAccess` (reusa `isGlobalSuperuser`/`WRITE_ROLES` de [utils/workspaceAccess.js](../backend/utils/workspaceAccess.js) e `workspaceMemberRepository.listRolesForUser`/`listWorkspaceIdsByUser`). Negacao retorna 403.
+
 | Metodo | Rota | Permissao | Descricao |
 |---|---|---|---|
-| GET | `/api/report-compounds` | `requireActiveUser` | Lista compostos |
-| GET | `/api/report-compounds/:id` | `requireActiveUser` | Busca composto |
-| POST | `/api/report-compounds` | `requireEditor` | Cria composto |
-| PUT | `/api/report-compounds/:id` | `requireEditor` | Atualiza composto |
-| POST | `/api/report-compounds/:id/add-workspace` | `requireEditor` | Adiciona workspace ao composto |
-| POST | `/api/report-compounds/:id/remove-workspace` | `requireEditor` | Remove workspace |
-| POST | `/api/report-compounds/:id/reorder` | `requireEditor` | Reordena workspaces |
-| POST | `/api/report-compounds/:id/preflight` | `requireEditor` | Valida composto pre-geracao |
-| POST | `/api/report-compounds/:id/generate` | `requireEditor` | Enfileira geracao DOCX (resposta 202) |
+| GET | `/api/report-compounds` | `requireActiveUser` + membership (leitura) | Lista compostos visiveis ao usuario |
+| GET | `/api/report-compounds/:id` | `requireActiveUser` + membership (leitura) | Busca composto |
+| POST | `/api/report-compounds` | `requireEditor` + escrita nos workspaces | Cria composto |
+| PUT | `/api/report-compounds/:id` | `requireEditor` + escrita nos workspaces | Atualiza composto |
+| POST | `/api/report-compounds/:id/add-workspace` | `requireEditor` + escrita (inclui o novo) | Adiciona workspace ao composto |
+| POST | `/api/report-compounds/:id/remove-workspace` | `requireEditor` + escrita nos workspaces | Remove workspace |
+| POST | `/api/report-compounds/:id/reorder` | `requireEditor` + escrita nos workspaces | Reordena workspaces |
+| POST | `/api/report-compounds/:id/preflight` | `requireEditor` + membership (leitura) | Valida composto pre-geracao |
+| POST | `/api/report-compounds/:id/generate` | `requireEditor` + escrita nos workspaces | Enfileira geracao DOCX (resposta 202) |
+| POST | `/api/report-compounds/:id/deliver` | `requireEditor` + escrita nos workspaces | Cria snapshot de entrega (report_archive) |
+| POST | `/api/report-compounds/:id/trash` | `requireEditor` + escrita nos workspaces | Move para lixeira |
+| POST | `/api/report-compounds/:id/restore` | `requireEditor` + escrita nos workspaces | Restaura da lixeira |
+| DELETE | `/api/report-compounds/:id` | `requireEditor` + escrita nos workspaces | Remove composto |
 
 Campos relevantes de `sharedTextsJson`:
 - `elaboradores`, `revisores`: arrays de snapshots de signatarios `{ nome, profissao, registro }`.

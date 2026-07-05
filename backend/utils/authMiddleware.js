@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { verifyAccessToken } = require('./jwt');
 const { loadUserProfile } = require('./userProfiles');
 
@@ -31,6 +32,16 @@ function normalizeText(value) {
 
 function getConfiguredWorkerToken() {
     return normalizeText(process.env.WORKER_API_TOKEN);
+}
+
+// Comparacao de segredos resistente a timing attack. crypto.timingSafeEqual
+// exige buffers de mesmo comprimento (lanca RangeError caso contrario), entao
+// a diferenca de tamanho e tratada como "nao-igual" sem vazar por early-return.
+function timingSafeStringEqual(a, b) {
+    const bufA = Buffer.from(String(a || ''), 'utf8');
+    const bufB = Buffer.from(String(b || ''), 'utf8');
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
 }
 
 function getRequestWorkerToken(req) {
@@ -73,7 +84,7 @@ function allowWorkerOrRunStack(roleStack) {
                     message: 'Token interno do worker nao configurado.',
                 });
             }
-            if (workerToken !== configuredToken) {
+            if (!timingSafeStringEqual(workerToken, configuredToken)) {
                 return res.status(403).json({
                     status: 'error',
                     message: 'Token interno do worker invalido.',
@@ -185,4 +196,5 @@ module.exports = {
     getCachedProfile,
     setCachedProfile,
     invalidateCachedProfile,
+    timingSafeStringEqual,
 };

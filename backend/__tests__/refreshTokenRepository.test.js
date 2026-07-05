@@ -145,4 +145,22 @@ describe('refreshTokenRepository', () => {
         expect(sql).toBeTruthy();
         expect(sql).toMatch(/family_id = \(SELECT family_id FROM refresh_tokens WHERE jti = \$1\)/);
     });
+
+    test('deleteExpired apaga tokens ha muito expirados e devolve a contagem', async () => {
+        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 7 });
+        const removed = await repo.deleteExpired();
+
+        expect(removed).toBe(7);
+        const call = mockQuery.mock.calls.find((c) => /DELETE FROM refresh_tokens/.test(c[0]));
+        expect(call).toBeTruthy();
+        expect(call[0]).toMatch(/expires_at < NOW\(\) - \(\$1 \* INTERVAL '1 day'\)/);
+        expect(call[1]).toEqual([1]);
+    });
+
+    test('deleteExpired respeita retentionDays custom', async () => {
+        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+        await repo.deleteExpired({ retentionDays: 30 });
+        const call = mockQuery.mock.calls.find((c) => /DELETE FROM refresh_tokens/.test(c[0]));
+        expect(call[1]).toEqual([30]);
+    });
 });
