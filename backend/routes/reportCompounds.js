@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const express = require('express');
 const router = express.Router();
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
+const { isGlobalSuperuser, WRITE_ROLES } = require('../utils/workspaceAccess');
 const { createResourceHateoasResponse, resolveApiBaseUrl } = require('../utils/hateoas');
 const { normalizeText } = require('../utils/projectScope');
 const {
@@ -10,6 +11,7 @@ const {
     reportJobRepository,
     reportArchiveRepository,
     mediaAssetRepository,
+    workspaceMemberRepository,
 } = require('../repositories');
 const { triggerWorkerRun } = require('../utils/workerTrigger');
 const { flushWorkspaceDraftsToPhotos } = require('../utils/reportJobContext');
@@ -26,6 +28,50 @@ function normalizeCompoundOrderJson(orderJson, workspaceIds) {
     const filteredOrder = normalizedOrder.filter((workspaceId) => workspaceIdSet.has(workspaceId));
     const missingWorkspaceIds = normalizedWorkspaceIds.filter((workspaceId) => !filteredOrder.includes(workspaceId));
     return [...filteredOrder, ...missingWorkspaceIds];
+}
+
+// --- Controle de acesso por membership de workspace ---------------------
+// Um relatorio composto agrega varios workspaces (compound.workspaceIds).
+// Regra: superuser global (Admin/Administrador/Gerente) ve tudo; caso
+// contrario, LEITURA exige membership em >=1 workspace do compound e ESCRITA
+// exige papel de escrita (owner/editor) em TODOS os workspaces envolvidos.
+// Compound sem workspaces e "vazio" (sem conteudo sensivel): escrita e
+// permitida ao editor global (a rota ja exige requireEditor) para bootstrap;
+// leitura fica restrita ao superuser ate ter workspace vinculado.
+
+async function userCanReadCompound(req, compound) {
+    if (isGlobalSuperuser(req.userProfile)) return true;
+    const workspaceIds = normalizeWorkspaceIds(compound?.workspaceIds);
+    if (workspaceIds.length === 0) return false;
+    const roles = await workspaceMemberRepository.listRolesForUser(req.user.uid, workspaceIds);
+    return roles.size > 0;
+}
+
+async function userCanWriteWorkspaces(req, workspaceIds) {
+    if (isGlobalSuperuser(req.userProfile)) return true;
+    const ids = normalizeWorkspaceIds(workspaceIds);
+    if (ids.length === 0) return true; // compound vazio: bootstrap por editor global
+    const roles = await workspaceMemberRepository.listRolesForUser(req.user.uid, ids);
+    return ids.every((id) => WRITE_ROLES.has(roles.get(id)));
+}
+
+async function ensureCompoundReadAccess(req, res, compound) {
+    if (await userCanReadCompound(req, compound)) return true;
+    res.status(403).json({
+        status: 'error',
+        message: 'Acesso negado. Voce nao tem acesso aos workspaces deste relatorio composto.',
+    });
+    return false;
+}
+
+async function ensureCompoundWriteAccess(req, res, compound, extraWorkspaceIds = []) {
+    const ids = normalizeWorkspaceIds([...(compound?.workspaceIds || []), ...extraWorkspaceIds]);
+    if (await userCanWriteWorkspaces(req, ids)) return true;
+    res.status(403).json({
+        status: 'error',
+        message: 'Acesso negado. Voce nao tem permissao de escrita nos workspaces deste relatorio composto.',
+    });
+    return false;
 }
 
 function createCompoundResponse(req, compound) {
@@ -78,9 +124,15 @@ function normalizeCompoundPayload(data = {}, meta = {}, fallback = {}) {
 router.get('/', verifyToken, requireActiveUser, async (req, res) => {
     try {
         const items = await reportCompoundRepository.list();
+        let visible = items;
+        if (!isGlobalSuperuser(req.userProfile)) {
+            const memberIds = new Set(await workspaceMemberRepository.listWorkspaceIdsByUser(req.user.uid));
+            visible = items.filter((item) =>
+                normalizeWorkspaceIds(item.workspaceIds).some((id) => memberIds.has(id)));
+        }
         return res.status(200).json({
             status: 'success',
-            data: items.map((item) => createCompoundResponse(req, item)),
+            data: visible.map((item) => createCompoundResponse(req, item)),
         });
     } catch (error) {
         console.error('[report-compounds API] Error GET /:', error);
@@ -93,6 +145,7 @@ router.post('/', verifyToken, requireEditor, async (req, res) => {
         const body = req.body && typeof req.body === 'object' ? req.body : {};
         const data = body.data && typeof body.data === 'object' ? body.data : {};
         const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
+        if (!(await ensureCompoundWriteAccess(req, res, null, data.workspaceIds || []))) return undefined;
         const payload = normalizeCompoundPayload(data, { ...meta, updatedBy: meta.updatedBy || req.user?.email || 'API' });
         const saved = await reportCompoundRepository.save(payload, { merge: true });
         return res.status(201).json({ status: 'success', data: createCompoundResponse(req, saved || payload) });
@@ -108,6 +161,7 @@ router.get('/:id', verifyToken, requireActiveUser, async (req, res) => {
         if (!compound) {
             return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
         }
+        if (!(await ensureCompoundReadAccess(req, res, compound))) return undefined;
         return res.status(200).json({
             status: 'success',
             data: createCompoundResponse(req, compound),
@@ -124,6 +178,8 @@ router.put('/:id', verifyToken, requireEditor, async (req, res) => {
         const data = body.data && typeof body.data === 'object' ? body.data : {};
         const meta = body.meta && typeof body.meta === 'object' ? body.meta : {};
         const fallback = await reportCompoundRepository.getById(req.params.id) || {};
+        // Escrita exige permissao nos workspaces atuais E nos que o PUT tentar definir.
+        if (!(await ensureCompoundWriteAccess(req, res, fallback, data.workspaceIds || []))) return undefined;
         const payload = normalizeCompoundPayload(
             { ...data, id: req.params.id },
             { ...meta, updatedBy: meta.updatedBy || req.user?.email || 'API' },
@@ -146,6 +202,7 @@ router.post('/:id/add-workspace', verifyToken, requireEditor, async (req, res) =
         if (!current) {
             return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
         }
+        if (!(await ensureCompoundWriteAccess(req, res, current, [...(data.workspaceIds || []), data.workspaceId]))) return undefined;
 
         const nextWorkspaceIds = normalizeWorkspaceIds([...(current.workspaceIds || []), ...(data.workspaceIds || []), data.workspaceId]);
         const payload = normalizeCompoundPayload(
@@ -171,6 +228,7 @@ router.post('/:id/remove-workspace', verifyToken, requireEditor, async (req, res
         if (!current) {
             return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
         }
+        if (!(await ensureCompoundWriteAccess(req, res, current))) return undefined;
         const workspaceIdToRemove = normalizeText(data.workspaceId);
         const nextWorkspaceIds = normalizeWorkspaceIds((current.workspaceIds || []).filter((id) => id !== workspaceIdToRemove));
         const payload = normalizeCompoundPayload(
@@ -195,6 +253,7 @@ router.post('/:id/reorder', verifyToken, requireEditor, async (req, res) => {
         if (!current) {
             return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
         }
+        if (!(await ensureCompoundWriteAccess(req, res, current))) return undefined;
 
         const payload = normalizeCompoundPayload(
             { ...current, orderJson: Array.isArray(data.orderJson) ? data.orderJson : current.orderJson, id: req.params.id },
@@ -215,6 +274,7 @@ router.post('/:id/preflight', verifyToken, requireEditor, async (req, res) => {
         if (!compound) {
             return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
         }
+        if (!(await ensureCompoundReadAccess(req, res, compound))) return undefined;
 
         const workspaceIds = normalizeWorkspaceIds(compound.workspaceIds);
         const workspaceDocs = await Promise.all(workspaceIds.map((workspaceId) => reportWorkspaceRepository.getById(workspaceId)));
@@ -253,6 +313,7 @@ router.post('/:id/generate', verifyToken, requireEditor, async (req, res) => {
         if (!compound) {
             return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
         }
+        if (!(await ensureCompoundWriteAccess(req, res, compound))) return undefined;
 
         const body = req.body && typeof req.body === 'object' ? req.body : {};
         const ensureTowerCoordinates = body.ensureTowerCoordinates === true;
@@ -337,6 +398,7 @@ router.post('/:id/deliver', verifyToken, requireEditor, async (req, res) => {
         if (!compound) {
             return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
         }
+        if (!(await ensureCompoundWriteAccess(req, res, compound))) return undefined;
 
         const generatedMediaId = normalizeText(compound.outputDocxMediaId);
         if (!generatedMediaId) {
@@ -410,6 +472,7 @@ router.post('/:id/trash', verifyToken, requireEditor, async (req, res) => {
     try {
         const current = await reportCompoundRepository.getById(req.params.id);
         if (!current) return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
+        if (!(await ensureCompoundWriteAccess(req, res, current))) return undefined;
         const saved = await reportCompoundRepository.save(
             { ...current, deletedAt: new Date().toISOString(), updatedBy: req.user?.email || 'API' },
             { merge: true },
@@ -425,6 +488,7 @@ router.post('/:id/restore', verifyToken, requireEditor, async (req, res) => {
     try {
         const current = await reportCompoundRepository.getById(req.params.id);
         if (!current) return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
+        if (!(await ensureCompoundWriteAccess(req, res, current))) return undefined;
         const { deletedAt, ...rest } = current;
         const saved = await reportCompoundRepository.save(
             { ...rest, deletedAt: null, updatedBy: req.user?.email || 'API' },
@@ -441,6 +505,7 @@ router.delete('/:id', verifyToken, requireEditor, async (req, res) => {
     try {
         const current = await reportCompoundRepository.getById(req.params.id);
         if (!current) return res.status(404).json({ status: 'error', message: 'Relatorio composto nao encontrado' });
+        if (!(await ensureCompoundWriteAccess(req, res, current))) return undefined;
         await reportCompoundRepository.remove(req.params.id);
         return res.status(204).send();
     } catch (error) {

@@ -152,6 +152,8 @@ Tabela: [`workspace_members`](../backend/migrations/0007_workspace_members.sql).
 
 Middlewares de autorizacao: `requireWorkspaceRead` / `requireWorkspaceWrite` definidos em `backend/utils/workspaceAccess.js`.
 
+**Compounds herdam a membership dos seus workspaces.** Como um compound agrega `workspaceIds`, as rotas de `/api/report-compounds` nao param no guard de role (`requireActiveUser`/`requireEditor`): tambem checam membership. Superuser global ve/altera tudo; caso contrario, **leitura** (GET, `preflight`) exige membership em pelo menos um workspace do compound (e `GET /` filtra a lista para os visiveis), e **escrita** (create, `PUT`, `add/remove-workspace`, `reorder`, `generate`, `deliver`, `trash`, `restore`, `DELETE`) exige papel `owner`/`editor` em **todos** os workspaces envolvidos. Implementado em [reportCompounds.js](../backend/routes/reportCompounds.js) (`ensureCompoundReadAccess`/`ensureCompoundWriteAccess`), reusando `isGlobalSuperuser`/`WRITE_ROLES` e `workspaceMemberRepository.listRolesForUser`/`listWorkspaceIdsByUser`. Ver a tabela de permissoes em [api-backend.md](api-backend.md#report-compounds-apireport-compounds).
+
 ---
 
 ## Workspaces como banco de fotos de erosao
