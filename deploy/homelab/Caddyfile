@@ -16,6 +16,12 @@
 # /api, /health e a rota do MinIO sao compartilhados (mesmo backend) — e isso
 # que da ao relat o mesmo-origem (relat.lima.rio.br/api -> api:8080).
 (app_routes) {
+	# HSTS: forca o browser a so falar HTTPS com estes hosts por 1 ano. Seguro
+	# aqui porque geo/relat so respondem via TLS (Caddy auto-HTTPS); o bloco
+	# :8080 (healthcheck do CI, plain HTTP) fica de fora de proposito. `preload`
+	# NAO incluido (exigiria submeter o dominio a lista de preload dos browsers).
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
 	# /api/* -> backend Node. Usa `handle` (nao `handle_path`) para preservar o
 	# prefixo /api que o Express espera nos mounts (app.use('/api/...', router)).
 	handle /api/* {
