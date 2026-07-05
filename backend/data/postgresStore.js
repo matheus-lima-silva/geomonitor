@@ -54,6 +54,10 @@ function buildPgConnectionOptions() {
         ? Number(process.env.POSTGRES_STATEMENT_TIMEOUT_MS)
         : 15000;
 
+    const idleInTransactionMs = Number.isFinite(Number(process.env.POSTGRES_IDLE_IN_TRANSACTION_MS))
+        ? Number(process.env.POSTGRES_IDLE_IN_TRANSACTION_MS)
+        : 60000;
+
     return {
         connectionString,
         ssl: shouldDisableSsl ? false : { rejectUnauthorized: false },
@@ -62,6 +66,9 @@ function buildPgConnectionOptions() {
         // Aborta queries presas para nao segurar conexao do pool. Migracoes longas
         // desligam isso por transacao via SET LOCAL (ver scripts/runMigrations.js).
         statement_timeout: statementTimeoutMs,
+        // Aborta transacoes abertas e ociosas (BEGIN sem COMMIT/ROLLBACK) que
+        // segurariam uma conexao do pool (max=10) indefinidamente. `0` desliga.
+        idle_in_transaction_session_timeout: idleInTransactionMs,
         application_name: normalizeEnv(process.env.POSTGRES_APP_NAME) || 'geomonitor-backend',
     };
 }

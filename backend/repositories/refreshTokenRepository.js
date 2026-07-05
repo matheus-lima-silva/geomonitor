@@ -11,6 +11,35 @@ function newId() {
     return crypto.randomUUID();
 }
 
+// Limpeza de tokens ha muito expirados. Sem isso a tabela so cresce: cada
+// rotacao insere um sucessor e marca o anterior como revoked, e nada apaga as
+// linhas mortas. Mantem 1 dia de folga apos o expires_at (defensivo). O indice
+// idx_refresh_tokens_expires (migration 0031) casa o predicado.
+async function deleteExpired({ retentionDays = 1 } = {}) {
+    const result = await postgresStore.query(
+        `DELETE FROM refresh_tokens
+         WHERE expires_at < NOW() - ($1 * INTERVAL '1 day')`,
+        [retentionDays],
+    );
+    return result.rowCount || 0;
+}
+
+// Throttle de processo: dispara o cleanup no maximo 1x/hora, acionado de forma
+// oportunista no login (issueFamily). Evita depender de um scheduler externo
+// (o homelab nao roda cron pra isso) sem pagar um DELETE a cada login.
+const CLEANUP_MIN_INTERVAL_MS = 60 * 60 * 1000;
+let lastCleanupAt = 0;
+
+function maybeCleanupExpired() {
+    const now = Date.now();
+    if (now - lastCleanupAt < CLEANUP_MIN_INTERVAL_MS) return;
+    lastCleanupAt = now;
+    // Fire-and-forget: nunca bloqueia nem quebra o login.
+    deleteExpired().catch((error) => {
+        console.error('[refresh-tokens] falha no cleanup de tokens expirados:', error);
+    });
+}
+
 // Cria uma nova familia de sessao (login / migracao de token legado). Retorna o
 // par { jti, familyId } a embutir no refresh token.
 async function issueFamily(userId) {
@@ -22,6 +51,7 @@ async function issueFamily(userId) {
          VALUES ($1, $2, $3, NOW() + INTERVAL '7 days')`,
         [jti, normalizedUser, familyId],
     );
+    maybeCleanupExpired();
     return { jti, familyId };
 }
 
@@ -139,4 +169,5 @@ module.exports = {
     issueFamily,
     rotate,
     revokeFamilyByJti,
+    deleteExpired,
 };
