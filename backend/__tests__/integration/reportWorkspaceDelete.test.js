@@ -127,11 +127,19 @@ function seedPhotosWithAssets(n) {
     }
 }
 
+let consoleErrorSpy;
+
 beforeEach(() => {
     jest.clearAllMocks();
+    // Silencia o console.error esperado do caminho de falha de storage.
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     mockState.removedPhotos = [];
     mockState.assetsById.clear();
     mockState.workspaceRemoved = [];
+});
+
+afterEach(() => {
+    consoleErrorSpy.mockRestore();
 });
 
 describe('DELETE /:id (deletar workspace)', () => {
@@ -175,5 +183,6 @@ describe('DELETE /:id (deletar workspace)', () => {
         expect(response.status).toBe(204);
         expect(mockMediaAssetRepository.removeByIds).toHaveBeenCalledWith(['ASSET-0', 'ASSET-2']);
         expect(mockReportWorkspaceRepository.remove).toHaveBeenCalledWith('WS-1');
+        expect(consoleErrorSpy).toHaveBeenCalled(); // a falha de storage foi logada
     });
 });

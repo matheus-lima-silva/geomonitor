@@ -17,10 +17,18 @@ function insertCall() {
     return mockQuery.mock.calls.find((c) => /INSERT INTO report_photos/.test(c[0]));
 }
 
+let consoleErrorSpy;
+
 beforeEach(() => {
+    // Silencia o console.error esperado do caminho de falha do calculo geografico.
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     mockQuery.mockClear();
     mockCompute.mockReset();
     mockGetDefaults.mockClear();
+});
+
+afterEach(() => {
+    consoleErrorSpy.mockRestore();
 });
 
 describe('reportPhotoRepository.save auto-distancia (6.3)', () => {
@@ -60,5 +68,6 @@ describe('reportPhotoRepository.save auto-distancia (6.3)', () => {
         const result = await repo.save({ id: 'PH1', workspaceId: 'W1', projectId: 'P1', gpsLat: -22.9, gpsLon: -43.2 });
         expect(result).toBeTruthy();
         expect(insertCall()).toBeTruthy(); // o INSERT ainda aconteceu
+        expect(consoleErrorSpy).toHaveBeenCalled(); // a falha foi logada, nao engolida
     });
 });
