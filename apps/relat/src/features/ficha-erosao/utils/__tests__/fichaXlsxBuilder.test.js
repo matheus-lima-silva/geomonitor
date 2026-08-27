@@ -45,6 +45,7 @@ const DADOS_COMPLETOS = {
   utm_s: '7123456',
   altitude: '540 m',
   fotos: '01, 02',
+  torre: '30/31',
   referencia: 'Vao entre torres 30 e 31',
   tipo_area: 'faixa_servidao',
   criticidade: 'C3',
@@ -170,6 +171,26 @@ describe('buildFichaXlsx', () => {
   });
 });
 
+describe('linha Referencia (torre + texto livre)', () => {
+  it('junta torre e referencia, a torre primeiro', () => {
+    const linhas = montarLinhas({ torre: '30/31', referencia: 'Lado direito da faixa' });
+    expect(linhas[8].valores[0]).toBe('Referência: Torre 30/31 - Lado direito da faixa');
+  });
+
+  it('aceita so a torre', () => {
+    expect(montarLinhas({ torre: '42' })[8].valores[0]).toBe('Referência: Torre 42');
+  });
+
+  it('aceita so a referencia', () => {
+    expect(montarLinhas({ referencia: 'Acesso pela vicinal' })[8].valores[0])
+      .toBe('Referência: Acesso pela vicinal');
+  });
+
+  it('mantem o rotulo quando nao ha nenhum dos dois', () => {
+    expect(montarLinhas({})[8].valores[0]).toBe('Referência:');
+  });
+});
+
 describe('buildFichaFileName', () => {
   it('usa o numero da ficha', () => {
     expect(buildFichaFileName({ ficha_num: '042' })).toBe('ficha-erosao-042.xlsx');
@@ -177,6 +198,14 @@ describe('buildFichaFileName', () => {
 
   it('cai para a data e sanitiza separadores', () => {
     expect(buildFichaFileName({ data: '26/08/2026' })).toBe('ficha-erosao-26-08-2026.xlsx');
+  });
+
+  it('cai para a torre quando nao ha numero de ficha', () => {
+    expect(buildFichaFileName({ torre: '30/31' })).toBe('ficha-erosao-torre-30-31.xlsx');
+  });
+
+  it('prefere o numero da ficha a torre', () => {
+    expect(buildFichaFileName({ ficha_num: '042', torre: '30' })).toBe('ficha-erosao-042.xlsx');
   });
 
   it('tem um nome padrao quando nao ha identificacao', () => {

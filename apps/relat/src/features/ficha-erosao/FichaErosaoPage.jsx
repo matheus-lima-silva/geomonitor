@@ -25,6 +25,7 @@ const ESTADO_INICIAL = {
   utm_fuso: '',
   utm_s: '',
   altitude: '',
+  torre: '',
   fotos: '',
   referencia: '',
   tipo_area: '',
@@ -180,8 +181,24 @@ export default function FichaErosaoPage({ onExit }) {
               <Input id="ficha-fuso" label="Fuso" value={dados.utm_fuso} onChange={doInput('utm_fuso')} placeholder="Ex: 23K" />
               <Input id="ficha-utm-s" label="UTM S" value={dados.utm_s} onChange={doInput('utm_s')} />
               <Input id="ficha-altitude" label="Altitude" value={dados.altitude} onChange={doInput('altitude')} placeholder="Ex: 540 m" />
+              <Input
+                id="ficha-torre"
+                label="Torre"
+                value={dados.torre}
+                onChange={doInput('torre')}
+                placeholder="Ex: 30/31"
+                hint="Sai na linha Referência da ficha, junto do texto livre."
+              />
               <Input id="ficha-fotos" label="Fotos" value={dados.fotos} onChange={doInput('fotos')} placeholder="Ex: 01, 02, 03" />
-              <Input id="ficha-referencia" label="Referência" value={dados.referencia} onChange={doInput('referencia')} />
+              <div className="sm:col-span-2">
+                <Input
+                  id="ficha-referencia"
+                  label="Referência"
+                  value={dados.referencia}
+                  onChange={doInput('referencia')}
+                  placeholder="Ex: vão entre torres, lado direito da faixa"
+                />
+              </div>
               <div className="sm:col-span-2">
                 <GrupoOpcoes legenda="Tipo de área" grupo="area" valor={dados.tipo_area} onChange={definir('tipo_area')} />
               </div>

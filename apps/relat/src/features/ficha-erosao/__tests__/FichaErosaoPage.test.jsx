@@ -90,6 +90,20 @@ describe('FichaErosaoPage', () => {
     expect(triggerBlobDownload.mock.calls[0][0]).toBe('ficha-erosao-042.xlsx');
   });
 
+  it('usa a torre no nome do arquivo quando nao ha numero de ficha', () => {
+    render();
+    const torre = container.querySelector('#ficha-torre');
+    expect(torre).toBeTruthy();
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(torre, '30/31');
+      torre.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    clicar(botaoPorTexto('Gerar ficha .xlsx'));
+
+    expect(triggerBlobDownload.mock.calls[0][0]).toBe('ficha-erosao-torre-30-31.xlsx');
+  });
+
   it('preenche a medida preventiva com o texto padrao da criticidade', () => {
     render();
     const select = container.querySelector('#ficha-criticidade');

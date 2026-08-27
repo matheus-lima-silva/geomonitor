@@ -106,6 +106,20 @@ function rotulado(prefixo, valor) {
   return `${prefixo} ${valor}`.trimEnd();
 }
 
+/**
+ * Texto da linha "Referencia" (R08), que no template e a unica celula livre
+ * da localizacao — nao existe celula propria para a torre.
+ *
+ * O renderer do worker resolve isso com um fallback (`location.reference` ou,
+ * na falta dele, `torreRef`). Aqui os dois campos sao digitados de proposito,
+ * entao os dois entram, a torre primeiro.
+ */
+function montarReferencia(dados) {
+  const torre = texto(dados.torre);
+  const referencia = texto(dados.referencia);
+  return [torre && `Torre ${torre}`, referencia].filter(Boolean).join(' - ');
+}
+
 /** Monta { coluna: textoDoCheckbox } para um grupo de opcoes. */
 function opcoes(grupo, mapa, selecionados) {
   const marcados = new Set(lista(selecionados));
@@ -191,7 +205,7 @@ export function montarLinhas(dados = {}) {
       valores: { 0: rotulado('UTM S:', texto(dados.utm_s)), 9: rotulado('Fotos:', texto(dados.fotos)) },
     },
     { merges: { 0: 3, 3: 6, 9: 3 }, valores: opcoes('area', AREA_MAP, texto(dados.tipo_area)) },
-    { merges: { 0: 12 }, valores: { 0: rotulado('Referência:', texto(dados.referencia)) } },
+    { merges: { 0: 12 }, valores: { 0: rotulado('Referência:', montarReferencia(dados)) } },
     // R09 / R10 — criticidade
     secao('CLASSIFICAÇÃO DE CRITICIDADE - GRAU EROSIVO'),
     {
@@ -404,9 +418,10 @@ export function buildFichaXlsx(dados = {}) {
   return new Blob([zip.slice().buffer], { type: XLSX_CONTENT_TYPE });
 }
 
-/** Nome de arquivo sugerido, derivado da ficha/data. */
+/** Nome de arquivo sugerido: numero da ficha, senao a torre, senao a data. */
 export function buildFichaFileName(dados = {}) {
-  const bruto = texto(dados.ficha_num) || texto(dados.data);
-  const sufixo = bruto.replace(/[\\/:*?"<>|]/g, '-').trim();
+  const torre = texto(dados.torre);
+  const bruto = texto(dados.ficha_num) || (torre && `torre-${torre}`) || texto(dados.data);
+  const sufixo = String(bruto).replace(/[\\/:*?"<>|]/g, '-').trim();
   return sufixo ? `ficha-erosao-${sufixo}.xlsx` : 'ficha-erosao.xlsx';
 }
