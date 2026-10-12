@@ -12,7 +12,7 @@ Importar sempre do barrel [components/ui/index.js](components/ui/index.js):
 import {
   Button, Badge, Card, Input, Select, Textarea,
   Modal, IconButton, ConfirmDeleteModal, HintText,
-  RangeSlider, SearchableSelect, Skeleton, PageHeader, EmptyState,
+  RangeSlider, SearchableSelect, Skeleton, PageHeader, EmptyState, Checkbox,
 } from '../components/ui';
 ```
 
@@ -29,6 +29,7 @@ Precedente: o audit em `docs/ui/ui-audit-report.md` reduziu de **51 para 10** os
 - `Badge`: tones `ok` | `warning` | `danger` | `critical` | `neutral`. Para papeis de workspace seguir o padrao de [features/reports/components/WorkspaceMembersModal.jsx](features/reports/components/WorkspaceMembersModal.jsx): `amber` (owner), `sky` (editor), `slate` (viewer).
 - `EmptyState`: sempre com `icon + title + description + action`.
 - `Textarea`: auto-height; usar para campos multi-linha (nunca `<textarea>` cru). Variants `default` | `filled` (`filled` = fundo `app-surfaceMuted` + borda transparente, volta a branco no foco).
+- `Checkbox`: caixa + rotulo inline (`id` + `htmlFor`), `hint` opcional via `HintText`, sizes `sm` | `md`, `accent-brand-600` e focus ring. Sem `label`, exige `aria-label` (uso em linhas de lista). Nunca `<input type="checkbox">` cru.
 
 ## 3. Tailwind: so tokens
 
@@ -138,4 +139,4 @@ Vitest. Toda mudanca de componente, hook, service ou util precisa de teste novo 
 
 Ao adicionar novo primitive em `components/ui/`, novo token Tailwind, novo hook global, novo alias em `AppIcon.jsx` ou nova convencao UX, **atualizar este arquivo no mesmo PR** e bumpar a data do rodape. Ao concluir refatoracao UI grande, adicionar entrada em `../docs/ui/ui-audit-report.md`. Revisar integralmente a cada trimestre (audit comparando com estado do codigo). Ver secao "Manutencao dos documentos" do plano arquitetural em `.claude/plans/jazzy-tinkering-cocke.md`.
 
-> Ultima revisao: 2026-06-23.
+> Ultima revisao: 2026-10-12.

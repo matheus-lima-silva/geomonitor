@@ -330,6 +330,16 @@ Programa de adocao do estilo do handoff (kit do Claude Design) nas views, 1 PR p
 - Primitivos: `Badge` ganhou tone **`info`** (azul, tokens info-*); aliases `clock`/`more-horizontal`/`calendar-check` no `AppIcon`. Helpers `formatInspectionPeriod`/`getInspectionStatusMeta`/`getInspectionDayCount` em `inspectionWorkflow.js`.
 - Testes: `InspectionsView.wizard.test.jsx` ajustado ao novo card; `InspectionDetailsModal.test.jsx` mantido (PDF + feriado + hospedagem).
 
+## Preencher vistoria pelas fotos (outubro/2026)
+
+Primeira entrega do plano "vistoria assistida por EXIF" (mockups aprovados no Claude Design, artefato `N2CL86a8NBSHnXEKiMfd91`). O wizard de vistoria ganha um fluxo que le o EXIF das fotos da campanha **no navegador** (nada e enviado) e propoe o diario.
+
+- **Primitive novo `Checkbox`** (`src/components/ui/Checkbox.jsx`): caixa + rotulo inline, `hint` via `HintText`, sizes `sm`/`md`, `accent-brand-600` e focus ring. Substitui o `<input type="checkbox">` cru nas telas novas; o wizard ainda tem um legado (hotel) a migrar.
+- **Modal `InspectionPhotoAutofillModal`** (`src/features/inspections/components/`): `Modal size="2xl" icon="camera"`, estados `pick` (Input de pasta com `webkitdirectory` + fallback) -> `analyzing` (progressbar + `Skeleton`, leitura com concorrencia 4) -> `review`. Revisao: 4 tiles de resumo, linha de periodo com `Badge`, painel de **divergencias de legenda** (so o corpo rola; linha em duas linhas: frase + `Select` "Usar torre" + `Button` Confirmar; confirmar tira a linha, cabecalho guarda "N resolvidas · 217 -> 218" com Desfazer; painel some quando nao ha pendencias; texto de ajuda recolhido em `HintText`), avisos informativos recolhidos, cards por dia (chips mono em ordem de visita, `Checkbox` por torre, badges `ok`/`neutral`/`warning`/`danger`, "Ja no diario", "Novo dia", feriado), cards tracejados de **dia sem fotos** (`Select` Motivo do dia + `Checkbox` "Manter o dia no diario"). Rodape: "Aplicar ao diario — N torres em M dias"; com divergencia pendente abre confirmacao inline antes de aplicar.
+- **Wizard** (`InspectionFormWizardModal.jsx`): CTA `Card variant="nested"` + `Button secondary` `wand-2` no passo 1 e barra no passo 2 (desabilitados sem empreendimento); modal montado como irmao do painel dentro do portal (`z-[110]`); `syncDays` passa a preservar dias fora dos uteis (sabado com torres) dentro do periodo; picker de torres usa `getProjectTowerList` (torresCoordenadas, inclui alfanumericos) com o portico "0".
+- **Motor puro** em `src/utils/photoCampaign/` (`exifMeta.js`, `photoCampaignAnalysis.js`): compartilhado com o import de fotos do workspace (PR3). Regras de produto fixadas pelo usuario: GPS puro entra sempre desmarcado; por torre so o numero; nada some sem confirmacao.
+- Testes: `utils/__tests__/exifMeta.test.js`, `utils/photoCampaign/__tests__/photoCampaignAnalysis.test.js`, `components/ui/__tests__/Checkbox.test.jsx`, `InspectionPhotoAutofillModal.test.jsx`, `InspectionFormWizardModal.photoAutofill.test.jsx`.
+
 ## Follow-up suggestions
 
 - Add regression tests for the paginated trash modal (cover page boundaries, empty pages, filter + sort interaction). Existing tests cover `WorkspacesTab.lixeira` but not the modal's pagination edge cases.

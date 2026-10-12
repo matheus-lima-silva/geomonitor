@@ -17,6 +17,13 @@ describe('extractGpsLatLon', () => {
     expect(result[1]).toBeCloseTo(43.25, 6);
   });
 
+  it('le TIFF big-endian ("MM"), como as fotos reais do Timestamp Camera', () => {
+    const result = extractGpsLatLon(buildMinimalJpegWithGps({ bigEndian: true, latDms: [20, 4, 27], lonDms: [44, 49, 33] }));
+    expect(result).not.toBeNull();
+    expect(result[0]).toBeCloseTo(-(20 + 4 / 60 + 27 / 3600), 6);
+    expect(result[1]).toBeCloseTo(-(44 + 49 / 60 + 33 / 3600), 6);
+  });
+
   it('retorna null quando o denominador do rational e zero', () => {
     expect(extractGpsLatLon(buildMinimalJpegWithGps({ breakDen: true }))).toBeNull();
   });

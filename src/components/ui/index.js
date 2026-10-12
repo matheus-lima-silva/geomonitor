@@ -16,3 +16,4 @@ export { default as Skeleton, PhotoCardSkeleton, ListItemSkeleton } from './Skel
 export { default as PageHeader } from './PageHeader';
 export { default as EmptyState } from './EmptyState';
 export { default as Tabs } from './Tabs';
+export { default as Checkbox } from './Checkbox';
