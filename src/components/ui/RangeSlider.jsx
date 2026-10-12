@@ -2,35 +2,97 @@ import { useCallback, useRef } from 'react';
 import './RangeSlider.css';
 
 /**
- * Dual-handle range slider (like a volume slider).
+ * Range slider.
  *
- * Props:
- *   min       — minimum value (number)
- *   max       — maximum value (number)
+ * Modo padrao (dual-handle, like a volume slider):
  *   value     — [rangeStart, rangeEnd]
  *   onChange  — ([start, end]) => void
- *   label     — optional label
- *   disabled  — disables interaction
+ *
+ * Modo `single` (um so polegar; ex.: faixa de corte em px):
+ *   value     — number
+ *   onChange  — (number) => void
+ *
+ * Props comuns:
+ *   min / max   — limites (number)
+ *   step        — passo (default 1)
+ *   label       — optional label
+ *   id          — id do input (recomendado no modo single para `aria-labelledby`/label externo)
+ *   disabled    — disables interaction
  *   formatLabel — optional (num) => string for tick labels
+ *   ariaLabel   — rotulo acessivel quando nao ha `label` visivel
  */
 export default function RangeSlider({
   min = 0,
   max = 100,
-  value = [0, 100],
+  step = 1,
+  value,
   onChange,
   label,
+  id,
   disabled = false,
   formatLabel,
+  single = false,
+  ariaLabel,
 }) {
   const trackRef = useRef(null);
-  const lo = Math.max(min, Math.min(value[0], value[1]));
-  const hi = Math.max(lo, Math.min(value[1], max));
+  const fmt = formatLabel || ((n) => String(n));
   const range = max - min || 1;
+
+  if (single) {
+    const current = Math.max(min, Math.min(Number.isFinite(Number(value)) ? Number(value) : min, max));
+    const pct = ((current - min) / range) * 100;
+    return (
+      <div className={`flex flex-col gap-1 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
+        {label && (
+          <label htmlFor={id} className="text-2xs font-bold uppercase tracking-wide text-slate-500 mb-0.5">
+            {label}
+          </label>
+        )}
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-500 font-medium tabular-nums whitespace-nowrap min-w-[2.5rem] text-right">
+            {fmt(min)}
+          </span>
+          <div className="relative flex-1 h-10 flex items-center" ref={trackRef}>
+            <div className="absolute inset-x-0 h-1.5 rounded-full bg-slate-200" />
+            <div
+              className="absolute h-1.5 rounded-full bg-brand-500 transition-all duration-75"
+              style={{ left: 0, width: `${pct}%` }}
+            />
+            <div
+              className="absolute -top-0.5 text-2xs font-bold text-brand-700 tabular-nums select-none transition-all duration-75"
+              style={{ left: `${pct}%`, transform: 'translateX(-50%)' }}
+              aria-hidden="true"
+            >
+              {fmt(current)}
+            </div>
+            <input
+              id={id}
+              type="range"
+              min={min}
+              max={max}
+              step={step}
+              value={current}
+              onChange={(e) => onChange?.(Number(e.target.value))}
+              disabled={disabled}
+              aria-label={label ? undefined : ariaLabel}
+              aria-valuetext={fmt(current)}
+              className="range-slider-input absolute inset-x-0 w-full h-1.5 z-[3]"
+            />
+          </div>
+          <span className="text-xs text-slate-500 font-medium tabular-nums whitespace-nowrap min-w-[2.5rem]">
+            {fmt(max)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  const pair = Array.isArray(value) ? value : [min, max];
+  const lo = Math.max(min, Math.min(pair[0], pair[1]));
+  const hi = Math.max(lo, Math.min(pair[1], max));
 
   const leftPct = ((lo - min) / range) * 100;
   const widthPct = ((hi - lo) / range) * 100;
-
-  const fmt = formatLabel || ((n) => String(n));
 
   const handleMinChange = useCallback(
     (e) => {
@@ -94,6 +156,7 @@ export default function RangeSlider({
             type="range"
             min={min}
             max={max}
+            step={step}
             value={lo}
             onChange={handleMinChange}
             disabled={disabled}
@@ -105,6 +168,7 @@ export default function RangeSlider({
             type="range"
             min={min}
             max={max}
+            step={step}
             value={hi}
             onChange={handleMaxChange}
             disabled={disabled}
