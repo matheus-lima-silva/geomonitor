@@ -282,9 +282,34 @@ export function formatPhotoDistanceLabel(distanceMeters, towerPoint, photoPoint)
 }
 
 // Rotulo legivel da origem de importacao da foto (para o card de metadados).
+// Fontes de importacao que nao sao "modos" selecionaveis (ficam fora de
+// IMPORT_MODES para nao aparecerem no seletor), mas precisam de rotulo.
+const EXTRA_IMPORT_SOURCE_LABELS = {
+  photo_campaign: 'Captacao da campanha',
+  manual: 'Manual',
+};
+
 export function formatImportSourceLabel(importSource) {
   const key = String(importSource || '').trim();
-  return (IMPORT_MODES[key] && IMPORT_MODES[key].label) || key || '-';
+  return (IMPORT_MODES[key] && IMPORT_MODES[key].label) || EXTRA_IMPORT_SOURCE_LABELS[key] || key || '-';
+}
+
+// Origem da torre de uma foto (report_photos.tower_source). Valores historicos
+// (pasta, manual, KMZ) + os novos da captacao por EXIF.
+export const TOWER_SOURCE_LABELS = {
+  folder_path: 'Pasta',
+  pending: 'Pendente',
+  manual: 'Manual',
+  kmz_folder: 'Pasta do KMZ',
+  kmz_placemark: 'Placemark do KMZ',
+  kmz_organized: 'KMZ organizado',
+  exif_label: 'Etiqueta EXIF',
+  gps_nearest: 'GPS (torre mais proxima)',
+};
+
+export function formatTowerSourceLabel(towerSource) {
+  const key = String(towerSource || '').trim();
+  return TOWER_SOURCE_LABELS[key] || key || '-';
 }
 
 // ── Ordenacao e agrupamento de fotos ─────────────────────────────────────────

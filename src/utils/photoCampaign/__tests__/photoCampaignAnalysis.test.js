@@ -4,6 +4,9 @@ import {
   TOWER_MATCH,
   analyzePhotoCampaign,
   buildDefaultDecisions,
+  buildFileKey,
+  buildPhotoAssignments,
+  toIsoWithLocalOffset,
   buildTowerIndex,
   findNearestTowers,
   mergeAnalysisIntoForm,
@@ -357,5 +360,72 @@ describe('buildDefaultDecisions + mergeAnalysisIntoForm', () => {
     const ensureDayShape = (day) => ({ ...day, marcado: true });
     const { form } = mergeAnalysisIntoForm(emptyForm, analysis, buildDefaultDecisions(analysis), { ensureDayShape });
     expect(form.detalhesDias[0].marcado).toBe(true);
+  });
+});
+
+describe('buildFileKey / toIsoWithLocalOffset', () => {
+  it('monta a chave estavel do arquivo', () => {
+    expect(buildFileKey({ webkitRelativePath: 'BMDOPR/126/a.jpg', name: 'a.jpg', size: 10, lastModified: 5 })).toBe('BMDOPR/126/a.jpg|10|5');
+    expect(buildFileKey({ name: 'a.jpg' })).toBe('a.jpg|0|0');
+  });
+
+  it('converte a hora local do EXIF em ISO com o offset do navegador', () => {
+    expect(toIsoWithLocalOffset('2026-09-22T14:14:00')).toBe(new Date(2026, 8, 22, 14, 14, 0).toISOString());
+    expect(toIsoWithLocalOffset('2026-09-22T14:14')).toBe(new Date(2026, 8, 22, 14, 14, 0).toISOString());
+    expect(toIsoWithLocalOffset('')).toBeNull();
+    expect(toIsoWithLocalOffset('ontem')).toBeNull();
+  });
+});
+
+describe('buildPhotoAssignments', () => {
+  const latOf = (n, offsetM = 10) => towerLat(n) + offsetM * DEG_PER_M_LAT;
+  const mk = (key, n, extra = {}) => ({
+    key,
+    name: key,
+    relativePath: '',
+    gpsLat: latOf(n, extra.offsetM ?? 10),
+    gpsLon: -44,
+    capturedAt: '2026-09-22T10:00:00',
+    capturedDate: '2026-09-22',
+    capturedTime: '10:00',
+    description: `BMDOPR\n${n}`,
+    ...extra,
+  });
+
+  it('torre da etiqueta vira exif_label com captureAt ISO; GPS puro vira gps_nearest desmarcado', () => {
+    const analysis = analyzePhotoCampaign([
+      mk('a', 5),
+      mk('g', 7, { description: null, offsetM: 30, capturedTime: '11:00', capturedAt: '2026-09-22T11:00:00' }),
+    ], PROJECT);
+    const assignments = buildPhotoAssignments(analysis, buildDefaultDecisions(analysis));
+    expect(assignments.a).toMatchObject({ towerId: '5', towerSource: 'exif_label', include: true, captureAt: new Date(2026, 8, 22, 10, 0, 0).toISOString() });
+    expect(assignments.a.gpsLat).toBeCloseTo(latOf(5), 6);
+    expect(assignments.g).toMatchObject({ towerId: '7', towerSource: 'gps_nearest', include: false });
+  });
+
+  it('conflito confirmado move so as fotos do conflito para a torre sugerida', () => {
+    const analysis = analyzePhotoCampaign([
+      mk('own', 5),
+      mk('wrong', 6, { offsetM: 8, description: 'BMDOPR\n5', capturedTime: '10:30', capturedAt: '2026-09-22T10:30:00' }),
+    ], PROJECT);
+    const decisions = buildDefaultDecisions(analysis);
+    expect(buildPhotoAssignments(analysis, decisions).wrong).toMatchObject({ towerId: '5', towerSource: 'exif_label' });
+
+    decisions.divergences[Object.keys(decisions.divergences)[0]].status = 'confirmed';
+    const confirmed = buildPhotoAssignments(analysis, decisions);
+    expect(confirmed.own).toMatchObject({ towerId: '5', towerSource: 'exif_label' });
+    expect(confirmed.wrong).toMatchObject({ towerId: '6', towerSource: 'gps_nearest' });
+  });
+
+  it('pasta vira folder_path; nao resolvidas e sem data ficam pending/incluidas', () => {
+    const analysis = analyzePhotoCampaign([
+      mk('f', 3, { description: null, relativePath: 'BMDOPR/3/f.jpg' }),
+      mk('far', 20, { description: null, offsetM: 1000 }),
+      mk('nodate', 4, { capturedAt: null, capturedDate: null, capturedTime: null }),
+    ], PROJECT);
+    const assignments = buildPhotoAssignments(analysis, buildDefaultDecisions(analysis));
+    expect(assignments.f).toMatchObject({ towerId: '3', towerSource: 'folder_path', include: true });
+    expect(assignments.far).toMatchObject({ towerId: null, towerSource: 'pending', include: true });
+    expect(assignments.nodate).toMatchObject({ towerId: '4', towerSource: 'exif_label', captureAt: null, include: true });
   });
 });

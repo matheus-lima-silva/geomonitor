@@ -878,6 +878,8 @@ function DashboardView() {
   const [inspectionProjectFilterId, setInspectionProjectFilterId] = useState(null);
   const [inspectionPlanningDraft, setInspectionPlanningDraft] = useState(null);
   const [pendingErosionDraft, setPendingErosionDraft] = useState(null);
+  // Handoff Vistorias -> Relatorios: fotos da campanha (File + decisoes) para o workspace.
+  const [pendingPhotoImport, setPendingPhotoImport] = useState(null);
   const [criticalityFilter, setCriticalityFilter] = useState('');
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -1088,6 +1090,10 @@ function DashboardView() {
             setPendingErosionDraft(draft);
             setActiveTab('erosions');
           }}
+          onPhotoImportHandoff={(payload) => {
+            setPendingPhotoImport(payload);
+            setActiveTab('georelat');
+          }}
           loading={!primaryDataLoaded}
         />
       );
@@ -1150,6 +1156,8 @@ function DashboardView() {
             setPendingErosionDraft(draft);
             setActiveTab('erosions');
           }}
+          pendingPhotoImport={pendingPhotoImport}
+          onPhotoImportConsumed={() => setPendingPhotoImport(null)}
         />
       );
     }

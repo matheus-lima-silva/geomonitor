@@ -4,7 +4,7 @@ import { Badge, Button, Input, RangeSlider, Textarea } from '../../../components
 import IconButton from '../../../components/ui/IconButton';
 import Modal from '../../../components/ui/Modal';
 import { formatTowerLabel } from '../../projects/utils/kmlUtils';
-import { formatImportSourceLabel } from '../utils/reportUtils';
+import { formatImportSourceLabel, formatTowerSourceLabel } from '../utils/reportUtils';
 import PhotoLocationMiniMap from './PhotoLocationMiniMap';
 import CreateErosionHandoffModal from './CreateErosionHandoffModal';
 
@@ -348,7 +348,9 @@ export default function PhotoPreviewModal({
               <MetaRow
                 icon="radio-tower"
                 label="Torre"
-                value={draft?.towerId || photo.towerId ? formatTowerLabel(draft?.towerId || photo.towerId) : 'Pendente'}
+                value={draft?.towerId || photo.towerId
+                  ? `${formatTowerLabel(draft?.towerId || photo.towerId)}${photo.towerSource && photo.towerSource !== 'manual' && photo.towerSource !== 'pending' ? ` · ${formatTowerSourceLabel(photo.towerSource)}` : ''}`
+                  : 'Pendente'}
               />
             </div>
 

@@ -72,6 +72,16 @@ describe('PhotoPreviewModal — cabecalho e navegacao', () => {
     expect(container.textContent).toContain('2 / 5');
   });
 
+  it('mostra a origem da torre ao lado do numero quando veio do EXIF, e esconde para manual', () => {
+    mount(<PhotoPreviewModal {...baseProps({ photo: { id: 'RPH-2', importSource: 'photo_campaign', towerId: '641', towerSource: 'exif_label', caption: 'Legenda' } })} />);
+    expect(container.textContent).toContain('Etiqueta EXIF');
+    expect(container.textContent).toContain('Captacao da campanha');
+    act(() => { root.unmount(); });
+    container.remove();
+    mount(<PhotoPreviewModal {...baseProps({ photo: { id: 'RPH-3', importSource: 'loose_photos', towerId: '641', towerSource: 'manual', caption: 'Legenda' } })} />);
+    expect(container.textContent).not.toContain('Manual');
+  });
+
   it('as setas de navegacao (rodape) chamam onPrev/onNext', () => {
     const onNext = vi.fn();
     const onPrev = vi.fn();

@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import InspectionPhotoAutofillModal from '../InspectionPhotoAutofillModal';
+import CampaignPhotoIntakeModal from '../CampaignPhotoIntakeModal';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -86,7 +86,7 @@ function selectFiles(files) {
   });
 }
 
-describe('InspectionPhotoAutofillModal', () => {
+describe('CampaignPhotoIntakeModal', () => {
   let container;
   let root;
   let onApply;
@@ -109,7 +109,7 @@ describe('InspectionPhotoAutofillModal', () => {
   function render(props = {}) {
     act(() => {
       root.render(
-        <InspectionPhotoAutofillModal
+        <CampaignPhotoIntakeModal
           open
           project={PROJECT}
           currentForm={{ projetoId: 'BMDOPR', dataInicio: '', dataFim: '', detalhesDias: [] }}
@@ -230,4 +230,63 @@ describe('InspectionPhotoAutofillModal', () => {
     });
     expect(onCancel).toHaveBeenCalled();
   });
+
+  it('sem destinos configurados: nao mostra o bloco, mas entrega filesByKey e diario habilitado', async () => {
+    await renderAndAnalyze();
+    expect(document.querySelector('[data-testid="photo-intake-destinations"]')).toBeNull();
+    clickButton('Aplicar ao diário');
+    clickButton('Aplicar mesmo assim');
+    const payload = onApply.mock.calls[0][0];
+    expect(payload.filesByKey).toBeInstanceOf(Map);
+    expect(payload.filesByKey.size).toBe(7);
+    expect([...payload.filesByKey.values()][0].name).toBe('a.jpg');
+    expect(payload.destinations).toEqual({ diary: { enabled: true, value: '' }, workspace: { enabled: false, value: '' } });
+  });
+
+  it('modo workspace: workspace travado, diario opcional com vistoria escolhida, rotulo de envio', async () => {
+    await renderAndAnalyze({
+      destinations: {
+        diary: { available: true, enabled: false, locked: false, options: [{ value: '__new__', label: 'Criar vistoria nova pelas fotos' }, { value: 'VS-1', label: 'VS-1 · 21/09 – 24/09' }], value: '__new__' },
+        workspace: { available: true, enabled: true, locked: true, options: [{ value: 'RW-1', label: 'RW-1 · Campanha' }], value: 'RW-1' },
+      },
+    });
+    const block = document.querySelector('[data-testid="photo-intake-destinations"]');
+    expect(block).toBeTruthy();
+    const workspaceBox = block.querySelector('#photo-intake-dest-workspace');
+    expect(workspaceBox.checked).toBe(true);
+    expect(workspaceBox.disabled).toBe(true);
+    expect(findButtonText('Enviar 6 fotos para o workspace')).toBeTruthy();
+
+    const diaryBox = block.querySelector('#photo-intake-dest-diary');
+    expect(diaryBox.checked).toBe(false);
+    act(() => { diaryBox.click(); });
+    const diarySelect = block.querySelector('#photo-intake-dest-diary-target');
+    expect(diarySelect.disabled).toBe(false);
+    act(() => {
+      diarySelect.value = 'VS-1';
+      diarySelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(findButtonText('Aplicar ao diário e enviar 6 fotos')).toBeTruthy();
+
+    clickButton('Aplicar ao diário e enviar');
+    clickButton('Aplicar mesmo assim');
+    const payload = onApply.mock.calls[0][0];
+    expect(payload.destinations).toEqual({ diary: { enabled: true, value: 'VS-1' }, workspace: { enabled: true, value: 'RW-1' } });
+  });
+
+  it('desmarcar o unico destino desabilita o botao de aplicar', async () => {
+    await renderAndAnalyze({
+      destinations: {
+        diary: { available: true, enabled: true, locked: false },
+        workspace: { available: false },
+      },
+    });
+    act(() => { document.querySelector('#photo-intake-dest-diary').click(); });
+    const apply = findButtonText('Aplicar ao diário');
+    expect(apply.disabled).toBe(true);
+  });
 });
+
+function findButtonText(text) {
+  return [...document.querySelectorAll('button')].find((item) => item.textContent.includes(text));
+}

@@ -22,6 +22,8 @@ import {
   triggerUrlDownload,
 } from '../utils/reportUtils';
 import PhotoPreviewModal from './PhotoPreviewModal';
+import CampaignPhotoIntakeModal from './CampaignPhotoIntakeModal';
+import { toBrDate } from '../../inspections/utils/inspectionWorkflow';
 import TrashExpandedModal from './TrashExpandedModal';
 import WorkspaceMembersModal from './WorkspaceMembersModal';
 import { useOptionalAuth } from '../../../context/AuthContext';
@@ -88,6 +90,11 @@ export default function WorkspacesTab({
   // Handlers
   handleCreateWorkspace,
   handleImportWorkspace,
+  handleCampaignIntakeApply,
+  campaignFeriadosIndex,
+  pendingCampaignImport = null,
+  onSendPendingCampaign,
+  onDiscardPendingCampaign,
   handleSaveWorkspacePhoto,
   handleMovePhotoToTrash,
   handleCropPhotoFooter,
@@ -176,6 +183,47 @@ export default function WorkspacesTab({
   const [showWorkflowGuide, setShowWorkflowGuide] = useState(false);
   const [setupCreateOpen, setSetupCreateOpen] = useState(!selectedWorkspace);
   const [setupImportOpen, setSetupImportOpen] = useState(false);
+  const [campaignIntakeOpen, setCampaignIntakeOpen] = useState(false);
+
+  // Fotos aguardando do wizard: abre o card de import para o usuario escolher o alvo.
+  useEffect(() => {
+    if (pendingCampaignImport) setSetupImportOpen(true);
+  }, [pendingCampaignImport]);
+
+  // Destinos da captacao em modo workspace: alvo travado; diario opcional com a
+  // vistoria vinculada (ou "criar nova pelas fotos") e as demais do projeto.
+  const campaignIntakeDestinations = useMemo(() => {
+    const target = workspaceCandidates.find((item) => item.id === workspaceImportTargetId)
+      || workspaces.find((item) => item.id === workspaceImportTargetId)
+      || null;
+    const projectId = target?.projectId || selectedWorkspaceProject?.id || '';
+    const projectInspectionOptions = (inspections || [])
+      .filter((inspection) => String(inspection?.projetoId || '') === String(projectId))
+      .sort((a, b) => String(b.dataInicio || '').localeCompare(String(a.dataInicio || '')))
+      .map((inspection) => ({
+        value: inspection.id,
+        label: `${inspection.id} · ${toBrDate(inspection.dataInicio) || 'sem data'}${inspection.dataFim ? ` – ${toBrDate(inspection.dataFim)}` : ''}`,
+      }));
+    return {
+      workspace: {
+        available: true,
+        enabled: true,
+        locked: true,
+        options: target ? [{ value: target.id, label: target.nome || target.id }] : [],
+        value: target?.id || '',
+      },
+      diary: {
+        available: true,
+        enabled: false,
+        locked: false,
+        options: [{ value: '__new__', label: 'Criar vistoria nova pelas fotos' }, ...projectInspectionOptions],
+        value: target?.inspectionId || '__new__',
+        hint: target?.inspectionId
+          ? `Workspace vinculado a vistoria ${target.inspectionId}. Marcando, os dias e torres das fotos entram no diario dela.`
+          : 'Opcional. Sem vistoria para a campanha, a opcao padrao cria uma (periodo e responsavel vindos das fotos e do login) e vincula ao workspace.',
+      },
+    };
+  }, [workspaceCandidates, workspaces, workspaceImportTargetId, selectedWorkspaceProject, inspections]);
   const [showWorkspaceList, setShowWorkspaceList] = useState(!selectedWorkspace);
 
   const numberingPreview = useMemo(() => {
@@ -229,7 +277,6 @@ export default function WorkspacesTab({
     }
   }, [pagedPhotos, ensurePhotoPreview]);
 
-  const activeImportMode = IMPORT_MODES[workspaceImportMode] || IMPORT_MODES.loose_photos;
 
   const activePreviewPhoto = workspacePhotos.find((p) => p.id === activePreviewPhotoId) || null;
   // Indice na lista ja filtrada/ordenada (mesma ordem da grade) — base da navegacao prev/next.
@@ -473,6 +520,33 @@ export default function WorkspacesTab({
           ) : null}
         </div>
 
+        {/* Fotos vindas do wizard de vistoria aguardando workspace */}
+        {pendingCampaignImport ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning-border bg-warning-light px-4 py-3 mb-2" data-testid="rw-pending-campaign">
+            <AppIcon name="camera" size={18} className="text-warning" aria-hidden="true" />
+            <div className="flex-1 min-w-[220px]">
+              <strong className="block text-sm text-slate-800">
+                {pendingCampaignImport.files.length} foto(s) da vistoria {pendingCampaignImport.inspectionId} aguardando envio
+              </strong>
+              <span className="block text-xs text-slate-600">
+                Escolha o workspace alvo abaixo ou crie um novo (o rascunho ja veio preenchido) e envie. As fotos ficam so neste navegador ate o envio.
+              </span>
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => onSendPendingCampaign?.(workspaceImportTargetId)}
+              disabled={busy === 'workspace-import' || !workspaceImportTargetId}
+              title={!workspaceImportTargetId ? 'Selecione o workspace alvo primeiro.' : undefined}
+            >
+              <AppIcon name="upload" />
+              Enviar {pendingCampaignImport.files.length} foto(s)
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => onDiscardPendingCampaign?.()} disabled={busy === 'workspace-import'}>
+              Descartar
+            </Button>
+          </div>
+        ) : null}
+
         {/* Importar Fotos — colapsavel */}
         <div>
           <button
@@ -492,59 +566,61 @@ export default function WorkspacesTab({
             <AppIcon name="chevron-right" size={14} className={`text-slate-400 transition-transform duration-200 ${setupImportOpen ? 'rotate-90' : ''}`} />
           </button>
           {setupImportOpen ? (
-            <div className="pb-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <Select
-                  id="rw-import-target"
-                  label="Workspace Alvo"
-                  hint="A importacao e a curadoria sempre acontecem dentro do workspace selecionado."
-                  value={workspaceImportTargetId}
-                  onChange={(event) => setWorkspaceImportTargetId(event.target.value)}
-                >
-                  <option value="">Selecione...</option>
-                  {workspaceCandidates.map((workspace) => (
-                    <option key={workspace.id} value={workspace.id}>{workspace.nome || workspace.id}</option>
-                  ))}
-                </Select>
-                <Select
-                  id="rw-import-mode"
-                  label="Modo de Importacao"
-                  hint="Os contratos do backend ja aceitam fotos soltas, subpastas por torre e KMZ organizado."
-                  value={workspaceImportMode}
-                  onChange={(event) => { setWorkspaceImportMode(event.target.value); setPendingFiles([]); }}
-                >
-                  {Object.entries(IMPORT_MODES).map(([mode, config]) => (
-                    <option key={mode} value={mode}>{config.label}</option>
-                  ))}
-                </Select>
-                <Input
-                  key={workspaceImportMode}
-                  id="rw-import-files"
-                  label={activeImportMode.inputLabel}
-                  hint={activeImportMode.hint}
-                  type="file"
-                  accept={activeImportMode.accept}
-                  multiple={activeImportMode.multiple}
-                  webkitdirectory={workspaceImportMode === 'tower_subfolders' ? '' : undefined}
-                  directory={workspaceImportMode === 'tower_subfolders' ? '' : undefined}
-                  onChange={(event) => setPendingFiles(Array.from(event.target.files || []))}
-                />
-              </div>
-              <div className="flex items-center justify-between gap-3 mt-4">
-                <span className="text-xs text-slate-500">
-                  {pendingFiles.length > 0
-                    ? `${pendingFiles.length} arquivo(s) pronto(s) para envio.`
-                    : 'Nenhum arquivo selecionado.'}
-                </span>
+            <div className="pb-4 flex flex-col gap-4">
+              <Select
+                id="rw-import-target"
+                label="Workspace Alvo"
+                hint="A importacao e a curadoria sempre acontecem dentro do workspace selecionado."
+                value={workspaceImportTargetId}
+                onChange={(event) => setWorkspaceImportTargetId(event.target.value)}
+              >
+                <option value="">Selecione...</option>
+                {workspaceCandidates.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>{workspace.nome || workspace.id}</option>
+                ))}
+              </Select>
+
+              {/* Captacao unica: fotos soltas ou subpastas por torre, com EXIF (torre, data, GPS) */}
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-info-border bg-info-light px-4 py-3" data-testid="rw-import-campaign">
+                <AppIcon name="camera" size={18} className="text-brand-600" aria-hidden="true" />
+                <div className="flex-1 min-w-[220px]">
+                  <strong className="block text-sm text-slate-800">Fotos da campanha</strong>
+                  <span className="block text-xs text-slate-600">Selecione a pasta (ou as fotos). A etiqueta, a data e o GPS do EXIF identificam torre e dia antes do envio; divergencias de legenda aparecem para conferir.</span>
+                </div>
                 <Button
-                  onClick={handleImportWorkspace}
-                  disabled={busy === 'workspace-import' || !workspaceImportTargetId || pendingFiles.length === 0}
+                  variant="primary"
+                  onClick={() => setCampaignIntakeOpen(true)}
+                  disabled={busy === 'workspace-import' || !workspaceImportTargetId || !handleCampaignIntakeApply}
+                  title={!workspaceImportTargetId ? 'Selecione o workspace alvo primeiro.' : undefined}
                 >
-                  <AppIcon name={workspaceImportMode === 'organized_kmz' ? 'file-text' : 'upload'} />
-                  {busy === 'workspace-import'
-                    ? (workspaceImportMode === 'organized_kmz' ? 'Registrando...' : 'Enviando...')
-                    : activeImportMode.buttonLabel}
+                  <AppIcon name="folder-input" />
+                  Selecionar fotos da campanha
                 </Button>
+              </div>
+
+              {/* KMZ organizado: processado no backend, fluxo proprio */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto] md:items-end">
+                <Input
+                  id="rw-import-kmz"
+                  label={IMPORT_MODES.organized_kmz.inputLabel}
+                  hint={IMPORT_MODES.organized_kmz.hint}
+                  type="file"
+                  accept={IMPORT_MODES.organized_kmz.accept}
+                  onChange={(event) => { setWorkspaceImportMode('organized_kmz'); setPendingFiles(Array.from(event.target.files || [])); }}
+                />
+                <div className="flex items-center justify-end gap-3">
+                  <span className="text-xs text-slate-500">
+                    {pendingFiles.length > 0 ? `${pendingFiles.length} arquivo(s) pronto(s).` : 'Nenhum KMZ selecionado.'}
+                  </span>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleImportWorkspace({ importSource: 'organized_kmz' })}
+                    disabled={busy === 'workspace-import' || !workspaceImportTargetId || pendingFiles.length === 0}
+                  >
+                    <AppIcon name="file-text" />
+                    {busy === 'workspace-import' ? 'Registrando...' : IMPORT_MODES.organized_kmz.buttonLabel}
+                  </Button>
+                </div>
               </div>
             </div>
           ) : null}
@@ -1582,6 +1658,22 @@ export default function WorkspacesTab({
       </Modal>
 
       {/* Modal de preview */}
+      {campaignIntakeOpen ? (
+        <CampaignPhotoIntakeModal
+          open
+          mode="workspace"
+          project={selectedWorkspaceProject}
+          currentForm={null}
+          feriadosIndex={campaignFeriadosIndex}
+          destinations={campaignIntakeDestinations}
+          onCancel={() => setCampaignIntakeOpen(false)}
+          onApply={(payload) => {
+            setCampaignIntakeOpen(false);
+            handleCampaignIntakeApply?.(payload, { workspaceId: workspaceImportTargetId });
+          }}
+        />
+      ) : null}
+
       <PhotoPreviewModal
         photo={activePreviewPhoto}
         previewUrl={photoPreviewUrls[activePreviewPhoto?.id]}

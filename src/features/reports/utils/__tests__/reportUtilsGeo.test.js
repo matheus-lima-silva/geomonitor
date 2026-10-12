@@ -4,6 +4,7 @@ import {
   findTowerCoordinate,
   formatImportSourceLabel,
   formatPhotoDistanceLabel,
+  formatTowerSourceLabel,
   getPhotoCoordinate,
   haversineMeters,
 } from '../reportUtils';
@@ -99,5 +100,24 @@ describe('formatImportSourceLabel', () => {
   it('cai para a propria chave ou "-"', () => {
     expect(formatImportSourceLabel('desconhecido')).toBe('desconhecido');
     expect(formatImportSourceLabel('')).toBe('-');
+  });
+
+  it('rotula a captacao da campanha sem expo-la como modo de import', () => {
+    expect(formatImportSourceLabel('photo_campaign')).toBe('Captacao da campanha');
+    expect(formatImportSourceLabel('manual')).toBe('Manual');
+  });
+});
+
+describe('formatTowerSourceLabel', () => {
+  it('traduz origens historicas e as novas do EXIF', () => {
+    expect(formatTowerSourceLabel('folder_path')).toBe('Pasta');
+    expect(formatTowerSourceLabel('exif_label')).toBe('Etiqueta EXIF');
+    expect(formatTowerSourceLabel('gps_nearest')).toBe('GPS (torre mais proxima)');
+    expect(formatTowerSourceLabel('kmz_placemark')).toBe('Placemark do KMZ');
+  });
+
+  it('cai para a propria chave ou "-"', () => {
+    expect(formatTowerSourceLabel('outra')).toBe('outra');
+    expect(formatTowerSourceLabel(undefined)).toBe('-');
   });
 });

@@ -215,6 +215,7 @@ Testes: [src/features/reports/utils/__tests__/towerCurationStatus.test.js](../sr
 | [DeliveryUploadModal.jsx](../src/features/reports/components/DeliveryUploadModal.jsx) | Upload do arquivo final entregue (delivered_media) |
 | [PhotoPreviewModal.jsx](../src/features/reports/components/PhotoPreviewModal.jsx) | Lightbox de curadoria (redesenho jun/2026): navegacao, legenda com autosave, incluir no `.docx`, lixeira, mini-mapa torre+foto, handoff "criar erosao" e painel "Cortar rodape da marca d'agua" (out/2026, atalho `C`, pre-visualizacao da faixa, desfazer). Ver [ui/ui-audit-report.md](ui/ui-audit-report.md) e a secao "Corte do rodape" abaixo |
 | [PhotoLocationMiniMap.jsx](../src/features/reports/components/PhotoLocationMiniMap.jsx) | Mini-mapa Leaflet do lightbox: torre (`torresCoordenadas`) + ponto GPS da foto, distancia e direcao |
+| [CampaignPhotoIntakeModal.jsx](../src/features/reports/components/CampaignPhotoIntakeModal.jsx) | Tela unica de captacao de fotos da campanha (EXIF: dia, torre, divergencias) com bloco Destinos (diario e/ou workspace); usada pelo wizard de vistoria e pelo import do workspace |
 | [CreateErosionHandoffModal.jsx](../src/features/reports/components/CreateErosionHandoffModal.jsx) | Modal de chamada do handoff "criar erosao a partir da foto" (reusa `pendingErosionDraft` do DashboardView) |
 | [CompoundsTab.jsx](../src/features/reports/components/CompoundsTab.jsx) | Listagem e edicao de compounds; geracao DOCX |
 | [ReportPreviewModal.jsx](../src/features/reports/components/ReportPreviewModal.jsx) | Previa do DOCX gerado antes do download (renderiza o `.docx` no navegador via `docx-preview`, fonte DM Sans auto-hospedada). Acionado pelo botao "Pre-visualizar" do [DeliveryCallout.jsx](../src/features/reports/components/DeliveryCallout.jsx) |
@@ -324,6 +325,15 @@ em [mediaStorage.js](../backend/utils/mediaStorage.js)). O discriminador e o cam
 a origem da URL — no homelab o MinIO publico fica sob o mesmo host do app (Caddy).
 
 ---
+
+## Captacao unica de fotos (outubro/2026)
+
+Um unico motor (`src/utils/photoCampaign/`: `exifMeta.js` le EXIF, `photoCampaignAnalysis.js` resolve torre/dia/divergencias) e uma unica tela de revisao (`CampaignPhotoIntakeModal`, em `src/features/reports/components/`) atendem as duas entradas de fotos de campanha. O caminho "so workspace" (sem vistoria) continua existindo.
+
+- **Entrada pelo workspace** (`WorkspacesTab`, card "Importar Fotos"): `Select` do workspace alvo + botao "Selecionar fotos da campanha" abre a tela com o destino **workspace travado** no alvo e o destino **diario opcional** (vistoria vinculada por `inspection_id`, outra vistoria do projeto ou "Criar vistoria nova pelas fotos"). O KMZ organizado ficou num bloco proprio (`#rw-import-kmz`). `ReportsView.handleCampaignIntakeApply` aplica o diario (`mergeAnalysisIntoForm` -> `saveInspection`), vincula o workspace se ainda sem `inspection_id` e dispara `handleImportWorkspace({ importSource: 'photo_campaign', assignmentsByFileKey })`.
+- **Entrada pelo wizard de vistoria** ("Preencher pelas fotos"): destino diario travado; destino workspace opcional. Ao marcar, o wizard salva a vistoria na hora (a troca de aba o desmonta), dispara `onPhotoImportHandoff` e o `DashboardView` guarda `pendingPhotoImport` (padrao de `pendingErosionDraft`, nunca em localStorage porque carrega `File`) e troca para a aba Relatorios. `ReportsView` consome uma vez: seleciona o projeto, pre-preenche o rascunho "Criar workspace" (`Campanha dd/mm – dd/mm`, vistoria vinculada) e, se ja existe workspace vinculado a vistoria, envia direto; senao mostra o aviso "N fotos da vistoria X aguardando envio" com "Enviar" (alvo = Select do import) e "Descartar".
+- **Upload** (`uploadWorkspaceFile`): por arquivo envia `captureAt` (ISO com offset), `gpsLat/gpsLon`, `towerId` e `towerSource` (`exif_label`, `folder_path`, `gps_nearest`, `pending`); fotos desmarcadas na revisao nao sobem (`excludedCount`). Sem a tela (KMZ, drag legado) o EXIF e lido do proprio arquivo.
+- Rotulos: `formatTowerSourceLabel` / `formatImportSourceLabel` (`reportUtils.js`). Contrato dos valores em [api-backend.md](api-backend.md#fotos-ativas-trash-archive).
 
 ## Corte do rodape da marca d'agua (lightbox)
 

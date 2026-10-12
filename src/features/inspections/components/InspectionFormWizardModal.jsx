@@ -4,8 +4,8 @@ import AppIcon from '../../../components/AppIcon';
 import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea } from '../../../components/ui';
 import { saveInspection } from '../../../services/inspectionService';
 import { getProjectTowerList } from '../../../utils/getProjectTowerList';
-import { mergeAnalysisIntoForm } from '../../../utils/photoCampaign/photoCampaignAnalysis';
-import InspectionPhotoAutofillModal from './InspectionPhotoAutofillModal';
+import { buildPhotoAssignments, mergeAnalysisIntoForm } from '../../../utils/photoCampaign/photoCampaignAnalysis';
+import CampaignPhotoIntakeModal from '../../reports/components/CampaignPhotoIntakeModal';
 import { postCalculoErosao, saveErosion } from '../../../services/erosionService';
 import { useLocalStorageDraft } from '../../../hooks/useLocalStorageDraft';
 import { useToast } from '../../../context/ToastContext';
@@ -280,6 +280,7 @@ function InspectionFormWizardModal({
   suggestedTowerInput,
   feriados = [],
   onOpenErosionDraft,
+  onPhotoImportHandoff,
   onCancel,
   onSaved,
 }) {
@@ -494,10 +495,43 @@ function InspectionFormWizardModal({
     return { ...source, detalhesDias: details };
   }
 
-  function handleApplyPhotoAutofill({ analysis, decisions }) {
+  async function handleApplyPhotoAutofill({ analysis, decisions, filesByKey, destinations } = {}) {
     const { form, summary } = mergeAnalysisIntoForm(normalizeInspectionForm(formData), analysis, decisions, { ensureDayShape });
-    setFormData(normalizeInspectionForm(form));
+    const nextForm = normalizeInspectionForm(form);
+    setFormData(nextForm);
     setPhotoAutofillOpen(false);
+
+    // Destino "workspace": salva a vistoria agora (a troca de aba desmonta o
+    // wizard) e entrega os arquivos + decisoes ao modulo Relatorios.
+    const files = filesByKey instanceof Map ? [...filesByKey.values()] : [];
+    if (destinations?.workspace?.enabled && typeof onPhotoImportHandoff === 'function' && files.length > 0) {
+      try {
+        const id = String(nextForm.id || '').trim()
+          || (isEditing && String(initialData?.id || '').trim())
+          || buildInspectionId(nextForm.projetoId, nextForm.dataInicio, inspections)
+          || `VS-${Date.now()}`;
+        await saveInspection(buildInspectionPayload({ ...nextForm, id }, id), { merge: true, updatedBy: actorName });
+        clearDraft();
+        show(`Vistoria ${id} salva. Enviando ${files.length} foto(s) no modulo Relatorios.`, 'success');
+        onPhotoImportHandoff({
+          inspectionId: id,
+          projectId: nextForm.projetoId,
+          files,
+          assignmentsByFileKey: buildPhotoAssignments(analysis, decisions),
+          summary: {
+            photos: files.length,
+            days: analysis?.days?.length || 0,
+            towers: analysis?.stats?.towers || 0,
+            dateRange: analysis?.dateRange || null,
+          },
+        });
+        onSaved?.();
+        return;
+      } catch (error) {
+        show(error?.message || 'Erro ao salvar a vistoria antes de enviar as fotos.', 'error');
+      }
+    }
+
     setStep(2);
     const firstTouched = (form.detalhesDias || []).find((day) => (day?.torresDetalhadas || []).length > 0);
     if (firstTouched?.data) setExpandedDay(firstTouched.data);
@@ -2086,11 +2120,21 @@ function InspectionFormWizardModal({
 
       {photoAutofillOpen ? (
         <div className="relative z-[110]">
-          <InspectionPhotoAutofillModal
+          <CampaignPhotoIntakeModal
             open={photoAutofillOpen}
             project={selectedProject}
             currentForm={formData}
             feriadosIndex={feriadosIndex}
+            destinations={{
+              diary: { available: true, enabled: true, locked: true, hint: 'Os dias e torres das fotos entram neste diario ao aplicar.' },
+              workspace: {
+                available: typeof onPhotoImportHandoff === 'function',
+                enabled: false,
+                locked: false,
+                options: [],
+                hint: 'A vistoria e salva agora e as fotos seguem para o modulo Relatorios, onde voce escolhe ou cria o workspace vinculado.',
+              },
+            }}
             onCancel={() => setPhotoAutofillOpen(false)}
             onApply={handleApplyPhotoAutofill}
           />
