@@ -325,6 +325,15 @@ a origem da URL — no homelab o MinIO publico fica sob o mesmo host do app (Cad
 
 ---
 
+## Corte do rodape da marca d'agua (lightbox)
+
+As fotos de campo saem do Timestamp Camera com a marca d'agua queimada nos pixels; a ultima linha e o rotulo de torre e as vezes vem errado. No lightbox de curadoria (`PhotoPreviewModal`, painel "Cortar rodape da marca d'agua", atalho `C`) o curador escolhe a faixa (padrao 45 px = 1 linha em fotos 1920x1080; preset 90 px = 2 linhas) com pre-visualizacao sobre a foto e dispara `POST /report-workspaces/:id/photos/:photoId/crop-footer`.
+
+- Backend: `utils/photoFooterCrop.js` (`cropPhotoFooter` / `undoPhotoFooterCrop`) sobre `utils/imageCrop.cropBottomBand` (auto-orient + `withMetadata()`, que mantem o marcador Exif/JFIF exigido pelo python-docx).
+- O binario e sobrescrito no **mesmo** `storage_key`; a curadoria (legenda, torre, include, GPS) vive nas colunas de `report_photos` e nao muda. O `media_asset` recebe sha256/size novos.
+- Antes de cortar, o original vai para um objeto irmao `<storage_key>.orig-<timestamp>` (sem linha em `media_assets`) e a operacao fica em `report_photos.payload.cropHistory[]` (`{ at, by, pixels, percent, backup, prevSha256, newSha256 }`). "Desfazer corte" regrava o original e apaga o backup. Backups acumulam no bucket ate uma retencao propria (follow-up em `utils/retentionConfig.js`).
+- Frontend: apos cortar/desfazer, `ReportsView` substitui a foto na lista e invalida o object URL em `photoPreviewUrls` para thumb e lightbox baixarem o binario novo.
+
 ## Referencias
 
 - API HTTP: [api-backend.md](api-backend.md)

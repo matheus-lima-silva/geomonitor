@@ -515,6 +515,8 @@ Tabela: `report_photos` com campos `deleted_at` (lixeira) e `archived_at` (arqui
 | GET | `/api/report-workspaces/:id/photos` | `requireWorkspaceRead` | Lista fotos ativas |
 | GET | `/api/report-workspaces/:id/photos/trash` | `requireWorkspaceRead` | Lista fotos na lixeira |
 | PUT | `/api/report-workspaces/:id/photos/:photoId` | `requireWorkspaceWrite` | Atualiza metadata (curadoria) |
+| POST | `/api/report-workspaces/:id/photos/:photoId/crop-footer` | `requireWorkspaceWrite` | Corta o rodape da marca d'agua da foto (body `{ data: { pixels: 1..400 } }` ou `{ percent: 0..0.4 }`); guarda backup do original no bucket (`<storage_key>.orig-<ts>`), atualiza sha/size do `media_asset` e registra em `payload.cropHistory[]`. Devolve a foto com `_links.cropFooterUndo`. 422 `CROP_FAILED` se a faixa cobrir a imagem |
+| POST | `/api/report-workspaces/:id/photos/:photoId/crop-footer/undo` | `requireWorkspaceWrite` | Desfaz o ultimo corte: restaura o original do backup, remove a entrada do historico e apaga o backup. 409 `NO_CROP_HISTORY` / `BACKUP_UNAVAILABLE` |
 | POST | `/api/report-workspaces/:id/photos/:photoId/trash` | `requireWorkspaceWrite` | Move foto para lixeira |
 | POST | `/api/report-workspaces/:id/photos/:photoId/restore` | `requireWorkspaceWrite` | Restaura da lixeira |
 | POST | `/api/report-workspaces/:id/photos/:photoId/archive` | `requireWorkspaceWrite` | Arquiva (imutavel) a partir da lixeira |
