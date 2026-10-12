@@ -6,9 +6,10 @@ import {
   GAP_DAY_REASONS,
   analyzePhotoCampaign,
   buildDefaultDecisions,
+  buildFileKey,
   mergeAnalysisIntoForm,
 } from '../../../utils/photoCampaign/photoCampaignAnalysis';
-import { toBrDate } from '../utils/inspectionWorkflow';
+import { toBrDate } from '../../inspections/utils/inspectionWorkflow';
 
 /**
  * "Preencher vistoria pelas fotos": le o EXIF das fotos da campanha no
@@ -29,8 +30,18 @@ function isJpegFile(file) {
   return /\.jpe?g$/i.test(String(file?.name || ''));
 }
 
-function fileKey(file) {
-  return `${file?.webkitRelativePath || file?.name || 'foto'}|${file?.size || 0}|${file?.lastModified || 0}`;
+const fileKey = buildFileKey;
+
+const DEFAULT_DESTINATIONS = {
+  diary: { available: true, enabled: true, locked: true, options: [], value: '' },
+  workspace: { available: false, enabled: false, locked: false, options: [], value: '', allowCreate: false },
+};
+
+function normalizeDestinations(config) {
+  const source = config && typeof config === 'object' ? config : {};
+  const diary = { ...DEFAULT_DESTINATIONS.diary, ...(source.diary || {}) };
+  const workspace = { ...DEFAULT_DESTINATIONS.workspace, ...(source.workspace || {}) };
+  return { diary, workspace };
 }
 
 function supportsDirectoryPicker() {
@@ -98,7 +109,7 @@ async function readAllMetas(files, readExifMeta, { onProgress, isCancelled }) {
   return results.filter(Boolean);
 }
 
-export default function InspectionPhotoAutofillModal({
+export default function CampaignPhotoIntakeModal({
   open,
   project,
   currentForm,
@@ -106,8 +117,12 @@ export default function InspectionPhotoAutofillModal({
   onCancel,
   onApply,
   readExifMeta = readExifMetaFromFile,
+  // Destinos da captacao (ver DEFAULT_DESTINATIONS). O wizard trava o diario e
+  // oferece o workspace como opcional; o import do workspace faz o inverso.
+  destinations: destinationsConfig = null,
 }) {
   const [stage, setStage] = useState('pick');
+  const [destinations, setDestinations] = useState(() => normalizeDestinations(destinationsConfig));
   const [files, setFiles] = useState([]);
   const [ignoredCount, setIgnoredCount] = useState(0);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -134,8 +149,9 @@ export default function InspectionPhotoAutofillModal({
     setShowInfoDivergences(false);
     setConfirmedStack([]);
     setConfirmPending(false);
+    setDestinations(normalizeDestinations(destinationsConfig));
     return undefined;
-  }, [open]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const existingTowersByDate = useMemo(() => {
     const map = new Map();
@@ -253,13 +269,113 @@ export default function InspectionPhotoAutofillModal({
     });
   }
 
+  const includedPhotoCount = useMemo(() => {
+    if (!analysis || !decisions) return 0;
+    let count = 0;
+    for (const day of analysis.days) {
+      for (const group of day.towers) {
+        if (decisions.towers[group.key]?.include) count += group.count;
+      }
+      count += day.unresolved.length;
+    }
+    return count + (analysis.undated?.length || 0);
+  }, [analysis, decisions]);
+
+  const diaryOn = destinations.diary.available && destinations.diary.enabled;
+  const workspaceOn = destinations.workspace.available && destinations.workspace.enabled;
+
+  function updateDestination(key, patch) {
+    setDestinations((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+  }
+
   function handleApply() {
     if (!analysis || !decisions) return;
     if (pendingConflicts.length > 0 && !confirmPending) {
       setConfirmPending(true);
       return;
     }
-    onApply?.({ analysis, decisions });
+    // Os File ficam so no estado do modal: entrega um mapa chave -> File para
+    // quem for subir as fotos depois (o estado e limpo ao fechar).
+    const filesByKey = new Map(files.map((file) => [fileKey(file), file]));
+    onApply?.({
+      analysis,
+      decisions,
+      filesByKey,
+      destinations: {
+        diary: { enabled: diaryOn, value: destinations.diary.value || '' },
+        workspace: { enabled: workspaceOn, value: destinations.workspace.value || '' },
+      },
+    });
+  }
+
+  function renderDestinations() {
+    // Sem configuracao explicita o modal e so "preencher o diario" (sem bloco).
+    if (!destinationsConfig) return null;
+    const { diary, workspace } = destinations;
+    if (!diary.available && !workspace.available) return null;
+    const diaryOptions = Array.isArray(diary.options) ? diary.options : [];
+    const workspaceOptions = Array.isArray(workspace.options) ? workspace.options : [];
+    return (
+      <section aria-label="Destinos" className="flex flex-col gap-2" data-testid="photo-intake-destinations">
+        <span className="text-2xs font-bold uppercase tracking-wide text-slate-500">Destinos</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {diary.available ? (
+            <div className={`flex gap-3 rounded-xl border p-3 ${diary.enabled ? 'border-info-border bg-info-light' : 'border-slate-200 bg-white'}`}>
+              <Checkbox
+                id="photo-intake-dest-diary"
+                checked={Boolean(diary.enabled)}
+                disabled={Boolean(diary.locked)}
+                aria-label="Preencher o diário da vistoria"
+                onChange={(event) => updateDestination('diary', { enabled: event.target.checked })}
+                className="mt-0.5"
+              />
+              <div className="flex-1 min-w-0 flex flex-col gap-2">
+                <label htmlFor="photo-intake-dest-diary" className="text-sm font-semibold text-slate-800">Preencher o diário da vistoria</label>
+                {diaryOptions.length > 0 ? (
+                  <Select
+                    id="photo-intake-dest-diary-target"
+                    aria-label="Vistoria de destino"
+                    value={diary.value || ''}
+                    disabled={!diary.enabled || Boolean(diary.locked)}
+                    onChange={(event) => updateDestination('diary', { value: event.target.value })}
+                  >
+                    {diaryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </Select>
+                ) : null}
+                <span className="text-xs text-slate-500">{diary.hint || 'Dias e torres entram no diário; clima e hotel continuam manuais.'}</span>
+              </div>
+            </div>
+          ) : null}
+          {workspace.available ? (
+            <div className={`flex gap-3 rounded-xl border p-3 ${workspace.enabled ? 'border-info-border bg-info-light' : 'border-slate-200 bg-white'}`}>
+              <Checkbox
+                id="photo-intake-dest-workspace"
+                checked={Boolean(workspace.enabled)}
+                disabled={Boolean(workspace.locked)}
+                aria-label="Enviar fotos para o workspace de relatório"
+                onChange={(event) => updateDestination('workspace', { enabled: event.target.checked })}
+                className="mt-0.5"
+              />
+              <div className="flex-1 min-w-0 flex flex-col gap-2">
+                <label htmlFor="photo-intake-dest-workspace" className="text-sm font-semibold text-slate-800">Enviar fotos para o workspace de relatório</label>
+                {workspaceOptions.length > 0 ? (
+                  <Select
+                    id="photo-intake-dest-workspace-target"
+                    aria-label="Workspace de destino"
+                    value={workspace.value || ''}
+                    disabled={!workspace.enabled || Boolean(workspace.locked)}
+                    onChange={(event) => updateDestination('workspace', { value: event.target.value })}
+                  >
+                    {workspaceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </Select>
+                ) : null}
+                <span className="text-xs text-slate-500">{workspace.hint || 'Cada foto sobe com torre, data da foto e origem da torre (etiqueta EXIF, pasta ou GPS).'}</span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </section>
+    );
   }
 
   const projectLabel = project ? `${project.id}${project.nome ? ` — ${project.nome}` : ''}` : '';
@@ -547,6 +663,8 @@ export default function InspectionPhotoAutofillModal({
           {stats.unresolved > 0 ? <Badge tone="warning">Fotos sem torre: {stats.unresolved}</Badge> : null}
         </div>
 
+        {renderDestinations()}
+
         {renderDivergences()}
 
         <div className="flex items-center gap-2">
@@ -573,7 +691,11 @@ export default function InspectionPhotoAutofillModal({
   const footer = (
     <div className="flex w-full flex-wrap items-center gap-2">
       {stage === 'review' ? (
-        <span className="text-xs text-slate-500">Clima, hotel e observações não são alterados. Nada é salvo até você salvar a vistoria.</span>
+        <span className="text-xs text-slate-500">
+          {workspaceOn
+            ? 'As fotos sobem para o workspace ao aplicar. Clima, hotel e observações não são alterados.'
+            : 'Clima, hotel e observações não são alterados. Nada é salvo até você salvar a vistoria.'}
+        </span>
       ) : null}
       <span className="flex-1" />
       {stage === 'pick' ? (
@@ -589,9 +711,17 @@ export default function InspectionPhotoAutofillModal({
       {stage === 'review' && !confirmPending ? (
         <>
           <Button variant="ghost" onClick={() => setStage('pick')}>Voltar</Button>
-          <Button variant="primary" onClick={handleApply} disabled={includedCount === 0}>
-            <AppIcon name="check" className="w-4 h-4" aria-hidden="true" />
-            Aplicar ao diário — {pluralize(includedCount, 'torre', 'torres')} em {pluralize(daysWithIncluded, 'dia', 'dias')}
+          <Button
+            variant="primary"
+            onClick={handleApply}
+            disabled={(!diaryOn && !workspaceOn) || (diaryOn && !workspaceOn && includedCount === 0) || (workspaceOn && includedPhotoCount === 0)}
+          >
+            <AppIcon name={workspaceOn ? 'upload' : 'check'} className="w-4 h-4" aria-hidden="true" />
+            {diaryOn && workspaceOn
+              ? `Aplicar ao diário e enviar ${pluralize(includedPhotoCount, 'foto', 'fotos')}`
+              : workspaceOn
+                ? `Enviar ${pluralize(includedPhotoCount, 'foto', 'fotos')} para o workspace`
+                : `Aplicar ao diário — ${pluralize(includedCount, 'torre', 'torres')} em ${pluralize(daysWithIncluded, 'dia', 'dias')}`}
           </Button>
         </>
       ) : null}

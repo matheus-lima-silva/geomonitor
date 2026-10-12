@@ -5,7 +5,7 @@ import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea } from 
 import { saveInspection } from '../../../services/inspectionService';
 import { getProjectTowerList } from '../../../utils/getProjectTowerList';
 import { mergeAnalysisIntoForm } from '../../../utils/photoCampaign/photoCampaignAnalysis';
-import InspectionPhotoAutofillModal from './InspectionPhotoAutofillModal';
+import CampaignPhotoIntakeModal from '../../reports/components/CampaignPhotoIntakeModal';
 import { postCalculoErosao, saveErosion } from '../../../services/erosionService';
 import { useLocalStorageDraft } from '../../../hooks/useLocalStorageDraft';
 import { useToast } from '../../../context/ToastContext';
@@ -2086,7 +2086,7 @@ function InspectionFormWizardModal({
 
       {photoAutofillOpen ? (
         <div className="relative z-[110]">
-          <InspectionPhotoAutofillModal
+          <CampaignPhotoIntakeModal
             open={photoAutofillOpen}
             project={selectedProject}
             currentForm={formData}
