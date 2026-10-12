@@ -659,3 +659,85 @@ export function mergeAnalysisIntoForm(form, analysis, decisions, { ensureDayShap
     },
   };
 }
+
+// ── Ponte com o upload de fotos do workspace ────────────────────────────────
+
+/** Chave estavel de um File do navegador (mesma usada pela analise). */
+export function buildFileKey(file) {
+  return `${file?.webkitRelativePath || file?.name || 'foto'}|${file?.size || 0}|${file?.lastModified || 0}`;
+}
+
+/**
+ * Converte a data local do EXIF ("YYYY-MM-DDTHH:MM:SS", sem fuso) em ISO com o
+ * offset do navegador, para `capture_at` (TIMESTAMPTZ) guardar o instante certo.
+ * O servidor roda em UTC: mandar a string sem offset deslocaria a hora.
+ */
+export function toIsoWithLocalOffset(capturedAt) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(String(capturedAt || '').trim());
+  if (!match) return null;
+  const [, y, mo, d, h, mi, s = '00'] = match;
+  const date = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+export const TOWER_SOURCE_BY_RESOLUTION = Object.freeze({
+  label: 'exif_label',
+  folder: 'folder_path',
+  gps: 'gps_nearest',
+});
+
+/**
+ * Decide, foto a foto, o que o upload do workspace deve gravar: torre final (ja
+ * com conflitos confirmados aplicados), origem da torre, data da foto em ISO com
+ * offset e GPS. `include:false` marca fotos cujo grupo foi desmarcado na revisao.
+ */
+export function buildPhotoAssignments(analysis, decisions) {
+  const towersDecisions = decisions?.towers || {};
+  const divergenceDecisions = decisions?.divergences || {};
+  const conflictByGroup = new Map();
+  for (const divergence of analysis?.divergences || []) {
+    if (divergence.kind === 'label_conflict') conflictByGroup.set(`${divergence.date}|${divergence.numero}`, divergence);
+  }
+
+  const assignments = {};
+  const assign = (photo, overrides) => {
+    assignments[photo.key] = {
+      towerId: null,
+      towerSource: 'pending',
+      captureAt: toIsoWithLocalOffset(photo.capturedAt),
+      gpsLat: Number.isFinite(Number(photo.gpsLat)) && photo.gpsLat !== null ? Number(photo.gpsLat) : null,
+      gpsLon: Number.isFinite(Number(photo.gpsLon)) && photo.gpsLon !== null ? Number(photo.gpsLon) : null,
+      include: true,
+      ...overrides,
+    };
+  };
+
+  for (const day of analysis?.days || []) {
+    for (const group of day.towers) {
+      const decision = towersDecisions[group.key] || { include: group.defaultIncluded, numero: group.numero };
+      const conflict = conflictByGroup.get(group.key);
+      const conflictDecision = conflict ? divergenceDecisions[conflict.id] : null;
+      const confirmedNumero = conflict && conflictDecision?.status === 'confirmed' && conflictDecision.numero
+        ? normalizeTowerKey(conflictDecision.numero)
+        : null;
+      const conflictKeys = new Set(conflict?.photoKeys || []);
+      for (const photo of group.photos) {
+        const isConflictPhoto = Boolean(confirmedNumero) && conflictKeys.has(photo.key) && confirmedNumero !== normalizeTowerKey(group.numero);
+        assign(photo, {
+          towerId: isConflictPhoto ? confirmedNumero : (decision.numero || group.numero),
+          towerSource: isConflictPhoto ? 'gps_nearest' : (TOWER_SOURCE_BY_RESOLUTION[photo.source] || 'pending'),
+          include: Boolean(decision.include),
+        });
+      }
+    }
+    for (const photo of day.unresolved) assign(photo, { include: true });
+  }
+  for (const photo of analysis?.undated || []) {
+    assign(photo, {
+      towerId: photo.tower || null,
+      towerSource: photo.tower ? (TOWER_SOURCE_BY_RESOLUTION[photo.source] || 'pending') : 'pending',
+      include: true,
+    });
+  }
+  return assignments;
+}

@@ -84,7 +84,8 @@ import {
   triggerBlobDownload,
   triggerUrlDownload,
 } from '../utils/reportUtils';
-import { readGpsFromFile } from '../../../utils/exifGps';
+import { readExifMetaFromFile } from '../../../utils/photoCampaign/exifMeta';
+import { buildFileKey, toIsoWithLocalOffset } from '../../../utils/photoCampaign/photoCampaignAnalysis';
 import { parseCaptionsFile } from '../utils/captionsIO';
 import BibliotecaTab from './BibliotecaTab';
 import CompoundsTab from './CompoundsTab';
@@ -695,29 +696,51 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
     if (metadata.skipPhotoRegistration) return { mediaAssetId: mediaAsset?.id, photoId: null };
 
     const photoId = `RPH-${Date.now()}-${index}-${Math.random().toString(16).slice(2, 8)}`;
-    const inferredTowerId = metadata.inferredTowerId || '';
-    // Captura a coordenada do EXIF da propria foto (fotos soltas / subpastas nao
-    // trazem placemark como o KMZ). Best-effort: sem EXIF/GPS o upload segue sem
-    // coordenada. O backend popula geom + distance_to_tower_m via PostGIS ao salvar.
-    const gps = await readGpsFromFile(file);
+    // Metadados do EXIF da propria foto (fotos soltas / subpastas nao trazem
+    // placemark como o KMZ): GPS e data da captura. Best-effort: sem EXIF o
+    // upload segue sem coordenada/data. A captacao da campanha pode mandar os
+    // valores ja resolvidos em `metadata` (torre, origem, captureAt, GPS), que
+    // tem precedencia. O backend popula geom + distance_to_tower_m via PostGIS.
+    const exif = metadata.captureAt !== undefined || metadata.gpsLat !== undefined
+      ? null
+      : await readExifMetaFromFile(file);
+    const towerId = String(metadata.towerId || metadata.inferredTowerId || '').trim();
+    const towerSource = towerId ? (metadata.towerSource || 'folder_path') : 'pending';
+    const captureAt = metadata.captureAt !== undefined
+      ? metadata.captureAt
+      : toIsoWithLocalOffset(exif?.capturedAt);
+    const gpsLat = metadata.gpsLat !== undefined ? metadata.gpsLat : exif?.gpsLat;
+    const gpsLon = metadata.gpsLon !== undefined ? metadata.gpsLon : exif?.gpsLon;
+    const hasGps = Number.isFinite(Number(gpsLat)) && Number.isFinite(Number(gpsLon)) && gpsLat !== null && gpsLon !== null;
     await saveReportWorkspacePhoto(workspace.id, photoId, {
       mediaAssetId: mediaAsset?.id,
       caption: buildDefaultCaption(file.name),
       includeInReport: false,
-      curationStatus: inferredTowerId ? 'reviewed' : 'uploaded',
+      curationStatus: towerId ? 'reviewed' : 'uploaded',
       importSource,
-      towerId: inferredTowerId || undefined,
-      towerSource: inferredTowerId ? 'folder_path' : 'pending',
-      ...(gps ? { gpsLat: gps.gpsLat, gpsLon: gps.gpsLon } : {}),
+      towerId: towerId || undefined,
+      towerSource,
+      ...(captureAt ? { captureAt } : {}),
+      ...(hasGps ? { gpsLat: Number(gpsLat), gpsLon: Number(gpsLon) } : {}),
     }, { updatedBy: userEmail || 'web' });
 
-    return { mediaAssetId: mediaAsset?.id, photoId };
+    return { mediaAssetId: mediaAsset?.id, photoId, towerId, towerSource };
   }
 
-  async function handleImportWorkspace() {
-    if (!workspaceImportTargetId) { showToast('Selecione um workspace para importar as fotos.', 'error'); return; }
-    if (pendingFiles.length === 0) { showToast('Selecione ao menos um arquivo para importar.', 'error'); return; }
-    const workspace = workspaces.find((item) => item.id === workspaceImportTargetId);
+  // `options` permite a captacao da campanha (CampaignPhotoIntakeModal) injetar
+  // os arquivos e as decisoes por foto sem passar pelo estado `pendingFiles`:
+  //   { files, importSource, assignmentsByFileKey, workspaceId }
+  // `assignmentsByFileKey[buildFileKey(file)] = { towerId, towerSource, captureAt, gpsLat, gpsLon, include }`.
+  async function handleImportWorkspace(options = {}) {
+    const targetId = String(options.workspaceId || workspaceImportTargetId || '').trim();
+    const files = Array.isArray(options.files) ? options.files : pendingFiles;
+    const importSource = String(options.importSource || workspaceImportMode || 'loose_photos');
+    const assignmentsByFileKey = options.assignmentsByFileKey && typeof options.assignmentsByFileKey === 'object'
+      ? options.assignmentsByFileKey
+      : null;
+    if (!targetId) { showToast('Selecione um workspace para importar as fotos.', 'error'); return; }
+    if (files.length === 0) { showToast('Selecione ao menos um arquivo para importar.', 'error'); return; }
+    const workspace = workspaces.find((item) => item.id === targetId);
     if (!workspace) { showToast('Workspace alvo nao encontrado.', 'error'); return; }
 
     try {
@@ -725,8 +748,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
       const uploadedMediaIds = [];
       const warnings = [];
 
-      if (workspaceImportMode === 'organized_kmz') {
-        const kmzFile = pendingFiles[0];
+      if (importSource === 'organized_kmz') {
+        const kmzFile = files[0];
         setUploadProgress({ total: 1, completed: 0, currentFileName: String(kmzFile?.name || '') });
         const uploaded = await uploadWorkspaceFile(kmzFile, workspace, 0, 'organized_kmz', { purpose: 'workspace-import', skipPhotoRegistration: true });
         uploadedMediaIds.push(uploaded.mediaAssetId);
@@ -742,7 +765,13 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
         const fingerprintByFile = new Map();
         const filesToProcess = [];
         let skippedCount = 0;
-        for (const file of pendingFiles) {
+        let excludedCount = 0;
+        for (const file of files) {
+          // Fotos desmarcadas na revisao da captacao nao sobem.
+          if (assignmentsByFileKey && assignmentsByFileKey[buildFileKey(file)]?.include === false) {
+            excludedCount += 1;
+            continue;
+          }
           const fp = fingerprintFile(file);
           fingerprintByFile.set(file, fp);
           if (fp && completedSet.has(fp)) {
@@ -753,6 +782,9 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
         }
         if (skippedCount > 0) {
           showToast(`${skippedCount} foto(s) ja foram enviadas anteriormente e serao ignoradas.`, 'info');
+        }
+        if (excludedCount > 0) {
+          showToast(`${excludedCount} foto(s) desmarcadas na revisao nao serao enviadas.`, 'info');
         }
 
         if (filesToProcess.length === 0) {
@@ -771,6 +803,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
         let inferredTowerCount = 0;
         let pendingTowerCount = 0;
         let completedCount = 0;
+        const towerSourceCounts = {};
         const failedItems = [];
         // Reset failedFingerprints do run anterior — vamos re-tentar todas as falhas junto das novas.
         const completedFingerprints = Array.from(completedSet);
@@ -781,11 +814,21 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
           let lastErr;
           for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
             try {
-              const inferredTowerId = workspaceImportMode === 'tower_subfolders'
+              const assignment = assignmentsByFileKey ? assignmentsByFileKey[buildFileKey(file)] : null;
+              const inferredTowerId = !assignment && importSource === 'tower_subfolders'
                 ? inferTowerIdFromRelativePath(file.webkitRelativePath || file.name)
                 : '';
-              const uploaded = await uploadWorkspaceFile(file, workspace, index, workspaceImportMode, { inferredTowerId });
-              return { ok: true, uploaded, inferredTowerId };
+              const metadata = assignment
+                ? {
+                  towerId: assignment.towerId || '',
+                  towerSource: assignment.towerSource || 'pending',
+                  captureAt: assignment.captureAt ?? null,
+                  gpsLat: assignment.gpsLat ?? null,
+                  gpsLon: assignment.gpsLon ?? null,
+                }
+                : { inferredTowerId };
+              const uploaded = await uploadWorkspaceFile(file, workspace, index, importSource, metadata);
+              return { ok: true, uploaded, inferredTowerId: uploaded.towerId || inferredTowerId };
             } catch (err) {
               lastErr = err;
               const status = Number(err?.status) || 0;
@@ -819,8 +862,10 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
 
             if (result.ok) {
               uploadedMediaIds.push(result.uploaded.mediaAssetId);
+              const sourceKey = result.uploaded.towerSource || 'pending';
+              towerSourceCounts[sourceKey] = (towerSourceCounts[sourceKey] || 0) + 1;
               if (result.inferredTowerId) inferredTowerCount += 1;
-              else if (workspaceImportMode === 'tower_subfolders') pendingTowerCount += 1;
+              else if (importSource === 'tower_subfolders' || importSource === 'photo_campaign') pendingTowerCount += 1;
 
               if (fp && !completedFingerprints.includes(fp)) {
                 completedFingerprints.push(fp);
@@ -839,8 +884,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
 
         await Promise.all(Array.from({ length: Math.min(CONCURRENCY, filesToProcess.length) }, () => worker()));
 
-        if (workspaceImportMode === 'tower_subfolders' && pendingTowerCount > 0) {
-          warnings.push(`${pendingTowerCount} foto(s) ficaram sem torre inferida pelas subpastas.`);
+        if ((importSource === 'tower_subfolders' || importSource === 'photo_campaign') && pendingTowerCount > 0) {
+          warnings.push(`${pendingTowerCount} foto(s) ficaram sem torre identificada.`);
         }
         if (failedItems.length > 0) {
           warnings.push(`${failedItems.length} foto(s) falharam apos retries.`);
@@ -848,15 +893,17 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
 
         // Fecha a importacao mesmo com falhas parciais — summary reflete a realidade.
         await importReportWorkspace(workspace.id, {
-          sourceType: workspaceImportMode,
-          importSource: workspaceImportMode,
+          sourceType: importSource,
+          importSource,
           warnings,
           summaryJson: {
             filesReceived: filesToProcess.length,
             filesSkipped: skippedCount,
+            excludedCount,
             uploadedMediaIds,
             inferredTowerCount,
             pendingTowerCount,
+            towerSourceCounts,
             failedCount: failedItems.length,
           },
         }, { updatedBy: userEmail || 'web' });
@@ -865,8 +912,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
           // Sucesso total: limpa o registro persistido.
           clearImportState(workspace.id);
           showToast(
-            workspaceImportMode === 'tower_subfolders'
-              ? `Importacao concluida para ${uploadedMediaIds.length} foto(s), com ${inferredTowerCount} torre(s) inferida(s).`
+            importSource === 'tower_subfolders' || importSource === 'photo_campaign'
+              ? `Importacao concluida para ${uploadedMediaIds.length} foto(s), com ${inferredTowerCount} torre(s) identificada(s).`
               : `Upload concluido para ${uploadedMediaIds.length} foto(s).`,
             'success',
           );
