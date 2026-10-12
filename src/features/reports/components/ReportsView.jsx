@@ -85,7 +85,13 @@ import {
   triggerUrlDownload,
 } from '../utils/reportUtils';
 import { readExifMetaFromFile } from '../../../utils/photoCampaign/exifMeta';
-import { buildFileKey, toIsoWithLocalOffset } from '../../../utils/photoCampaign/photoCampaignAnalysis';
+import {
+  buildFileKey,
+  buildPhotoAssignments,
+  mergeAnalysisIntoForm,
+  toIsoWithLocalOffset,
+} from '../../../utils/photoCampaign/photoCampaignAnalysis';
+import { buildFeriadosIndex } from '../../shared/rulesConfig';
 import { parseCaptionsFile } from '../utils/captionsIO';
 import BibliotecaTab from './BibliotecaTab';
 import CompoundsTab from './CompoundsTab';
@@ -677,6 +683,58 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
       showToast(error?.message || 'Erro ao criar vistoria.', 'error');
       return null;
     }
+  }
+
+  const campaignFeriadosIndex = useMemo(() => buildFeriadosIndex(rulesConfig?.feriados), [rulesConfig]);
+
+  // Captacao unica (CampaignPhotoIntakeModal em modo workspace): sobe as fotos
+  // com torre/data do EXIF e, opcionalmente, preenche o diario de uma vistoria
+  // existente ou cria uma nova pelas fotos e vincula ao workspace.
+  async function handleCampaignIntakeApply({ analysis, decisions, filesByKey, destinations } = {}, { workspaceId } = {}) {
+    const targetId = String(workspaceId || workspaceImportTargetId || '').trim();
+    const workspace = workspaces.find((item) => item.id === targetId);
+    if (!workspace) { showToast('Workspace alvo nao encontrado.', 'error'); return; }
+    const files = filesByKey instanceof Map ? [...filesByKey.values()] : [];
+    if (!analysis || !decisions || files.length === 0) { showToast('Nenhuma foto para enviar.', 'error'); return; }
+
+    let linkedInspectionId = String(workspace.inspectionId || '').trim();
+    if (destinations?.diary?.enabled) {
+      try {
+        setBusy('campaign-diary');
+        let inspectionId = String(destinations.diary.value || '').trim();
+        let inspection = inspections.find((item) => item.id === inspectionId) || null;
+        if (!inspectionId || inspectionId === '__new__') {
+          const created = await handleCreateInspectionForClassification({
+            projetoId: workspace.projectId,
+            dataInicio: analysis.dateRange?.start || new Date().toISOString().slice(0, 10),
+            responsavel: userEmail || 'web',
+          });
+          if (!created?.id) { setBusy(''); return; }
+          inspectionId = created.id;
+          inspection = { id: inspectionId, projetoId: workspace.projectId, dataInicio: analysis.dateRange?.start || '', dataFim: '', status: 'aberta', detalhesDias: [] };
+        }
+        const { form, summary } = mergeAnalysisIntoForm(inspection || { id: inspectionId, projetoId: workspace.projectId, detalhesDias: [] }, analysis, decisions);
+        await saveInspection({ ...form, id: inspectionId, projetoId: form.projetoId || workspace.projectId }, { merge: true, updatedBy: userEmail || 'web' });
+        if (!linkedInspectionId) {
+          await updateReportWorkspace(workspace.id, { inspectionId }, { updatedBy: userEmail || 'web' });
+          linkedInspectionId = inspectionId;
+        }
+        showToast(`Diario da vistoria ${inspectionId} preenchido: ${summary.towersAdded} torre(s) em ${summary.daysTouched} dia(s).`, 'success');
+      } catch (error) {
+        showToast(error?.message || 'Erro ao preencher o diario da vistoria.', 'error');
+        setBusy('');
+        return;
+      } finally {
+        setBusy('');
+      }
+    }
+
+    await handleImportWorkspace({
+      workspaceId: workspace.id,
+      files,
+      importSource: 'photo_campaign',
+      assignmentsByFileKey: buildPhotoAssignments(analysis, decisions),
+    });
   }
 
   async function uploadWorkspaceFile(file, workspace, index, importSource, metadata = {}) {
@@ -1973,6 +2031,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
             busy={busy}
             handleCreateWorkspace={handleCreateWorkspace}
             handleImportWorkspace={handleImportWorkspace}
+            handleCampaignIntakeApply={handleCampaignIntakeApply}
+            campaignFeriadosIndex={campaignFeriadosIndex}
             handleSaveWorkspacePhoto={handleSaveWorkspacePhoto}
             handleMovePhotoToTrash={handleMovePhotoToTrash}
             handleCropPhotoFooter={handleCropPhotoFooter}
