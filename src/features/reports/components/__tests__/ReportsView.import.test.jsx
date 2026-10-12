@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ReportsView from '../ReportsView';
 import { importReportWorkspace, saveReportWorkspacePhoto, updateReportWorkspace } from '../../../../services/reportWorkspaceService';
 import { saveInspection } from '../../../../services/inspectionService';
+import { buildFileKey } from '../../../../utils/photoCampaign/photoCampaignAnalysis';
 
 // Linha sintetica: torre N em lat -20 + N * 0.003 (~333 m entre torres).
 const DEG_PER_M_LAT = 1 / 111320;
@@ -229,5 +230,58 @@ describe('ReportsView — captacao unica de fotos', () => {
     expect(merged.dataInicio).toBe('2026-03-30');
     expect(merged.dataFim).toBe('2026-09-22');
     expect(updateReportWorkspace).not.toHaveBeenCalled();
+  });
+
+  function pendingPayload(inspectionId) {
+    const file = fakeFile('a.jpg');
+    return {
+      inspectionId,
+      projectId: 'BMDOPR',
+      files: [file],
+      assignmentsByFileKey: {
+        [buildFileKey(file)]: { towerId: '5', towerSource: 'exif_label', captureAt: '2026-09-22T12:00:00.000Z', gpsLat: towerLat(5), gpsLon: -44, include: true },
+      },
+      summary: { photos: 1, days: 1, towers: 1, dateRange: { start: '2026-09-22', end: '2026-09-22' } },
+    };
+  }
+
+  it('handoff do wizard: com workspace ja vinculado a vistoria, envia direto para ele', async () => {
+    const onPhotoImportConsumed = vi.fn();
+    await act(async () => {
+      root.render(<ReportsView userEmail="curador@x" showToast={showToast} pendingPhotoImport={pendingPayload('VS-OLD')} onPhotoImportConsumed={onPhotoImportConsumed} />);
+      await Promise.resolve();
+    });
+    await flush(10);
+
+    expect(onPhotoImportConsumed).toHaveBeenCalledTimes(1);
+    expect(saveReportWorkspacePhoto).toHaveBeenCalledTimes(1);
+    expect(saveReportWorkspacePhoto.mock.calls[0][0]).toBe('RW-2');
+    expect(saveReportWorkspacePhoto.mock.calls[0][2]).toMatchObject({ towerId: '5', towerSource: 'exif_label', captureAt: '2026-09-22T12:00:00.000Z', importSource: 'photo_campaign' });
+    expect(updateReportWorkspace).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="rw-pending-campaign"]')).toBeNull();
+  });
+
+  it('handoff do wizard sem workspace vinculado: mostra o aviso, pre-preenche o rascunho e envia ao escolher o alvo, vinculando a vistoria', async () => {
+    await act(async () => {
+      root.render(<ReportsView userEmail="curador@x" showToast={showToast} pendingPhotoImport={pendingPayload('VS-NEW2')} onPhotoImportConsumed={vi.fn()} />);
+      await Promise.resolve();
+    });
+    await flush(4);
+
+    const banner = container.querySelector('[data-testid="rw-pending-campaign"]');
+    expect(banner).toBeTruthy();
+    expect(banner.textContent).toContain('1 foto(s) da vistoria VS-NEW2 aguardando envio');
+    // Nada e enviado sozinho: o usuario escolhe o alvo e confirma.
+    expect(saveReportWorkspacePhoto).not.toHaveBeenCalled();
+
+    changeSelect(container.querySelector('#rw-import-target'), 'RW-1');
+    await flush(2);
+    await click('Enviar 1 foto(s)');
+    await flush(10);
+
+    expect(saveReportWorkspacePhoto).toHaveBeenCalledTimes(1);
+    expect(saveReportWorkspacePhoto.mock.calls[0][0]).toBe('RW-1');
+    expect(updateReportWorkspace).toHaveBeenCalledWith('RW-1', { inspectionId: 'VS-NEW2' }, expect.anything());
+    expect(container.querySelector('[data-testid="rw-pending-campaign"]')).toBeNull();
   });
 });

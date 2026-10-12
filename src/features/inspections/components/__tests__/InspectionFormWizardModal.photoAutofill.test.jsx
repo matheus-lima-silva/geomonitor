@@ -174,4 +174,54 @@ describe('InspectionFormWizardModal — preencher pelas fotos', () => {
     expect(byDate['2026-09-26']).toEqual(['3']);
     expect(byDate['2026-09-28']).toEqual([]);
   });
+
+  it('com o destino workspace marcado, salva a vistoria e entrega arquivos e decisoes ao handoff', async () => {
+    const onPhotoImportHandoff = vi.fn();
+    act(() => {
+      root.render(
+        <InspectionsView
+          inspections={[]}
+          projects={[PROJECT]}
+          erosions={[]}
+          feriados={[]}
+          forcedProjectFilterId={null}
+          onClearForcedProjectFilter={vi.fn()}
+          searchTerm=""
+          planningDraft={null}
+          onPlanningDraftConsumed={vi.fn()}
+          onPhotoImportHandoff={onPhotoImportHandoff}
+        />,
+      );
+    });
+    await clickByText('Nova Vistoria');
+    changeInput(document.querySelector('#inspection-project'), 'BMDOPR');
+    await clickByText('Preencher pelas fotos', document.querySelector('[data-testid="photo-autofill-cta-step1"]'));
+
+    const input = document.querySelector('#inspection-photo-autofill-folder');
+    Object.defineProperty(input, 'files', { value: [fakeFile('sex.jpg'), fakeFile('sab.jpg')], configurable: true });
+    act(() => { input.dispatchEvent(new Event('change', { bubbles: true })); });
+    await clickByText('Analisar fotos');
+    await flush();
+
+    const destinations = document.querySelector('[data-testid="photo-intake-destinations"]');
+    expect(destinations.querySelector('#photo-intake-dest-diary').disabled).toBe(true);
+    act(() => { destinations.querySelector('#photo-intake-dest-workspace').click(); });
+    await clickByText('Aplicar ao diário e enviar 2 fotos');
+    await flush(4);
+
+    expect(saveInspectionMock).toHaveBeenCalledTimes(1);
+    const saved = saveInspectionMock.mock.calls[0][0];
+    expect(saved.projetoId).toBe('BMDOPR');
+    expect(saved.detalhesDias.map((d) => d.data)).toEqual(['2026-09-25', '2026-09-26']);
+
+    expect(onPhotoImportHandoff).toHaveBeenCalledTimes(1);
+    const payload = onPhotoImportHandoff.mock.calls[0][0];
+    expect(payload.inspectionId).toBe(saved.id);
+    expect(payload.projectId).toBe('BMDOPR');
+    expect(payload.files.map((f) => f.name)).toEqual(['sex.jpg', 'sab.jpg']);
+    expect(Object.keys(payload.assignmentsByFileKey)).toHaveLength(2);
+    expect(Object.values(payload.assignmentsByFileKey)[0]).toMatchObject({ towerId: '2', towerSource: 'exif_label', include: true });
+    expect(payload.summary).toMatchObject({ photos: 2, days: 2, towers: 2 });
+    expect(showMock).toHaveBeenCalledWith(expect.stringContaining('Enviando 2 foto(s) no modulo Relatorios'), 'success');
+  });
 });

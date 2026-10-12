@@ -92,6 +92,9 @@ export default function WorkspacesTab({
   handleImportWorkspace,
   handleCampaignIntakeApply,
   campaignFeriadosIndex,
+  pendingCampaignImport = null,
+  onSendPendingCampaign,
+  onDiscardPendingCampaign,
   handleSaveWorkspacePhoto,
   handleMovePhotoToTrash,
   handleCropPhotoFooter,
@@ -181,6 +184,11 @@ export default function WorkspacesTab({
   const [setupCreateOpen, setSetupCreateOpen] = useState(!selectedWorkspace);
   const [setupImportOpen, setSetupImportOpen] = useState(false);
   const [campaignIntakeOpen, setCampaignIntakeOpen] = useState(false);
+
+  // Fotos aguardando do wizard: abre o card de import para o usuario escolher o alvo.
+  useEffect(() => {
+    if (pendingCampaignImport) setSetupImportOpen(true);
+  }, [pendingCampaignImport]);
 
   // Destinos da captacao em modo workspace: alvo travado; diario opcional com a
   // vistoria vinculada (ou "criar nova pelas fotos") e as demais do projeto.
@@ -511,6 +519,33 @@ export default function WorkspacesTab({
             </div>
           ) : null}
         </div>
+
+        {/* Fotos vindas do wizard de vistoria aguardando workspace */}
+        {pendingCampaignImport ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning-border bg-warning-light px-4 py-3 mb-2" data-testid="rw-pending-campaign">
+            <AppIcon name="camera" size={18} className="text-warning" aria-hidden="true" />
+            <div className="flex-1 min-w-[220px]">
+              <strong className="block text-sm text-slate-800">
+                {pendingCampaignImport.files.length} foto(s) da vistoria {pendingCampaignImport.inspectionId} aguardando envio
+              </strong>
+              <span className="block text-xs text-slate-600">
+                Escolha o workspace alvo abaixo ou crie um novo (o rascunho ja veio preenchido) e envie. As fotos ficam so neste navegador ate o envio.
+              </span>
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => onSendPendingCampaign?.(workspaceImportTargetId)}
+              disabled={busy === 'workspace-import' || !workspaceImportTargetId}
+              title={!workspaceImportTargetId ? 'Selecione o workspace alvo primeiro.' : undefined}
+            >
+              <AppIcon name="upload" />
+              Enviar {pendingCampaignImport.files.length} foto(s)
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => onDiscardPendingCampaign?.()} disabled={busy === 'workspace-import'}>
+              Descartar
+            </Button>
+          </div>
+        ) : null}
 
         {/* Importar Fotos — colapsavel */}
         <div>

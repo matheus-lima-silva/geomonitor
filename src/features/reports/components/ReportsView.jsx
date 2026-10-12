@@ -92,6 +92,7 @@ import {
   toIsoWithLocalOffset,
 } from '../../../utils/photoCampaign/photoCampaignAnalysis';
 import { buildFeriadosIndex } from '../../shared/rulesConfig';
+import { toBrDate } from '../../inspections/utils/inspectionWorkflow';
 import { parseCaptionsFile } from '../utils/captionsIO';
 import BibliotecaTab from './BibliotecaTab';
 import CompoundsTab from './CompoundsTab';
@@ -99,7 +100,7 @@ import DossierTab from './DossierTab';
 import WorkspacesTab from './WorkspacesTab';
 import UnclassifiedWorkspacesModal from './UnclassifiedWorkspacesModal';
 
-export default function ReportsView({ userEmail = '', showToast = () => {}, onOpenErosionDraft = null }) {
+export default function ReportsView({ userEmail = '', showToast = () => {}, onOpenErosionDraft = null, pendingPhotoImport = null, onPhotoImportConsumed = null }) {
   const [tab, setTab] = useState('workspaces');
   const [projects, setProjects] = useState([]);
   const [workspaces, setWorkspaces] = useState([]);
@@ -686,6 +687,70 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
   }
 
   const campaignFeriadosIndex = useMemo(() => buildFeriadosIndex(rulesConfig?.feriados), [rulesConfig]);
+
+  // Handoff Vistorias -> Relatorios: o wizard salvou a vistoria e entregou os
+  // File + decisoes por foto. Guarda localmente (File nao vai para localStorage),
+  // pre-seleciona o projeto e pre-preenche o rascunho de "Criar workspace".
+  const [pendingCampaignImport, setPendingCampaignImport] = useState(null);
+  const pendingCampaignAutoSendRef = useRef('');
+
+  useEffect(() => {
+    if (!pendingPhotoImport) return;
+    const files = Array.isArray(pendingPhotoImport.files) ? pendingPhotoImport.files : [];
+    const range = pendingPhotoImport.summary?.dateRange || null;
+    const campaignName = range?.start
+      ? `Campanha ${toBrDate(range.start)}${range.end && range.end !== range.start ? ` – ${toBrDate(range.end)}` : ''}`
+      : 'Campanha de fotos';
+    setPendingCampaignImport({ ...pendingPhotoImport, files, campaignName });
+    pendingCampaignAutoSendRef.current = '';
+    if (pendingPhotoImport.projectId) setSelectedProjectId(pendingPhotoImport.projectId);
+    setWorkspaceDraft((prev) => ({
+      ...prev,
+      projectId: pendingPhotoImport.projectId || prev.projectId,
+      inspectionId: pendingPhotoImport.inspectionId || prev.inspectionId,
+      nome: String(prev.nome || '').trim() || campaignName,
+    }));
+    onPhotoImportConsumed?.();
+  }, [pendingPhotoImport]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleSendPendingCampaign(workspaceId) {
+    const pending = pendingCampaignImport;
+    const targetId = String(workspaceId || workspaceImportTargetId || '').trim();
+    if (!pending || !targetId) { showToast('Escolha o workspace de destino das fotos.', 'error'); return; }
+    const workspace = workspaces.find((item) => item.id === targetId);
+    if (!workspace) { showToast('Workspace alvo nao encontrado.', 'error'); return; }
+    setWorkspaceImportTargetId(targetId);
+    await handleImportWorkspace({
+      workspaceId: targetId,
+      files: pending.files,
+      importSource: 'photo_campaign',
+      assignmentsByFileKey: pending.assignmentsByFileKey || null,
+    });
+    if (!workspace.inspectionId && pending.inspectionId) {
+      try {
+        await updateReportWorkspace(targetId, { inspectionId: pending.inspectionId }, { updatedBy: userEmail || 'web' });
+      } catch (error) {
+        showToast(error?.message || 'Fotos enviadas, mas nao foi possivel vincular a vistoria ao workspace.', 'error');
+      }
+    }
+    setPendingCampaignImport(null);
+  }
+
+  function handleDiscardPendingCampaign() {
+    setPendingCampaignImport(null);
+    showToast('Envio das fotos da campanha descartado. A vistoria continua salva.', 'info');
+  }
+
+  // Ja existe workspace vinculado a vistoria? Envia direto, uma unica vez.
+  useEffect(() => {
+    if (!pendingCampaignImport?.inspectionId) return;
+    const linked = workspaces.find((item) => item.inspectionId === pendingCampaignImport.inspectionId && !item.deletedAt);
+    if (!linked) return;
+    const marker = `${pendingCampaignImport.inspectionId}|${linked.id}`;
+    if (pendingCampaignAutoSendRef.current === marker) return;
+    pendingCampaignAutoSendRef.current = marker;
+    handleSendPendingCampaign(linked.id);
+  }, [pendingCampaignImport, workspaces]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Captacao unica (CampaignPhotoIntakeModal em modo workspace): sobe as fotos
   // com torre/data do EXIF e, opcionalmente, preenche o diario de uma vistoria
@@ -2033,6 +2098,9 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
             handleImportWorkspace={handleImportWorkspace}
             handleCampaignIntakeApply={handleCampaignIntakeApply}
             campaignFeriadosIndex={campaignFeriadosIndex}
+            pendingCampaignImport={pendingCampaignImport}
+            onSendPendingCampaign={handleSendPendingCampaign}
+            onDiscardPendingCampaign={handleDiscardPendingCampaign}
             handleSaveWorkspacePhoto={handleSaveWorkspacePhoto}
             handleMovePhotoToTrash={handleMovePhotoToTrash}
             handleCropPhotoFooter={handleCropPhotoFooter}

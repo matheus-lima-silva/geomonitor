@@ -43,6 +43,7 @@ function InspectionsView({
   planningDraft,
   onPlanningDraftConsumed,
   onOpenErosionDraft,
+  onPhotoImportHandoff,
   loading = false,
 }) {
   const { user } = useAuth();
@@ -336,6 +337,7 @@ function InspectionsView({
           actorName={actorName}
           suggestedTowerInput={suggestedTowerInput}
           onOpenErosionDraft={onOpenErosionDraft}
+          onPhotoImportHandoff={onPhotoImportHandoff}
           onCancel={() => {
             setIsFormOpen(false);
             setSuggestedTowerInput('');
