@@ -18,6 +18,8 @@ const {
 const { asyncHandler } = require('../utils/asyncHandler');
 const { validateBody } = require('../middleware/validate');
 const { workspaceCreateSchema, workspaceUpdateSchema } = require('../schemas/reportWorkspaceSchemas');
+const { cropFooterSchema, cropUndoSchema } = require('../schemas/reportPhotoSchemas');
+const { PhotoCropError, cropPhotoFooter, undoPhotoFooterCrop } = require('../utils/photoFooterCrop');
 const {
     reportWorkspaceRepository,
     reportPhotoRepository,
@@ -116,6 +118,20 @@ function createWorkspacePhotoResponse(req, workspaceId, photo) {
             href: `${resolveApiBaseUrl(req)}/projects/${photo.projectId}/photos/${photoId}`,
             method: 'GET',
         };
+    }
+
+    // Corte do rodape da marca d'agua (lightbox). Undo so quando ha historico.
+    if (photo.mediaAssetId) {
+        extraLinks.cropFooter = {
+            href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}/photos/${photoId}/crop-footer`,
+            method: 'POST',
+        };
+        if (Array.isArray(photo.cropHistory) && photo.cropHistory.length > 0) {
+            extraLinks.cropFooterUndo = {
+                href: `${resolveApiBaseUrl(req)}/report-workspaces/${workspaceId}/photos/${photoId}/crop-footer/undo`,
+                method: 'POST',
+            };
+        }
     }
 
     return createResourceHateoasResponse(
@@ -760,6 +776,78 @@ router.put('/:id/photos/:photoId', verifyToken, requireEditor, requireWorkspaceW
         return res.status(500).json({ status: 'error', message: 'Erro ao salvar foto do workspace' });
     }
 });
+
+// ── Corte do rodape da marca d'agua (lightbox de curadoria) ───────────────────
+// Carrega workspace, foto e media_asset ou responde o erro adequado.
+async function loadPhotoCropContext(req, res) {
+    const workspaceId = normalizeText(req.params.id);
+    const photoId = normalizeText(req.params.photoId);
+    const workspace = await reportWorkspaceRepository.getById(workspaceId);
+    if (!workspace) {
+        res.status(404).json({ status: 'error', code: 'WORKSPACE_NOT_FOUND', message: 'Workspace nao encontrado' });
+        return null;
+    }
+    const photo = await reportPhotoRepository.getById(photoId);
+    if (!photo || normalizeText(photo.workspaceId) !== workspaceId) {
+        res.status(404).json({ status: 'error', code: 'PHOTO_NOT_FOUND', message: 'Foto nao encontrada neste workspace' });
+        return null;
+    }
+    const mediaAssetId = normalizeText(photo.mediaAssetId);
+    const asset = mediaAssetId ? await mediaAssetRepository.getById(mediaAssetId) : null;
+    if (!asset) {
+        res.status(400).json({ status: 'error', code: 'PHOTO_WITHOUT_MEDIA', message: 'Foto sem arquivo de midia disponivel para corte' });
+        return null;
+    }
+    return { workspaceId, photoId, workspace, photo, asset };
+}
+
+function respondPhotoCropError(res, error) {
+    if (error instanceof PhotoCropError) {
+        res.status(error.status).json({ status: 'error', code: error.code, message: error.message });
+        return true;
+    }
+    return false;
+}
+
+router.post('/:id/photos/:photoId/crop-footer', verifyToken, requireEditor, requireWorkspaceWrite, validateBody(cropFooterSchema), asyncHandler(async (req, res) => {
+    const context = await loadPhotoCropContext(req, res);
+    if (!context) return undefined;
+    const { data = {}, meta = {} } = req.body || {};
+    const actor = meta.updatedBy || req.user?.email || 'API';
+    try {
+        const result = await cropPhotoFooter({
+            photo: context.photo,
+            asset: context.asset,
+            pixels: data.pixels,
+            percent: data.percent,
+            actor,
+        });
+        return res.status(200).json({
+            status: 'success',
+            data: createWorkspacePhotoResponse(req, context.workspaceId, result.photo),
+        });
+    } catch (error) {
+        if (respondPhotoCropError(res, error)) return undefined;
+        throw error;
+    }
+}));
+
+router.post('/:id/photos/:photoId/crop-footer/undo', verifyToken, requireEditor, requireWorkspaceWrite, validateBody(cropUndoSchema), asyncHandler(async (req, res) => {
+    const context = await loadPhotoCropContext(req, res);
+    if (!context) return undefined;
+    const meta = req.body?.meta || {};
+    const actor = meta.updatedBy || req.user?.email || 'API';
+    try {
+        const result = await undoPhotoFooterCrop({ photo: context.photo, asset: context.asset, actor });
+        return res.status(200).json({
+            status: 'success',
+            data: createWorkspacePhotoResponse(req, context.workspaceId, result.photo),
+        });
+    } catch (error) {
+        if (respondPhotoCropError(res, error)) return undefined;
+        throw error;
+    }
+}));
 
 router.post('/:id/photos/organize', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {
     try {

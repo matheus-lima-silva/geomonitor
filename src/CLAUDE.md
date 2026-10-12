@@ -29,6 +29,7 @@ Precedente: o audit em `docs/ui/ui-audit-report.md` reduziu de **51 para 10** os
 - `Badge`: tones `ok` | `warning` | `danger` | `critical` | `neutral`. Para papeis de workspace seguir o padrao de [features/reports/components/WorkspaceMembersModal.jsx](features/reports/components/WorkspaceMembersModal.jsx): `amber` (owner), `sky` (editor), `slate` (viewer).
 - `EmptyState`: sempre com `icon + title + description + action`.
 - `Textarea`: auto-height; usar para campos multi-linha (nunca `<textarea>` cru). Variants `default` | `filled` (`filled` = fundo `app-surfaceMuted` + borda transparente, volta a branco no foco).
+- `RangeSlider`: padrao dual-handle (`value: [inicio, fim]`); com `single` vira um polegar (`value: number`, `onChange(number)`, `id`/`ariaLabel`, `step`, `formatLabel`). Nunca `<input type="range">` cru.
 - `Checkbox`: caixa + rotulo inline (`id` + `htmlFor`), `hint` opcional via `HintText`, sizes `sm` | `md`, `accent-brand-600` e focus ring. Sem `label`, exige `aria-label` (uso em linhas de lista). Nunca `<input type="checkbox">` cru.
 
 ## 3. Tailwind: so tokens
@@ -86,7 +87,7 @@ Nao criar componentes de feature fora dessa estrutura. Exemplo canonico: [featur
 
 Nunca importar de `lucide-react` diretamente em features/views. Fonte unica: [components/AppIcon.jsx](components/AppIcon.jsx).
 
-`AppIcon` mantem um `ICON_MAP` com **aliases semanticos** (`plus`, `save`, `edit`, `trash`, `close`, `check`, `alert`, `satellite`, `send`, `timer`, `calendar-clock`, `calendar-plus`, `calendar-check`, `arrow-up-right`, `dashboard-nav`, `projects-nav`, `licenses-nav`, `inspections-nav`, `erosions-nav`, `visit-nav`, `route-plan`, `map-pin`, `clock`, `hash`, `folder-input`, `radio-tower`, `file-plus-2`, `cloud-check`, `check-circle-2` etc.). Esses aliases padronizam o visual mesmo que o icone lucide subjacente mude.
+`AppIcon` mantem um `ICON_MAP` com **aliases semanticos** (`plus`, `save`, `edit`, `trash`, `close`, `check`, `alert`, `satellite`, `send`, `timer`, `calendar-clock`, `calendar-plus`, `calendar-check`, `arrow-up-right`, `dashboard-nav`, `projects-nav`, `licenses-nav`, `inspections-nav`, `erosions-nav`, `visit-nav`, `route-plan`, `map-pin`, `clock`, `hash`, `folder-input`, `radio-tower`, `file-plus-2`, `cloud-check`, `check-circle-2`, `crop` etc.). Esses aliases padronizam o visual mesmo que o icone lucide subjacente mude.
 
 Uso:
 

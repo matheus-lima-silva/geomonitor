@@ -54,6 +54,8 @@ import {
   subscribeReportWorkspaces,
   trashReportWorkspace,
   trashWorkspacePhoto,
+  cropWorkspacePhotoFooter,
+  undoWorkspacePhotoFooterCrop,
   updateReportWorkspace,
 } from '../../../services/reportWorkspaceService';
 import { listProfissoes, listSignatarios } from '../../../services/userService';
@@ -935,6 +937,64 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
       showToast('Foto movida para lixeira.', 'success');
     } catch (error) {
       showToast(error?.message || 'Erro ao mover foto para lixeira.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  // Corte do rodape da marca d'agua (lightbox): o binario muda no mesmo
+  // storage_key, entao o object URL em cache precisa ser invalidado para a
+  // thumb e o lightbox baixarem a imagem nova.
+  function invalidatePhotoPreview(photoId) {
+    setPhotoPreviewUrls((prev) => {
+      if (!prev[photoId]) return prev;
+      if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(prev[photoId]);
+      const next = { ...prev };
+      delete next[photoId];
+      return next;
+    });
+    setPhotoPreviewFailed((prev) => {
+      if (!prev[photoId]) return prev;
+      const next = { ...prev };
+      delete next[photoId];
+      return next;
+    });
+    photoPreviewInflight.current.delete(photoId);
+  }
+
+  function replaceWorkspacePhoto(nextPhoto) {
+    if (!nextPhoto?.id) return;
+    setWorkspacePhotos((prev) => prev.map((p) => (p.id === nextPhoto.id ? { ...p, ...nextPhoto } : p)));
+  }
+
+  async function handleCropPhotoFooter(photoId, band = {}) {
+    const normalizedPhotoId = String(photoId || '').trim();
+    if (!normalizedPhotoId || !selectedWorkspace) return;
+    try {
+      setBusy(`photo-crop:${normalizedPhotoId}`);
+      const response = await cropWorkspacePhotoFooter(selectedWorkspace.id, normalizedPhotoId, band, { updatedBy: userEmail });
+      replaceWorkspacePhoto(response?.data);
+      invalidatePhotoPreview(normalizedPhotoId);
+      const label = band?.pixels ? `${band.pixels} px` : `${Math.round((band?.percent || 0) * 100)}%`;
+      showToast(`Rodape cortado (${label}).`, 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao cortar o rodape da foto.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleUndoPhotoFooterCrop(photoId) {
+    const normalizedPhotoId = String(photoId || '').trim();
+    if (!normalizedPhotoId || !selectedWorkspace) return;
+    try {
+      setBusy(`photo-crop:${normalizedPhotoId}`);
+      const response = await undoWorkspacePhotoFooterCrop(selectedWorkspace.id, normalizedPhotoId, { updatedBy: userEmail });
+      replaceWorkspacePhoto(response?.data);
+      invalidatePhotoPreview(normalizedPhotoId);
+      showToast('Corte desfeito: original restaurado.', 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao desfazer o corte.', 'error');
     } finally {
       setBusy('');
     }
@@ -1868,6 +1928,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
             handleImportWorkspace={handleImportWorkspace}
             handleSaveWorkspacePhoto={handleSaveWorkspacePhoto}
             handleMovePhotoToTrash={handleMovePhotoToTrash}
+            handleCropPhotoFooter={handleCropPhotoFooter}
+            handleUndoPhotoFooterCrop={handleUndoPhotoFooterCrop}
             onCreateErosionFromPhoto={handleCreateErosionFromPhoto}
             handleRestorePhoto={handleRestorePhoto}
             handleRestoreAllTrashedPhotos={handleRestoreAllTrashedPhotos}

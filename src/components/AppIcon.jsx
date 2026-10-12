@@ -11,6 +11,7 @@ import CalendarPlus from 'lucide-react/dist/esm/icons/calendar-plus';
 import Clock from 'lucide-react/dist/esm/icons/clock';
 import Bold from 'lucide-react/dist/esm/icons/bold';
 import Camera from 'lucide-react/dist/esm/icons/camera';
+import Crop from 'lucide-react/dist/esm/icons/crop';
 import Image from 'lucide-react/dist/esm/icons/image';
 import ImageOff from 'lucide-react/dist/esm/icons/image-off';
 import Building2 from 'lucide-react/dist/esm/icons/building-2';
@@ -159,6 +160,7 @@ const ICON_MAP = {
   mail: Mail,
   undo: Undo2,
   camera: Camera,
+  crop: Crop,
   image: Image,
   photo: Image,
   'image-off': ImageOff,

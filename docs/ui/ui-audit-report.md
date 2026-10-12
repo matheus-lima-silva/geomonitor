@@ -202,6 +202,16 @@ Design handoff hi-fi (`design_handoff_preview_foto`) reprojetou o `PhotoPreviewM
 
 Sem rota nova (todos os endpoints ja existiam: `PUT .../photos/:id` para legenda+includeInReport, `POST .../photos/:id/trash`). Testes: `PhotoPreviewModal.test.jsx`, `PhotoLocationMiniMap.test.jsx`, `CreateErosionHandoffModal.test.jsx`, `reportUtilsGeo.test.js` e caso de handoff em `ReportsView.test.jsx`.
 
+### Corte do rodape da marca d'agua no lightbox (outubro/2026)
+
+Mockup aprovado no Claude Design (artefato `N2CL86a8NBSHnXEKiMfd91`, artboard 2). O `PhotoPreviewModal` ganha o painel **"Cortar rodape da marca d'agua"**, retraido por padrao, no painel lateral abaixo da legenda:
+
+- `IconButton` `crop` no `headerActions` (antes da lixeira, `aria-pressed` quando aberto) e atalho **C** (ignorado em campos de texto; dica no rodape).
+- Cabecalho do painel e um `<button aria-expanded>` com icone, titulo, `Badge neutral` ("45 px · 1 linha" ou "Cortada · N px" quando ha `photo.cropHistory`), tecla e chevron. Corpo: presets `Button sm` "1 linha" / "2 linhas" (`aria-pressed`), `Input type=number` (1..400), `RangeSlider single` (0..200, novo modo do primitive), hint e acoes "Cancelar" / "Cortar N px" (`disabled` com `busy = photo-crop:<id>`); "Desfazer corte" quando ha historico.
+- **Pre-visualizacao** so com o painel aberto: faixa `bg-danger/40` com borda tracejada sobre a base da imagem, altura = `pixels * alturaRenderizada / naturalHeight` (mede `naturalWidth/Height` e `clientWidth/Height` no `onLoad` e no `resize`, respeitando o `object-contain`), mais um chip "Remove N px". Default de pixels proporcional a altura real (45 px em 1080).
+- Fluxo: `ReportsView.handleCropPhotoFooter`/`handleUndoPhotoFooterCrop` chamam os services (`cropWorkspacePhotoFooter`/`undoWorkspacePhotoFooterCrop`), substituem a foto na lista e invalidam o object URL em `photoPreviewUrls` (thumb e lightbox recarregam o binario novo). Nenhum controle cru novo.
+- Testes: `PhotoPreviewModal.test.jsx` (bloco "cortar rodape"), `RangeSlider.test.jsx`, `services/__tests__/reportWorkspaceService.test.js`.
+
 ## Dashboard de campanhas em Acompanhamentos (junho/2026)
 
 Parte do programa de adocao do design handoff. `FollowupsView` ganhou um **dashboard de
