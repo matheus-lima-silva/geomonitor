@@ -1,12 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Textarea } from '../../../components/ui';
+import { Badge, Button, Input, RangeSlider, Textarea } from '../../../components/ui';
 import IconButton from '../../../components/ui/IconButton';
 import Modal from '../../../components/ui/Modal';
 import { formatTowerLabel } from '../../projects/utils/kmlUtils';
 import { formatImportSourceLabel } from '../utils/reportUtils';
 import PhotoLocationMiniMap from './PhotoLocationMiniMap';
 import CreateErosionHandoffModal from './CreateErosionHandoffModal';
+
+// Calibracao do Timestamp Camera: a ultima linha da marca d'agua ocupa 45 px
+// em fotos 1920x1080. Para outras alturas, a mesma proporcao.
+const CROP_REFERENCE_HEIGHT = 1080;
+const CROP_LINE_PX = 45;
+const CROP_MAX_PX = 400;
+const CROP_SLIDER_MAX = 200;
 
 function MetaRow({ icon, label, value, mono = false }) {
   return (
@@ -36,12 +43,25 @@ function ShortcutHint({ keys, label }) {
   );
 }
 
+function defaultCropPixels(naturalHeight) {
+  if (!Number.isFinite(naturalHeight) || naturalHeight <= 0) return CROP_LINE_PX;
+  return Math.max(1, Math.round((naturalHeight * CROP_LINE_PX) / CROP_REFERENCE_HEIGHT));
+}
+
+function clampPixels(value) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return CROP_LINE_PX;
+  return Math.min(CROP_MAX_PX, Math.max(1, n));
+}
+
 /**
  * Lightbox "Preview da foto" da curadoria de Relatorios (redesenho hi-fi).
  *
  * Substitui os botoes de texto por icones, remove o "Salvar" (a legenda salva
  * sozinha) e adiciona, no proprio modal: baixar, mover para lixeira, incluir no
- * .docx, mini-mapa torre+foto e o handoff "criar erosao a partir da foto".
+ * .docx, mini-mapa torre+foto, o handoff "criar erosao a partir da foto" e o
+ * painel "Cortar rodape da marca d'agua" (retraido por padrao, atalho C) com
+ * pre-visualizacao da faixa sobre a foto.
  */
 export default function PhotoPreviewModal({
   photo,
@@ -59,6 +79,8 @@ export default function PhotoPreviewModal({
   onDownload,
   onTrash,
   onCreateErosion,
+  onCropFooter,
+  onUndoCrop,
   towerPoint = null,
   photoPoint = null,
   towerLabel = '',
@@ -69,6 +91,11 @@ export default function PhotoPreviewModal({
   const [erosionHandoffOpen, setErosionHandoffOpen] = useState(false);
   // idle | saving | saved — indicador que substitui o antigo botao Salvar.
   const [autosaveState, setAutosaveState] = useState('idle');
+  // Painel de corte do rodape (retraido por padrao).
+  const [cropOpen, setCropOpen] = useState(false);
+  const [cropPixels, setCropPixels] = useState(CROP_LINE_PX);
+  const [imageBox, setImageBox] = useState(null); // { naturalWidth, naturalHeight, renderedHeight, bottomOffset }
+  const imgRef = useRef(null);
 
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
@@ -77,13 +104,45 @@ export default function PhotoPreviewModal({
   const photoId = photo?.id || '';
   const included = Boolean(draft?.includeInReport);
   const captionDirty = String(draft?.caption || '').trim() !== String(photo?.caption || '').trim();
+  const cropHistory = Array.isArray(photo?.cropHistory) ? photo.cropHistory : [];
+  const lastCrop = cropHistory.length ? cropHistory[cropHistory.length - 1] : null;
+  const cropBusy = busy === `photo-crop:${photoId}`;
+  const canCrop = typeof onCropFooter === 'function';
 
-  // Fecha confirmacoes/handoff e zera o indicador ao trocar de foto.
+  // Mede a area realmente ocupada pela imagem (object-contain centraliza) para
+  // posicionar a faixa de pre-visualizacao na escala certa.
+  const measureImage = useCallback(() => {
+    const img = imgRef.current;
+    if (!img || !img.naturalWidth || !img.naturalHeight) {
+      setImageBox(null);
+      return;
+    }
+    const { naturalWidth, naturalHeight, clientWidth, clientHeight } = img;
+    const renderedHeight = Math.min(clientHeight, (clientWidth * naturalHeight) / naturalWidth) || clientHeight;
+    const bottomOffset = Math.max(0, (clientHeight - renderedHeight) / 2);
+    setImageBox({ naturalWidth, naturalHeight, renderedHeight, bottomOffset });
+  }, []);
+
+  // Fecha confirmacoes/handoff/painel e zera o indicador ao trocar de foto.
   useEffect(() => {
     setConfirmTrash(false);
     setErosionHandoffOpen(false);
     setAutosaveState('idle');
+    setCropOpen(false);
+    setImageBox(null);
   }, [photoId]);
+
+  // Default de pixels acompanha a altura real da foto quando ela carrega.
+  useEffect(() => {
+    if (imageBox?.naturalHeight) setCropPixels(defaultCropPixels(imageBox.naturalHeight));
+  }, [imageBox?.naturalHeight]);
+
+  useEffect(() => {
+    if (!cropOpen || typeof window === 'undefined') return undefined;
+    measureImage();
+    window.addEventListener('resize', measureImage);
+    return () => window.removeEventListener('resize', measureImage);
+  }, [cropOpen, measureImage]);
 
   // Autosave da legenda: 650ms apos parar de digitar. Usa onSaveRef para sempre
   // chamar o handler mais recente (que le o rascunho atual do parent).
@@ -110,8 +169,8 @@ export default function PhotoPreviewModal({
     return undefined;
   }, [busy, photoId]);
 
-  // Atalhos de teclado: setas navegam; E inclui; Del/Backspace lixeira. Ignora
-  // quando o foco esta num campo de texto (edicao da legenda).
+  // Atalhos de teclado: setas navegam; E inclui; C abre o corte; Del/Backspace
+  // lixeira. Ignora quando o foco esta num campo de texto (edicao da legenda).
   useEffect(() => {
     if (!photo) return undefined;
     function handleKeyDown(event) {
@@ -126,6 +185,9 @@ export default function PhotoPreviewModal({
       } else if ((event.key === 'e' || event.key === 'E') && onToggleInclude) {
         event.preventDefault();
         onToggleInclude(!included);
+      } else if ((event.key === 'c' || event.key === 'C') && canCrop) {
+        event.preventDefault();
+        setCropOpen((prev) => !prev);
       } else if ((event.key === 'Delete' || event.key === 'Backspace') && onTrash) {
         event.preventDefault();
         setConfirmTrash(true);
@@ -133,7 +195,7 @@ export default function PhotoPreviewModal({
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [photo, onPrev, onNext, onToggleInclude, onTrash, included]);
+  }, [photo, onPrev, onNext, onToggleInclude, onTrash, included, canCrop]);
 
   if (!photo) return null;
 
@@ -144,11 +206,29 @@ export default function PhotoPreviewModal({
   const coordsPoint = towerPoint || photoPoint;
   const coordsLabel = coordsPoint ? `${coordsPoint[0].toFixed(6)} ${coordsPoint[1].toFixed(6)}` : '';
 
+  const linePx = defaultCropPixels(imageBox?.naturalHeight);
+  const bandHeightPx = imageBox?.naturalHeight
+    ? (cropPixels * imageBox.renderedHeight) / imageBox.naturalHeight
+    : 0;
+  const showBand = cropOpen && canCrop && imageBox && bandHeightPx > 0;
+
   const headerActions = (
     <>
       {onDownload && (
         <IconButton variant="ghost" size="md" aria-label="Baixar foto" onClick={() => onDownload(photo)}>
           <AppIcon name="download" />
+        </IconButton>
+      )}
+      {canCrop && (
+        <IconButton
+          variant={cropOpen ? 'outline' : 'ghost'}
+          size="md"
+          aria-label="Cortar rodapé da marca d'água"
+          aria-pressed={cropOpen}
+          className={cropOpen ? 'bg-brand-50 text-brand-700 border-brand-200' : ''}
+          onClick={() => setCropOpen((prev) => !prev)}
+        >
+          <AppIcon name="crop" />
         </IconButton>
       )}
       {onTrash && !confirmTrash && (
@@ -187,6 +267,7 @@ export default function PhotoPreviewModal({
       <div className="flex items-center gap-4">
         <ShortcutHint keys={['←', '→']} label="Navegar" />
         <ShortcutHint keys={['E']} label="Incluir" />
+        {canCrop && <ShortcutHint keys={['C']} label="Cortar rodapé" />}
       </div>
       <span className="flex-1" />
       {hasPagination && (
@@ -224,11 +305,33 @@ export default function PhotoPreviewModal({
           {/* Palco da imagem (escuro). Navegacao e contador ficam no rodape. */}
           <div className="relative flex min-h-[240px] flex-1 items-center justify-center overflow-hidden rounded-xl bg-slate-950 lg:min-h-[520px]">
             {previewUrl ? (
-              <img
-                src={previewUrl}
-                alt={draft?.caption || photo.id}
-                className="max-h-[calc(100vh-220px)] w-full rounded-lg object-contain"
-              />
+              <div className="relative w-full">
+                <img
+                  ref={imgRef}
+                  src={previewUrl}
+                  alt={draft?.caption || photo.id}
+                  className="max-h-[calc(100vh-220px)] w-full rounded-lg object-contain"
+                  onLoad={measureImage}
+                />
+                {showBand && (
+                  <>
+                    <div
+                      data-testid="photo-crop-band"
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-danger-border bg-danger/40"
+                      style={{ bottom: `${imageBox.bottomOffset}px`, height: `${bandHeightPx}px` }}
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute right-3 inline-flex items-center gap-1.5 rounded-full border border-danger-border/60 bg-slate-900/85 px-2.5 py-1 text-xs font-semibold text-white"
+                      style={{ bottom: `${imageBox.bottomOffset + bandHeightPx + 8}px` }}
+                    >
+                      <AppIcon name="crop" className="w-3 h-3 text-danger-border" />
+                      Remove {cropPixels} px{cropPixels === linePx ? ' · última linha da marca d\'água' : ''}
+                    </span>
+                  </>
+                )}
+              </div>
             ) : (
               <div className="flex aspect-video w-full items-center justify-center text-sm text-slate-400">
                 Preview indisponivel para esta foto.
@@ -310,6 +413,94 @@ export default function PhotoPreviewModal({
                 )}
               </div>
             </div>
+
+            {/* Cortar rodape da marca d'agua (retraido por padrao) */}
+            {canCrop && (
+              <section
+                aria-label="Cortar rodapé da marca d'água"
+                className={`rounded-lg border bg-white shadow-card overflow-hidden ${cropOpen ? 'border-brand-200' : 'border-slate-200'}`}
+                data-testid="photo-crop-panel"
+              >
+                <button
+                  type="button"
+                  aria-expanded={cropOpen}
+                  aria-controls={`photo-crop-body-${photo.id}`}
+                  onClick={() => setCropOpen((prev) => !prev)}
+                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${cropOpen ? 'bg-brand-50 text-brand-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <AppIcon name="crop" className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  <span className="flex-1">Cortar rodapé da marca d'água</span>
+                  {lastCrop ? (
+                    <Badge tone="neutral">Cortada · {lastCrop.pixels ? `${lastCrop.pixels} px` : `${Math.round((lastCrop.percent || 0) * 100)}%`}</Badge>
+                  ) : (
+                    <Badge tone="neutral">{linePx} px · 1 linha</Badge>
+                  )}
+                  <kbd className="inline-flex min-w-[18px] items-center justify-center rounded border border-slate-300 bg-white px-1 text-[10px] font-semibold text-slate-500">C</kbd>
+                  <AppIcon name={cropOpen ? 'chevron-up' : 'chevron-down'} className="w-4 h-4 text-slate-400" aria-hidden="true" />
+                </button>
+                {cropOpen && (
+                  <div id={`photo-crop-body-${photo.id}`} className="flex flex-col gap-3 border-t border-slate-100 px-3 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button size="sm" variant={cropPixels === linePx ? 'primary' : 'outline'} aria-pressed={cropPixels === linePx} onClick={() => setCropPixels(linePx)}>
+                        1 linha · {linePx} px
+                      </Button>
+                      <Button size="sm" variant={cropPixels === linePx * 2 ? 'primary' : 'outline'} aria-pressed={cropPixels === linePx * 2} onClick={() => setCropPixels(clampPixels(linePx * 2))}>
+                        2 linhas · {linePx * 2} px
+                      </Button>
+                      <span className="flex-1" />
+                      <label htmlFor={`photo-crop-pixels-${photo.id}`} className="text-2xs font-bold uppercase tracking-wide text-slate-500">Altura</label>
+                      <Input
+                        id={`photo-crop-pixels-${photo.id}`}
+                        type="number"
+                        min={1}
+                        max={CROP_MAX_PX}
+                        fullWidth={false}
+                        className="w-20 text-right"
+                        value={cropPixels}
+                        onChange={(event) => setCropPixels(clampPixels(event.target.value))}
+                      />
+                      <span className="font-mono text-xs text-slate-500">px</span>
+                    </div>
+                    <RangeSlider
+                      single
+                      id={`photo-crop-range-${photo.id}`}
+                      min={0}
+                      max={CROP_SLIDER_MAX}
+                      value={Math.min(cropPixels, CROP_SLIDER_MAX)}
+                      onChange={(next) => setCropPixels(clampPixels(next || 1))}
+                      formatLabel={(n) => `${n} px`}
+                      ariaLabel="Faixa a remover em pixels"
+                    />
+                    <p className="m-0 text-xs text-slate-500">
+                      A faixa vermelha no palco mostra o que será removido. O original fica guardado e o corte pode ser desfeito.
+                      {imageBox?.naturalHeight ? ` Foto com ${imageBox.naturalHeight} px de altura.` : ''}
+                    </p>
+                    <div className="flex items-center justify-end gap-2">
+                      {lastCrop && onUndoCrop && (
+                        <Button size="sm" variant="ghost" className="mr-auto" onClick={() => onUndoCrop(photo)} disabled={cropBusy}>
+                          <AppIcon name="undo" className="w-4 h-4" aria-hidden="true" />
+                          Desfazer corte
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => setCropOpen(false)} disabled={cropBusy}>Cancelar</Button>
+                      <Button size="sm" variant="primary" onClick={() => onCropFooter(photo, { pixels: cropPixels })} disabled={cropBusy || cropPixels < 1}>
+                        <AppIcon name={cropBusy ? 'loader' : 'crop'} className={`w-4 h-4 ${cropBusy ? 'animate-spin' : ''}`} aria-hidden="true" />
+                        {cropBusy ? 'Cortando…' : `Cortar ${cropPixels} px`}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {!cropOpen && lastCrop && onUndoCrop && (
+                  <div className="flex items-center gap-2 border-t border-slate-100 px-3 py-2 text-xs text-slate-500">
+                    <span className="flex-1">Último corte {lastCrop.at ? `em ${new Date(lastCrop.at).toLocaleString('pt-BR')}` : ''}</span>
+                    <Button size="sm" variant="ghost" onClick={() => onUndoCrop(photo)} disabled={cropBusy}>
+                      <AppIcon name="undo" className="w-4 h-4" aria-hidden="true" />
+                      Desfazer corte
+                    </Button>
+                  </div>
+                )}
+              </section>
+            )}
 
             {/* Mini-mapa de localizacao */}
             {coordsPoint && (

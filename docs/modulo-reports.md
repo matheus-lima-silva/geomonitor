@@ -213,7 +213,7 @@ Testes: [src/features/reports/utils/__tests__/towerCurationStatus.test.js](../sr
 | [WorkspaceMembersModal.jsx](../src/features/reports/components/WorkspaceMembersModal.jsx) | Gestao de membros (adicionar, remover, mudar role) |
 | [ArchivedDeliveriesPanel.jsx](../src/features/reports/components/ArchivedDeliveriesPanel.jsx) | Historico de entregas imutaveis de um compound |
 | [DeliveryUploadModal.jsx](../src/features/reports/components/DeliveryUploadModal.jsx) | Upload do arquivo final entregue (delivered_media) |
-| [PhotoPreviewModal.jsx](../src/features/reports/components/PhotoPreviewModal.jsx) | Lightbox de curadoria (redesenho jun/2026): navegacao, legenda com autosave, incluir no `.docx`, lixeira, mini-mapa torre+foto e handoff "criar erosao". Ver [ui/ui-audit-report.md](ui/ui-audit-report.md) |
+| [PhotoPreviewModal.jsx](../src/features/reports/components/PhotoPreviewModal.jsx) | Lightbox de curadoria (redesenho jun/2026): navegacao, legenda com autosave, incluir no `.docx`, lixeira, mini-mapa torre+foto, handoff "criar erosao" e painel "Cortar rodape da marca d'agua" (out/2026, atalho `C`, pre-visualizacao da faixa, desfazer). Ver [ui/ui-audit-report.md](ui/ui-audit-report.md) e a secao "Corte do rodape" abaixo |
 | [PhotoLocationMiniMap.jsx](../src/features/reports/components/PhotoLocationMiniMap.jsx) | Mini-mapa Leaflet do lightbox: torre (`torresCoordenadas`) + ponto GPS da foto, distancia e direcao |
 | [CreateErosionHandoffModal.jsx](../src/features/reports/components/CreateErosionHandoffModal.jsx) | Modal de chamada do handoff "criar erosao a partir da foto" (reusa `pendingErosionDraft` do DashboardView) |
 | [CompoundsTab.jsx](../src/features/reports/components/CompoundsTab.jsx) | Listagem e edicao de compounds; geracao DOCX |

@@ -191,3 +191,75 @@ describe('PhotoPreviewModal — handoff de erosao', () => {
     expect(onCreateErosion).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('PhotoPreviewModal — cortar rodape da marca d\'agua', () => {
+  function setImageSize(img, { naturalWidth, naturalHeight, clientWidth, clientHeight }) {
+    Object.defineProperty(img, 'naturalWidth', { value: naturalWidth, configurable: true });
+    Object.defineProperty(img, 'naturalHeight', { value: naturalHeight, configurable: true });
+    Object.defineProperty(img, 'clientWidth', { value: clientWidth, configurable: true });
+    Object.defineProperty(img, 'clientHeight', { value: clientHeight, configurable: true });
+    act(() => img.dispatchEvent(new Event('load')));
+  }
+
+  it('sem onCropFooter nao mostra botao, painel nem atalho', () => {
+    mount(<PhotoPreviewModal {...baseProps()} />);
+    expect(container.querySelector('button[aria-label="Cortar rodapé da marca d\'água"]')).toBeNull();
+    expect(container.querySelector('[data-testid="photo-crop-panel"]')).toBeNull();
+    expect(container.textContent).not.toContain('Cortar rodapé');
+  });
+
+  it('painel vem retraido; abrir mostra presets, faixa no palco e chama onCropFooter com os pixels', () => {
+    const onCropFooter = vi.fn();
+    mount(<PhotoPreviewModal {...baseProps({ onCropFooter })} />);
+    const panel = container.querySelector('[data-testid="photo-crop-panel"]');
+    expect(panel).toBeTruthy();
+    expect(panel.querySelector('button[aria-expanded]').getAttribute('aria-expanded')).toBe('false');
+    expect(panel.textContent).toContain('45 px · 1 linha');
+    expect(container.querySelector('[data-testid="photo-crop-band"]')).toBeNull();
+
+    // Foto 1920x1080 exibida a 960x540: 45 px virgam 22.5 px na faixa.
+    setImageSize(container.querySelector('img'), { naturalWidth: 1920, naturalHeight: 1080, clientWidth: 960, clientHeight: 540 });
+    act(() => panel.querySelector('button[aria-expanded]').click());
+    expect(panel.querySelector('button[aria-expanded]').getAttribute('aria-expanded')).toBe('true');
+    const band = container.querySelector('[data-testid="photo-crop-band"]');
+    expect(band).toBeTruthy();
+    expect(band.style.height).toBe('22.5px');
+    expect(container.textContent).toContain('Remove 45 px · última linha');
+
+    act(() => findButtonByText('2 linhas · 90 px').click());
+    expect(container.querySelector('[data-testid="photo-crop-band"]').style.height).toBe('45px');
+    expect(findButtonByText('Cortar 90 px')).toBeTruthy();
+
+    act(() => findButtonByText('Cortar 90 px').click());
+    expect(onCropFooter).toHaveBeenCalledTimes(1);
+    expect(onCropFooter.mock.calls[0][1]).toEqual({ pixels: 90 });
+  });
+
+  it('tecla C alterna o painel e o botao do cabecalho fica pressionado', () => {
+    mount(<PhotoPreviewModal {...baseProps({ onCropFooter: vi.fn() })} />);
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c' })));
+    const toggle = container.querySelector('button[aria-label="Cortar rodapé da marca d\'água"]');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(container.textContent).toContain('A faixa vermelha no palco');
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'C' })));
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('com historico mostra "Cortada" e Desfazer corte chama onUndoCrop', () => {
+    const onUndoCrop = vi.fn();
+    const photo = { id: 'RPH-2', importSource: 'loose_photos', towerId: '641', caption: 'Legenda', cropHistory: [{ at: '2026-10-12T20:00:00.000Z', pixels: 45 }] };
+    mount(<PhotoPreviewModal {...baseProps({ photo, onCropFooter: vi.fn(), onUndoCrop })} />);
+    expect(container.textContent).toContain('Cortada · 45 px');
+    act(() => findButtonByText('Desfazer corte').click());
+    expect(onUndoCrop).toHaveBeenCalledTimes(1);
+    expect(onUndoCrop.mock.calls[0][0].id).toBe('RPH-2');
+  });
+
+  it('desabilita acoes enquanto o corte esta em andamento', () => {
+    mount(<PhotoPreviewModal {...baseProps({ onCropFooter: vi.fn(), busy: 'photo-crop:RPH-2' })} />);
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c' })));
+    const cutting = findButtonByText('Cortando');
+    expect(cutting).toBeTruthy();
+    expect(cutting.disabled).toBe(true);
+  });
+});

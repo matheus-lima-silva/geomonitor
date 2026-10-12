@@ -90,6 +90,8 @@ export default function WorkspacesTab({
   handleImportWorkspace,
   handleSaveWorkspacePhoto,
   handleMovePhotoToTrash,
+  handleCropPhotoFooter,
+  handleUndoPhotoFooterCrop,
   onCreateErosionFromPhoto,
   handleRestorePhoto,
   handleRestoreAllTrashedPhotos,
@@ -1622,6 +1624,8 @@ export default function WorkspacesTab({
           if (url) triggerUrlDownload(`${p.id}.jpg`, url);
         }}
         onTrash={(p) => p && handleMovePhotoToTrash(p.id)}
+        onCropFooter={handleCropPhotoFooter ? (p, band) => p && handleCropPhotoFooter(p.id, band) : undefined}
+        onUndoCrop={handleUndoPhotoFooterCrop ? (p) => p && handleUndoPhotoFooterCrop(p.id) : undefined}
         onCreateErosion={(p) => p && onCreateErosionFromPhoto?.(p)}
         towerPoint={activePreviewTowerPoint}
         photoPoint={activePreviewPhotoPoint}

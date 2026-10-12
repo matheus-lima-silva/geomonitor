@@ -94,6 +94,21 @@ export async function trashWorkspacePhoto(workspaceId, photoId) {
   });
 }
 
+// Corte do rodape da marca d'agua (lightbox). `band` = { pixels } ou { percent }.
+export async function cropWorkspacePhotoFooter(workspaceId, photoId, band = {}, meta = {}) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/${encodeURIComponent(photoId)}/crop-footer`, {
+    method: 'POST',
+    body: JSON.stringify({ data: band, meta }),
+  });
+}
+
+export async function undoWorkspacePhotoFooterCrop(workspaceId, photoId, meta = {}) {
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/${encodeURIComponent(photoId)}/crop-footer/undo`, {
+    method: 'POST',
+    body: JSON.stringify({ meta }),
+  });
+}
+
 export async function restoreWorkspacePhoto(workspaceId, photoId) {
   return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/${encodeURIComponent(photoId)}/restore`, {
     method: 'POST',
