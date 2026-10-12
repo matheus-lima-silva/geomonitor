@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import AppIcon from '../../../components/AppIcon';
-import { Badge, Button, IconButton, Input, Modal, Select, Textarea } from '../../../components/ui';
+import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea } from '../../../components/ui';
 import { saveInspection } from '../../../services/inspectionService';
+import { getProjectTowerList } from '../../../utils/getProjectTowerList';
+import { mergeAnalysisIntoForm } from '../../../utils/photoCampaign/photoCampaignAnalysis';
+import InspectionPhotoAutofillModal from './InspectionPhotoAutofillModal';
 import { postCalculoErosao, saveErosion } from '../../../services/erosionService';
 import { useLocalStorageDraft } from '../../../hooks/useLocalStorageDraft';
 import { useToast } from '../../../context/ToastContext';
@@ -298,6 +301,7 @@ function InspectionFormWizardModal({
   const [inlineUtmErrorToken, setInlineUtmErrorToken] = useState(0);
   const [saving, setSaving] = useState(false);
   const [warningModal, setWarningModal] = useState(null);
+  const [photoAutofillOpen, setPhotoAutofillOpen] = useState(false);
   const autoPendingCheckRef = useRef('');
   const hotelPickerRef = useRef(null);
   const hotelPickerSearchRef = useRef(null);
@@ -332,12 +336,12 @@ function InspectionFormWizardModal({
   );
 
   const projectTowerOptions = useMemo(() => {
-    const totalTowers = Number(selectedProject?.torres || 0);
+    // Fonte canonica: torresCoordenadas (numeros reais, inclusive alfanumericos)
+    // com fallback para a contagem `torres`. O portico "0" entra sempre.
     const withPortico = ['0'];
-    if (!Number.isFinite(totalTowers) || totalTowers <= 0) return withPortico;
-    const towers = Array.from({ length: Math.trunc(totalTowers) }, (_, index) => String(index + 1));
+    const towers = getProjectTowerList(selectedProject).filter((tower) => tower !== '0');
     return [...withPortico, ...towers];
-  }, [selectedProject?.torres]);
+  }, [selectedProject]);
 
   const filteredHotelHistory = useMemo(() => {
     const term = normalizeSearchText(hotelPickerSearch);
@@ -476,9 +480,35 @@ function InspectionFormWizardModal({
     const end = String(source.dataFim || '').trim() || start;
     if (!start || !end) return { ...source, detalhesDias: [] };
 
-    const dates = gerarPeriodoDias(start, end);
+    // Dias uteis do periodo + dias ja preenchidos (fim de semana com torres,
+    // ex.: campanha fotografada no sabado) que estejam dentro do intervalo.
+    const businessDays = gerarPeriodoDias(start, end);
+    const keptExtras = (source.detalhesDias || [])
+      .filter((day) => {
+        const date = String(day?.data || '').trim();
+        return date && date >= start && date <= end && (day?.torresDetalhadas || []).length > 0 && !businessDays.includes(date);
+      })
+      .map((day) => String(day.data).trim());
+    const dates = [...new Set([...businessDays, ...keptExtras])].sort();
     const details = preservarDetalhesDias(source.detalhesDias, dates).map(ensureDayShape);
     return { ...source, detalhesDias: details };
+  }
+
+  function handleApplyPhotoAutofill({ analysis, decisions }) {
+    const { form, summary } = mergeAnalysisIntoForm(normalizeInspectionForm(formData), analysis, decisions, { ensureDayShape });
+    setFormData(normalizeInspectionForm(form));
+    setPhotoAutofillOpen(false);
+    setStep(2);
+    const firstTouched = (form.detalhesDias || []).find((day) => (day?.torresDetalhadas || []).length > 0);
+    if (firstTouched?.data) setExpandedDay(firstTouched.data);
+    const parts = [];
+    if (summary.towersAdded) parts.push(`${summary.towersAdded} torre${summary.towersAdded === 1 ? '' : 's'} adicionada${summary.towersAdded === 1 ? '' : 's'}`);
+    if (summary.towersKept) parts.push(`${summary.towersKept} ja existia${summary.towersKept === 1 ? '' : 'm'}`);
+    if (summary.daysCreated) parts.push(`${summary.daysCreated} dia${summary.daysCreated === 1 ? '' : 's'} criado${summary.daysCreated === 1 ? '' : 's'}`);
+    show(`Diario preenchido pelas fotos: ${parts.length ? parts.join(', ') : 'nenhuma torre nova'}.`, 'success');
+    if (summary.pendingConflicts > 0) {
+      show(`${summary.pendingConflicts} divergencia${summary.pendingConflicts === 1 ? '' : 's'} de legenda para conferir no diario.`, 'info');
+    }
   }
 
   function updateGeneralField(key, value) {
@@ -1336,8 +1366,21 @@ function InspectionFormWizardModal({
                   <div><strong>Torres sugeridas pelo planejamento:</strong> {suggestedTowerInput}</div>
                 </div>
               ) : null}
+              <Card variant="nested" className="flex flex-wrap items-center gap-3" data-testid="photo-autofill-cta-step1">
+                <span className="flex items-center justify-center w-10 h-10 rounded-lg bg-brand-50 border border-brand-200 text-brand-600 shrink-0" aria-hidden="true">
+                  <AppIcon name="camera" className="w-5 h-5" />
+                </span>
+                <div className="flex-1 min-w-[200px]">
+                  <strong className="block text-sm text-slate-800">Preencher o diario pelas fotos da campanha</strong>
+                  <span className="block text-xs text-slate-500">Le data, GPS e a etiqueta de torre gravadas pelo Timestamp Camera. As fotos ficam no seu computador.</span>
+                </div>
+                <Button type="button" variant="secondary" size="md" onClick={() => setPhotoAutofillOpen(true)} disabled={!formData.projetoId} title={!formData.projetoId ? 'Selecione o empreendimento primeiro.' : undefined}>
+                  <AppIcon name="wand-2" />
+                  Preencher pelas fotos
+                </Button>
+              </Card>
               {formData.detalhesDias.length === 0 ? (
-                <div className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-100 text-sm">Defina data inicio e data fim para gerar os dias da vistoria.</div>
+                <div className="bg-amber-50 text-amber-800 p-4 rounded-xl border border-amber-100 text-sm">Defina data inicio e data fim para gerar os dias da vistoria, ou use "Preencher pelas fotos": as datas vem das fotos.</div>
               ) : (
                 <div className="bg-info-light text-brand-800 p-4 rounded-xl border border-info-border text-sm">
                   <strong>Dias gerados:</strong> {formData.detalhesDias.length}
@@ -1348,6 +1391,14 @@ function InspectionFormWizardModal({
 
           {step === 2 ? (
             <div className="flex flex-col gap-6 animate-fade-in">
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" data-testid="photo-autofill-cta-step2">
+                <AppIcon name="camera" className="w-5 h-5 text-brand-600" aria-hidden="true" />
+                <span className="flex-1 min-w-[200px] text-sm text-slate-600">Preencha os dias e torres a partir das fotos da campanha. Clima e hospedagem continuam manuais.</span>
+                <Button type="button" variant="secondary" size="sm" onClick={() => setPhotoAutofillOpen(true)} disabled={!formData.projetoId} title={!formData.projetoId ? 'Selecione o empreendimento primeiro.' : undefined}>
+                  <AppIcon name="wand-2" />
+                  Preencher pelas fotos
+                </Button>
+              </div>
               <div className="flex flex-col gap-4">
                 {formData.detalhesDias.map((day, dayIndex) => {
                   const isDayExpanded = expandedDay === day.data;
@@ -1691,7 +1742,7 @@ function InspectionFormWizardModal({
                   );
                 })}
                 {formData.detalhesDias.length === 0 ? (
-                  <p className="text-sm text-slate-500 italic">Nenhum dia gerado. Volte para etapa 1 e defina as datas.</p>
+                  <p className="text-sm text-slate-500 italic">Nenhum dia gerado. Volte para etapa 1 e defina as datas, ou use "Preencher pelas fotos".</p>
                 ) : null}
               </div>
             </div>
@@ -2032,6 +2083,19 @@ function InspectionFormWizardModal({
           <p className="m-0 text-sm text-slate-700 whitespace-pre-wrap">{warningModal.message}</p>
         </Modal>
       )}
+
+      {photoAutofillOpen ? (
+        <div className="relative z-[110]">
+          <InspectionPhotoAutofillModal
+            open={photoAutofillOpen}
+            project={selectedProject}
+            currentForm={formData}
+            feriadosIndex={feriadosIndex}
+            onCancel={() => setPhotoAutofillOpen(false)}
+            onApply={handleApplyPhotoAutofill}
+          />
+        </div>
+      ) : null}
     </div>,
     portalTarget,
   );

@@ -12,7 +12,7 @@ Importar sempre do barrel [components/ui/index.js](components/ui/index.js):
 import {
   Button, Badge, Card, Input, Select, Textarea,
   Modal, IconButton, ConfirmDeleteModal, HintText,
-  RangeSlider, SearchableSelect, Skeleton, PageHeader, EmptyState,
+  RangeSlider, SearchableSelect, Skeleton, PageHeader, EmptyState, Checkbox,
 } from '../components/ui';
 ```
 
@@ -30,6 +30,7 @@ Precedente: o audit em `docs/ui/ui-audit-report.md` reduziu de **51 para 10** os
 - `EmptyState`: sempre com `icon + title + description + action`.
 - `Textarea`: auto-height; usar para campos multi-linha (nunca `<textarea>` cru). Variants `default` | `filled` (`filled` = fundo `app-surfaceMuted` + borda transparente, volta a branco no foco).
 - `RangeSlider`: padrao dual-handle (`value: [inicio, fim]`); com `single` vira um polegar (`value: number`, `onChange(number)`, `id`/`ariaLabel`, `step`, `formatLabel`). Nunca `<input type="range">` cru.
+- `Checkbox`: caixa + rotulo inline (`id` + `htmlFor`), `hint` opcional via `HintText`, sizes `sm` | `md`, `accent-brand-600` e focus ring. Sem `label`, exige `aria-label` (uso em linhas de lista). Nunca `<input type="checkbox">` cru.
 
 ## 3. Tailwind: so tokens
 

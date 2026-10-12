@@ -1,15 +1,19 @@
 /**
- * Extracao de coordenadas GPS do EXIF de um JPEG, 100% no navegador.
+ * Leitura do EXIF de um JPEG, 100% no navegador.
  *
  * Port direto de `worker/exif_gps.py` (stdlib Python) para JS com `DataView`:
- * parseia o segmento APP1/Exif -> bloco TIFF -> IFD0 -> GPS IFD na mao, com
- * bounds-check em cada passo. Tudo best-effort: qualquer dado ausente ou
- * malformado retorna `null` (nunca levanta). Mantem o mesmo escopo do worker
- * (JPEG/APP1) para que as duas pontas tratem GPS da mesma forma.
+ * parseia o segmento APP1/Exif -> bloco TIFF -> IFD0 -> Exif SubIFD / GPS IFD
+ * na mao, com bounds-check em cada passo. Tudo best-effort: qualquer dado
+ * ausente ou malformado retorna `null` (nunca levanta). Mantem o mesmo escopo
+ * do worker (JPEG/APP1) para que as duas pontas tratem GPS da mesma forma.
  *
  * Espelha `apps/relat/src/features/geo/utils/exifGps.js` — a curadoria do app
  * geo precisa do mesmo parser para capturar a coordenada da foto no upload
  * (fotos soltas / subpastas por torre nao trazem placemark como o KMZ).
+ *
+ * `parseExifStructure` e a base compartilhada: `extractGpsLatLon` (aqui) e
+ * `extractExifMeta` (`utils/photoCampaign/exifMeta.js`, descricao/data/modelo)
+ * leem os mesmos IFDs sem duplicar o parser.
  */
 
 // Tamanho em bytes de cada tipo de campo EXIF/TIFF.
@@ -29,7 +33,8 @@ const GPS_LAT_REF = 0x0001;
 const GPS_LAT = 0x0002;
 const GPS_LON_REF = 0x0003;
 const GPS_LON = 0x0004;
-// Ponteiro para o GPS IFD dentro do IFD0.
+// Ponteiros dentro do IFD0.
+const EXIF_IFD_POINTER = 0x8769;
 const GPS_IFD_POINTER = 0x8825;
 
 const EXIF_HEADER = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00]; // "Exif\0\0"
@@ -123,13 +128,37 @@ function rationalsToDegrees(view, little, offset, size) {
   return parts[0] + parts[1] / 60 + parts[2] / 3600;
 }
 
+function entriesToMap(entries) {
+  const map = new Map();
+  for (const entry of entries || []) map.set(entry.tag, entry);
+  return map;
+}
+
+function decodeAscii(bytes) {
+  try {
+    if (typeof TextDecoder === 'function') {
+      return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    }
+  } catch {
+    // cai no latin1 abaixo
+  }
+  let out = '';
+  for (let k = 0; k < bytes.length; k += 1) out += String.fromCharCode(bytes[k]);
+  return out;
+}
+
 /**
- * Retorna `[lat, lon]` em graus decimais a partir do EXIF, ou `null`.
+ * Parseia a estrutura EXIF de um JPEG e devolve os IFDs como mapas tag->entry
+ * mais leitores tipados. Retorna `null` quando nao ha EXIF legivel. Nunca lanca.
  *
- * Best-effort: qualquer ausencia/erro -> `null`. Aplica o sinal pelos refs
- * (S/W negativos) e descarta coordenadas fora de faixa. `bytes` e um Uint8Array.
+ * - `ifd0`: Map das entradas do IFD0 (descricao, make/model, orientacao, DateTime).
+ * - `exif`: Map do Exif SubIFD (0x8769: DateTimeOriginal etc.) ou `null`.
+ * - `gps`:  Map do GPS IFD (0x8825) ou `null`.
+ * - `readAscii(entry)`: string sem NUL finais (tipos ASCII/UNDEFINED) ou `null`.
+ * - `readShort(entry)`: primeiro SHORT/LONG do campo ou `null`.
+ * - `readRationals(entry, n)`: `n` RATIONALs como numeros ou `null` (den 0 -> null).
  */
-export function extractGpsLatLon(bytes) {
+export function parseExifStructure(bytes) {
   try {
     const tiff = findExifTiff(bytes);
     if (!tiff || tiff.length < 8) return null;
@@ -147,26 +176,74 @@ export function extractGpsLatLon(bytes) {
     const len = tiff.byteLength;
 
     const ifd0Offset = view.getUint32(4, little);
-    const ifd0 = readIfd(view, len, little, ifd0Offset);
-    if (!ifd0) return null;
+    const ifd0Entries = readIfd(view, len, little, ifd0Offset);
+    if (!ifd0Entries) return null;
+    const ifd0 = entriesToMap(ifd0Entries);
 
-    let gpsPointer = null;
-    for (const entry of ifd0) {
-      if (entry.tag === GPS_IFD_POINTER) {
-        gpsPointer = view.getUint32(entry.valOffset, little);
-        break;
+    const readPointer = (tag) => {
+      const entry = ifd0.get(tag);
+      if (!entry) return null;
+      const target = view.getUint32(entry.valOffset, little);
+      const entries = readIfd(view, len, little, target);
+      return entries ? entriesToMap(entries) : null;
+    };
+
+    const exif = readPointer(EXIF_IFD_POINTER);
+    const gps = readPointer(GPS_IFD_POINTER);
+
+    const dataOf = (entry) => (entry
+      ? entryData(view, len, little, entry.typ, entry.cnt, entry.valOffset)
+      : null);
+
+    const readAscii = (entry) => {
+      const data = dataOf(entry);
+      if (!data) return null;
+      const raw = tiff.subarray(data.offset, data.offset + data.size);
+      return decodeAscii(raw).replace(/\0+$/g, '').replace(/\0/g, '\n');
+    };
+
+    const readShort = (entry) => {
+      const data = dataOf(entry);
+      if (!data) return null;
+      if (entry.typ === 3) return view.getUint16(data.offset, little);
+      if (entry.typ === 4 || entry.typ === 9) return view.getUint32(data.offset, little);
+      if (entry.typ === 1 || entry.typ === 7) return view.getUint8(data.offset);
+      return null;
+    };
+
+    const readRationals = (entry, n) => {
+      const data = dataOf(entry);
+      if (!data || data.size < n * 8) return null;
+      const out = [];
+      for (let k = 0; k < n; k += 1) {
+        const num = view.getUint32(data.offset + k * 8, little);
+        const den = view.getUint32(data.offset + k * 8 + 4, little);
+        if (den === 0) return null;
+        out.push(num / den);
       }
-    }
-    if (gpsPointer === null) return null;
+      return out;
+    };
 
-    const gpsEntries = readIfd(view, len, little, gpsPointer);
-    if (!gpsEntries) return null;
+    return { view, len, little, ifd0, exif, gps, readAscii, readShort, readRationals };
+  } catch {
+    return null;
+  }
+}
 
-    const fields = new Map();
-    for (const entry of gpsEntries) fields.set(entry.tag, entry);
+/**
+ * Retorna `[lat, lon]` em graus decimais a partir do EXIF, ou `null`.
+ *
+ * Best-effort: qualquer ausencia/erro -> `null`. Aplica o sinal pelos refs
+ * (S/W negativos) e descarta coordenadas fora de faixa. `bytes` e um Uint8Array.
+ */
+export function extractGpsLatLon(bytes) {
+  try {
+    const parsed = parseExifStructure(bytes);
+    if (!parsed || !parsed.gps) return null;
+    const { view, len, little, gps } = parsed;
 
     const refOf = (tag) => {
-      const entry = fields.get(tag);
+      const entry = gps.get(tag);
       if (!entry) return '';
       const data = entryData(view, len, little, entry.typ, entry.cnt, entry.valOffset);
       if (!data) return '';
@@ -174,7 +251,7 @@ export function extractGpsLatLon(bytes) {
     };
 
     const degreesOf = (tag) => {
-      const entry = fields.get(tag);
+      const entry = gps.get(tag);
       if (!entry) return null;
       const data = entryData(view, len, little, entry.typ, entry.cnt, entry.valOffset);
       if (!data) return null;
