@@ -4,7 +4,7 @@ import { Badge, Button, Input, RangeSlider, Textarea } from '../../../components
 import IconButton from '../../../components/ui/IconButton';
 import Modal from '../../../components/ui/Modal';
 import { formatTowerLabel } from '../../projects/utils/kmlUtils';
-import { formatImportSourceLabel, formatTowerSourceLabel } from '../utils/reportUtils';
+import { PHOTO_SUBJECTS, PHOTO_SUBJECT_LABELS, formatImportSourceLabel, formatTowerSourceLabel, normalizePhotoSubject } from '../utils/reportUtils';
 import PhotoLocationMiniMap from './PhotoLocationMiniMap';
 import CreateErosionHandoffModal from './CreateErosionHandoffModal';
 
@@ -79,6 +79,7 @@ export default function PhotoPreviewModal({
   onDownload,
   onTrash,
   onCreateErosion,
+  onChangeSubject,
   onCropFooter,
   onUndoCrop,
   towerPoint = null,
@@ -351,6 +352,28 @@ export default function PhotoPreviewModal({
                   ? `${formatTowerLabel(draft?.towerId || photo.towerId)}${photo.towerSource && photo.towerSource !== 'manual' && photo.towerSource !== 'pending' ? ` · ${formatTowerSourceLabel(photo.towerSource)}` : ''}`
                   : 'Pendente'}
               />
+              {/* Assunto da foto: torre em si, via de acesso ou contexto. Salva na hora. */}
+              <div className="flex items-center gap-2 text-sm" data-testid="photo-subject-control">
+                <AppIcon name="image" className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
+                <span className="text-slate-500 min-w-[84px] shrink-0">Assunto</span>
+                <div className="inline-flex gap-1" role="group" aria-label="Assunto da foto">
+                  {PHOTO_SUBJECTS.map((option) => {
+                    const current = normalizePhotoSubject(draft?.subject || photo.subject);
+                    return (
+                      <Button
+                        key={option}
+                        size="sm"
+                        variant={current === option ? 'primary' : 'outline'}
+                        aria-pressed={current === option}
+                        disabled={!onChangeSubject || Boolean(busy)}
+                        onClick={() => { if (current !== option) onChangeSubject?.(option); }}
+                      >
+                        {PHOTO_SUBJECT_LABELS[option]}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* Acao .docx */}

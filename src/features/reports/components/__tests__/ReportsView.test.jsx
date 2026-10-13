@@ -449,6 +449,26 @@ describe('ReportsView', () => {
     expect(draft.fotosPrincipais).toEqual([{ photoId: 'RPH-1', workspaceId: 'RW-1', mediaAssetId: 'MA-1', sortOrder: 0 }]);
   });
 
+  it('trocar o assunto da foto no lightbox salva na hora com subject', async () => {
+    await act(async () => {
+      root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+      await Promise.resolve();
+    });
+    const openPreview = container.querySelector('button[aria-label="Visualizar foto"]');
+    await act(async () => { openPreview.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const control = container.querySelector('[data-testid="photo-subject-control"]');
+    expect(control).toBeTruthy();
+    const accessButton = [...control.querySelectorAll('button')].find((b) => b.textContent === 'Acesso');
+    await act(async () => { accessButton.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    expect(saveReportWorkspacePhoto).toHaveBeenCalledWith(
+      'RW-1',
+      'RPH-1',
+      expect.objectContaining({ subject: 'acesso', towerId: 'T-01' }),
+      expect.anything(),
+    );
+  });
+
   it('cria dossie com escopo editorial configuravel', async () => {
     await act(async () => {
       root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);

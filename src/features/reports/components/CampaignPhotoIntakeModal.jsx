@@ -7,9 +7,11 @@ import {
   analyzePhotoCampaign,
   buildDefaultDecisions,
   buildFileKey,
+  buildSubjectOverrides,
   mergeAnalysisIntoForm,
 } from '../../../utils/photoCampaign/photoCampaignAnalysis';
 import { toBrDate } from '../../inspections/utils/inspectionWorkflow';
+import { PHOTO_SUBJECTS, PHOTO_SUBJECT_LABELS } from '../utils/reportUtils';
 
 /**
  * "Preencher vistoria pelas fotos": le o EXIF das fotos da campanha no
@@ -126,11 +128,16 @@ export default function CampaignPhotoIntakeModal({
   const [files, setFiles] = useState([]);
   const [ignoredCount, setIgnoredCount] = useState(0);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  // Metadados EXIF lidos: ficam para re-rodar a analise quando o usuario marca
+  // fotos como acesso/contexto (a analise das ~400 fotos leva ~100 ms).
+  const [metas, setMetas] = useState([]);
   const [analysis, setAnalysis] = useState(null);
   const [decisions, setDecisions] = useState(null);
   const [expandedDays, setExpandedDays] = useState(() => new Set());
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set());
   const [showInfoDivergences, setShowInfoDivergences] = useState(false);
-  const [confirmedStack, setConfirmedStack] = useState([]);
+  // Pilha de acoes desfazíveis: { type: 'confirm', id } | { type: 'subject', subject, changes: [{ key, prev }] }.
+  const [undoStack, setUndoStack] = useState([]);
   const [confirmPending, setConfirmPending] = useState(false);
   const cancelledRef = useRef(false);
   const directorySupported = useMemo(() => supportsDirectoryPicker(), []);
@@ -143,11 +150,13 @@ export default function CampaignPhotoIntakeModal({
     setFiles([]);
     setIgnoredCount(0);
     setProgress({ done: 0, total: 0 });
+    setMetas([]);
     setAnalysis(null);
     setDecisions(null);
     setExpandedDays(new Set());
+    setExpandedGroups(new Set());
     setShowInfoDivergences(false);
-    setConfirmedStack([]);
+    setUndoStack([]);
     setConfirmPending(false);
     setDestinations(normalizeDestinations(destinationsConfig));
     return undefined;
@@ -195,6 +204,22 @@ export default function CampaignPhotoIntakeModal({
     return mergeAnalysisIntoForm(currentForm || {}, analysis, decisions).summary;
   }, [analysis, decisions, currentForm]);
 
+  const includedPhotoCount = useMemo(() => {
+    if (!analysis || !decisions) return 0;
+    let count = 0;
+    for (const day of analysis.days) {
+      for (const group of day.towers) {
+        if (decisions.towers[group.key]?.include) count += group.count;
+      }
+      count += day.unresolved.length;
+    }
+    return count + (analysis.undated?.length || 0);
+  }, [analysis, decisions]);
+
+  const subjectMarkedCount = undoStack
+    .filter((entry) => entry.type === 'subject')
+    .reduce((acc, entry) => acc + entry.changes.length, 0);
+
   if (!open) return null;
 
   function handleFilesSelected(event) {
@@ -215,12 +240,52 @@ export default function CampaignPhotoIntakeModal({
     });
     if (cancelledRef.current) return;
     const result = analyzePhotoCampaign(metas, project, { holidaysIndex: feriadosIndex });
+    setMetas(metas);
     setAnalysis(result);
     setDecisions(buildDefaultDecisions(result));
     setExpandedDays(new Set(result.days.slice(0, 1).map((day) => day.data)));
-    setConfirmedStack([]);
+    setExpandedGroups(new Set());
+    setUndoStack([]);
     setConfirmPending(false);
     setStage('review');
+  }
+
+  // Re-roda a analise com os assuntos decididos pelo usuario e preserva as
+  // decisoes por chave (grupos/divergencias que sumiram sao descartadas).
+  function reanalyze(nextDecisions) {
+    const result = analyzePhotoCampaign(metas, project, { holidaysIndex: feriadosIndex, subjects: buildSubjectOverrides(nextDecisions) });
+    const defaults = buildDefaultDecisions(result);
+    const pick = (defaultMap, prevMap) => Object.fromEntries(
+      Object.keys(defaultMap).map((key) => [key, prevMap?.[key] || defaultMap[key]]),
+    );
+    const reconciled = {
+      towers: pick(defaults.towers, nextDecisions.towers),
+      divergences: pick(defaults.divergences, nextDecisions.divergences),
+      gapDays: pick(defaults.gapDays, nextDecisions.gapDays),
+      photos: nextDecisions.photos || {},
+    };
+    setAnalysis(result);
+    setDecisions(reconciled);
+    setUndoStack((prev) => prev.filter((entry) => entry.type !== 'confirm' || reconciled.divergences[entry.id]));
+  }
+
+  function setPhotoSubject(keys, subject, { record = true } = {}) {
+    const list = (Array.isArray(keys) ? keys : [keys]).filter(Boolean);
+    if (!list.length || !decisions) return;
+    const photos = { ...(decisions.photos || {}) };
+    const changes = list.map((key) => ({ key, prev: photos[key]?.subject || null }));
+    for (const key of list) photos[key] = { ...(photos[key] || {}), subject };
+    if (record) setUndoStack((prev) => [...prev, { type: 'subject', subject, changes }]);
+    reanalyze({ ...decisions, photos });
+  }
+
+  function toggleGroup(key) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   }
 
   function handleCancelAnalysis() {
@@ -246,14 +311,23 @@ export default function CampaignPhotoIntakeModal({
 
   function confirmDivergence(id) {
     updateDivergenceDecision(id, { status: 'confirmed' });
-    setConfirmedStack((prev) => [...prev, id]);
+    setUndoStack((prev) => [...prev, { type: 'confirm', id }]);
   }
 
-  function undoLastConfirmation() {
-    const last = confirmedStack[confirmedStack.length - 1];
+  function undoLast() {
+    const last = undoStack[undoStack.length - 1];
     if (!last) return;
-    updateDivergenceDecision(last, { status: 'pending' });
-    setConfirmedStack((prev) => prev.slice(0, -1));
+    setUndoStack((prev) => prev.slice(0, -1));
+    if (last.type === 'confirm') {
+      updateDivergenceDecision(last.id, { status: 'pending' });
+      return;
+    }
+    const photos = { ...(decisions?.photos || {}) };
+    for (const { key, prev } of last.changes) {
+      if (prev) photos[key] = { ...(photos[key] || {}), subject: prev };
+      else delete photos[key];
+    }
+    reanalyze({ ...decisions, photos });
   }
 
   function updateGapDecision(date, patch) {
@@ -268,18 +342,6 @@ export default function CampaignPhotoIntakeModal({
       return next;
     });
   }
-
-  const includedPhotoCount = useMemo(() => {
-    if (!analysis || !decisions) return 0;
-    let count = 0;
-    for (const day of analysis.days) {
-      for (const group of day.towers) {
-        if (decisions.towers[group.key]?.include) count += group.count;
-      }
-      count += day.unresolved.length;
-    }
-    return count + (analysis.undated?.length || 0);
-  }, [analysis, decisions]);
 
   const diaryOn = destinations.diary.available && destinations.diary.enabled;
   const workspaceOn = destinations.workspace.available && destinations.workspace.enabled;
@@ -389,6 +451,7 @@ export default function CampaignPhotoIntakeModal({
           <p className="m-0">
             As fotos são lidas apenas no seu navegador: só o cabeçalho EXIF (data, GPS e a etiqueta
             <span className="font-mono text-xs"> SIGLA / torre</span> gravada pelo Timestamp Camera) é lido. Nenhuma foto é enviada agora.
+            Uma 3ª linha <span className="font-mono text-xs">ACESSO</span> ou <span className="font-mono text-xs">CONTEXTO</span> na etiqueta marca a foto como acesso/contexto (fora dos avisos de divergência).
           </p>
         </div>
         <Input
@@ -441,7 +504,17 @@ export default function CampaignPhotoIntakeModal({
           <span className="font-mono text-sm font-semibold rounded border border-slate-300 bg-slate-100 px-2 text-slate-800">{divergence.numero}</span>
           <span className="text-slate-700">{divergence.text}</span>
         </div>
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setPhotoSubject(divergence.photoKeys, 'acesso')}
+            title="Marca estas fotos como foto de acesso: saem das regras de divergência e ganham legenda 'Acesso a torre N'."
+          >
+            <AppIcon name="route-plan" className="w-4 h-4" aria-hidden="true" />
+            É acesso
+          </Button>
+          <span className="flex-1" />
           <label htmlFor={selectId} className="text-2xs font-bold uppercase tracking-wide text-slate-500">Usar torre</label>
           <Select
             id={selectId}
@@ -462,9 +535,18 @@ export default function CampaignPhotoIntakeModal({
   }
 
   function renderDivergences() {
-    if (!conflictDivergences.length && !infoDivergences.length) return null;
+    if (!conflictDivergences.length && !infoDivergences.length && !undoStack.length) return null;
     const lastConfirmed = resolvedConflicts[resolvedConflicts.length - 1];
     const hasPanel = pendingConflicts.length > 0;
+    const undoButton = undoStack.length > 0 ? (
+      <Button size="sm" variant="ghost" onClick={undoLast} aria-label="Desfazer a última ação">
+        <AppIcon name="undo" className="w-4 h-4" aria-hidden="true" />
+        Desfazer
+      </Button>
+    ) : null;
+    const subjectBadge = subjectMarkedCount > 0
+      ? <Badge tone="neutral" data-testid="photo-autofill-subject-marked">{pluralize(subjectMarkedCount, 'foto marcada como acesso/contexto', 'fotos marcadas como acesso/contexto')}</Badge>
+      : null;
     return (
       <section aria-label="Divergências de legenda" className="flex flex-col gap-2">
         {hasPanel ? (
@@ -477,26 +559,22 @@ export default function CampaignPhotoIntakeModal({
               </HintText>
               <span className="flex-1" />
               {resolvedConflicts.length > 0 ? (
-                <>
-                  <Badge tone="ok">{resolvedConflicts.length} resolvida{resolvedConflicts.length > 1 ? 's' : ''}{lastConfirmed ? ` · ${lastConfirmed.numero} → ${decisions.divergences[lastConfirmed.id]?.numero}` : ''}</Badge>
-                  <Button size="sm" variant="ghost" onClick={undoLastConfirmation} aria-label="Desfazer a última confirmação">
-                    <AppIcon name="undo" className="w-4 h-4" aria-hidden="true" />
-                    Desfazer
-                  </Button>
-                </>
+                <Badge tone="ok">{resolvedConflicts.length} resolvida{resolvedConflicts.length > 1 ? 's' : ''}{lastConfirmed ? ` · ${lastConfirmed.numero} → ${decisions.divergences[lastConfirmed.id]?.numero}` : ''}</Badge>
               ) : null}
+              {subjectBadge}
+              {undoButton}
               <Badge tone="warning">{pendingConflicts.length} pendente{pendingConflicts.length > 1 ? 's' : ''}</Badge>
             </div>
             {pendingConflicts.map(renderConflictRow)}
           </div>
-        ) : resolvedConflicts.length > 0 ? (
-          <div className="flex items-center gap-2 rounded-xl border border-success-border bg-success-light px-3 py-2 text-sm text-green-800" data-testid="photo-autofill-divergences-resolved">
+        ) : (resolvedConflicts.length > 0 || subjectMarkedCount > 0) ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-success-border bg-success-light px-3 py-2 text-sm text-green-800" data-testid="photo-autofill-divergences-resolved">
             <AppIcon name="check-circle-2" className="w-4 h-4" aria-hidden="true" />
-            <span className="flex-1">Divergências resolvidas: {resolvedConflicts.map((d) => `${d.numero} → ${decisions.divergences[d.id]?.numero}`).join(', ')}.</span>
-            <Button size="sm" variant="ghost" onClick={undoLastConfirmation} aria-label="Desfazer a última confirmação">
-              <AppIcon name="undo" className="w-4 h-4" aria-hidden="true" />
-              Desfazer
-            </Button>
+            <span className="flex-1">
+              {resolvedConflicts.length > 0 ? `Divergências resolvidas: ${resolvedConflicts.map((d) => `${d.numero} → ${decisions.divergences[d.id]?.numero}`).join(', ')}.` : 'Sem divergências pendentes.'}
+            </span>
+            {subjectBadge}
+            {undoButton}
           </div>
         ) : null}
         {infoDivergences.length > 0 ? (
@@ -509,9 +587,18 @@ export default function CampaignPhotoIntakeModal({
             {showInfoDivergences ? (
               <ul className="m-0 list-none flex flex-col gap-1 px-3 pb-3 text-xs text-slate-600">
                 {infoDivergences.map((d) => (
-                  <li key={d.id} className="flex items-start gap-2">
+                  <li key={d.id} className="flex flex-wrap items-center gap-2" data-testid="photo-autofill-info">
                     <span className="font-mono font-semibold text-slate-800">{d.numero}</span>
-                    <span>{toBrDate(d.date)} · {d.text}</span>
+                    <span className="flex-1 min-w-[12rem]">{toBrDate(d.date)} · {d.text}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setPhotoSubject(d.photoKeys, 'acesso')}
+                      title="Marca as fotos deste aviso como foto de acesso."
+                    >
+                      <AppIcon name="route-plan" className="w-4 h-4" aria-hidden="true" />
+                      É acesso
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -522,12 +609,49 @@ export default function CampaignPhotoIntakeModal({
     );
   }
 
+  function renderGroupPhotos(group) {
+    return (
+      <ul className="m-0 list-none flex flex-col gap-1 border-t border-slate-100 bg-slate-50 px-3 py-2" data-testid="photo-autofill-group-photos">
+        {group.photos.map((photo) => {
+          const subject = photo.subject || 'torre';
+          return (
+            <li key={photo.key} className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+              <span className="font-mono text-slate-800 truncate max-w-[14rem]" title={photo.name}>{photo.name}</span>
+              <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                <AppIcon name="clock" className="w-3 h-3" aria-hidden="true" />
+                {photo.capturedTime || '--:--'}
+              </span>
+              <span className="whitespace-nowrap">{Number.isFinite(photo.distanceToTowerM) ? `${formatMeters(photo.distanceToTowerM)} da torre` : 'sem GPS'}</span>
+              {photo.conflict ? <Badge tone="danger">GPS: torre {photo.conflict.suggested}</Badge> : null}
+              <span className="flex-1" />
+              <div className="inline-flex gap-1 rounded-md border border-slate-200 bg-white p-0.5" role="group" aria-label={`Assunto da foto ${photo.name}`}>
+                {PHOTO_SUBJECTS.map((option) => (
+                  <Button
+                    key={option}
+                    size="sm"
+                    variant={subject === option ? 'primary' : 'ghost'}
+                    aria-pressed={subject === option}
+                    onClick={() => { if (subject !== option) setPhotoSubject(photo.key, option); }}
+                  >
+                    {PHOTO_SUBJECT_LABELS[option]}
+                  </Button>
+                ))}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
   function renderTowerRow(day, group) {
     const decision = decisions.towers[group.key] || { include: group.defaultIncluded, numero: group.numero };
     const badge = towerBadge(group);
     const alreadyInDiary = existingTowersByDate.get(day.data)?.has(group.numero);
+    const groupExpanded = expandedGroups.has(group.key);
     return (
-      <div key={group.key} className="flex flex-wrap items-center gap-2.5 border-t border-slate-100 px-3 py-1.5 text-sm" data-testid="photo-autofill-tower">
+      <div key={group.key}>
+      <div className="flex flex-wrap items-center gap-2.5 border-t border-slate-100 px-3 py-1.5 text-sm" data-testid="photo-autofill-tower">
         <Checkbox
           id={`tower-${group.key.replace(/[^a-z0-9]/gi, '-')}`}
           aria-label={`Incluir torre ${group.numero} em ${toBrDate(day.data)}`}
@@ -539,9 +663,17 @@ export default function CampaignPhotoIntakeModal({
           <AppIcon name="clock" className="w-3 h-3" aria-hidden="true" />
           {group.firstAt}{group.lastAt && group.lastAt !== group.firstAt ? ` – ${group.lastAt}` : ''}
         </span>
-        <span className="flex-1 text-slate-600">{pluralize(group.count, 'foto', 'fotos')}</span>
+        <Button size="sm" variant="ghost" onClick={() => toggleGroup(group.key)} aria-expanded={groupExpanded} title="Listar as fotos desta torre">
+          {pluralize(group.count, 'foto', 'fotos')}
+          <AppIcon name={groupExpanded ? 'chevron-up' : 'chevron-down'} className="w-4 h-4" aria-hidden="true" />
+        </Button>
+        <span className="flex-1" />
+        {group.accessCount > 0 ? <Badge tone="neutral">{group.accessCount} de acesso</Badge> : null}
+        {group.contextCount > 0 ? <Badge tone="neutral">{group.contextCount} de contexto</Badge> : null}
         {alreadyInDiary ? <Badge tone="neutral">Já no diário</Badge> : null}
         <Badge tone={badge.tone}>{badge.text}</Badge>
+      </div>
+      {groupExpanded ? renderGroupPhotos(group) : null}
       </div>
     );
   }
@@ -661,6 +793,8 @@ export default function CampaignPhotoIntakeModal({
           {stats.gpsOnlyGroups > 0 ? <Badge tone="warning">Sugestões só por GPS: {stats.gpsOnlyGroups} (desmarcadas)</Badge> : null}
           {stats.towersRepeatedAcrossDays.length > 0 ? <Badge tone="neutral">Torres em mais de um dia: {stats.towersRepeatedAcrossDays.join(', ')}</Badge> : null}
           {stats.unresolved > 0 ? <Badge tone="warning">Fotos sem torre: {stats.unresolved}</Badge> : null}
+          {stats.accessPhotos > 0 ? <Badge tone="neutral">Fotos de acesso: {stats.accessPhotos}</Badge> : null}
+          {stats.contextPhotos > 0 ? <Badge tone="neutral">Fotos de contexto: {stats.contextPhotos}</Badge> : null}
         </div>
 
         {renderDestinations()}

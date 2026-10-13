@@ -165,6 +165,25 @@ describe('PhotoPreviewModal — incluir no .docx', () => {
     expect(onToggleInclude).toHaveBeenCalledWith(false);
   });
 
+  it('controle de assunto mostra o atual e chama onChangeSubject ao trocar', () => {
+    const onChangeSubject = vi.fn();
+    mount(<PhotoPreviewModal {...baseProps({ onChangeSubject, photo: { id: 'RPH-2', importSource: 'loose_photos', towerId: '641', caption: 'Legenda', subject: 'acesso' } })} />);
+    const control = container.querySelector('[data-testid="photo-subject-control"]');
+    expect(control.querySelector('button[aria-pressed="true"]').textContent).toBe('Acesso');
+    act(() => { [...control.querySelectorAll('button')].find((b) => b.textContent === 'Contexto').click(); });
+    expect(onChangeSubject).toHaveBeenCalledWith('contexto');
+    // Clicar no assunto atual nao dispara nada.
+    act(() => { [...control.querySelectorAll('button')].find((b) => b.textContent === 'Acesso').click(); });
+    expect(onChangeSubject).toHaveBeenCalledTimes(1);
+  });
+
+  it('sem onChangeSubject o controle de assunto fica desabilitado', () => {
+    mount(<PhotoPreviewModal {...baseProps()} />);
+    const control = container.querySelector('[data-testid="photo-subject-control"]');
+    expect([...control.querySelectorAll('button')].every((b) => b.disabled)).toBe(true);
+    expect(control.querySelector('button[aria-pressed="true"]').textContent).toBe('Torre');
+  });
+
   it('a tecla E alterna a inclusao', () => {
     const onToggleInclude = vi.fn();
     mount(<PhotoPreviewModal {...baseProps({ onToggleInclude })} />);

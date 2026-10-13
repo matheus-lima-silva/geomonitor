@@ -207,6 +207,68 @@ describe('CampaignPhotoIntakeModal', () => {
     expect(Object.values(decisions.divergences)[0]).toEqual({ status: 'confirmed', numero: '6' });
   });
 
+  it('etiqueta com 3a linha ACESSO: fotos saem das divergencias e aparecem contadas como acesso', async () => {
+    const accessMetas = { ...METAS };
+    for (const name of ['c.jpg', 'd.jpg', 'e.jpg']) accessMetas[name] = { ...METAS[name], description: 'BMDOPR\n5\nACESSO' };
+    await renderAndAnalyze({ readExifMeta: vi.fn(async (file) => accessMetas[file.name] || null) });
+
+    expect(document.querySelector('[data-testid="photo-autofill-conflict"]')).toBeNull();
+    expect(document.querySelector('[data-testid="photo-autofill-review"]').textContent).toContain('Fotos de acesso: 3');
+    const tower5 = [...document.querySelectorAll('[data-testid="photo-autofill-tower"]')].find((row) => row.textContent.includes('5 fotos'));
+    expect(tower5.textContent).toContain('3 de acesso');
+
+    clickButton('Aplicar ao diário');
+    expect(onApply).toHaveBeenCalledTimes(1);
+    const { analysis } = onApply.mock.calls[0][0];
+    expect(analysis.stats.accessPhotos).toBe(3);
+    expect(analysis.divergences.filter((d) => d.numero === '5')).toEqual([]);
+  });
+
+  it('"E acesso" na divergencia some com a linha, Desfazer volta, e as decisoes levam o assunto por foto', async () => {
+    await renderAndAnalyze();
+    const conflict = document.querySelector('[data-testid="photo-autofill-conflict"]');
+    clickButton('É acesso', conflict);
+    await flush(2);
+    expect(document.querySelector('[data-testid="photo-autofill-conflict"]')).toBeNull();
+    const resolved = document.querySelector('[data-testid="photo-autofill-divergences-resolved"]');
+    expect(resolved.textContent).toContain('3 fotos marcadas como acesso/contexto');
+
+    clickButton('Desfazer', resolved);
+    await flush(2);
+    expect(document.querySelector('[data-testid="photo-autofill-conflict"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="photo-autofill-subject-marked"]')).toBeNull();
+
+    clickButton('É acesso', document.querySelector('[data-testid="photo-autofill-conflict"]'));
+    await flush(2);
+    clickButton('Aplicar ao diário');
+    expect(onApply).toHaveBeenCalledTimes(1);
+    const { decisions, analysis } = onApply.mock.calls[0][0];
+    expect(decisions.photos['c.jpg|1000|1']).toEqual({ subject: 'acesso' });
+    expect(decisions.photos['e.jpg|1000|1']).toEqual({ subject: 'acesso' });
+    expect(analysis.stats.accessPhotos).toBe(3);
+    // Decisoes anteriores sobrevivem a re-analise (GPS-only segue desmarcada).
+    expect(decisions.towers['2026-09-22|7'].include).toBe(false);
+  });
+
+  it('expandir a torre lista as fotos e o toggle por foto muda o assunto', async () => {
+    await renderAndAnalyze();
+    const tower5 = [...document.querySelectorAll('[data-testid="photo-autofill-tower"]')].find((row) => row.textContent.includes('5 fotos'));
+    clickButton('5 fotos', tower5);
+    const list = document.querySelector('[data-testid="photo-autofill-group-photos"]');
+    expect(list).toBeTruthy();
+    expect(list.querySelectorAll('li')).toHaveLength(5);
+    const firstRow = list.querySelector('li');
+    expect(firstRow.textContent).toContain('a.jpg');
+    expect(firstRow.querySelector('button[aria-pressed="true"]').textContent).toBe('Torre');
+
+    clickButton('Acesso', firstRow);
+    await flush(2);
+    const refreshed = [...document.querySelectorAll('[data-testid="photo-autofill-tower"]')].find((row) => row.textContent.includes('5 fotos'));
+    expect(refreshed.textContent).toContain('1 de acesso');
+    const refreshedList = document.querySelector('[data-testid="photo-autofill-group-photos"]');
+    expect(refreshedList.querySelector('li button[aria-pressed="true"]').textContent).toBe('Acesso');
+  });
+
   it('marca "Já no diário" para torre que o dia atual ja tem', async () => {
     await renderAndAnalyze({
       currentForm: {

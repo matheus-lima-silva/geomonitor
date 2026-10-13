@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Button, Card, EmptyState, HintText, Input, Select } from '../../../components/ui';
+import { Badge, Button, Card, EmptyState, HintText, Input, Select } from '../../../components/ui';
 import IconButton from '../../../components/ui/IconButton';
 import Modal from '../../../components/ui/Modal';
 import { PhotoCardSkeleton } from '../../../components/ui/Skeleton';
@@ -1422,6 +1422,9 @@ export default function WorkspacesTab({
 
                           {/* Campos de curadoria */}
                           <div className="p-3 flex flex-col gap-3">
+                            {photo.subject && photo.subject !== 'torre' ? (
+                              <Badge tone="neutral">{photo.subject === 'acesso' ? 'Foto de acesso' : 'Foto de contexto'}</Badge>
+                            ) : null}
                             <Input
                               id={`rw-photo-caption-${photo.id}`}
                               label="Legenda"
@@ -1709,6 +1712,13 @@ export default function WorkspacesTab({
           const nextDraft = { ...base, includeInReport: next };
           setWorkspacePhotoDrafts((prev) => ({ ...prev, [activePreviewPhoto.id]: nextDraft }));
           // Passa o rascunho explicito para evitar leitura defasada do estado.
+          handleSaveWorkspacePhoto(activePreviewPhoto, nextDraft);
+        }}
+        onChangeSubject={(next) => {
+          if (!activePreviewPhoto) return;
+          const base = workspacePhotoDrafts[activePreviewPhoto.id] || buildWorkspacePhotoDraft(activePreviewPhoto);
+          const nextDraft = { ...base, subject: next };
+          setWorkspacePhotoDrafts((prev) => ({ ...prev, [activePreviewPhoto.id]: nextDraft }));
           handleSaveWorkspacePhoto(activePreviewPhoto, nextDraft);
         }}
         onDownload={(p) => {
