@@ -265,6 +265,27 @@ function ErosionFormModal({
     return selected ? selected.position : null;
   }, [nearbyTowerMarkers]);
 
+  // GPS da foto de origem (handoff "criar erosao a partir da foto"): fonte
+  // opcional do ponto da erosao, para quando a foto foi tirada em cima dela.
+  const originPhoto = safeFormData.originPhoto && typeof safeFormData.originPhoto === 'object' ? safeFormData.originPhoto : null;
+  const photoPoint = useMemo(() => {
+    const lat = Number(originPhoto?.gpsLat);
+    const lng = Number(originPhoto?.gpsLon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return [lat, lng];
+  }, [originPhoto?.gpsLat, originPhoto?.gpsLon]);
+
+  function samePoint(a, b) {
+    return Array.isArray(a) && Array.isArray(b)
+      && Math.abs(Number(a[0]) - Number(b[0])) < 1e-6
+      && Math.abs(Number(a[1]) - Number(b[1])) < 1e-6;
+  }
+  const currentPointSourceLabel = currentPoint && photoPoint && samePoint(currentPoint, photoPoint)
+    ? `Ponto atual = GPS da foto ${originPhoto?.photoId || ''}`.trim()
+    : (currentPoint && towerPoint && samePoint(currentPoint, towerPoint)
+      ? `Ponto atual = torre ${String(safeFormData.torreRef || '').trim()}`
+      : '');
+
   const linePath = useMemo(() => {
     const coords = Array.isArray(selectedProject?.linhaCoordenadas)
       ? selectedProject.linhaCoordenadas
@@ -280,13 +301,14 @@ function ErosionFormModal({
 
   const mapCenter = useMemo(() => {
     if (currentPoint) return currentPoint;
+    if (photoPoint) return photoPoint;
     if (towerPoint) return towerPoint;
     if (nearbyTowerMarkers.length > 0) return nearbyTowerMarkers[0].position;
     if (linePath.length > 0) return linePath[0];
     return [-15.793889, -47.882778];
-  }, [currentPoint, towerPoint, nearbyTowerMarkers, linePath]);
+  }, [currentPoint, photoPoint, towerPoint, nearbyTowerMarkers, linePath]);
 
-  const mapZoom = currentPoint || towerPoint || nearbyTowerMarkers.length > 0 ? 15 : (linePath.length > 0 ? 12 : 5);
+  const mapZoom = currentPoint || photoPoint || towerPoint || nearbyTowerMarkers.length > 0 ? 15 : (linePath.length > 0 ? 12 : 5);
   const mapRenderKey = `${mapCenter[0].toFixed(6)}-${mapCenter[1].toFixed(6)}-${mapZoom}`;
 
   if (!open) return null;
@@ -354,6 +376,11 @@ function ErosionFormModal({
   function handleUseTowerCoordinates() {
     if (!towerPoint) return;
     applyDecimalCoordinates(towerPoint[0], towerPoint[1]);
+  }
+
+  function handleUsePhotoCoordinates() {
+    if (!photoPoint) return;
+    applyDecimalCoordinates(photoPoint[0], photoPoint[1]);
   }
 
   function handleMapPick(latitude, longitude) {
@@ -674,9 +701,25 @@ function ErosionFormModal({
                 <AppIcon name="route" />
                 Usar coordenada da torre
               </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleUsePhotoCoordinates}
+                disabled={!photoPoint}
+                title={photoPoint ? 'GPS de onde a foto de origem foi tirada (use se a foto foi tirada em cima da erosao).' : 'Sem foto de origem com GPS.'}
+              >
+                <AppIcon name="camera" />
+                Usar coordenada da foto
+              </Button>
               {!towerPoint ? (
                 <span className="text-xs text-slate-500">
                   Sem coordenada de torre.
+                </span>
+              ) : null}
+              {currentPointSourceLabel ? (
+                <span className="text-xs text-slate-500" data-testid="erosion-point-source">
+                  {currentPointSourceLabel}
                 </span>
               ) : null}
             </div>
@@ -717,6 +760,15 @@ function ErosionFormModal({
                         <Popup>{`${formatTowerLabel(tower.towerNumber)} ${tower.isSelected ? '(selecionada)' : '(vizinha)'}`}</Popup>
                       </CircleMarker>
                     ))}
+                    {photoPoint ? (
+                      <CircleMarker
+                        center={photoPoint}
+                        radius={7}
+                        pathOptions={{ color: '#5b21b6', fillColor: '#a78bfa', fillOpacity: 0.9, weight: 2 }}
+                      >
+                        <Popup>{`Foto ${originPhoto?.photoId || ''} (GPS)`.trim()}</Popup>
+                      </CircleMarker>
+                    ) : null}
                     {currentPoint ? (
                       <CircleMarker
                         center={currentPoint}
@@ -733,6 +785,7 @@ function ErosionFormModal({
                   <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-blue-500 border-2 border-blue-700" /> Erosão</span>
                   <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-amber-500 border-2 border-slate-900" /> Torre selecionada</span>
                   <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-green-500 border-2 border-green-900" /> Torres vizinhas</span>
+                  {photoPoint ? <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-violet-400 border-2 border-violet-800" /> GPS da foto</span> : null}
                   {linePath.length >= 2 ? <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-teal-700" /> Linha de transmissão</span> : null}
                 </div>
               </div>

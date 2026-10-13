@@ -4,7 +4,16 @@ import AppIcon from '../../../components/AppIcon';
 import { Badge, Button, Card, IconButton, Input, Modal, Select, Textarea } from '../../../components/ui';
 import { saveInspection } from '../../../services/inspectionService';
 import { getProjectTowerList } from '../../../utils/getProjectTowerList';
-import { buildPhotoAssignments, mergeAnalysisIntoForm } from '../../../utils/photoCampaign/photoCampaignAnalysis';
+import { buildPhotoAssignments, buildWeatherIndex, mergeAnalysisIntoForm, projectTowersCentroid } from '../../../utils/photoCampaign/photoCampaignAnalysis';
+import { fetchDailyWeather } from '../../../services/weatherService';
+
+// Opcoes de clima do diario (mesmos valores que o Open-Meteo e classificado pelo backend).
+const CLIMA_OPTIONS = [
+  { value: 'Sol', label: 'Sol' },
+  { value: 'Parcialmente Nublado', label: 'Parcialmente nublado' },
+  { value: 'Nublado', label: 'Nublado' },
+  { value: 'Chuva', label: 'Chuva' },
+];
 import CampaignPhotoIntakeModal from '../../reports/components/CampaignPhotoIntakeModal';
 import { postCalculoErosao, saveErosion } from '../../../services/erosionService';
 import { useLocalStorageDraft } from '../../../hooks/useLocalStorageDraft';
@@ -303,6 +312,7 @@ function InspectionFormWizardModal({
   const [saving, setSaving] = useState(false);
   const [warningModal, setWarningModal] = useState(null);
   const [photoAutofillOpen, setPhotoAutofillOpen] = useState(false);
+  const [weatherBusy, setWeatherBusy] = useState(false);
   const autoPendingCheckRef = useRef('');
   const hotelPickerRef = useRef(null);
   const hotelPickerSearchRef = useRef(null);
@@ -550,6 +560,42 @@ function InspectionFormWizardModal({
       if (key === 'dataInicio' || key === 'dataFim') return syncDays({ ...prev, [key]: value });
       return { ...prev, [key]: value };
     });
+  }
+
+  // "Sugerir clima": Open-Meteo no centroide das torres do diario (ou do
+  // empreendimento), preenchendo so os dias com clima vazio.
+  async function handleSuggestWeather() {
+    const days = Array.isArray(formData.detalhesDias) ? formData.detalhesDias : [];
+    const dates = days.map((day) => String(day?.data || '').trim()).filter(Boolean).sort();
+    if (!dates.length) return;
+    if (!days.some((day) => !String(day?.clima || '').trim())) {
+      show('Todos os dias ja tem clima preenchido.', 'info');
+      return;
+    }
+    const towerNumbers = days.flatMap((day) => (day?.torresDetalhadas || []).map((tower) => tower?.numero));
+    const centroid = projectTowersCentroid(selectedProject, towerNumbers);
+    if (!centroid) {
+      show('Empreendimento sem coordenadas de torres para consultar o clima.', 'error');
+      return;
+    }
+    setWeatherBusy(true);
+    try {
+      const list = await fetchDailyWeather({ lat: centroid[0], lon: centroid[1], start: dates[0], end: dates[dates.length - 1] });
+      const index = buildWeatherIndex(list);
+      let filled = 0;
+      const nextDays = days.map((day) => {
+        const entry = index.get(String(day?.data || '').trim());
+        if (!entry?.clima || String(day?.clima || '').trim()) return day;
+        filled += 1;
+        return ensureDayShape({ ...day, clima: entry.clima });
+      });
+      if (filled > 0) setFormData((prev) => ({ ...prev, detalhesDias: nextDays }));
+      show(filled > 0 ? `Clima sugerido em ${filled} dia(s) pelo Open-Meteo. Confira antes de salvar.` : 'Sem dados de clima para o periodo.', filled > 0 ? 'success' : 'info');
+    } catch (error) {
+      show(error?.message || 'Nao foi possivel consultar o clima.', 'error');
+    } finally {
+      setWeatherBusy(false);
+    }
   }
 
   function updateDayField(dayIndex, patch) {
@@ -1427,7 +1473,18 @@ function InspectionFormWizardModal({
             <div className="flex flex-col gap-6 animate-fade-in">
               <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" data-testid="photo-autofill-cta-step2">
                 <AppIcon name="camera" className="w-5 h-5 text-brand-600" aria-hidden="true" />
-                <span className="flex-1 min-w-[200px] text-sm text-slate-600">Preencha os dias e torres a partir das fotos da campanha. Clima e hospedagem continuam manuais.</span>
+                <span className="flex-1 min-w-[200px] text-sm text-slate-600">Preencha os dias e torres a partir das fotos da campanha. Hospedagem continua manual.</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSuggestWeather}
+                  disabled={!formData.projetoId || weatherBusy || (formData.detalhesDias || []).length === 0}
+                  title="Sugere o clima dos dias sem clima pelo Open-Meteo (posicao das torres do dia)."
+                >
+                  <AppIcon name="cloud-check" />
+                  {weatherBusy ? 'Consultando clima...' : 'Sugerir clima'}
+                </Button>
                 <Button type="button" variant="secondary" size="sm" onClick={() => setPhotoAutofillOpen(true)} disabled={!formData.projetoId} title={!formData.projetoId ? 'Selecione o empreendimento primeiro.' : undefined}>
                   <AppIcon name="wand-2" />
                   Preencher pelas fotos
@@ -1477,10 +1534,7 @@ function InspectionFormWizardModal({
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Select id={`inspection-day-weather-${dayIndex}`} label="Clima" hint="Condicao predominante do dia. Se variou muito, registre nas observacoes da torre." value={day.clima || ''} onChange={(e) => updateDayField(dayIndex, { clima: e.target.value })}>
                               <option value="">Selecione...</option>
-                              <option value="Sol">Sol</option>
-                              <option value="Parcialmente Nublado">Parcialmente nublado</option>
-                              <option value="Nublado">Nublado</option>
-                              <option value="Chuva">Chuva</option>
+                              {CLIMA_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                             </Select>
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex flex-col gap-1">
                               <label className="text-sm font-semibold text-slate-700 m-0">Torres selecionadas</label>

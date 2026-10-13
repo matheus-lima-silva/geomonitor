@@ -6,6 +6,9 @@
 const { rulesConfigRepository } = require('../repositories');
 
 const DEFAULT_TRASH_RETENTION_DAYS = 30;
+// Backups `.orig-<ts>` do corte de rodape (photoFooterCrop): depois deste prazo
+// o backup e apagado e o corte deixa de ser desfazivel.
+const DEFAULT_CROP_BACKUP_RETENTION_DAYS = 30;
 const MIN_DAYS = 1;
 const MAX_DAYS = 3650;
 
@@ -28,10 +31,23 @@ async function getTrashRetentionDays() {
     }
 }
 
+async function getCropBackupRetentionDays() {
+    try {
+        const config = await rulesConfigRepository.get();
+        const clamped = clampDays(config?.retencao?.backup_corte_dias);
+        return clamped === null ? DEFAULT_CROP_BACKUP_RETENTION_DAYS : clamped;
+    } catch (error) {
+        console.error('[retentionConfig] erro ao ler rules_config (backup_corte_dias), usando default:', error?.message || error);
+        return DEFAULT_CROP_BACKUP_RETENTION_DAYS;
+    }
+}
+
 module.exports = {
     DEFAULT_TRASH_RETENTION_DAYS,
+    DEFAULT_CROP_BACKUP_RETENTION_DAYS,
     MIN_DAYS,
     MAX_DAYS,
     getTrashRetentionDays,
+    getCropBackupRetentionDays,
     clampDays,
 };

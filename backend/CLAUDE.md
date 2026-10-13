@@ -17,6 +17,10 @@ Nunca retornar `res.json(data)` solto. Toda rota devolve envelope com `_links`:
 
 Links saem sempre de `generateHateoasLinks(req, entityType, id)` (respeita `API_BASE_URL` e evita Host Header Injection). Proibido string literal tipo `/api/projects/123` em qualquer lugar.
 
+### 2a. Chamadas a APIs externas (proxies outbound)
+
+O frontend nao chama terceiros direto (CSP `connect-src 'self'` em producao). Rotas que consultam APIs externas seguem o molde de [routes/rules.js](routes/rules.js) (`GET /feriados/importar`, BrasilAPI) e [routes/weather.js](routes/weather.js) + [utils/openMeteo.js](utils/openMeteo.js) (Open-Meteo): `fetch` nativo com `AbortController` e timeout de 5 s, 504 em timeout, 502 em upstream nao-ok/JSON invalido/rede, query validada por Zod (`validateQuery`), envelope HATEOAS. Quando a resposta e estavel (historico), cache em memoria com TTL e limite de entradas no util, com `reset...Cache()` exportado para os testes. Testes de integracao mockam `global.fetch` (ver `__tests__/integration/rulesFeriados.test.js` e `weatherDaily.test.js`).
+
 ## 3. CRUD simples → `createCrudRouter`
 
 Para CRUD padrao use `createCrudRouter(collectionName, { repository, createSchema, updateSchema, ... })` — `utils/crudFactory.js:7`. Exemplo: [routes/projects.js](routes/projects.js).
@@ -185,4 +189,4 @@ CI nao roda `test:pbt` por enquanto — sera adicionado em follow-up quando a su
 
 Ao introduzir novo util em `utils/`, novo middleware, nova convencao ou mudar contrato de envelope, **atualizar este arquivo no mesmo PR** e bumpar a data do rodape. Revisar integralmente a cada trimestre (audit comparando com estado do codigo). Ver secao "Manutencao dos documentos" do plano arquitetural em `.claude/plans/jazzy-tinkering-cocke.md`.
 
-> Ultima revisao: 2026-06-23.
+> Ultima revisao: 2026-10-12.

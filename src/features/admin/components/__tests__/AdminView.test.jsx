@@ -75,6 +75,31 @@ describe('AdminView', () => {
     expect(container.textContent).toContain('1 utilizador aguardando aprovacao.');
   });
 
+  it('secao Retencao tem o prazo da lixeira e o dos backups de corte, salvos juntos', async () => {
+    const { saveRulesConfig } = await import('../../../../services/rulesService');
+    saveRulesConfig.mockResolvedValue({});
+    act(() => {
+      root.render(<AdminView users={USERS} rulesConfig={{ retencao: { lixeira_para_arquivo_dias: 60, backup_corte_dias: 7 } }} searchTerm="" />);
+    });
+    const retButton = [...container.querySelectorAll('nav button')].find((button) => /Retencao/.test(button.textContent || ''));
+    act(() => { retButton.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    expect(container.querySelector('#admin-retention-days').value).toBe('60');
+    expect(container.querySelector('#admin-crop-backup-days').value).toBe('7');
+    expect(container.querySelector('[data-testid="admin-crop-backup-retention"]').textContent).toContain('corte deixa de poder ser desfeito');
+
+    const preset90 = [...container.querySelector('[data-testid="admin-crop-backup-retention"]').querySelectorAll('button')]
+      .find((b) => b.textContent === '90d');
+    act(() => { preset90.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    await act(async () => {
+      container.querySelector('[data-testid="admin-retention-save"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(saveRulesConfig).toHaveBeenCalledWith(
+      { retencao: { lixeira_para_arquivo_dias: 60, backup_corte_dias: 90 } },
+      expect.objectContaining({ merge: true }),
+    );
+  });
+
   it('troca para Criticidade e renderiza o editor estruturado', () => {
     render();
     const critButton = [...container.querySelectorAll('nav button')]

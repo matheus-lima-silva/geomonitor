@@ -437,7 +437,7 @@ Seed inclui: Engenheiro Civil, Eletricista, Ambiental, Mecanico; Geologo; Biolog
 
 Tabela Postgres: `rules_config` (singleton, `id = 'default'`).
 
-Armazena configuracao de regras de criticidade (`pontos`, `faixas`, `solucoes`), retencao (`lixeira_para_arquivo_dias`) e lista de feriados (`feriados: [{ data, nome, tipo }]`).
+Armazena configuracao de regras de criticidade (`pontos`, `faixas`, `solucoes`), retencao (`lixeira_para_arquivo_dias`: sugestao de arquivamento da lixeira; `backup_corte_dias`: prazo de guarda dos backups do corte de rodape, ambos 1..3650, default 30) e lista de feriados (`feriados: [{ data, nome, tipo }]`).
 
 | Metodo | Rota | Permissao | Descricao |
 |---|---|---|---|
@@ -467,6 +467,16 @@ Body (PUT):
 ```
 
 O campo `max` da faixa C4 e armazenado como `null` e tratado como infinito pela engine de calculo.
+
+## Weather (`/api/weather`)
+
+Proxy do [Open-Meteo](https://open-meteo.com) (uso nao comercial, sem chave) para sugerir o clima dos dias da vistoria. O navegador nao chama o Open-Meteo direto porque a CSP de producao (`nginx.conf`, `connect-src 'self'`) bloqueia; o backend busca, classifica e guarda em cache. Sem persistencia.
+
+| Metodo | Rota | Permissao | Descricao |
+|---|---|---|---|
+| GET | `/api/weather/daily?lat&lon&start&end` | `requireActiveUser` | Clima diario classificado para um ponto e um intervalo (datas `YYYY-MM-DD`, `end >= start`, maximo 92 dias). Query validada por Zod (`schemas/weatherSchemas.js`, 400 `VALIDATION_ERROR`). Fonte: `archive-api` (ERA5, historico) quando `end` e anterior a hoje-6 dias; senao `forecast` com `past_days` (recorte ao intervalo). Timeout 5 s -> 504 `WEATHER_TIMEOUT`; upstream nao-ok/JSON invalido/rede -> 502 `WEATHER_UPSTREAM`. Cache em memoria por `fonte|lat(2 casas)|lon(2 casas)|start|end` (24 h archive, 1 h forecast, 500 entradas; `cached: true` na resposta). |
+
+Resposta (`data`): `{ source: 'archive'|'forecast', latitude, longitude, timezone: 'America/Sao_Paulo', start, end, cached, days: [{ date, weatherCode, precipitationSum, precipitationHours, tMax, tMin, clima, reason }] }`. `clima` e uma das opcoes do diario da vistoria (`Sol`, `Parcialmente Nublado`, `Nublado`, `Chuva`) ou `null`; `reason` e a justificativa curta em portugues ("chuvisco 6 h, 2 mm", "encoberto"). Regras de classificacao em `utils/weatherClassify.js` (precipitacao >= 1 mm, chuva/tempestade WMO ou chuvisco >= 2 h -> Chuva; 3/45/48 -> Nublado; 1-2 -> Parcialmente Nublado; 0 -> Sol). URLs e timeout configuraveis por `OPEN_METEO_ARCHIVE_URL`, `OPEN_METEO_FORECAST_URL`, `OPEN_METEO_TIMEOUT_MS`.
 
 ---
 
@@ -516,7 +526,9 @@ Tabela: `report_photos` com campos `deleted_at` (lixeira) e `archived_at` (arqui
 | GET | `/api/report-workspaces/:id/photos/trash` | `requireWorkspaceRead` | Lista fotos na lixeira |
 | PUT | `/api/report-workspaces/:id/photos/:photoId` | `requireWorkspaceWrite` | Atualiza metadata (curadoria) |
 | POST | `/api/report-workspaces/:id/photos/:photoId/crop-footer` | `requireWorkspaceWrite` | Corta o rodape da marca d'agua da foto (body `{ data: { pixels: 1..400 } }` ou `{ percent: 0..0.4 }`); guarda backup do original no bucket (`<storage_key>.orig-<ts>`), atualiza sha/size do `media_asset` e registra em `payload.cropHistory[]`. Devolve a foto com `_links.cropFooterUndo`. 422 `CROP_FAILED` se a faixa cobrir a imagem |
-| POST | `/api/report-workspaces/:id/photos/:photoId/crop-footer/undo` | `requireWorkspaceWrite` | Desfaz o ultimo corte: restaura o original do backup, remove a entrada do historico e apaga o backup. 409 `NO_CROP_HISTORY` / `BACKUP_UNAVAILABLE` |
+| POST | `/api/report-workspaces/:id/photos/:photoId/crop-footer/undo` | `requireWorkspaceWrite` | Desfaz o ultimo corte: restaura o original do backup, remove a entrada do historico e apaga o backup. 409 `NO_CROP_HISTORY` / `BACKUP_UNAVAILABLE` (tambem quando a retencao ja apagou o backup) |
+| POST | `/api/report-workspaces/:id/photos/crop-footer-batch` | `requireWorkspaceWrite` | Corte do rodape em lote (body `{ data: { photoIds: string[1..200], pixels|percent, skipCropped?: boolean } }`, Zod `cropFooterBatchSchema`). Sequencial; fotos ja cortadas sao puladas quando `skipCropped` (default true); erro por foto nao interrompe o lote. Resposta `data: { cropped, skipped: [{ photoId, code, message }], photos: [envelope da foto] }` (codes `ALREADY_CROPPED`, `PHOTO_NOT_FOUND`, `PHOTO_WITHOUT_MEDIA`, `CROP_FAILED`). Dispara a retencao dos backups do workspace em segundo plano |
+| POST | `/api/report-workspaces/:id/photos/purge-crop-backups` | `requireWorkspaceWrite` | Retencao manual dos backups `.orig-<ts>`: apaga do bucket os backups com mais de `data.days` dias (default `rules_config.retencao.backup_corte_dias`, 30) e marca a entrada do `cropHistory` (`backup: null`, `purgedAt`, `purgedBy`). Resposta `{ purged, failed, photosTouched, days }`. A mesma rotina roda automaticamente (`setImmediate`, best-effort) apos cada `crop-footer`, `crop-footer/undo` e `crop-footer-batch` |
 | POST | `/api/report-workspaces/:id/photos/:photoId/trash` | `requireWorkspaceWrite` | Move foto para lixeira |
 | POST | `/api/report-workspaces/:id/photos/:photoId/restore` | `requireWorkspaceWrite` | Restaura da lixeira |
 | POST | `/api/report-workspaces/:id/photos/:photoId/archive` | `requireWorkspaceWrite` | Arquiva (imutavel) a partir da lixeira |
@@ -529,10 +541,13 @@ Tabela: `report_photos` com campos `deleted_at` (lixeira) e `archived_at` (arqui
 | POST | `/api/report-workspaces/:id/photos/reorder` | `requireWorkspaceWrite` | Reordena por modo (`tower_asc`, `capture_date_desc`, etc) |
 | POST | `/api/report-workspaces/:id/photos/manual-order` | `requireWorkspaceWrite` | Reordena por array explicito de `photoIds` |
 
-Metadata de origem da foto (`POST /api/report-workspaces/:id/photos`, `PUT .../photos/:photoId`). Os valores nao sao validados pelo backend (`normalizePhoto` so normaliza texto); o contrato vive aqui e em `src/features/reports/utils/reportUtils.js` (`TOWER_SOURCE_LABELS`, `EXTRA_IMPORT_SOURCE_LABELS`):
+Metadata de origem da foto (`POST /api/report-workspaces/:id/photos`, `PUT .../photos/:photoId`). Os valores nao sao validados pelo backend (`normalizePhoto` so normaliza texto, exceto `subject`); o contrato vive aqui e em `src/features/reports/utils/reportUtils.js` (`TOWER_SOURCE_LABELS`, `EXTRA_IMPORT_SOURCE_LABELS`):
 
 - `towerSource`: `manual` (default), `folder_path` (subpasta por torre), `pending` (sem torre), `kmz_folder` / `kmz_placemark` / `kmz_organized` (round-trip KMZ), `exif_label` (etiqueta `SIGLA\nNUMERO` do `ImageDescription` EXIF, captacao unica) e `gps_nearest` (sugestao pela torre mais proxima, so quando o usuario marcou a torre na revisao).
 - `importSource`: `loose_photos`, `tower_subfolders`, `organized_kmz` (legados do Select de modo) e `photo_campaign` (captacao unica: wizard de vistoria ou botao "Selecionar fotos da campanha").
+- `subject`: assunto da foto, `torre` (default), `acesso` (via de acesso) ou `contexto` (paisagem, placa, equipe). Unico campo da metadata **normalizado por whitelist** no backend (`normalizePhotoSubject`: valor fora da lista vira `torre`). Fotos de `acesso`/`contexto` ficam fora das regras de divergencia de legenda da captacao e recebem legenda padrao ("Acesso a torre N"). Etiqueta EXIF `SIGLA
+NUMERO
+ACESSO` preenche o campo sozinha.
 - `captureAt`: ISO 8601 **com offset** (ex.: `2026-09-22T14:14:00.000Z`), derivado de `DateTimeOriginal` convertido no navegador (`toIsoWithLocalOffset`). O repositorio faz `new Date(captureAt)`; string sem offset seria lida como UTC pelo servidor. Habilita `reorder` por `capture_date_*`.
 - `summaryJson` do `POST .../import` com `importSource = 'photo_campaign'` traz `towerSourceCounts` e `excludedCount` (fotos desmarcadas na revisao, nao enviadas).
 

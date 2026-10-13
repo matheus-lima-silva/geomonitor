@@ -182,7 +182,7 @@ describe('ReportsView — captacao unica de fotos', () => {
     expect(saveReportWorkspacePhoto).toHaveBeenCalledTimes(1);
     const [wsId, , payload] = saveReportWorkspacePhoto.mock.calls[0];
     expect(wsId).toBe('RW-1');
-    expect(payload).toMatchObject({ towerId: '5', towerSource: 'exif_label', importSource: 'photo_campaign', curationStatus: 'reviewed' });
+    expect(payload).toMatchObject({ towerId: '5', towerSource: 'exif_label', importSource: 'photo_campaign', curationStatus: 'reviewed', subject: 'torre' });
     expect(payload.captureAt).toBe(new Date(2026, 8, 22, 9, 0, 0).toISOString());
     expect(payload.gpsLat).toBeCloseTo(towerLat(5) + 10 * DEG_PER_M_LAT, 6);
 
@@ -239,7 +239,7 @@ describe('ReportsView — captacao unica de fotos', () => {
       projectId: 'BMDOPR',
       files: [file],
       assignmentsByFileKey: {
-        [buildFileKey(file)]: { towerId: '5', towerSource: 'exif_label', captureAt: '2026-09-22T12:00:00.000Z', gpsLat: towerLat(5), gpsLon: -44, include: true },
+        [buildFileKey(file)]: { towerId: '5', towerSource: 'exif_label', captureAt: '2026-09-22T12:00:00.000Z', gpsLat: towerLat(5), gpsLon: -44, include: true, subject: 'acesso', caption: 'Acesso a torre 5' },
       },
       summary: { photos: 1, days: 1, towers: 1, dateRange: { start: '2026-09-22', end: '2026-09-22' } },
     };
@@ -256,7 +256,7 @@ describe('ReportsView — captacao unica de fotos', () => {
     expect(onPhotoImportConsumed).toHaveBeenCalledTimes(1);
     expect(saveReportWorkspacePhoto).toHaveBeenCalledTimes(1);
     expect(saveReportWorkspacePhoto.mock.calls[0][0]).toBe('RW-2');
-    expect(saveReportWorkspacePhoto.mock.calls[0][2]).toMatchObject({ towerId: '5', towerSource: 'exif_label', captureAt: '2026-09-22T12:00:00.000Z', importSource: 'photo_campaign' });
+    expect(saveReportWorkspacePhoto.mock.calls[0][2]).toMatchObject({ towerId: '5', towerSource: 'exif_label', captureAt: '2026-09-22T12:00:00.000Z', importSource: 'photo_campaign', subject: 'acesso', caption: 'Acesso a torre 5' });
     expect(updateReportWorkspace).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="rw-pending-campaign"]')).toBeNull();
   });

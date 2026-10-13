@@ -55,7 +55,14 @@ jest.mock('../repositories', () => ({
 }));
 
 const mediaStorage = require('../utils/mediaStorage');
-const { PhotoCropError, buildBackupAsset, cropPhotoFooter, undoPhotoFooterCrop } = require('../utils/photoFooterCrop');
+const {
+    PhotoCropError,
+    buildBackupAsset,
+    cropPhotoFooter,
+    cropPhotoFooterBatch,
+    purgeExpiredCropBackups,
+    undoPhotoFooterCrop,
+} = require('../utils/photoFooterCrop');
 
 const WIDTH = 100;
 const TOP_HEIGHT = 100;
@@ -99,6 +106,105 @@ beforeEach(() => {
     mockPhotos.clear();
     mockAssets.clear();
     jest.clearAllMocks();
+});
+
+function seedMany(originalBuffer, ids) {
+    return ids.map((id) => {
+        const asset = { id: `MA-${id}`, storageKey: `workspaces/WS-1/MA-${id}.jpg`, fileName: `TimePhoto_${id}.jpg`, contentType: 'image/jpeg', sourceKind: 'tigris', sha256: `sha-${id}`, sizeBytes: originalBuffer.byteLength };
+        const photo = { id: `RPH-${id}`, workspaceId: 'WS-1', projectId: 'P1', mediaAssetId: asset.id, towerId: '126' };
+        mockAssets.set(asset.id, asset);
+        mockPhotos.set(photo.id, photo);
+        mockStore.set(storageKeyOf(asset), originalBuffer);
+        return { asset, photo };
+    });
+}
+
+describe('cropPhotoFooterBatch', () => {
+    it('corta varias fotos, pula as ja cortadas e reporta erro por foto sem travar o lote', async () => {
+        const original = await buildSyntheticJpeg();
+        const [a, b, c] = seedMany(original, ['a', 'b', 'c']);
+        // b ja foi cortada antes.
+        const first = await cropPhotoFooter({ photo: b.photo, asset: b.asset, pixels: BAND_HEIGHT, actor: 'antes' });
+        // c nao tem midia.
+        const broken = { photo: { ...c.photo, mediaAssetId: '' }, asset: null };
+
+        const result = await cropPhotoFooterBatch({
+            targets: [{ photo: a.photo, asset: a.asset }, { photo: first.photo, asset: b.asset }, broken],
+            pixels: BAND_HEIGHT,
+            actor: 'lote@test',
+        });
+
+        expect(result.cropped).toBe(1);
+        expect(result.photos.map((p) => p.id)).toEqual(['RPH-a']);
+        expect(result.photos[0].cropHistory[0]).toMatchObject({ pixels: BAND_HEIGHT, by: 'lote@test' });
+        expect(result.skipped).toEqual([
+            { photoId: 'RPH-b', code: 'ALREADY_CROPPED', message: 'Foto ja cortada; pulada.' },
+            { photoId: 'RPH-c', code: 'PHOTO_WITHOUT_MEDIA', message: 'Foto sem arquivo de midia associado.' },
+        ]);
+        const meta = await sharp(mockStore.get(storageKeyOf(a.asset))).metadata();
+        expect(meta.height).toBe(TOP_HEIGHT);
+        // b continua com um unico corte (nao foi cortada de novo).
+        expect(mockPhotos.get('RPH-b').cropHistory).toHaveLength(1);
+    });
+
+    it('skipCropped=false corta de novo uma foto ja cortada', async () => {
+        const original = await buildSyntheticJpeg();
+        const [a] = seedMany(original, ['a']);
+        const first = await cropPhotoFooter({ photo: a.photo, asset: a.asset, pixels: 5 });
+        const result = await cropPhotoFooterBatch({ targets: [{ photo: first.photo, asset: mockAssets.get('MA-a') }], pixels: 5, skipCropped: false });
+        expect(result.cropped).toBe(1);
+        expect(mockPhotos.get('RPH-a').cropHistory).toHaveLength(2);
+    });
+});
+
+describe('purgeExpiredCropBackups', () => {
+    it('apaga so os backups vencidos, marca a entrada e torna o corte nao desfazivel', async () => {
+        const original = await buildSyntheticJpeg();
+        const [a, b] = seedMany(original, ['a', 'b']);
+        const oldCrop = await cropPhotoFooter({ photo: a.photo, asset: a.asset, pixels: BAND_HEIGHT });
+        const recentCrop = await cropPhotoFooter({ photo: b.photo, asset: b.asset, pixels: BAND_HEIGHT });
+        // Envelhece o corte de "a" em 40 dias.
+        const agedPhoto = { ...oldCrop.photo, cropHistory: [{ ...oldCrop.entry, at: new Date(Date.now() - 40 * 86_400_000).toISOString() }] };
+        mockPhotos.set('RPH-a', agedPhoto);
+        const oldBackupKey = oldCrop.entry.backup.storageKey;
+        const recentBackupKey = recentCrop.entry.backup.storageKey;
+        expect(mockStore.has(oldBackupKey)).toBe(true);
+
+        const result = await purgeExpiredCropBackups({
+            targets: [{ photo: agedPhoto, asset: mockAssets.get('MA-a') }, { photo: recentCrop.photo, asset: mockAssets.get('MA-b') }],
+            days: 30,
+            actor: 'retention',
+        });
+
+        expect(result).toMatchObject({ purged: 1, failed: 0, photosTouched: 1, days: 30 });
+        expect(mockStore.has(oldBackupKey)).toBe(false);
+        expect(mockStore.has(recentBackupKey)).toBe(true);
+        const purgedEntry = mockPhotos.get('RPH-a').cropHistory[0];
+        expect(purgedEntry.backup).toBeNull();
+        expect(purgedEntry.purgedAt).toBeTruthy();
+        expect(purgedEntry.pixels).toBe(BAND_HEIGHT); // historico (auditoria) permanece
+        // O binario cortado continua la e o undo agora falha com 409.
+        expect(mockStore.has(storageKeyOf(mockAssets.get('MA-a')))).toBe(true);
+        await expect(undoPhotoFooterCrop({ photo: mockPhotos.get('RPH-a'), asset: mockAssets.get('MA-a') }))
+            .rejects.toMatchObject({ status: 409, code: 'BACKUP_UNAVAILABLE' });
+        // Rodar de novo nao mexe em nada.
+        const again = await purgeExpiredCropBackups({ targets: [{ photo: mockPhotos.get('RPH-a'), asset: mockAssets.get('MA-a') }], days: 30 });
+        expect(again).toMatchObject({ purged: 0, photosTouched: 0 });
+    });
+
+    it('falha de storage vira purgeError na entrada e conta em failed, sem lancar', async () => {
+        const original = await buildSyntheticJpeg();
+        const [a] = seedMany(original, ['a']);
+        const crop = await cropPhotoFooter({ photo: a.photo, asset: a.asset, pixels: BAND_HEIGHT });
+        const aged = { ...crop.photo, cropHistory: [{ ...crop.entry, at: '2020-01-01T00:00:00.000Z' }] };
+        mediaStorage.removeStoredMedia.mockImplementationOnce(async () => { throw new Error('bucket indisponivel'); });
+
+        const result = await purgeExpiredCropBackups({ targets: [{ photo: aged, asset: mockAssets.get('MA-a') }], days: 30 });
+        expect(result).toMatchObject({ purged: 0, failed: 1, photosTouched: 1 });
+        const entry = mockPhotos.get('RPH-a').cropHistory[0];
+        expect(entry.backup).toBeTruthy();
+        expect(entry.purgeError).toContain('bucket indisponivel');
+    });
 });
 
 describe('buildBackupAsset', () => {

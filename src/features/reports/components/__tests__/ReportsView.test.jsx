@@ -143,6 +143,7 @@ function resetMockData() {
   mockData.projects = [{ id: 'PRJ-01', nome: 'Linha Norte', torresCoordenadas: [{ numero: '1' }, { numero: '2' }] }];
   mockData.compounds = [{ id: 'RC-1', nome: 'Composto 1', workspaceIds: ['RW-1'], orderJson: ['RW-1'], status: 'draft', updatedAt: '2026-03-22T10:00:00.000Z' }];
   mockData.workspacePhotos = [{ id: 'RPH-1', caption: 'Foto 1', towerId: 'T-01', workspaceId: 'RW-1', importSource: 'structured_folders', includeInReport: true }];
+  listReportWorkspacePhotos.mockResolvedValue(mockData.workspacePhotos);
   mockData.projectPhotos = [
     { id: 'RPH-1', caption: 'Foto 1 fundacao', towerId: 'T-01', workspaceId: 'RW-1', importSource: 'structured_folders', includeInReport: true, captureAt: '2026-03-21T10:00:00.000Z' },
     { id: 'RPH-2', caption: 'Vista geral', towerId: 'T-02', workspaceId: 'RW-2', importSource: 'loose_photos', includeInReport: false, captureAt: '2026-03-18T10:00:00.000Z' },
@@ -405,6 +406,66 @@ describe('ReportsView', () => {
     expect(onOpenErosionDraft).toHaveBeenCalledTimes(1);
     expect(onOpenErosionDraft).toHaveBeenCalledWith(
       expect.objectContaining({ projetoId: 'PRJ-01', torreRef: 'T-01' }),
+    );
+    // Sem GPS na foto e sem midia: ponto vazio, origem registrada, sem evidencia.
+    const draft = onOpenErosionDraft.mock.calls[0][0];
+    expect(draft.latitude).toBe('');
+    expect(draft.originPhoto).toMatchObject({ photoId: 'RPH-1', workspaceId: 'RW-1', gpsLat: null, pointSource: 'tower' });
+    expect(draft.fotosPrincipais).toEqual([]);
+  });
+
+  it('handoff: com GPS na foto e escolha "GPS da foto", o ponto da erosao vem da foto e ela entra como evidencia', async () => {
+    const onOpenErosionDraft = vi.fn();
+    mockData.workspacePhotos = [{
+      id: 'RPH-1', caption: 'Foto 1', towerId: 'T-01', workspaceId: 'RW-1', importSource: 'structured_folders',
+      includeInReport: true, mediaAssetId: 'MA-1', gpsLat: -22.95, gpsLon: -43.21,
+    }];
+    listReportWorkspacePhotos.mockResolvedValue(mockData.workspacePhotos);
+
+    await act(async () => {
+      root.render(
+        <ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} onOpenErosionDraft={onOpenErosionDraft} />,
+      );
+      await Promise.resolve();
+    });
+
+    const openPreview = container.querySelector('button[aria-label="Visualizar foto"]');
+    await act(async () => { openPreview.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const createErosionButton = [...container.querySelectorAll('button')]
+      .find((b) => b.textContent.includes('Criar erosão nesta torre'));
+    await act(async () => { createErosionButton.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    // A torre T-01 nao tem coordenada cadastrada: o padrao cai no GPS da foto.
+    const gpsOption = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('GPS da foto'));
+    expect(gpsOption.getAttribute('aria-pressed')).toBe('true');
+    const confirmButton = [...container.querySelectorAll('button')]
+      .find((b) => b.textContent.includes('Abrir formulário de erosão'));
+    await act(async () => { confirmButton.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    const draft = onOpenErosionDraft.mock.calls[0][0];
+    expect(draft.latitude).toBe('-22.95');
+    expect(draft.longitude).toBe('-43.21');
+    expect(draft.originPhoto).toMatchObject({ photoId: 'RPH-1', mediaAssetId: 'MA-1', gpsLat: -22.95, gpsLon: -43.21, pointSource: 'photo' });
+    expect(draft.fotosPrincipais).toEqual([{ photoId: 'RPH-1', workspaceId: 'RW-1', mediaAssetId: 'MA-1', sortOrder: 0 }]);
+  });
+
+  it('trocar o assunto da foto no lightbox salva na hora com subject', async () => {
+    await act(async () => {
+      root.render(<ReportsView userEmail="teste@exemplo.com" showToast={vi.fn()} />);
+      await Promise.resolve();
+    });
+    const openPreview = container.querySelector('button[aria-label="Visualizar foto"]');
+    await act(async () => { openPreview.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const control = container.querySelector('[data-testid="photo-subject-control"]');
+    expect(control).toBeTruthy();
+    const accessButton = [...control.querySelectorAll('button')].find((b) => b.textContent === 'Acesso');
+    await act(async () => { accessButton.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    expect(saveReportWorkspacePhoto).toHaveBeenCalledWith(
+      'RW-1',
+      'RPH-1',
+      expect.objectContaining({ subject: 'acesso', towerId: 'T-01' }),
+      expect.anything(),
     );
   });
 

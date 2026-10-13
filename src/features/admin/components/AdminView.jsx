@@ -49,7 +49,7 @@ const SECTION_META = {
   signatures: { title: 'Assinaturas', desc: 'Gerencie os signatarios de qualquer utilizador para os relatorios compostos.' },
   'workspaces-access': { title: 'Acessos a workspaces', desc: 'Consolida todos os workspaces do sistema e seus membros.' },
   rules: { title: 'Criticidade (V3)', desc: 'Configuracao canonica usada pelo motor de criticidade.' },
-  retencao: { title: 'Retencao da lixeira', desc: 'Quando fotos na lixeira passam a ser sugeridas para arquivamento.' },
+  retencao: { title: 'Retencao', desc: 'Lixeira de fotos (sugestao de arquivamento) e backups do corte de rodape (apagados apos o prazo).' },
   feriados: { title: 'Feriados', desc: 'Datas sinalizadas no planejamento de visitas e no diario da vistoria.' },
   stats: { title: 'Estatisticas de uso', desc: 'Totais, atividade recente, logins e saude da fila de relatorios.' },
   sql: { title: 'Console SQL', desc: 'Consultas somente leitura para diagnostico, com auditoria.' },
@@ -98,6 +98,9 @@ function AdminView({
   const [retentionDays, setRetentionDays] = useState(() => (
     Number(rulesConfig?.retencao?.lixeira_para_arquivo_dias) || 30
   ));
+  const [cropBackupDays, setCropBackupDays] = useState(() => (
+    Number(rulesConfig?.retencao?.backup_corte_dias) || 30
+  ));
   const [criticalityValid, setCriticalityValid] = useState(true);
 
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
@@ -122,6 +125,7 @@ function AdminView({
       2,
     ));
     setRetentionDays(Number(rulesConfig?.retencao?.lixeira_para_arquivo_dias) || 30);
+    setCropBackupDays(Number(rulesConfig?.retencao?.backup_corte_dias) || 30);
   }, [rulesConfig]);
 
   const canApproveUsers = user?.role === 'admin' || user?.role === 'manager';
@@ -238,13 +242,14 @@ function AdminView({
 
   async function handleSaveRetention() {
     const parsed = Number(retentionDays);
-    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 3650) {
+    const parsedCrop = Number(cropBackupDays);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 3650 || !Number.isInteger(parsedCrop) || parsedCrop < 1 || parsedCrop > 3650) {
       show('Informe um numero inteiro entre 1 e 3650 dias.', 'error');
       return;
     }
     try {
       await saveRulesConfig(
-        { retencao: { lixeira_para_arquivo_dias: parsed } },
+        { retencao: { lixeira_para_arquivo_dias: parsed, backup_corte_dias: parsedCrop } },
         { updatedBy: user?.email, merge: true },
       );
       show('Retencao atualizada com sucesso.', 'success');
@@ -422,6 +427,42 @@ function AdminView({
               </div>
             </div>
             <p className="text-2xs text-slate-500 m-0">Padrao: 30 dias. Limite maximo: 3650 dias (10 anos).</p>
+            <div className="border-t border-slate-200 pt-4 flex flex-col gap-2" data-testid="admin-crop-backup-retention">
+              <p className="text-sm text-slate-500 m-0">
+                <strong className="text-slate-700">Backups do corte de rodape.</strong> Ao cortar a marca d'agua de uma foto, o original fica guardado no bucket.
+                Passado o prazo abaixo, o backup e apagado (apos cada corte no workspace) e o corte deixa de poder ser desfeito.
+              </p>
+              <div className="flex flex-wrap items-end gap-4">
+                <div>
+                  <label htmlFor="admin-crop-backup-days" className="block text-2xs font-bold uppercase tracking-wide text-slate-500 mb-1">
+                    Dias de guarda do original
+                  </label>
+                  <Input
+                    id="admin-crop-backup-days"
+                    type="number"
+                    min="1"
+                    max="3650"
+                    fullWidth={false}
+                    className="w-28"
+                    value={cropBackupDays}
+                    onChange={(event) => setCropBackupDays(event.target.value === '' ? '' : Number(event.target.value))}
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
+                  {[7, 30, 90, 365].map((preset) => (
+                    <Button
+                      key={`crop-${preset}`}
+                      variant={Number(cropBackupDays) === preset ? 'primary' : 'outline'}
+                      size="sm"
+                      aria-pressed={Number(cropBackupDays) === preset}
+                      onClick={() => setCropBackupDays(preset)}
+                    >
+                      {preset}d
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
             <div className="flex justify-end">
               <Button variant="primary" onClick={handleSaveRetention} data-testid="admin-retention-save">
                 <AppIcon name="save" />

@@ -152,11 +152,41 @@ export function inferTowerIdFromRelativePath(relativePath = '') {
   return '';
 }
 
+// Assunto da foto: o que ela mostra. `torre` (padrao) entra nas regras de
+// divergencia de legenda; `acesso` (via de acesso) e `contexto` (paisagem,
+// placa, equipe) ficam fora delas e ganham legenda padrao propria.
+export const PHOTO_SUBJECTS = Object.freeze(['torre', 'acesso', 'contexto']);
+export const PHOTO_SUBJECT_LABELS = Object.freeze({
+  torre: 'Torre',
+  acesso: 'Acesso',
+  contexto: 'Contexto',
+});
+
+export function normalizePhotoSubject(value) {
+  const key = String(value || '').trim().toLowerCase();
+  return PHOTO_SUBJECTS.includes(key) ? key : 'torre';
+}
+
+export function formatPhotoSubjectLabel(subject) {
+  return PHOTO_SUBJECT_LABELS[normalizePhotoSubject(subject)];
+}
+
+// Legenda padrao para fotos que nao sao da torre em si. Torre -> null (a legenda
+// continua vindo do nome do arquivo).
+export function buildDefaultSubjectCaption(subject, towerId) {
+  const key = normalizePhotoSubject(subject);
+  const tower = String(towerId || '').trim();
+  if (key === 'acesso') return tower ? `Acesso a torre ${tower}` : 'Acesso';
+  if (key === 'contexto') return tower ? `Contexto - torre ${tower}` : 'Contexto';
+  return null;
+}
+
 export function buildWorkspacePhotoDraft(photo = {}) {
   return {
     caption: String(photo.caption || ''),
     towerId: String(photo.towerId || ''),
     includeInReport: Boolean(photo.includeInReport),
+    subject: normalizePhotoSubject(photo.subject),
   };
 }
 
@@ -181,6 +211,7 @@ export function buildWorkspacePhotoDrafts(photos = [], persistedDrafts = {}) {
           includeInReport: Boolean(
             persistedDraft.includeInReport ?? photo.includeInReport,
           ),
+          subject: normalizePhotoSubject(persistedDraft.subject || photo.subject),
         }
         : buildWorkspacePhotoDraft(photo),
     ];
@@ -190,7 +221,8 @@ export function buildWorkspacePhotoDrafts(photos = [], persistedDrafts = {}) {
 export function isWorkspacePhotoDirty(photo = {}, draft = {}) {
   return String(draft.caption || '').trim() !== String(photo.caption || '').trim()
     || String(draft.towerId || '').trim() !== String(photo.towerId || '').trim()
-    || Boolean(draft.includeInReport) !== Boolean(photo.includeInReport);
+    || Boolean(draft.includeInReport) !== Boolean(photo.includeInReport)
+    || normalizePhotoSubject(draft.subject) !== normalizePhotoSubject(photo.subject);
 }
 
 export function getWorkspacePhotoStatus(photo = {}, draft = {}) {

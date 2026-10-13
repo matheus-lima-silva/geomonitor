@@ -165,6 +165,25 @@ describe('PhotoPreviewModal — incluir no .docx', () => {
     expect(onToggleInclude).toHaveBeenCalledWith(false);
   });
 
+  it('controle de assunto mostra o atual e chama onChangeSubject ao trocar', () => {
+    const onChangeSubject = vi.fn();
+    mount(<PhotoPreviewModal {...baseProps({ onChangeSubject, photo: { id: 'RPH-2', importSource: 'loose_photos', towerId: '641', caption: 'Legenda', subject: 'acesso' } })} />);
+    const control = container.querySelector('[data-testid="photo-subject-control"]');
+    expect(control.querySelector('button[aria-pressed="true"]').textContent).toBe('Acesso');
+    act(() => { [...control.querySelectorAll('button')].find((b) => b.textContent === 'Contexto').click(); });
+    expect(onChangeSubject).toHaveBeenCalledWith('contexto');
+    // Clicar no assunto atual nao dispara nada.
+    act(() => { [...control.querySelectorAll('button')].find((b) => b.textContent === 'Acesso').click(); });
+    expect(onChangeSubject).toHaveBeenCalledTimes(1);
+  });
+
+  it('sem onChangeSubject o controle de assunto fica desabilitado', () => {
+    mount(<PhotoPreviewModal {...baseProps()} />);
+    const control = container.querySelector('[data-testid="photo-subject-control"]');
+    expect([...control.querySelectorAll('button')].every((b) => b.disabled)).toBe(true);
+    expect(control.querySelector('button[aria-pressed="true"]').textContent).toBe('Torre');
+  });
+
   it('a tecla E alterna a inclusao', () => {
     const onToggleInclude = vi.fn();
     mount(<PhotoPreviewModal {...baseProps({ onToggleInclude })} />);
@@ -243,6 +262,14 @@ describe('PhotoPreviewModal — cortar rodape da marca d\'agua', () => {
     act(() => findButtonByText('Cortar 90 px').click());
     expect(onCropFooter).toHaveBeenCalledTimes(1);
     expect(onCropFooter.mock.calls[0][1]).toEqual({ pixels: 90 });
+  });
+
+  it('o painel de corte informa o prazo de guarda do original', () => {
+    mount(<PhotoPreviewModal {...baseProps({ onCropFooter: vi.fn(), cropBackupRetentionDays: 60 })} />);
+    const toggle = [...container.querySelectorAll('button')].find((b) => b.textContent.includes("Cortar rodapé da marca d'água"));
+    act(() => { toggle.click(); });
+    expect(container.textContent).toContain('fica guardado por 60 dias');
+    expect(container.textContent).toContain('não pode mais ser desfeito');
   });
 
   it('tecla C alterna o painel e o botao do cabecalho fica pressionado', () => {

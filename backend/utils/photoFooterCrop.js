@@ -171,9 +171,87 @@ async function undoPhotoFooterCrop({ photo, asset, actor = 'API' } = {}) {
     return { photo: nextPhoto || { ...photo, cropHistory: history.slice(0, -1) }, asset: nextAsset || asset, entry };
 }
 
+/**
+ * Corta o rodape de varias fotos em sequencia (ex.: todas as fotos de uma torre).
+ * `targets` = [{ photo, asset }]. Fotos ja cortadas sao puladas quando
+ * `skipCropped` (padrao). Erros por foto nao interrompem o lote: vao para
+ * `skipped` com codigo/mensagem.
+ */
+async function cropPhotoFooterBatch({ targets = [], pixels, percent, skipCropped = true, actor = 'API' } = {}) {
+    const photos = [];
+    const skipped = [];
+    for (const target of Array.isArray(targets) ? targets : []) {
+        const photo = target?.photo;
+        const photoId = normalizeText(photo?.id) || normalizeText(target?.photoId);
+        if (skipCropped && Array.isArray(photo?.cropHistory) && photo.cropHistory.length > 0) {
+            skipped.push({ photoId, code: 'ALREADY_CROPPED', message: 'Foto ja cortada; pulada.' });
+            continue;
+        }
+        try {
+            const result = await cropPhotoFooter({ photo, asset: target?.asset, pixels, percent, actor });
+            photos.push(result.photo);
+        } catch (error) {
+            skipped.push({
+                photoId,
+                code: error instanceof PhotoCropError ? error.code : 'CROP_ERROR',
+                message: error?.message || 'Falha ao cortar a foto.',
+            });
+        }
+    }
+    return { photos, cropped: photos.length, skipped };
+}
+
+/**
+ * Retencao dos backups `.orig-<ts>`: apaga do storage os backups com mais de
+ * `days` dias e marca a entrada do historico (`backup: null`, `purgedAt`), o
+ * que torna o corte nao desfazivel (undo responde 409 BACKUP_UNAVAILABLE).
+ * `targets` = [{ photo, asset }]. Best-effort: falha de storage vira
+ * `purgeError` na entrada e conta em `failed`.
+ */
+async function purgeExpiredCropBackups({ targets = [], days, actor = 'retention', now = Date.now() } = {}) {
+    const retentionDays = Number.isInteger(Number(days)) && Number(days) >= 0 ? Number(days) : 30;
+    const cutoff = Number(now) - retentionDays * 86_400_000;
+    let purged = 0;
+    let failed = 0;
+    let photosTouched = 0;
+    for (const target of Array.isArray(targets) ? targets : []) {
+        const photo = target?.photo;
+        const asset = target?.asset || {};
+        const history = Array.isArray(photo?.cropHistory) ? photo.cropHistory : [];
+        if (!history.length) continue;
+        let changed = false;
+        const nextHistory = [];
+        for (const entry of history) {
+            const backup = entry?.backup && typeof entry.backup === 'object' ? entry.backup : null;
+            const at = Date.parse(entry?.at || '');
+            const expired = Number.isFinite(at) && at < cutoff;
+            if (!backup || !expired || entry.purgedAt) {
+                nextHistory.push(entry);
+                continue;
+            }
+            try {
+                await removeStoredMedia({ ...asset, ...backup });
+                nextHistory.push({ ...entry, backup: null, purgedAt: new Date(now).toISOString(), purgedBy: actor });
+                purged += 1;
+            } catch (error) {
+                nextHistory.push({ ...entry, purgeError: error?.message || String(error) });
+                failed += 1;
+            }
+            changed = true;
+        }
+        if (changed) {
+            photosTouched += 1;
+            await reportPhotoRepository.save({ ...photo, cropHistory: nextHistory, updatedBy: actor }, { merge: true });
+        }
+    }
+    return { purged, failed, photosTouched, days: retentionDays };
+}
+
 module.exports = {
     PhotoCropError,
     buildBackupAsset,
     cropPhotoFooter,
+    cropPhotoFooterBatch,
+    purgeExpiredCropBackups,
     undoPhotoFooterCrop,
 };

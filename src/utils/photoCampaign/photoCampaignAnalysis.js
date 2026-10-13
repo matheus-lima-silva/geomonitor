@@ -14,10 +14,15 @@ import { gerarPeriodoDias, preservarDetalhesDias } from '../dateUtils';
 import { isValidLatLon } from '../exifGps';
 import { compareTowerNumbers } from '../../features/projects/utils/kmlUtils';
 import {
+  PHOTO_SUBJECTS,
+  buildDefaultSubjectCaption,
   haversineMeters,
   inferTowerIdFromRelativePath,
+  normalizePhotoSubject,
   normalizeTowerToken,
 } from '../../features/reports/utils/reportUtils';
+
+export { PHOTO_SUBJECTS, buildDefaultSubjectCaption, normalizePhotoSubject };
 
 /** Limiares calibrados na campanha BMDOPR set/2026 (413 fotos, 369 torres). */
 export const TOWER_MATCH = Object.freeze({
@@ -37,7 +42,9 @@ export const GAP_DAY_REASONS = Object.freeze([
   { value: 'outro', label: 'Outro' },
 ]);
 
-const LABEL_RE = /^([A-Z0-9_-]{2,})\s*[\r\n]+\s*(\d{1,4}[A-Z]?)\s*$/i;
+// Etiqueta do Timestamp Camera: "SIGLA\nNUMERO" com 3a linha opcional "ACESSO"
+// ou "CONTEXTO" (assunto da foto; ver PHOTO_SUBJECTS).
+const LABEL_RE = /^([A-Z0-9_-]{2,})\s*[\r\n]+\s*(\d{1,4}[A-Z]?)(?:\s*[\r\n]+\s*(ACESSO|CONTEXTO))?\s*$/i;
 const FREE_TEXT_TOWER_RE = /\bT(?:ORRE)?\.?\s*(\d{1,4}[A-Z]?)\b/i;
 
 function normalizeText(value) {
@@ -105,7 +112,8 @@ export function parseDescriptionLabel(description, projectNames) {
   if (canonical) {
     const sigla = canonical[1].toUpperCase();
     const tower = normalizeTowerKey(canonical[2]);
-    return { sigla, tower, siglaMismatch: !matchesProject(sigla) };
+    const subject = canonical[3] ? canonical[3].toLowerCase() : null;
+    return { sigla, tower, siglaMismatch: !matchesProject(sigla), subject };
   }
 
   const free = FREE_TEXT_TOWER_RE.exec(text);
@@ -115,6 +123,7 @@ export function parseDescriptionLabel(description, projectNames) {
       sigla: mentionsProject ? (names[0] || '') : '',
       tower: normalizeTowerKey(free[1]),
       siglaMismatch: !mentionsProject,
+      subject: /\bACESSO\b/i.test(text) ? 'acesso' : (/\bCONTEXTO\b/i.test(text) ? 'contexto' : null),
     };
   }
   return null;
@@ -178,6 +187,9 @@ export function resolvePhotoTower(photo, ctx) {
   const label = parseDescriptionLabel(photo?.description, ctx.projectNames);
   const labelTower = label && !label.siglaMismatch ? label.tower : null;
   if (label?.siglaMismatch) issues.push('sigla_mismatch');
+  // Assunto: decisao do usuario (ctx.subjects[key]) > 3a linha da etiqueta > torre.
+  const subject = normalizePhotoSubject(ctx.subjects?.[photo?.key] || label?.subject || 'torre');
+  const isTowerSubject = subject === 'torre';
 
   const folderTower = inferTowerIdFromRelativePath(photo?.relativePath) || null;
   const lat = toFinite(photo?.gpsLat);
@@ -190,6 +202,7 @@ export function resolvePhotoTower(photo, ctx) {
 
   const base = {
     ...photo,
+    subject,
     labelTower,
     folderTower,
     nearest,
@@ -214,6 +227,11 @@ export function resolvePhotoTower(photo, ctx) {
     }
     if (d <= t.confirmM) {
       return { ...base, tower: candidate, source, confidence: 'high', distanceToTowerM: d };
+    }
+    // Foto de acesso/contexto: a distancia ate a torre nao diz nada sobre a
+    // legenda, entao nao gera conflito nem aviso de "longe da torre".
+    if (!isTowerSubject) {
+      return { ...base, tower: candidate, source, confidence: 'medium', distanceToTowerM: d };
     }
     if (nearest && nearest.numero !== candidate && nearest.distanceM <= t.conflictNearM && d >= t.conflictFarM) {
       return {
@@ -315,7 +333,9 @@ function maxSpread(photos) {
 
 function buildTowerGroup(date, numero, photos, t) {
   const sorted = [...photos].sort((a, b) => String(a.capturedAt || '').localeCompare(String(b.capturedAt || '')));
-  const conflict = summarizeConflict(sorted);
+  // So fotos da torre em si alimentam as regras de divergencia (A/B/C e conflito).
+  const towerPhotos = sorted.filter((p) => (p.subject || 'torre') === 'torre');
+  const conflict = summarizeConflict(towerPhotos);
   const source = pickSource(sorted);
   const nearestAlt = (() => {
     const counts = new Map();
@@ -340,9 +360,12 @@ function buildTowerGroup(date, numero, photos, t) {
     nearestAlt,
     medianDistanceM: median(distances),
     defaultIncluded: source !== 'gps',
-    sessions: splitSessions(sorted, t.sessionGapMin),
-    spreadM: maxSpread(sorted),
+    sessions: splitSessions(towerPhotos, t.sessionGapMin),
+    spreadM: maxSpread(towerPhotos),
     photos: sorted,
+    towerPhotos,
+    accessCount: sorted.filter((p) => p.subject === 'acesso').length,
+    contextCount: sorted.filter((p) => p.subject === 'contexto').length,
   };
 }
 
@@ -368,6 +391,7 @@ function buildDivergences(group, t) {
       text: describeConflict(group),
     });
   }
+  const towerPhotos = Array.isArray(group.towerPhotos) ? group.towerPhotos : group.photos;
   if (group.sessions.length > 1) {
     const parts = group.sessions.map((s) => {
       const med = median(s.photos.map((p) => p.distanceToTowerM));
@@ -380,8 +404,8 @@ function buildDivergences(group, t) {
       date: group.date,
       numero: group.numero,
       suggested: null,
-      photoCount: group.count,
-      photoKeys: group.photos.map((p) => p.key),
+      photoCount: towerPhotos.length,
+      photoKeys: towerPhotos.map((p) => p.key),
       text: `Torre ${group.numero} fotografada em ${group.sessions.length} momentos separados: ${parts.join(' | ')}.`,
     });
   }
@@ -393,12 +417,12 @@ function buildDivergences(group, t) {
       date: group.date,
       numero: group.numero,
       suggested: null,
-      photoCount: group.count,
-      photoKeys: group.photos.map((p) => p.key),
+      photoCount: towerPhotos.length,
+      photoKeys: towerPhotos.map((p) => p.key),
       text: `Fotos da torre ${group.numero} espalhadas por ${formatMeters(group.spreadM)} entre si.`,
     });
   }
-  const far = group.photos.filter((p) => !p.conflict && Number.isFinite(p.distanceToTowerM) && p.distanceToTowerM > t.conflictFarM);
+  const far = towerPhotos.filter((p) => !p.conflict && Number.isFinite(p.distanceToTowerM) && p.distanceToTowerM > t.conflictFarM);
   if (far.length) {
     out.push({
       id: `far|${group.key}`,
@@ -421,8 +445,8 @@ function buildDivergences(group, t) {
  * `id`, `nome`, `torres` e `torresCoordenadas`; `holidaysIndex` e o Map do
  * `buildFeriadosIndex` (opcional).
  */
-export function analyzePhotoCampaign(photos, project, { thresholds, holidaysIndex } = {}) {
-  const ctx = buildResolutionContext(project, { thresholds });
+export function analyzePhotoCampaign(photos, project, { thresholds, holidaysIndex, subjects } = {}) {
+  const ctx = { ...buildResolutionContext(project, { thresholds }), subjects: subjects && typeof subjects === 'object' ? subjects : null };
   const t = ctx.thresholds;
   const resolved = (Array.isArray(photos) ? photos : []).map((photo, index) => resolvePhotoTower(
     { ...photo, key: photo?.key || `${photo?.name || 'foto'}#${index}` },
@@ -502,6 +526,8 @@ export function analyzePhotoCampaign(photos, project, { thresholds, holidaysInde
     byFolder: resolved.filter((p) => p.source === 'folder').length,
     byGps: resolved.filter((p) => p.source === 'gps').length,
     unresolved: resolved.filter((p) => !p.tower).length,
+    accessPhotos: resolved.filter((p) => p.subject === 'acesso').length,
+    contextPhotos: resolved.filter((p) => p.subject === 'contexto').length,
     conflicts: divergences.filter((d) => d.kind === 'label_conflict').length,
     infoDivergences: divergences.filter((d) => d.severity === 'info').length,
     towers: towerDays.size,
@@ -513,11 +539,16 @@ export function analyzePhotoCampaign(photos, project, { thresholds, holidaysInde
   return { projectId: ctx.projectId, days, gapDays, undated, dateRange, divergences, stats };
 }
 
-/** Decisoes iniciais da revisao: torres GPS-only desmarcadas, conflitos pendentes, dias de gap mantidos. */
+/**
+ * Decisoes iniciais da revisao: torres GPS-only desmarcadas, conflitos pendentes,
+ * dias de gap mantidos. `photos` guarda overrides por foto ({ [key]: { subject } });
+ * comeca vazio porque o assunto vindo da etiqueta ja esta em `photo.subject`.
+ */
 export function buildDefaultDecisions(analysis) {
   const towers = {};
   const divergences = {};
   const gapDays = {};
+  const photos = {};
   for (const day of analysis?.days || []) {
     for (const group of day.towers) {
       towers[group.key] = { include: group.defaultIncluded, numero: group.numero };
@@ -530,7 +561,98 @@ export function buildDefaultDecisions(analysis) {
   for (const gap of analysis?.gapDays || []) {
     gapDays[gap.data] = { keep: true, reason: gap.isHoliday ? 'feriado' : '' };
   }
-  return { towers, divergences, gapDays };
+  return { towers, divergences, gapDays, photos, weather: {} };
+}
+
+// ── Clima sugerido (Open-Meteo via /api/weather/daily) ──────────────────────
+
+function meanPoint(points) {
+  const valid = points.filter(([lat, lon]) => lat !== null && lon !== null && isValidLatLon(lat, lon));
+  if (!valid.length) return null;
+  const lat = valid.reduce((acc, p) => acc + p[0], 0) / valid.length;
+  const lon = valid.reduce((acc, p) => acc + p[1], 0) / valid.length;
+  return [lat, lon];
+}
+
+/** Centroide GPS das fotos de um dia (torres + nao resolvidas); null sem GPS. */
+export function dayCentroid(day) {
+  const photos = [...(day?.towers || []).flatMap((group) => group.photos || []), ...(day?.unresolved || [])];
+  return meanPoint(photos.map((p) => [toFinite(p?.gpsLat), toFinite(p?.gpsLon)]));
+}
+
+/** Centroide da campanha inteira (media dos centroides dos dias); null sem GPS. */
+export function campaignCentroid(analysis) {
+  return meanPoint((analysis?.days || []).map((day) => dayCentroid(day)).filter(Boolean));
+}
+
+/**
+ * Centroide das torres do empreendimento. Com `towerNumbers`, usa so essas
+ * torres (ex.: as do diario); sem match, cai para todas as torres com coordenada.
+ */
+export function projectTowersCentroid(project, towerNumbers = []) {
+  const index = buildTowerIndex(project);
+  const wanted = new Set((towerNumbers || []).map((n) => normalizeTowerKey(n)).filter(Boolean));
+  const chosen = wanted.size ? index.filter((tower) => wanted.has(tower.numero)) : [];
+  const source = chosen.length ? chosen : index;
+  return meanPoint(source.map((tower) => [tower.lat, tower.lon]));
+}
+
+/** Map data -> { clima, reason, weatherCode, precipitationSum, precipitationHours, tMax, tMin }. */
+export function buildWeatherIndex(days) {
+  const index = new Map();
+  for (const day of Array.isArray(days) ? days : []) {
+    const date = String(day?.date || day?.data || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    index.set(date, {
+      clima: day?.clima || null,
+      reason: String(day?.reason || ''),
+      weatherCode: toFinite(day?.weatherCode),
+      precipitationSum: toFinite(day?.precipitationSum),
+      precipitationHours: toFinite(day?.precipitationHours),
+      tMax: toFinite(day?.tMax),
+      tMin: toFinite(day?.tMin),
+    });
+  }
+  return index;
+}
+
+/**
+ * Preenche `decisions.weather[date] = { accept, clima, reason }` para os dias com
+ * fotos e os gap days a partir do indice do Open-Meteo. Aceito por padrao (a
+ * mesclagem so grava onde o clima do dia estiver vazio). Gap day com Chuva e
+ * motivo em branco ganha o motivo `chuva`.
+ */
+export function applyWeatherSuggestions(decisions, weatherIndex, analysis) {
+  if (!decisions || !weatherIndex || typeof weatherIndex.get !== 'function') return decisions;
+  const weather = { ...(decisions.weather || {}) };
+  const gapDays = { ...(decisions.gapDays || {}) };
+  const dates = [
+    ...(analysis?.days || []).map((day) => day.data),
+    ...(analysis?.gapDays || []).map((gap) => gap.data),
+  ];
+  for (const date of dates) {
+    const entry = weatherIndex.get(date);
+    if (!entry?.clima) continue;
+    weather[date] = { accept: weather[date]?.accept ?? true, clima: entry.clima, reason: entry.reason || '' };
+  }
+  for (const gap of analysis?.gapDays || []) {
+    const entry = weatherIndex.get(gap.data);
+    const current = gapDays[gap.data] || { keep: true, reason: '' };
+    if (entry?.clima === 'Chuva' && !current.reason) gapDays[gap.data] = { ...current, reason: 'chuva' };
+  }
+  return { ...decisions, weather, gapDays };
+}
+
+/**
+ * Mapa `{ [photoKey]: subject }` para re-rodar a analise depois que o usuario
+ * marcou fotos como acesso/contexto na revisao (`decisions.photos`).
+ */
+export function buildSubjectOverrides(decisions) {
+  const out = {};
+  for (const [key, decision] of Object.entries(decisions?.photos || {})) {
+    if (decision?.subject) out[key] = normalizePhotoSubject(decision.subject);
+  }
+  return out;
 }
 
 function defaultShapeDay(day) {
@@ -559,6 +681,7 @@ export function mergeAnalysisIntoForm(form, analysis, decisions, { ensureDayShap
   const towersDecisions = decisions?.towers || {};
   const divergenceDecisions = decisions?.divergences || {};
   const gapDecisions = decisions?.gapDays || {};
+  const weatherDecisions = decisions?.weather || {};
 
   // 1. Torres aceitas por dia (ja aplicando correcoes de divergencia confirmadas).
   const additions = new Map(); // date -> Set(numero)
@@ -618,6 +741,7 @@ export function mergeAnalysisIntoForm(form, analysis, decisions, { ensureDayShap
   let daysTouched = 0;
   let towersAdded = 0;
   let towersKept = 0;
+  let climaFilled = 0;
   const detalhesDias = preservarDetalhesDias(existingDays, dates).map((day) => {
     const date = String(day?.data || '').trim();
     const isNew = !existingDates.includes(date);
@@ -641,6 +765,12 @@ export function mergeAnalysisIntoForm(form, analysis, decisions, { ensureDayShap
     }
     const gapDecision = gapDecisions[date];
     if (gapDecision?.reason === 'chuva' && !String(next.clima || '').trim()) next.clima = 'Chuva';
+    // Clima sugerido (Open-Meteo): so onde o dia ainda nao tem clima.
+    const weather = weatherDecisions[date];
+    if (weather?.accept && weather.clima && !String(next.clima || '').trim()) {
+      next.clima = weather.clima;
+      climaFilled += 1;
+    }
     return ensureDayShape(next);
   });
 
@@ -652,6 +782,7 @@ export function mergeAnalysisIntoForm(form, analysis, decisions, { ensureDayShap
       towersAdded,
       towersKept,
       gapDaysKept,
+      climaFilled,
       skippedUnresolved,
       skippedUndated: (analysis?.undated || []).length,
       pendingConflicts: Object.values(divergenceDecisions).filter((d) => d.status !== 'confirmed').length,
@@ -701,15 +832,20 @@ export function buildPhotoAssignments(analysis, decisions) {
 
   const assignments = {};
   const assign = (photo, overrides) => {
-    assignments[photo.key] = {
+    const subject = normalizePhotoSubject(photo.subject);
+    const entry = {
       towerId: null,
       towerSource: 'pending',
       captureAt: toIsoWithLocalOffset(photo.capturedAt),
       gpsLat: Number.isFinite(Number(photo.gpsLat)) && photo.gpsLat !== null ? Number(photo.gpsLat) : null,
       gpsLon: Number.isFinite(Number(photo.gpsLon)) && photo.gpsLon !== null ? Number(photo.gpsLon) : null,
       include: true,
+      subject,
       ...overrides,
     };
+    // Legenda padrao so para acesso/contexto; torre segue o nome do arquivo.
+    entry.caption = buildDefaultSubjectCaption(subject, entry.towerId);
+    assignments[photo.key] = entry;
   };
 
   for (const day of analysis?.days || []) {

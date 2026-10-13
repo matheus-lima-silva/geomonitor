@@ -49,6 +49,8 @@ const mockReportPhotoRepository = {
         mockState.photos.set(payload.id, next);
         return next;
     }),
+    listWithCropHistoryByWorkspace: jest.fn(async (workspaceId) => [...mockState.photos.values()]
+        .filter((photo) => photo.workspaceId === workspaceId && Array.isArray(photo.cropHistory) && photo.cropHistory.length > 0)),
 };
 
 const mockMediaAssetRepository = {

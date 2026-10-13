@@ -4,8 +4,15 @@ import {
   TOWER_MATCH,
   analyzePhotoCampaign,
   buildDefaultDecisions,
+  buildDefaultSubjectCaption,
   buildFileKey,
   buildPhotoAssignments,
+  buildSubjectOverrides,
+  buildWeatherIndex,
+  applyWeatherSuggestions,
+  campaignCentroid,
+  dayCentroid,
+  projectTowersCentroid,
   toIsoWithLocalOffset,
   buildTowerIndex,
   findNearestTowers,
@@ -45,7 +52,7 @@ const ctx = () => buildResolutionContext(PROJECT);
 
 describe('parseDescriptionLabel', () => {
   it('le a etiqueta canonica do Timestamp Camera', () => {
-    expect(parseDescriptionLabel('BMDOPR\n126', ['BMDOPR', 'Bom Despacho - Ouro Preto'])).toEqual({ sigla: 'BMDOPR', tower: '126', siglaMismatch: false });
+    expect(parseDescriptionLabel('BMDOPR\n126', ['BMDOPR', 'Bom Despacho - Ouro Preto'])).toEqual({ sigla: 'BMDOPR', tower: '126', siglaMismatch: false, subject: null });
     expect(parseDescriptionLabel('BMDOPR \n319', 'BMDOPR').tower).toBe('319');
     expect(parseDescriptionLabel('BMDOPR\n16\n    ', 'BMDOPR').tower).toBe('16');
     expect(parseDescriptionLabel('bmdopr\n0007', 'BMDOPR').tower).toBe('7');
@@ -58,8 +65,16 @@ describe('parseDescriptionLabel', () => {
   });
 
   it('marca siglaMismatch quando a etiqueta e de outro empreendimento', () => {
-    expect(parseDescriptionLabel('IABTPR2\n605', 'BMDOPR')).toEqual({ sigla: 'IABTPR2', tower: '605', siglaMismatch: true });
+    expect(parseDescriptionLabel('IABTPR2\n605', 'BMDOPR')).toEqual({ sigla: 'IABTPR2', tower: '605', siglaMismatch: true, subject: null });
     expect(parseDescriptionLabel('Erosao perto da torre 12', 'BMDOPR').siglaMismatch).toBe(true);
+  });
+
+  it('le a 3a linha ACESSO/CONTEXTO como assunto da foto', () => {
+    expect(parseDescriptionLabel('BMDOPR\n195\nACESSO', 'BMDOPR')).toMatchObject({ tower: '195', subject: 'acesso' });
+    expect(parseDescriptionLabel('BMDOPR\n195\n contexto ', 'BMDOPR')).toMatchObject({ tower: '195', subject: 'contexto' });
+    expect(parseDescriptionLabel('BMDOPR\n195', 'BMDOPR').subject).toBeNull();
+    expect(parseDescriptionLabel('BMDOPR\n195\nOUTRA', 'BMDOPR')).toBeNull();
+    expect(parseDescriptionLabel('BOM DESPACHO - OURO PRETO. TORRE 333 ACESSO', ['BMDOPR', 'Bom Despacho - Ouro Preto']).subject).toBe('acesso');
   });
 
   it('devolve null sem torre reconhecivel', () => {
@@ -143,6 +158,18 @@ describe('resolvePhotoTower', () => {
     expect(nothing.issues).toEqual(expect.arrayContaining(['no_gps']));
   });
 
+  it('foto de acesso longe da torre nao vira conflito nem far_from_label, mas mantem a torre', () => {
+    // Mesma geometria do caso 217 -> 218, agora etiquetada como acesso.
+    const access = resolvePhotoTower(photo({ n: 6, offsetM: 10, label: 'BMDOPR\n5\nACESSO' }), ctx());
+    expect(access).toMatchObject({ tower: '5', source: 'label', subject: 'acesso', conflict: null, confidence: 'medium' });
+    expect(access.issues).not.toContain('far_from_label');
+    // Override do usuario via ctx.subjects vence a etiqueta.
+    const overridden = resolvePhotoTower(photo({ n: 6, offsetM: 10, label: 'BMDOPR\n5', name: 'x' }), { ...ctx(), subjects: { x: 'contexto' } });
+    expect(overridden).toMatchObject({ subject: 'contexto', conflict: null });
+    // Sem assunto a regra continua valendo.
+    expect(resolvePhotoTower(photo({ n: 6, offsetM: 10, label: 'BMDOPR\n5' }), ctx()).conflict).not.toBeNull();
+  });
+
   it('empreendimento sem coordenadas: etiqueta vale, torre desconhecida e sinalizada', () => {
     const noCoords = buildResolutionContext({ id: 'XX', nome: 'Linha XX', torres: '5' });
     expect(resolvePhotoTower(photo({ n: 2, label: 'XX\n2' }), noCoords)).toMatchObject({ tower: '2', confidence: 'medium' });
@@ -198,6 +225,30 @@ describe('analyzePhotoCampaign', () => {
     expect(conflict.text).toMatch(/3 fotos etiquetadas 5 às 10:30 estão a \d+ m da torre 6/);
     expect(analysis.divergences.some((d) => d.kind === 'double_session' && d.numero === '5')).toBe(true);
     expect(analysis.divergences.some((d) => d.kind === 'spread' && d.numero === '5')).toBe(true);
+  });
+
+  it('fotos de acesso saem das regras de divergencia (conflito, sessao dupla, dispersao, longe) e sao contadas', () => {
+    const withAccess = campaign.map((p) => (['f', 'g', 'h'].includes(p.name) ? { ...p, description: 'BMDOPR\n5\nACESSO' } : p));
+    const analysis = analyzePhotoCampaign(withAccess, PROJECT);
+    const day = analysis.days.find((d) => d.data === '2026-09-22');
+    const group5 = day.towers.find((g) => g.numero === '5');
+    expect(group5.count).toBe(5);
+    expect(group5.accessCount).toBe(3);
+    expect(group5.towerPhotos.map((p) => p.name)).toEqual(['d', 'e']);
+    expect(group5.conflict).toBeNull();
+    expect(analysis.divergences.filter((d) => d.numero === '5')).toEqual([]);
+    expect(analysis.stats.accessPhotos).toBe(3);
+
+    // Mesmo efeito via decisoes da revisao (re-rodar a analise com subjects).
+    const base = analyzePhotoCampaign(campaign, PROJECT);
+    expect(base.divergences.some((d) => d.kind === 'label_conflict')).toBe(true);
+    const decisions = buildDefaultDecisions(base);
+    expect(decisions.photos).toEqual({});
+    decisions.photos.f = { subject: 'acesso' };
+    decisions.photos.g = { subject: 'acesso' };
+    decisions.photos.h = { subject: 'acesso' };
+    const rerun = analyzePhotoCampaign(campaign, PROJECT, { subjects: buildSubjectOverrides(decisions) });
+    expect(rerun.divergences.filter((d) => d.numero === '5')).toEqual([]);
   });
 
   it('marca feriado nos dias e nos gaps pelo indice informado', () => {
@@ -363,6 +414,73 @@ describe('buildDefaultDecisions + mergeAnalysisIntoForm', () => {
   });
 });
 
+describe('clima sugerido (Open-Meteo)', () => {
+  const weatherDays = [
+    { date: '2026-09-21', clima: 'Nublado', reason: 'encoberto', weatherCode: 3, precipitationSum: 0 },
+    { date: '2026-09-22', clima: 'Chuva', reason: 'chuvisco 6 h, 2 mm', weatherCode: 55, precipitationSum: 2, precipitationHours: 6 },
+    { date: '2026-09-23', clima: 'Chuva', reason: 'chuvisco 11 h, 3,4 mm' },
+    { date: '2026-09-24', clima: null, reason: '' },
+    { date: 'ontem', clima: 'Sol' },
+  ];
+  const campaign = [
+    photo({ n: 2, date: '2026-09-21', time: '14:31', name: 'a' }),
+    photo({ n: 5, date: '2026-09-22', time: '09:00', name: 'd' }),
+    photo({ n: 6, date: '2026-09-22', time: '10:30', name: 'f' }),
+    photo({ n: 9, date: '2026-09-24', time: '08:00', name: 'j' }),
+  ];
+
+  it('centroides: do dia, da campanha e das torres do empreendimento', () => {
+    const analysis = analyzePhotoCampaign(campaign, PROJECT);
+    const day22 = analysis.days.find((d) => d.data === '2026-09-22');
+    const c = dayCentroid(day22);
+    expect(c[0]).toBeCloseTo((towerLat(5) + towerLat(6)) / 2 + 10 * DEG_PER_M_LAT, 6);
+    expect(c[1]).toBe(-44);
+    expect(campaignCentroid(analysis)[1]).toBe(-44);
+    expect(dayCentroid({ towers: [], unresolved: [] })).toBeNull();
+    expect(projectTowersCentroid(PROJECT, ['1', '3'])[0]).toBeCloseTo(towerLat(2), 9);
+    expect(projectTowersCentroid(PROJECT, ['999'])[0]).toBeCloseTo((towerLat(1) + towerLat(20)) / 2, 9);
+    expect(projectTowersCentroid({ id: 'XX' })).toBeNull();
+  });
+
+  it('buildWeatherIndex ignora datas invalidas; applyWeatherSuggestions aceita por padrao e pre-marca gap com chuva', () => {
+    const index = buildWeatherIndex(weatherDays);
+    expect(index.size).toBe(4);
+    expect(index.get('2026-09-22')).toMatchObject({ clima: 'Chuva', precipitationHours: 6 });
+
+    const analysis = analyzePhotoCampaign(campaign, PROJECT);
+    expect(analysis.gapDays.map((g) => g.data)).toEqual(['2026-09-23']);
+    const decisions = applyWeatherSuggestions(buildDefaultDecisions(analysis), index, analysis);
+    expect(decisions.weather['2026-09-21']).toEqual({ accept: true, clima: 'Nublado', reason: 'encoberto' });
+    expect(decisions.weather['2026-09-22'].clima).toBe('Chuva');
+    expect(decisions.weather['2026-09-24']).toBeUndefined();
+    expect(decisions.gapDays['2026-09-23']).toEqual({ keep: true, reason: 'chuva' });
+    // Decisao anterior do usuario (recusar) e preservada ao reaplicar.
+    decisions.weather['2026-09-21'].accept = false;
+    expect(applyWeatherSuggestions(decisions, index, analysis).weather['2026-09-21'].accept).toBe(false);
+  });
+
+  it('mergeAnalysisIntoForm grava o clima sugerido so onde estiver vazio e so se aceito', () => {
+    const analysis = analyzePhotoCampaign(campaign, PROJECT);
+    const index = buildWeatherIndex(weatherDays);
+    const decisions = applyWeatherSuggestions(buildDefaultDecisions(analysis), index, analysis);
+    decisions.weather['2026-09-22'].accept = false;
+    const form = {
+      projetoId: 'BMDOPR', dataInicio: '2026-09-21', dataFim: '2026-09-21',
+      detalhesDias: [{ data: '2026-09-21', clima: 'Sol', torres: [], torresInput: '', torresDetalhadas: [] }],
+    };
+    const { form: merged, summary } = mergeAnalysisIntoForm(form, analysis, decisions);
+    const byDate = Object.fromEntries(merged.detalhesDias.map((d) => [d.data, d.clima]));
+    expect(byDate['2026-09-21']).toBe('Sol'); // ja preenchido: nao sobrescreve
+    expect(byDate['2026-09-22']).toBe(''); // recusado
+    expect(byDate['2026-09-23']).toBe('Chuva'); // gap com motivo chuva
+    expect(byDate['2026-09-24']).toBe(''); // sem sugestao
+    expect(summary.climaFilled).toBe(0);
+
+    decisions.weather['2026-09-22'].accept = true;
+    expect(mergeAnalysisIntoForm(form, analysis, decisions).summary.climaFilled).toBe(1);
+  });
+});
+
 describe('buildFileKey / toIsoWithLocalOffset', () => {
   it('monta a chave estavel do arquivo', () => {
     expect(buildFileKey({ webkitRelativePath: 'BMDOPR/126/a.jpg', name: 'a.jpg', size: 10, lastModified: 5 })).toBe('BMDOPR/126/a.jpg|10|5');
@@ -415,6 +533,20 @@ describe('buildPhotoAssignments', () => {
     const confirmed = buildPhotoAssignments(analysis, decisions);
     expect(confirmed.own).toMatchObject({ towerId: '5', towerSource: 'exif_label' });
     expect(confirmed.wrong).toMatchObject({ towerId: '6', towerSource: 'gps_nearest' });
+  });
+
+  it('assunto e legenda padrao: acesso/contexto ganham legenda com a torre, torre fica sem legenda', () => {
+    const analysis = analyzePhotoCampaign([
+      mk('t', 5),
+      mk('a', 5, { description: 'BMDOPR\n5\nACESSO', offsetM: 400 }),
+      mk('c', 5, { description: 'BMDOPR\n5\nCONTEXTO' }),
+    ], PROJECT);
+    const assignments = buildPhotoAssignments(analysis, buildDefaultDecisions(analysis));
+    expect(assignments.t).toMatchObject({ towerId: '5', subject: 'torre', caption: null });
+    expect(assignments.a).toMatchObject({ towerId: '5', towerSource: 'exif_label', subject: 'acesso', caption: 'Acesso a torre 5', include: true });
+    expect(assignments.c).toMatchObject({ subject: 'contexto', caption: 'Contexto - torre 5' });
+    expect(buildDefaultSubjectCaption('acesso', '')).toBe('Acesso');
+    expect(buildDefaultSubjectCaption('torre', '5')).toBeNull();
   });
 
   it('pasta vira folder_path; nao resolvidas e sem data ficam pending/incluidas', () => {

@@ -32,6 +32,11 @@ vi.mock('../../../../utils/photoCampaign/exifMeta', () => ({
   readExifMetaFromFile: async (file) => META[file.name] || null,
 }));
 
+const fetchDailyWeatherMock = vi.fn();
+vi.mock('../../../../services/weatherService', () => ({
+  fetchDailyWeather: (...args) => fetchDailyWeatherMock(...args),
+}));
+
 const PROJECT = {
   id: 'BMDOPR',
   nome: 'Bom Despacho - Ouro Preto',
@@ -173,6 +178,47 @@ describe('InspectionFormWizardModal — preencher pelas fotos', () => {
     expect(byDate['2026-09-25']).toEqual(['2']);
     expect(byDate['2026-09-26']).toEqual(['3']);
     expect(byDate['2026-09-28']).toEqual([]);
+  });
+
+  it('"Sugerir clima" preenche so os dias sem clima pelo centroide das torres do diario', async () => {
+    fetchDailyWeatherMock.mockReset();
+    fetchDailyWeatherMock.mockResolvedValue([
+      { date: '2026-09-25', clima: 'Chuva', reason: 'chuva 3 h, 8 mm' },
+      { date: '2026-09-26', clima: 'Sol', reason: 'ceu limpo' },
+    ]);
+    await clickByText('Nova Vistoria');
+    changeInput(document.querySelector('#inspection-project'), 'BMDOPR');
+    await clickByText('Preencher pelas fotos', document.querySelector('[data-testid="photo-autofill-cta-step1"]'));
+    const input = document.querySelector('#inspection-photo-autofill-folder');
+    Object.defineProperty(input, 'files', { value: [fakeFile('sex.jpg'), fakeFile('sab.jpg')], configurable: true });
+    act(() => { input.dispatchEvent(new Event('change', { bubbles: true })); });
+    await clickByText('Analisar fotos');
+    await flush();
+    await clickByText('Aplicar ao diário');
+    await flush(2);
+
+    // O modal ja tentou o clima (mock devolve os mesmos dias): 25 e 26 vem preenchidos.
+    // Limpa o clima do dia 25 pela UI para testar o botao do wizard.
+    const firstDayWeather = document.querySelector('#inspection-day-weather-0');
+    if (firstDayWeather) changeInput(firstDayWeather, '');
+
+    fetchDailyWeatherMock.mockClear();
+    fetchDailyWeatherMock.mockResolvedValue([{ date: '2026-09-25', clima: 'Nublado', reason: 'encoberto' }, { date: '2026-09-26', clima: 'Chuva', reason: 'x' }]);
+    await clickByText('Sugerir clima');
+    await flush(3);
+    expect(fetchDailyWeatherMock).toHaveBeenCalledTimes(1);
+    const args = fetchDailyWeatherMock.mock.calls[0][0];
+    expect(args).toMatchObject({ start: '2026-09-25', end: '2026-09-26', lon: -44 });
+    expect(args.lat).toBeCloseTo((towerLat(2) + towerLat(3)) / 2, 6);
+
+    await clickByText('3. Revisao');
+    await clickByText('Salvar vistoria');
+    await flush(3);
+    const payload = saveInspectionMock.mock.calls[0][0];
+    const byDate = Object.fromEntries(payload.detalhesDias.map((d) => [d.data, d.clima]));
+    expect(byDate['2026-09-25']).toBe('Nublado'); // estava vazio: preenchido
+    expect(byDate['2026-09-26']).toBe('Sol'); // ja tinha clima do modal: mantido
+    expect(showMock).toHaveBeenCalledWith(expect.stringContaining('Clima sugerido em 1 dia(s)'), 'success');
   });
 
   it('com o destino workspace marcado, salva a vistoria e entrega arquivos e decisoes ao handoff', async () => {

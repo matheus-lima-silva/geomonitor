@@ -18,8 +18,9 @@ const {
 const { asyncHandler } = require('../utils/asyncHandler');
 const { validateBody } = require('../middleware/validate');
 const { workspaceCreateSchema, workspaceUpdateSchema } = require('../schemas/reportWorkspaceSchemas');
-const { cropFooterSchema, cropUndoSchema } = require('../schemas/reportPhotoSchemas');
-const { PhotoCropError, cropPhotoFooter, undoPhotoFooterCrop } = require('../utils/photoFooterCrop');
+const { cropFooterSchema, cropFooterBatchSchema, cropUndoSchema, purgeCropBackupsSchema } = require('../schemas/reportPhotoSchemas');
+const { PhotoCropError, cropPhotoFooter, cropPhotoFooterBatch, purgeExpiredCropBackups, undoPhotoFooterCrop } = require('../utils/photoFooterCrop');
+const { getCropBackupRetentionDays } = require('../utils/retentionConfig');
 const {
     reportWorkspaceRepository,
     reportPhotoRepository,
@@ -82,6 +83,13 @@ async function inspectionExists(inspectionId) {
     return Boolean(inspection);
 }
 
+// Assunto da foto (torre em si, via de acesso ou contexto). Fora da lista cai em 'torre'.
+const PHOTO_SUBJECTS = new Set(['torre', 'acesso', 'contexto']);
+function normalizePhotoSubject(value) {
+    const key = normalizeText(value).toLowerCase();
+    return PHOTO_SUBJECTS.has(key) ? key : 'torre';
+}
+
 function normalizePhoto(photo = {}, workspaceId = '', fallbackProjectId = '') {
     return {
         id: normalizeText(photo.id) || `RPH-${crypto.randomUUID()}`,
@@ -92,6 +100,7 @@ function normalizePhoto(photo = {}, workspaceId = '', fallbackProjectId = '') {
         towerSource: normalizeText(photo.towerSource) || 'manual',
         includeInReport: Boolean(photo.includeInReport),
         caption: normalizeText(photo.caption),
+        subject: normalizePhotoSubject(photo.subject),
         captureAt: normalizeText(photo.captureAt),
         gpsLat: Number.isFinite(Number(photo.gpsLat)) ? Number(photo.gpsLat) : null,
         gpsLon: Number.isFinite(Number(photo.gpsLon)) ? Number(photo.gpsLon) : null,
@@ -822,6 +831,7 @@ router.post('/:id/photos/:photoId/crop-footer', verifyToken, requireEditor, requ
             percent: data.percent,
             actor,
         });
+        schedulePurgeWorkspaceCropBackups(context.workspaceId, actor);
         return res.status(200).json({
             status: 'success',
             data: createWorkspacePhotoResponse(req, context.workspaceId, result.photo),
@@ -839,6 +849,7 @@ router.post('/:id/photos/:photoId/crop-footer/undo', verifyToken, requireEditor,
     const actor = meta.updatedBy || req.user?.email || 'API';
     try {
         const result = await undoPhotoFooterCrop({ photo: context.photo, asset: context.asset, actor });
+        schedulePurgeWorkspaceCropBackups(context.workspaceId, actor);
         return res.status(200).json({
             status: 'success',
             data: createWorkspacePhotoResponse(req, context.workspaceId, result.photo),
@@ -847,6 +858,95 @@ router.post('/:id/photos/:photoId/crop-footer/undo', verifyToken, requireEditor,
         if (respondPhotoCropError(res, error)) return undefined;
         throw error;
     }
+}));
+
+// Retencao automatica dos backups de corte do workspace (best-effort, fora da
+// resposta). Roda apos cada corte/desfazer/lote; a rota manual abaixo faz o mesmo.
+async function purgeWorkspaceCropBackups(workspaceId, { days, actor } = {}) {
+    const retentionDays = Number.isInteger(Number(days)) ? Number(days) : await getCropBackupRetentionDays();
+    const photos = await reportPhotoRepository.listWithCropHistoryByWorkspace(workspaceId);
+    const targets = [];
+    for (const photo of photos) {
+        const mediaAssetId = normalizeText(photo.mediaAssetId);
+        const asset = mediaAssetId ? await mediaAssetRepository.getById(mediaAssetId) : null;
+        targets.push({ photo, asset: asset || { id: mediaAssetId } });
+    }
+    return purgeExpiredCropBackups({ targets, days: retentionDays, actor: actor || 'retention' });
+}
+
+function schedulePurgeWorkspaceCropBackups(workspaceId, actor) {
+    setImmediate(() => {
+        purgeWorkspaceCropBackups(workspaceId, { actor }).catch((error) => {
+            console.warn('[report-workspaces API] retencao de backups de corte falhou:', error?.message || error);
+        });
+    });
+}
+
+router.post('/:id/photos/crop-footer-batch', verifyToken, requireEditor, requireWorkspaceWrite, validateBody(cropFooterBatchSchema), asyncHandler(async (req, res) => {
+    const workspaceId = normalizeText(req.params.id);
+    const workspace = await reportWorkspaceRepository.getById(workspaceId);
+    if (!workspace) {
+        return res.status(404).json({ status: 'error', code: 'WORKSPACE_NOT_FOUND', message: 'Workspace nao encontrado' });
+    }
+    const { data = {}, meta = {} } = req.body || {};
+    const actor = meta.updatedBy || req.user?.email || 'API';
+    const targets = [];
+    const skipped = [];
+    for (const rawId of data.photoIds) {
+        const photoId = normalizeText(rawId);
+        const photo = await reportPhotoRepository.getById(photoId);
+        if (!photo || normalizeText(photo.workspaceId) !== workspaceId) {
+            skipped.push({ photoId, code: 'PHOTO_NOT_FOUND', message: 'Foto nao encontrada neste workspace.' });
+            continue;
+        }
+        const mediaAssetId = normalizeText(photo.mediaAssetId);
+        const asset = mediaAssetId ? await mediaAssetRepository.getById(mediaAssetId) : null;
+        if (!asset) {
+            skipped.push({ photoId, code: 'PHOTO_WITHOUT_MEDIA', message: 'Foto sem arquivo de midia disponivel para corte.' });
+            continue;
+        }
+        targets.push({ photo, asset });
+    }
+    const result = await cropPhotoFooterBatch({
+        targets,
+        pixels: data.pixels,
+        percent: data.percent,
+        skipCropped: data.skipCropped !== false,
+        actor,
+    });
+    schedulePurgeWorkspaceCropBackups(workspaceId, actor);
+    return res.status(200).json({
+        status: 'success',
+        data: createResourceHateoasResponse(req, {
+            cropped: result.cropped,
+            skipped: [...skipped, ...result.skipped],
+            photos: result.photos.map((photo) => createWorkspacePhotoResponse(req, workspaceId, photo)),
+        }, `report-workspaces/${workspaceId}/photos/crop-footer-batch`, {
+            allowUpdate: false,
+            allowDelete: false,
+            collectionPath: `report-workspaces/${workspaceId}/photos`,
+        }),
+    });
+}));
+
+router.post('/:id/photos/purge-crop-backups', verifyToken, requireEditor, requireWorkspaceWrite, validateBody(purgeCropBackupsSchema), asyncHandler(async (req, res) => {
+    const workspaceId = normalizeText(req.params.id);
+    const workspace = await reportWorkspaceRepository.getById(workspaceId);
+    if (!workspace) {
+        return res.status(404).json({ status: 'error', code: 'WORKSPACE_NOT_FOUND', message: 'Workspace nao encontrado' });
+    }
+    const { data = {}, meta = {} } = req.body || {};
+    const actor = meta.updatedBy || req.user?.email || 'API';
+    const result = await purgeWorkspaceCropBackups(workspaceId, { days: data?.days, actor });
+    return res.status(200).json({
+        status: 'success',
+        message: `${result.purged} backup(s) de corte apagado(s)`,
+        data: createResourceHateoasResponse(req, result, `report-workspaces/${workspaceId}/photos/purge-crop-backups`, {
+            allowUpdate: false,
+            allowDelete: false,
+            collectionPath: `report-workspaces/${workspaceId}/photos`,
+        }),
+    });
 }));
 
 router.post('/:id/photos/organize', verifyToken, requireEditor, requireWorkspaceWrite, async (req, res) => {

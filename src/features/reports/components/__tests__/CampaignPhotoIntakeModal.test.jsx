@@ -116,6 +116,7 @@ describe('CampaignPhotoIntakeModal', () => {
           onCancel={onCancel}
           onApply={onApply}
           readExifMeta={readExifMeta}
+          fetchDailyWeather={null}
           {...props}
         />,
       );
@@ -205,6 +206,117 @@ describe('CampaignPhotoIntakeModal', () => {
     expect(decisions.towers['2026-09-22|7'].include).toBe(true);
     expect(decisions.gapDays['2026-09-23']).toEqual({ keep: true, reason: 'chuva' });
     expect(Object.values(decisions.divergences)[0]).toEqual({ status: 'confirmed', numero: '6' });
+  });
+
+  it('etiqueta com 3a linha ACESSO: fotos saem das divergencias e aparecem contadas como acesso', async () => {
+    const accessMetas = { ...METAS };
+    for (const name of ['c.jpg', 'd.jpg', 'e.jpg']) accessMetas[name] = { ...METAS[name], description: 'BMDOPR\n5\nACESSO' };
+    await renderAndAnalyze({ readExifMeta: vi.fn(async (file) => accessMetas[file.name] || null) });
+
+    expect(document.querySelector('[data-testid="photo-autofill-conflict"]')).toBeNull();
+    expect(document.querySelector('[data-testid="photo-autofill-review"]').textContent).toContain('Fotos de acesso: 3');
+    const tower5 = [...document.querySelectorAll('[data-testid="photo-autofill-tower"]')].find((row) => row.textContent.includes('5 fotos'));
+    expect(tower5.textContent).toContain('3 de acesso');
+
+    clickButton('Aplicar ao diário');
+    expect(onApply).toHaveBeenCalledTimes(1);
+    const { analysis } = onApply.mock.calls[0][0];
+    expect(analysis.stats.accessPhotos).toBe(3);
+    expect(analysis.divergences.filter((d) => d.numero === '5')).toEqual([]);
+  });
+
+  it('"E acesso" na divergencia some com a linha, Desfazer volta, e as decisoes levam o assunto por foto', async () => {
+    await renderAndAnalyze();
+    const conflict = document.querySelector('[data-testid="photo-autofill-conflict"]');
+    clickButton('É acesso', conflict);
+    await flush(2);
+    expect(document.querySelector('[data-testid="photo-autofill-conflict"]')).toBeNull();
+    const resolved = document.querySelector('[data-testid="photo-autofill-divergences-resolved"]');
+    expect(resolved.textContent).toContain('3 fotos marcadas como acesso/contexto');
+
+    clickButton('Desfazer', resolved);
+    await flush(2);
+    expect(document.querySelector('[data-testid="photo-autofill-conflict"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="photo-autofill-subject-marked"]')).toBeNull();
+
+    clickButton('É acesso', document.querySelector('[data-testid="photo-autofill-conflict"]'));
+    await flush(2);
+    clickButton('Aplicar ao diário');
+    expect(onApply).toHaveBeenCalledTimes(1);
+    const { decisions, analysis } = onApply.mock.calls[0][0];
+    expect(decisions.photos['c.jpg|1000|1']).toEqual({ subject: 'acesso' });
+    expect(decisions.photos['e.jpg|1000|1']).toEqual({ subject: 'acesso' });
+    expect(analysis.stats.accessPhotos).toBe(3);
+    // Decisoes anteriores sobrevivem a re-analise (GPS-only segue desmarcada).
+    expect(decisions.towers['2026-09-22|7'].include).toBe(false);
+  });
+
+  it('expandir a torre lista as fotos e o toggle por foto muda o assunto', async () => {
+    await renderAndAnalyze();
+    const tower5 = [...document.querySelectorAll('[data-testid="photo-autofill-tower"]')].find((row) => row.textContent.includes('5 fotos'));
+    clickButton('5 fotos', tower5);
+    const list = document.querySelector('[data-testid="photo-autofill-group-photos"]');
+    expect(list).toBeTruthy();
+    expect(list.querySelectorAll('li')).toHaveLength(5);
+    const firstRow = list.querySelector('li');
+    expect(firstRow.textContent).toContain('a.jpg');
+    expect(firstRow.querySelector('button[aria-pressed="true"]').textContent).toBe('Torre');
+
+    clickButton('Acesso', firstRow);
+    await flush(2);
+    const refreshed = [...document.querySelectorAll('[data-testid="photo-autofill-tower"]')].find((row) => row.textContent.includes('5 fotos'));
+    expect(refreshed.textContent).toContain('1 de acesso');
+    const refreshedList = document.querySelector('[data-testid="photo-autofill-group-photos"]');
+    expect(refreshedList.querySelector('li button[aria-pressed="true"]').textContent).toBe('Acesso');
+  });
+
+  it('clima sugerido: badge por dia, checkbox aceito por padrao, gap com chuva pre-marcado, recusar reflete nas decisoes', async () => {
+    const fetchDailyWeather = vi.fn(async ({ start, end }) => {
+      expect(start).toBe('2026-09-22');
+      expect(end).toBe('2026-09-24');
+      return [
+        { date: '2026-09-22', clima: 'Chuva', reason: 'chuvisco 6 h, 2 mm' },
+        { date: '2026-09-23', clima: 'Chuva', reason: 'chuva 4 h, 12 mm' },
+        { date: '2026-09-24', clima: 'Sol', reason: 'ceu limpo' },
+      ];
+    });
+    await renderAndAnalyze({ fetchDailyWeather });
+    await flush(2);
+    expect(fetchDailyWeather).toHaveBeenCalledTimes(1);
+    expect(fetchDailyWeather.mock.calls[0][0].lon).toBe(-44);
+
+    const badges = [...document.querySelectorAll('[data-testid="photo-autofill-weather"]')].map((b) => b.textContent);
+    expect(badges).toEqual(['Clima: Chuva', 'Clima: Chuva', 'Clima: Sol']);
+    expect(document.querySelector('[data-testid="photo-autofill-review"]').textContent).toContain('Clima sugerido em 2 dias'); // 23/09 ja entra como Chuva pelo motivo do gap
+
+    // Gap 23/09 com chuva: motivo pre-marcado.
+    const gap = document.querySelector('[data-testid="photo-autofill-gap-day"]');
+    expect(gap.querySelector('select').value).toBe('chuva');
+
+    // Dia 22 (expandido) tem o checkbox aceito; desmarcar vira "ignorado".
+    const checkbox = document.querySelector('#weather-2026-09-22');
+    expect(checkbox.checked).toBe(true);
+    act(() => { checkbox.click(); });
+    expect([...document.querySelectorAll('[data-testid="photo-autofill-weather"]')][0].textContent).toContain('ignorado');
+
+    clickButton('Confirmar', document.querySelector('[data-testid="photo-autofill-conflict"]'));
+    clickButton('Aplicar ao diário');
+    const { decisions } = onApply.mock.calls[0][0];
+    expect(decisions.weather['2026-09-22']).toMatchObject({ accept: false, clima: 'Chuva' });
+    expect(decisions.weather['2026-09-24']).toMatchObject({ accept: true, clima: 'Sol' });
+    expect(decisions.gapDays['2026-09-23'].reason).toBe('chuva');
+  });
+
+  it('clima indisponivel nao bloqueia a revisao', async () => {
+    const fetchDailyWeather = vi.fn(async () => { throw new Error('Open-Meteo fora'); });
+    await renderAndAnalyze({ fetchDailyWeather });
+    await flush(2);
+    expect(document.querySelector('[data-testid="photo-autofill-weather-error"]')).toBeTruthy();
+    expect(document.querySelectorAll('[data-testid="photo-autofill-weather"]')).toHaveLength(0);
+    clickButton('Confirmar', document.querySelector('[data-testid="photo-autofill-conflict"]'));
+    clickButton('Aplicar ao diário');
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(onApply.mock.calls[0][0].decisions.weather).toEqual({});
   });
 
   it('marca "Já no diário" para torre que o dia atual ja tem', async () => {
