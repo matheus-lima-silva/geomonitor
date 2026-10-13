@@ -204,7 +204,6 @@ export default function PhotoPreviewModal({
     ? `${index + 1} / ${total}`
     : '';
   const coordsPoint = towerPoint || photoPoint;
-  const coordsLabel = coordsPoint ? `${coordsPoint[0].toFixed(6)} ${coordsPoint[1].toFixed(6)}` : '';
 
   const linePx = defaultCropPixels(imageBox?.naturalHeight);
   const bandHeightPx = imageBox?.naturalHeight
@@ -532,10 +531,12 @@ export default function PhotoPreviewModal({
       <CreateErosionHandoffModal
         open={erosionHandoffOpen}
         onClose={() => setErosionHandoffOpen(false)}
-        onConfirm={() => { setErosionHandoffOpen(false); onCreateErosion?.(photo); }}
+        onConfirm={(choice) => { setErosionHandoffOpen(false); onCreateErosion?.(photo, choice || {}); }}
         projectId={projectId}
         towerRef={draft?.towerId || photo.towerId || ''}
-        coordsLabel={coordsLabel}
+        towerPoint={towerPoint}
+        photoPoint={photoPoint}
+        distanceMeters={distanceMeters}
         photoId={photo.id}
       />
     </>

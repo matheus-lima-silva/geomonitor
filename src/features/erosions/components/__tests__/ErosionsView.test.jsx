@@ -28,6 +28,20 @@ vi.mock('../../../../context/ToastContext', () => ({
 
 // Thumbnails das fotos principais usam MediaImage (resolve URL assinada via rede);
 // stub para o teste de edicao nao tocar o backend de midia.
+// O formulario abre o mapa interativo sozinho quando ja ha coordenadas; o Leaflet
+// real nao roda em jsdom, entao o react-leaflet e substituido por stubs.
+vi.mock('react-leaflet', () => ({
+  MapContainer: ({ children }) => <div>{children}</div>,
+  TileLayer: () => null,
+  CircleMarker: ({ children }) => <div>{children}</div>,
+  Polyline: () => null,
+  Popup: ({ children }) => <div>{children}</div>,
+  Tooltip: ({ children }) => <div>{children}</div>,
+  Marker: ({ children }) => <div>{children}</div>,
+  useMapEvents: () => null,
+  useMap: () => null,
+}));
+
 vi.mock('../../../../components/MediaImage', () => ({
   default: ({ alt }) => <img alt={alt || 'foto'} />,
 }));
@@ -296,6 +310,30 @@ describe('ErosionsView', () => {
     expect(container.querySelector('dialog[open], [role="dialog"]')).toBeTruthy();
     expect(container.textContent).toMatch(/Nova Eros/i);
     expect(container.textContent).toContain('Cadastro');
+  });
+
+  it('pendingDraft do handoff abre o formulario com o GPS da foto como ponto e a foto como evidencia', async () => {
+    const onDraftConsumed = vi.fn();
+    renderView(root, {
+      pendingDraft: {
+        projetoId: 'P1',
+        torreRef: '7',
+        latitude: '-22.95',
+        longitude: '-43.21',
+        locationCoordinates: { latitude: '-22.95', longitude: '-43.21' },
+        originPhoto: { photoId: 'RPH-1', workspaceId: 'RW-1', mediaAssetId: 'MA-1', gpsLat: -22.95, gpsLon: -43.21, towerId: '7', pointSource: 'photo' },
+        fotosPrincipais: [{ photoId: 'RPH-1', workspaceId: 'RW-1', mediaAssetId: 'MA-1', sortOrder: 0 }],
+      },
+      onDraftConsumed,
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(onDraftConsumed).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[role="dialog"]')).toBeTruthy();
+    expect(container.querySelector('#erosion-lat').value).toBe('-22.95');
+    const photoButton = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Usar coordenada da foto'));
+    expect(photoButton.disabled).toBe(false);
+    expect(container.querySelector('[data-testid="erosion-point-source"]').textContent).toContain('GPS da foto RPH-1');
   });
 
   it('bloqueia salvamento e exibe erro inline quando obrigatorios nao foram preenchidos', async () => {

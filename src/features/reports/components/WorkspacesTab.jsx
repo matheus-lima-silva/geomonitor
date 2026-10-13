@@ -1718,7 +1718,7 @@ export default function WorkspacesTab({
         onTrash={(p) => p && handleMovePhotoToTrash(p.id)}
         onCropFooter={handleCropPhotoFooter ? (p, band) => p && handleCropPhotoFooter(p.id, band) : undefined}
         onUndoCrop={handleUndoPhotoFooterCrop ? (p) => p && handleUndoPhotoFooterCrop(p.id) : undefined}
-        onCreateErosion={(p) => p && onCreateErosionFromPhoto?.(p)}
+        onCreateErosion={(p, choice) => p && onCreateErosionFromPhoto?.(p, choice)}
         towerPoint={activePreviewTowerPoint}
         photoPoint={activePreviewPhotoPoint}
         towerLabel={activePreviewTowerRef}

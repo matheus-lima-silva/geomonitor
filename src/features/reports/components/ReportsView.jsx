@@ -77,6 +77,7 @@ import {
   getPersistedWorkspaceCurationDrafts,
   getPhotoCoordinate,
   getWorkspacePhotoStatus,
+  haversineMeters,
   inferTowerIdFromRelativePath,
   isPendingExecutionStatus,
   sortPhotosByMode,
@@ -1173,7 +1174,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
   // Handoff "criar erosao a partir da foto": reusa o mecanismo pendingErosionDraft
   // do DashboardView (mesmo fluxo Vistorias->Erosoes). Monta o contexto minimo e
   // delega a abertura do formulario de erosao pre-preenchido ao parent.
-  function handleCreateErosionFromPhoto(photo) {
+  function handleCreateErosionFromPhoto(photo, { pointSource = 'tower' } = {}) {
     if (!photo) return;
     if (typeof onOpenErosionDraft !== 'function') {
       showToast('Fluxo de criacao de erosao indisponivel neste contexto.', 'error');
@@ -1186,10 +1187,19 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
     }
     const draft = workspacePhotoDrafts[photo.id] || buildWorkspacePhotoDraft(photo);
     const torreRef = String(draft.towerId || photo.towerId || '').trim();
-    // Coordenadas: prioriza a torre cadastrada; cai para o GPS da propria foto.
-    const point = findTowerCoordinate(selectedWorkspaceProject, torreRef) || getPhotoCoordinate(photo);
+    // Ponto inicial da erosao: a torre cadastrada e a referencia padrao (coordenada
+    // absoluta). O GPS da foto e fonte opcional, escolhida no modal de chamada
+    // quando a foto foi tirada em cima da erosao. Fallback cruzado quando a fonte
+    // escolhida nao tem coordenada.
+    const towerPoint = findTowerCoordinate(selectedWorkspaceProject, torreRef);
+    const photoPoint = getPhotoCoordinate(photo);
+    const usePhotoPoint = pointSource === 'photo' ? Boolean(photoPoint) : !towerPoint && Boolean(photoPoint);
+    const point = usePhotoPoint ? photoPoint : (towerPoint || photoPoint);
     const latitude = point ? String(point[0]) : '';
     const longitude = point ? String(point[1]) : '';
+    const workspaceId = String(selectedWorkspace?.id || '').trim();
+    const mediaAssetId = String(photo.mediaAssetId || '').trim();
+    const distanceMeters = towerPoint && photoPoint ? haversineMeters(towerPoint, photoPoint) : null;
 
     onOpenErosionDraft({
       projetoId,
@@ -1197,12 +1207,28 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
       latitude,
       longitude,
       locationCoordinates: { latitude, longitude },
+      originPhoto: {
+        photoId: photo.id,
+        workspaceId,
+        mediaAssetId,
+        gpsLat: photoPoint ? photoPoint[0] : null,
+        gpsLon: photoPoint ? photoPoint[1] : null,
+        towerId: torreRef,
+        pointSource: usePhotoPoint ? 'photo' : 'tower',
+      },
+      // A foto entra como evidencia (fotosPrincipais) quando tem midia.
+      fotosPrincipais: workspaceId && mediaAssetId
+        ? [{ photoId: photo.id, workspaceId, mediaAssetId, sortOrder: 0 }]
+        : [],
     });
     setActivePreviewPhotoId('');
+    const pointLabel = usePhotoPoint
+      ? `ponto pelo GPS da foto${distanceMeters != null ? `, ${Math.round(distanceMeters)} m da torre` : ''}`
+      : (towerPoint ? `ponto na torre ${torreRef}` : 'sem coordenada inicial');
     showToast(
       torreRef
-        ? `Abrindo formulario de erosao — Torre ${torreRef} - foto vinculada.`
-        : 'Abrindo formulario de erosao — foto vinculada.',
+        ? `Abrindo formulario de erosao — Torre ${torreRef}, ${pointLabel}, foto vinculada.`
+        : `Abrindo formulario de erosao — ${pointLabel}, foto vinculada.`,
       'info',
     );
   }

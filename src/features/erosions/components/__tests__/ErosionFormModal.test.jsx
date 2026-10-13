@@ -231,6 +231,36 @@ describe('ErosionFormModal', () => {
     expect(options).toEqual(['', '0', '2', '10', '163A']);
   });
 
+  it('"Usar coordenada da foto" aplica o GPS da foto de origem e mostra o marcador', () => {
+    const props = renderModal(root, {
+      utmErrorToken: 1,
+      formData: {
+        id: 'ERS-1', projetoId: 'P1', torreRef: '', localContexto: {}, estagio: '', usosSolo: [], fotosLinks: [], status: 'Ativo', obs: '',
+        locationCoordinates: { latitude: '', longitude: '' },
+        originPhoto: { photoId: 'RPH-7', workspaceId: 'RW-1', mediaAssetId: 'MA-7', gpsLat: -22.952, gpsLon: -43.211, towerId: '', pointSource: 'photo' },
+      },
+    });
+    const button = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Usar coordenada da foto'));
+    expect(button.disabled).toBe(false);
+    act(() => { button.click(); });
+    const updater = props.setFormData.mock.calls.at(-1)[0];
+    const next = updater(props.formData);
+    expect(next.locationCoordinates.latitude).toBe('-22.952000');
+    expect(next.locationCoordinates.longitude).toBe('-43.211000');
+
+    // Com o mapa aberto, a legenda e o popup do GPS da foto aparecem.
+    const mapButton = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Abrir mapa interativo'));
+    act(() => { mapButton.click(); });
+    expect(container.textContent).toContain('GPS da foto');
+    expect(container.textContent).toContain('Foto RPH-7 (GPS)');
+  });
+
+  it('"Usar coordenada da foto" fica desabilitado sem foto de origem com GPS', () => {
+    renderModal(root, { utmErrorToken: 1 });
+    const button = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Usar coordenada da foto'));
+    expect(button.disabled).toBe(true);
+  });
+
   it('navega entre as etapas do wizard (indicador + Avancar)', () => {
     const wrapperOf = (text) => {
       const heading = [...container.querySelectorAll('section h4')].find((h) => (h.textContent || '').includes(text));

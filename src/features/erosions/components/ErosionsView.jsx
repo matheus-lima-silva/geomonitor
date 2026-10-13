@@ -96,6 +96,9 @@ const BASE_FORM = {
   dimensionamento: '',
   fotosLinks: [],
   fotosPrincipais: [],
+  // Foto de origem do handoff "criar erosao a partir da foto" (campo de UI:
+  // alimenta o botao/marcador "GPS da foto" no formulario; nao vai no payload).
+  originPhoto: null,
   status: 'Ativo',
   registroHistorico: false,
   intervencaoRealizada: '',
@@ -139,6 +142,24 @@ function sanitizePhotoLinksInput(input) {
     .split(/[\n|]/)
     .map((item) => String(item || '').trim())
     .filter(Boolean);
+}
+
+function normalizeOriginPhoto(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const photoId = String(raw.photoId || '').trim();
+  if (!photoId) return null;
+  const gpsLat = Number(raw.gpsLat);
+  const gpsLon = Number(raw.gpsLon);
+  const hasGps = Number.isFinite(gpsLat) && Number.isFinite(gpsLon);
+  return {
+    photoId,
+    workspaceId: String(raw.workspaceId || '').trim(),
+    mediaAssetId: String(raw.mediaAssetId || '').trim(),
+    gpsLat: hasGps ? gpsLat : null,
+    gpsLon: hasGps ? gpsLon : null,
+    towerId: String(raw.towerId || '').trim(),
+    pointSource: raw.pointSource === 'photo' ? 'photo' : 'tower',
+  };
 }
 
 function buildSafeErosionFormState(source, mode = 'new', inspections = []) {
@@ -193,6 +214,7 @@ function buildSafeErosionFormState(source, mode = 'new', inspections = []) {
     dimensionamento: String(technical.dimensionamento || '').trim(),
     fotosLinks: sanitizePhotoLinksInput(raw.fotosLinks),
     fotosPrincipais: normalizeFotosPrincipais(raw),
+    originPhoto: normalizeOriginPhoto(raw.originPhoto),
     registroHistorico: isHistoricalErosionRecord(raw),
     intervencaoRealizada: String(raw.intervencaoRealizada || '').trim(),
     acompanhamentosResumo: normalizeFollowupHistory(raw.acompanhamentosResumo),
