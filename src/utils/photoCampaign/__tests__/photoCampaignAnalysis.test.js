@@ -4,8 +4,10 @@ import {
   TOWER_MATCH,
   analyzePhotoCampaign,
   buildDefaultDecisions,
+  buildDefaultSubjectCaption,
   buildFileKey,
   buildPhotoAssignments,
+  buildSubjectOverrides,
   toIsoWithLocalOffset,
   buildTowerIndex,
   findNearestTowers,
@@ -45,7 +47,7 @@ const ctx = () => buildResolutionContext(PROJECT);
 
 describe('parseDescriptionLabel', () => {
   it('le a etiqueta canonica do Timestamp Camera', () => {
-    expect(parseDescriptionLabel('BMDOPR\n126', ['BMDOPR', 'Bom Despacho - Ouro Preto'])).toEqual({ sigla: 'BMDOPR', tower: '126', siglaMismatch: false });
+    expect(parseDescriptionLabel('BMDOPR\n126', ['BMDOPR', 'Bom Despacho - Ouro Preto'])).toEqual({ sigla: 'BMDOPR', tower: '126', siglaMismatch: false, subject: null });
     expect(parseDescriptionLabel('BMDOPR \n319', 'BMDOPR').tower).toBe('319');
     expect(parseDescriptionLabel('BMDOPR\n16\n    ', 'BMDOPR').tower).toBe('16');
     expect(parseDescriptionLabel('bmdopr\n0007', 'BMDOPR').tower).toBe('7');
@@ -58,8 +60,16 @@ describe('parseDescriptionLabel', () => {
   });
 
   it('marca siglaMismatch quando a etiqueta e de outro empreendimento', () => {
-    expect(parseDescriptionLabel('IABTPR2\n605', 'BMDOPR')).toEqual({ sigla: 'IABTPR2', tower: '605', siglaMismatch: true });
+    expect(parseDescriptionLabel('IABTPR2\n605', 'BMDOPR')).toEqual({ sigla: 'IABTPR2', tower: '605', siglaMismatch: true, subject: null });
     expect(parseDescriptionLabel('Erosao perto da torre 12', 'BMDOPR').siglaMismatch).toBe(true);
+  });
+
+  it('le a 3a linha ACESSO/CONTEXTO como assunto da foto', () => {
+    expect(parseDescriptionLabel('BMDOPR\n195\nACESSO', 'BMDOPR')).toMatchObject({ tower: '195', subject: 'acesso' });
+    expect(parseDescriptionLabel('BMDOPR\n195\n contexto ', 'BMDOPR')).toMatchObject({ tower: '195', subject: 'contexto' });
+    expect(parseDescriptionLabel('BMDOPR\n195', 'BMDOPR').subject).toBeNull();
+    expect(parseDescriptionLabel('BMDOPR\n195\nOUTRA', 'BMDOPR')).toBeNull();
+    expect(parseDescriptionLabel('BOM DESPACHO - OURO PRETO. TORRE 333 ACESSO', ['BMDOPR', 'Bom Despacho - Ouro Preto']).subject).toBe('acesso');
   });
 
   it('devolve null sem torre reconhecivel', () => {
@@ -143,6 +153,18 @@ describe('resolvePhotoTower', () => {
     expect(nothing.issues).toEqual(expect.arrayContaining(['no_gps']));
   });
 
+  it('foto de acesso longe da torre nao vira conflito nem far_from_label, mas mantem a torre', () => {
+    // Mesma geometria do caso 217 -> 218, agora etiquetada como acesso.
+    const access = resolvePhotoTower(photo({ n: 6, offsetM: 10, label: 'BMDOPR\n5\nACESSO' }), ctx());
+    expect(access).toMatchObject({ tower: '5', source: 'label', subject: 'acesso', conflict: null, confidence: 'medium' });
+    expect(access.issues).not.toContain('far_from_label');
+    // Override do usuario via ctx.subjects vence a etiqueta.
+    const overridden = resolvePhotoTower(photo({ n: 6, offsetM: 10, label: 'BMDOPR\n5', name: 'x' }), { ...ctx(), subjects: { x: 'contexto' } });
+    expect(overridden).toMatchObject({ subject: 'contexto', conflict: null });
+    // Sem assunto a regra continua valendo.
+    expect(resolvePhotoTower(photo({ n: 6, offsetM: 10, label: 'BMDOPR\n5' }), ctx()).conflict).not.toBeNull();
+  });
+
   it('empreendimento sem coordenadas: etiqueta vale, torre desconhecida e sinalizada', () => {
     const noCoords = buildResolutionContext({ id: 'XX', nome: 'Linha XX', torres: '5' });
     expect(resolvePhotoTower(photo({ n: 2, label: 'XX\n2' }), noCoords)).toMatchObject({ tower: '2', confidence: 'medium' });
@@ -198,6 +220,30 @@ describe('analyzePhotoCampaign', () => {
     expect(conflict.text).toMatch(/3 fotos etiquetadas 5 às 10:30 estão a \d+ m da torre 6/);
     expect(analysis.divergences.some((d) => d.kind === 'double_session' && d.numero === '5')).toBe(true);
     expect(analysis.divergences.some((d) => d.kind === 'spread' && d.numero === '5')).toBe(true);
+  });
+
+  it('fotos de acesso saem das regras de divergencia (conflito, sessao dupla, dispersao, longe) e sao contadas', () => {
+    const withAccess = campaign.map((p) => (['f', 'g', 'h'].includes(p.name) ? { ...p, description: 'BMDOPR\n5\nACESSO' } : p));
+    const analysis = analyzePhotoCampaign(withAccess, PROJECT);
+    const day = analysis.days.find((d) => d.data === '2026-09-22');
+    const group5 = day.towers.find((g) => g.numero === '5');
+    expect(group5.count).toBe(5);
+    expect(group5.accessCount).toBe(3);
+    expect(group5.towerPhotos.map((p) => p.name)).toEqual(['d', 'e']);
+    expect(group5.conflict).toBeNull();
+    expect(analysis.divergences.filter((d) => d.numero === '5')).toEqual([]);
+    expect(analysis.stats.accessPhotos).toBe(3);
+
+    // Mesmo efeito via decisoes da revisao (re-rodar a analise com subjects).
+    const base = analyzePhotoCampaign(campaign, PROJECT);
+    expect(base.divergences.some((d) => d.kind === 'label_conflict')).toBe(true);
+    const decisions = buildDefaultDecisions(base);
+    expect(decisions.photos).toEqual({});
+    decisions.photos.f = { subject: 'acesso' };
+    decisions.photos.g = { subject: 'acesso' };
+    decisions.photos.h = { subject: 'acesso' };
+    const rerun = analyzePhotoCampaign(campaign, PROJECT, { subjects: buildSubjectOverrides(decisions) });
+    expect(rerun.divergences.filter((d) => d.numero === '5')).toEqual([]);
   });
 
   it('marca feriado nos dias e nos gaps pelo indice informado', () => {
@@ -415,6 +461,20 @@ describe('buildPhotoAssignments', () => {
     const confirmed = buildPhotoAssignments(analysis, decisions);
     expect(confirmed.own).toMatchObject({ towerId: '5', towerSource: 'exif_label' });
     expect(confirmed.wrong).toMatchObject({ towerId: '6', towerSource: 'gps_nearest' });
+  });
+
+  it('assunto e legenda padrao: acesso/contexto ganham legenda com a torre, torre fica sem legenda', () => {
+    const analysis = analyzePhotoCampaign([
+      mk('t', 5),
+      mk('a', 5, { description: 'BMDOPR\n5\nACESSO', offsetM: 400 }),
+      mk('c', 5, { description: 'BMDOPR\n5\nCONTEXTO' }),
+    ], PROJECT);
+    const assignments = buildPhotoAssignments(analysis, buildDefaultDecisions(analysis));
+    expect(assignments.t).toMatchObject({ towerId: '5', subject: 'torre', caption: null });
+    expect(assignments.a).toMatchObject({ towerId: '5', towerSource: 'exif_label', subject: 'acesso', caption: 'Acesso a torre 5', include: true });
+    expect(assignments.c).toMatchObject({ subject: 'contexto', caption: 'Contexto - torre 5' });
+    expect(buildDefaultSubjectCaption('acesso', '')).toBe('Acesso');
+    expect(buildDefaultSubjectCaption('torre', '5')).toBeNull();
   });
 
   it('pasta vira folder_path; nao resolvidas e sem data ficam pending/incluidas', () => {

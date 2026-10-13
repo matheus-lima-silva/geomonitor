@@ -82,6 +82,13 @@ async function inspectionExists(inspectionId) {
     return Boolean(inspection);
 }
 
+// Assunto da foto (torre em si, via de acesso ou contexto). Fora da lista cai em 'torre'.
+const PHOTO_SUBJECTS = new Set(['torre', 'acesso', 'contexto']);
+function normalizePhotoSubject(value) {
+    const key = normalizeText(value).toLowerCase();
+    return PHOTO_SUBJECTS.has(key) ? key : 'torre';
+}
+
 function normalizePhoto(photo = {}, workspaceId = '', fallbackProjectId = '') {
     return {
         id: normalizeText(photo.id) || `RPH-${crypto.randomUUID()}`,
@@ -92,6 +99,7 @@ function normalizePhoto(photo = {}, workspaceId = '', fallbackProjectId = '') {
         towerSource: normalizeText(photo.towerSource) || 'manual',
         includeInReport: Boolean(photo.includeInReport),
         caption: normalizeText(photo.caption),
+        subject: normalizePhotoSubject(photo.subject),
         captureAt: normalizeText(photo.captureAt),
         gpsLat: Number.isFinite(Number(photo.gpsLat)) ? Number(photo.gpsLat) : null,
         gpsLon: Number.isFinite(Number(photo.gpsLon)) ? Number(photo.gpsLon) : null,

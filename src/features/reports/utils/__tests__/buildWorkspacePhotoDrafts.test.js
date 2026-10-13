@@ -1,11 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { buildWorkspacePhotoDrafts, isWorkspacePhotoDirty } from '../reportUtils';
+import {
+  buildWorkspacePhotoDrafts,
+  formatPhotoSubjectLabel,
+  isWorkspacePhotoDirty,
+  normalizePhotoSubject,
+} from '../reportUtils';
 
 describe('buildWorkspacePhotoDrafts', () => {
   it('usa os valores da foto quando nao ha rascunho persistido', () => {
     const photos = [{ id: 'p1', towerId: '641', caption: 'Foto A', includeInReport: true }];
     const drafts = buildWorkspacePhotoDrafts(photos, {});
-    expect(drafts.p1).toEqual({ towerId: '641', caption: 'Foto A', includeInReport: true });
+    expect(drafts.p1).toEqual({ towerId: '641', caption: 'Foto A', includeInReport: true, subject: 'torre' });
+  });
+
+  it('assunto da foto entra no rascunho (padrao torre) e conta como alteracao', () => {
+    const photo = { id: 'p1', towerId: '641', caption: 'Foto A', includeInReport: false, subject: 'acesso' };
+    const drafts = buildWorkspacePhotoDrafts([photo], {});
+    expect(drafts.p1.subject).toBe('acesso');
+    expect(isWorkspacePhotoDirty(photo, drafts.p1)).toBe(false);
+    expect(isWorkspacePhotoDirty(photo, { ...drafts.p1, subject: 'torre' })).toBe(true);
+    expect(buildWorkspacePhotoDrafts([{ id: 'p2' }], {}).p2.subject).toBe('torre');
+    expect(normalizePhotoSubject('ACESSO')).toBe('acesso');
+    expect(normalizePhotoSubject('qualquer')).toBe('torre');
+    expect(formatPhotoSubjectLabel('contexto')).toBe('Contexto');
   });
 
   it('rascunho com torre vazia NAO mascara a torre persistida (round-trip do KMZ)', () => {
@@ -29,7 +46,7 @@ describe('buildWorkspacePhotoDrafts', () => {
     const photos = [{ id: 'p1', towerId: '641', caption: 'Foto A', includeInReport: false }];
     const persisted = { p1: { towerId: '642', caption: 'Editada', includeInReport: true } };
     const drafts = buildWorkspacePhotoDrafts(photos, persisted);
-    expect(drafts.p1).toEqual({ towerId: '642', caption: 'Editada', includeInReport: true });
+    expect(drafts.p1).toEqual({ towerId: '642', caption: 'Editada', includeInReport: true, subject: 'torre' });
     expect(isWorkspacePhotoDirty(photos[0], drafts.p1)).toBe(true);
   });
 });

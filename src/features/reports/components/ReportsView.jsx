@@ -79,6 +79,7 @@ import {
   getWorkspacePhotoStatus,
   haversineMeters,
   inferTowerIdFromRelativePath,
+  normalizePhotoSubject,
   isPendingExecutionStatus,
   sortPhotosByMode,
   sanitizeDownloadName,
@@ -836,9 +837,11 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
     const gpsLat = metadata.gpsLat !== undefined ? metadata.gpsLat : exif?.gpsLat;
     const gpsLon = metadata.gpsLon !== undefined ? metadata.gpsLon : exif?.gpsLon;
     const hasGps = Number.isFinite(Number(gpsLat)) && Number.isFinite(Number(gpsLon)) && gpsLat !== null && gpsLon !== null;
+    const subject = normalizePhotoSubject(metadata.subject);
     await saveReportWorkspacePhoto(workspace.id, photoId, {
       mediaAssetId: mediaAsset?.id,
-      caption: buildDefaultCaption(file.name),
+      caption: String(metadata.caption || '').trim() || buildDefaultCaption(file.name),
+      subject,
       includeInReport: false,
       curationStatus: towerId ? 'reviewed' : 'uploaded',
       importSource,
@@ -854,7 +857,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
   // `options` permite a captacao da campanha (CampaignPhotoIntakeModal) injetar
   // os arquivos e as decisoes por foto sem passar pelo estado `pendingFiles`:
   //   { files, importSource, assignmentsByFileKey, workspaceId }
-  // `assignmentsByFileKey[buildFileKey(file)] = { towerId, towerSource, captureAt, gpsLat, gpsLon, include }`.
+  // `assignmentsByFileKey[buildFileKey(file)] = { towerId, towerSource, captureAt, gpsLat, gpsLon, include, subject, caption }`.
   async function handleImportWorkspace(options = {}) {
     const targetId = String(options.workspaceId || workspaceImportTargetId || '').trim();
     const files = Array.isArray(options.files) ? options.files : pendingFiles;
@@ -949,6 +952,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
                   captureAt: assignment.captureAt ?? null,
                   gpsLat: assignment.gpsLat ?? null,
                   gpsLon: assignment.gpsLon ?? null,
+                  subject: assignment.subject || 'torre',
+                  caption: assignment.caption || '',
                 }
                 : { inferredTowerId };
               const uploaded = await uploadWorkspaceFile(file, workspace, index, importSource, metadata);
@@ -1077,6 +1082,7 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
         towerId: nextTowerId || null,
         towerSource: nextTowerId ? 'manual' : 'pending',
         includeInReport: Boolean(draft.includeInReport),
+        subject: normalizePhotoSubject(draft.subject || photo.subject),
         curationStatus: getWorkspacePhotoStatus(photo, draft),
         manualOverride: Boolean(nextTowerId),
       };

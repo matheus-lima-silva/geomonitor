@@ -529,10 +529,13 @@ Tabela: `report_photos` com campos `deleted_at` (lixeira) e `archived_at` (arqui
 | POST | `/api/report-workspaces/:id/photos/reorder` | `requireWorkspaceWrite` | Reordena por modo (`tower_asc`, `capture_date_desc`, etc) |
 | POST | `/api/report-workspaces/:id/photos/manual-order` | `requireWorkspaceWrite` | Reordena por array explicito de `photoIds` |
 
-Metadata de origem da foto (`POST /api/report-workspaces/:id/photos`, `PUT .../photos/:photoId`). Os valores nao sao validados pelo backend (`normalizePhoto` so normaliza texto); o contrato vive aqui e em `src/features/reports/utils/reportUtils.js` (`TOWER_SOURCE_LABELS`, `EXTRA_IMPORT_SOURCE_LABELS`):
+Metadata de origem da foto (`POST /api/report-workspaces/:id/photos`, `PUT .../photos/:photoId`). Os valores nao sao validados pelo backend (`normalizePhoto` so normaliza texto, exceto `subject`); o contrato vive aqui e em `src/features/reports/utils/reportUtils.js` (`TOWER_SOURCE_LABELS`, `EXTRA_IMPORT_SOURCE_LABELS`):
 
 - `towerSource`: `manual` (default), `folder_path` (subpasta por torre), `pending` (sem torre), `kmz_folder` / `kmz_placemark` / `kmz_organized` (round-trip KMZ), `exif_label` (etiqueta `SIGLA\nNUMERO` do `ImageDescription` EXIF, captacao unica) e `gps_nearest` (sugestao pela torre mais proxima, so quando o usuario marcou a torre na revisao).
 - `importSource`: `loose_photos`, `tower_subfolders`, `organized_kmz` (legados do Select de modo) e `photo_campaign` (captacao unica: wizard de vistoria ou botao "Selecionar fotos da campanha").
+- `subject`: assunto da foto, `torre` (default), `acesso` (via de acesso) ou `contexto` (paisagem, placa, equipe). Unico campo da metadata **normalizado por whitelist** no backend (`normalizePhotoSubject`: valor fora da lista vira `torre`). Fotos de `acesso`/`contexto` ficam fora das regras de divergencia de legenda da captacao e recebem legenda padrao ("Acesso a torre N"). Etiqueta EXIF `SIGLA
+NUMERO
+ACESSO` preenche o campo sozinha.
 - `captureAt`: ISO 8601 **com offset** (ex.: `2026-09-22T14:14:00.000Z`), derivado de `DateTimeOriginal` convertido no navegador (`toIsoWithLocalOffset`). O repositorio faz `new Date(captureAt)`; string sem offset seria lida como UTC pelo servidor. Habilita `reorder` por `capture_date_*`.
 - `summaryJson` do `POST .../import` com `importSource = 'photo_campaign'` traz `towerSourceCounts` e `excludedCount` (fotos desmarcadas na revisao, nao enviadas).
 
