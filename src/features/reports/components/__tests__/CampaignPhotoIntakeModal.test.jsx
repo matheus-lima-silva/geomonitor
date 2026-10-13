@@ -116,6 +116,7 @@ describe('CampaignPhotoIntakeModal', () => {
           onCancel={onCancel}
           onApply={onApply}
           readExifMeta={readExifMeta}
+          fetchDailyWeather={null}
           {...props}
         />,
       );
@@ -267,6 +268,55 @@ describe('CampaignPhotoIntakeModal', () => {
     expect(refreshed.textContent).toContain('1 de acesso');
     const refreshedList = document.querySelector('[data-testid="photo-autofill-group-photos"]');
     expect(refreshedList.querySelector('li button[aria-pressed="true"]').textContent).toBe('Acesso');
+  });
+
+  it('clima sugerido: badge por dia, checkbox aceito por padrao, gap com chuva pre-marcado, recusar reflete nas decisoes', async () => {
+    const fetchDailyWeather = vi.fn(async ({ start, end }) => {
+      expect(start).toBe('2026-09-22');
+      expect(end).toBe('2026-09-24');
+      return [
+        { date: '2026-09-22', clima: 'Chuva', reason: 'chuvisco 6 h, 2 mm' },
+        { date: '2026-09-23', clima: 'Chuva', reason: 'chuva 4 h, 12 mm' },
+        { date: '2026-09-24', clima: 'Sol', reason: 'ceu limpo' },
+      ];
+    });
+    await renderAndAnalyze({ fetchDailyWeather });
+    await flush(2);
+    expect(fetchDailyWeather).toHaveBeenCalledTimes(1);
+    expect(fetchDailyWeather.mock.calls[0][0].lon).toBe(-44);
+
+    const badges = [...document.querySelectorAll('[data-testid="photo-autofill-weather"]')].map((b) => b.textContent);
+    expect(badges).toEqual(['Clima: Chuva', 'Clima: Chuva', 'Clima: Sol']);
+    expect(document.querySelector('[data-testid="photo-autofill-review"]').textContent).toContain('Clima sugerido em 2 dias'); // 23/09 ja entra como Chuva pelo motivo do gap
+
+    // Gap 23/09 com chuva: motivo pre-marcado.
+    const gap = document.querySelector('[data-testid="photo-autofill-gap-day"]');
+    expect(gap.querySelector('select').value).toBe('chuva');
+
+    // Dia 22 (expandido) tem o checkbox aceito; desmarcar vira "ignorado".
+    const checkbox = document.querySelector('#weather-2026-09-22');
+    expect(checkbox.checked).toBe(true);
+    act(() => { checkbox.click(); });
+    expect([...document.querySelectorAll('[data-testid="photo-autofill-weather"]')][0].textContent).toContain('ignorado');
+
+    clickButton('Confirmar', document.querySelector('[data-testid="photo-autofill-conflict"]'));
+    clickButton('Aplicar ao diário');
+    const { decisions } = onApply.mock.calls[0][0];
+    expect(decisions.weather['2026-09-22']).toMatchObject({ accept: false, clima: 'Chuva' });
+    expect(decisions.weather['2026-09-24']).toMatchObject({ accept: true, clima: 'Sol' });
+    expect(decisions.gapDays['2026-09-23'].reason).toBe('chuva');
+  });
+
+  it('clima indisponivel nao bloqueia a revisao', async () => {
+    const fetchDailyWeather = vi.fn(async () => { throw new Error('Open-Meteo fora'); });
+    await renderAndAnalyze({ fetchDailyWeather });
+    await flush(2);
+    expect(document.querySelector('[data-testid="photo-autofill-weather-error"]')).toBeTruthy();
+    expect(document.querySelectorAll('[data-testid="photo-autofill-weather"]')).toHaveLength(0);
+    clickButton('Confirmar', document.querySelector('[data-testid="photo-autofill-conflict"]'));
+    clickButton('Aplicar ao diário');
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(onApply.mock.calls[0][0].decisions.weather).toEqual({});
   });
 
   it('marca "Já no diário" para torre que o dia atual ja tem', async () => {

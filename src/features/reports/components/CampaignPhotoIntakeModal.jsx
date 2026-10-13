@@ -5,11 +5,15 @@ import { readExifMetaFromFile } from '../../../utils/photoCampaign/exifMeta';
 import {
   GAP_DAY_REASONS,
   analyzePhotoCampaign,
+  applyWeatherSuggestions,
   buildDefaultDecisions,
   buildFileKey,
   buildSubjectOverrides,
+  buildWeatherIndex,
+  campaignCentroid,
   mergeAnalysisIntoForm,
 } from '../../../utils/photoCampaign/photoCampaignAnalysis';
+import { fetchDailyWeather as fetchDailyWeatherService } from '../../../services/weatherService';
 import { toBrDate } from '../../inspections/utils/inspectionWorkflow';
 import { PHOTO_SUBJECTS, PHOTO_SUBJECT_LABELS } from '../utils/reportUtils';
 
@@ -119,6 +123,8 @@ export default function CampaignPhotoIntakeModal({
   onCancel,
   onApply,
   readExifMeta = readExifMetaFromFile,
+  // Clima sugerido por dia (Open-Meteo via backend). Injetavel para testes; `null` desliga.
+  fetchDailyWeather = fetchDailyWeatherService,
   // Destinos da captacao (ver DEFAULT_DESTINATIONS). O wizard trava o diario e
   // oferece o workspace como opcional; o import do workspace faz o inverso.
   destinations: destinationsConfig = null,
@@ -139,6 +145,8 @@ export default function CampaignPhotoIntakeModal({
   // Pilha de acoes desfazíveis: { type: 'confirm', id } | { type: 'subject', subject, changes: [{ key, prev }] }.
   const [undoStack, setUndoStack] = useState([]);
   const [confirmPending, setConfirmPending] = useState(false);
+  // idle | loading | ready | error | unavailable (sem GPS/sem fetcher).
+  const [weather, setWeather] = useState({ status: 'idle', index: null, error: '' });
   const cancelledRef = useRef(false);
   const directorySupported = useMemo(() => supportsDirectoryPicker(), []);
 
@@ -158,6 +166,7 @@ export default function CampaignPhotoIntakeModal({
     setShowInfoDivergences(false);
     setUndoStack([]);
     setConfirmPending(false);
+    setWeather({ status: 'idle', index: null, error: '' });
     setDestinations(normalizeDestinations(destinationsConfig));
     return undefined;
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -248,6 +257,31 @@ export default function CampaignPhotoIntakeModal({
     setUndoStack([]);
     setConfirmPending(false);
     setStage('review');
+    loadWeather(result);
+  }
+
+  // Clima do periodo no centroide da campanha; nao bloqueia a revisao.
+  async function loadWeather(result) {
+    const centroid = campaignCentroid(result);
+    if (!centroid || !result?.dateRange || typeof fetchDailyWeather !== 'function') {
+      setWeather({ status: 'unavailable', index: null, error: '' });
+      return;
+    }
+    setWeather({ status: 'loading', index: null, error: '' });
+    try {
+      const days = await fetchDailyWeather({ lat: centroid[0], lon: centroid[1], start: result.dateRange.start, end: result.dateRange.end });
+      if (cancelledRef.current) return;
+      const index = buildWeatherIndex(days);
+      setWeather({ status: 'ready', index, error: '' });
+      setDecisions((prev) => (prev ? applyWeatherSuggestions(prev, index, result) : prev));
+    } catch (error) {
+      if (cancelledRef.current) return;
+      setWeather({ status: 'error', index: null, error: error?.message || '' });
+    }
+  }
+
+  function updateWeatherDecision(date, patch) {
+    setDecisions((prev) => ({ ...prev, weather: { ...(prev.weather || {}), [date]: { ...(prev.weather?.[date] || {}), ...patch } } }));
   }
 
   // Re-roda a analise com os assuntos decididos pelo usuario e preserva as
@@ -263,6 +297,7 @@ export default function CampaignPhotoIntakeModal({
       divergences: pick(defaults.divergences, nextDecisions.divergences),
       gapDays: pick(defaults.gapDays, nextDecisions.gapDays),
       photos: nextDecisions.photos || {},
+      weather: nextDecisions.weather || {},
     };
     setAnalysis(result);
     setDecisions(reconciled);
@@ -404,7 +439,7 @@ export default function CampaignPhotoIntakeModal({
                     {diaryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </Select>
                 ) : null}
-                <span className="text-xs text-slate-500">{diary.hint || 'Dias e torres entram no diário; clima e hotel continuam manuais.'}</span>
+                <span className="text-xs text-slate-500">{diary.hint || 'Dias, torres e clima sugerido entram no diário; hotel continua manual.'}</span>
               </div>
             </div>
           ) : null}
@@ -678,6 +713,30 @@ export default function CampaignPhotoIntakeModal({
     );
   }
 
+  function renderWeatherBadge(date) {
+    if (weather.status === 'loading') return <Badge tone="neutral">Clima...</Badge>;
+    const entry = weather.index?.get(date);
+    if (!entry?.clima) return null;
+    const decision = decisions.weather?.[date];
+    const accepted = decision?.accept !== false;
+    return <Badge tone={accepted ? 'info' : 'neutral'} data-testid="photo-autofill-weather">Clima: {entry.clima}{accepted ? '' : ' (ignorado)'}</Badge>;
+  }
+
+  function renderWeatherCheckbox(date) {
+    const entry = weather.index?.get(date);
+    if (!entry?.clima) return null;
+    const decision = decisions.weather?.[date] || { accept: true };
+    return (
+      <Checkbox
+        id={`weather-${date}`}
+        size="sm"
+        label={`Aplicar clima sugerido: ${entry.clima}${entry.reason ? ` (${entry.reason})` : ''}`}
+        checked={decision.accept !== false}
+        onChange={(event) => updateWeatherDecision(date, { accept: event.target.checked, clima: entry.clima, reason: entry.reason || '' })}
+      />
+    );
+  }
+
   function renderDayCard(day) {
     const expanded = expandedDays.has(day.data);
     const includedHere = day.towers.filter((group) => decisions.towers[group.key]?.include).length;
@@ -692,6 +751,7 @@ export default function CampaignPhotoIntakeModal({
           <span className="text-xs text-slate-500">{weekdayLabel(day.weekday)}</span>
           {isNewDay ? <Badge tone="info">Novo dia</Badge> : null}
           {day.isHoliday ? <Badge tone="warning">Feriado{day.holidayName ? ` - ${day.holidayName}` : ''}</Badge> : null}
+          {renderWeatherBadge(day.data)}
           {dayConflicts > 0 ? <Badge tone="danger">{pluralize(dayConflicts, 'divergência', 'divergências')}</Badge> : null}
           <span className="flex-1 text-xs text-slate-500 truncate">
             {pluralize(day.towers.length, 'torre', 'torres')} · {pluralize(day.photoCount, 'foto', 'fotos')} · {day.firstAt} – {day.lastAt}
@@ -709,6 +769,9 @@ export default function CampaignPhotoIntakeModal({
               <Button size="sm" variant="ghost" onClick={() => setDayIncluded(day, true)}>Marcar todas</Button>
               <Button size="sm" variant="ghost" onClick={() => setDayIncluded(day, false)}>Limpar</Button>
             </div>
+            {renderWeatherCheckbox(day.data) ? (
+              <div className="border-t border-slate-100 px-3 py-1.5 text-xs">{renderWeatherCheckbox(day.data)}</div>
+            ) : null}
             {day.towers.map((group) => renderTowerRow(day, group))}
             {day.unresolved.length > 0 ? (
               <div className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500">
@@ -733,6 +796,7 @@ export default function CampaignPhotoIntakeModal({
           <span className="text-xs text-slate-500">{weekdayLabel(gap.weekday)}</span>
           <Badge tone="warning">Sem fotos</Badge>
           {gap.isHoliday ? <Badge tone="warning">Feriado{gap.holidayName ? ` - ${gap.holidayName}` : ''}</Badge> : null}
+          {renderWeatherBadge(gap.data)}
           <span className="flex-1" />
           <label htmlFor={selectId} className="text-2xs font-bold uppercase tracking-wide text-slate-500">Motivo do dia</label>
           <Select id={selectId} fullWidth={false} value={decision.reason || ''} onChange={(event) => updateGapDecision(gap.data, { reason: event.target.value })}>
@@ -793,6 +857,9 @@ export default function CampaignPhotoIntakeModal({
           {stats.gpsOnlyGroups > 0 ? <Badge tone="warning">Sugestões só por GPS: {stats.gpsOnlyGroups} (desmarcadas)</Badge> : null}
           {stats.towersRepeatedAcrossDays.length > 0 ? <Badge tone="neutral">Torres em mais de um dia: {stats.towersRepeatedAcrossDays.join(', ')}</Badge> : null}
           {stats.unresolved > 0 ? <Badge tone="warning">Fotos sem torre: {stats.unresolved}</Badge> : null}
+          {weather.status === 'error' ? <Badge tone="warning" data-testid="photo-autofill-weather-error">Clima indisponível (Open-Meteo)</Badge> : null}
+          {weather.status === 'unavailable' ? <Badge tone="neutral">Clima: sem GPS para consultar</Badge> : null}
+          {weather.status === 'ready' && previewSummary?.climaFilled ? <Badge tone="info">Clima sugerido em {pluralize(previewSummary.climaFilled, 'dia', 'dias')}</Badge> : null}
           {stats.accessPhotos > 0 ? <Badge tone="neutral">Fotos de acesso: {stats.accessPhotos}</Badge> : null}
           {stats.contextPhotos > 0 ? <Badge tone="neutral">Fotos de contexto: {stats.contextPhotos}</Badge> : null}
         </div>
@@ -827,8 +894,8 @@ export default function CampaignPhotoIntakeModal({
       {stage === 'review' ? (
         <span className="text-xs text-slate-500">
           {workspaceOn
-            ? 'As fotos sobem para o workspace ao aplicar. Clima, hotel e observações não são alterados.'
-            : 'Clima, hotel e observações não são alterados. Nada é salvo até você salvar a vistoria.'}
+            ? 'As fotos sobem para o workspace ao aplicar. Clima entra só onde estiver vazio; hotel e observações não mudam.'
+            : 'Clima entra só onde estiver vazio; hotel e observações não mudam. Nada é salvo até você salvar a vistoria.'}
         </span>
       ) : null}
       <span className="flex-1" />

@@ -561,7 +561,86 @@ export function buildDefaultDecisions(analysis) {
   for (const gap of analysis?.gapDays || []) {
     gapDays[gap.data] = { keep: true, reason: gap.isHoliday ? 'feriado' : '' };
   }
-  return { towers, divergences, gapDays, photos };
+  return { towers, divergences, gapDays, photos, weather: {} };
+}
+
+// ── Clima sugerido (Open-Meteo via /api/weather/daily) ──────────────────────
+
+function meanPoint(points) {
+  const valid = points.filter(([lat, lon]) => lat !== null && lon !== null && isValidLatLon(lat, lon));
+  if (!valid.length) return null;
+  const lat = valid.reduce((acc, p) => acc + p[0], 0) / valid.length;
+  const lon = valid.reduce((acc, p) => acc + p[1], 0) / valid.length;
+  return [lat, lon];
+}
+
+/** Centroide GPS das fotos de um dia (torres + nao resolvidas); null sem GPS. */
+export function dayCentroid(day) {
+  const photos = [...(day?.towers || []).flatMap((group) => group.photos || []), ...(day?.unresolved || [])];
+  return meanPoint(photos.map((p) => [toFinite(p?.gpsLat), toFinite(p?.gpsLon)]));
+}
+
+/** Centroide da campanha inteira (media dos centroides dos dias); null sem GPS. */
+export function campaignCentroid(analysis) {
+  return meanPoint((analysis?.days || []).map((day) => dayCentroid(day)).filter(Boolean));
+}
+
+/**
+ * Centroide das torres do empreendimento. Com `towerNumbers`, usa so essas
+ * torres (ex.: as do diario); sem match, cai para todas as torres com coordenada.
+ */
+export function projectTowersCentroid(project, towerNumbers = []) {
+  const index = buildTowerIndex(project);
+  const wanted = new Set((towerNumbers || []).map((n) => normalizeTowerKey(n)).filter(Boolean));
+  const chosen = wanted.size ? index.filter((tower) => wanted.has(tower.numero)) : [];
+  const source = chosen.length ? chosen : index;
+  return meanPoint(source.map((tower) => [tower.lat, tower.lon]));
+}
+
+/** Map data -> { clima, reason, weatherCode, precipitationSum, precipitationHours, tMax, tMin }. */
+export function buildWeatherIndex(days) {
+  const index = new Map();
+  for (const day of Array.isArray(days) ? days : []) {
+    const date = String(day?.date || day?.data || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    index.set(date, {
+      clima: day?.clima || null,
+      reason: String(day?.reason || ''),
+      weatherCode: toFinite(day?.weatherCode),
+      precipitationSum: toFinite(day?.precipitationSum),
+      precipitationHours: toFinite(day?.precipitationHours),
+      tMax: toFinite(day?.tMax),
+      tMin: toFinite(day?.tMin),
+    });
+  }
+  return index;
+}
+
+/**
+ * Preenche `decisions.weather[date] = { accept, clima, reason }` para os dias com
+ * fotos e os gap days a partir do indice do Open-Meteo. Aceito por padrao (a
+ * mesclagem so grava onde o clima do dia estiver vazio). Gap day com Chuva e
+ * motivo em branco ganha o motivo `chuva`.
+ */
+export function applyWeatherSuggestions(decisions, weatherIndex, analysis) {
+  if (!decisions || !weatherIndex || typeof weatherIndex.get !== 'function') return decisions;
+  const weather = { ...(decisions.weather || {}) };
+  const gapDays = { ...(decisions.gapDays || {}) };
+  const dates = [
+    ...(analysis?.days || []).map((day) => day.data),
+    ...(analysis?.gapDays || []).map((gap) => gap.data),
+  ];
+  for (const date of dates) {
+    const entry = weatherIndex.get(date);
+    if (!entry?.clima) continue;
+    weather[date] = { accept: weather[date]?.accept ?? true, clima: entry.clima, reason: entry.reason || '' };
+  }
+  for (const gap of analysis?.gapDays || []) {
+    const entry = weatherIndex.get(gap.data);
+    const current = gapDays[gap.data] || { keep: true, reason: '' };
+    if (entry?.clima === 'Chuva' && !current.reason) gapDays[gap.data] = { ...current, reason: 'chuva' };
+  }
+  return { ...decisions, weather, gapDays };
 }
 
 /**
@@ -602,6 +681,7 @@ export function mergeAnalysisIntoForm(form, analysis, decisions, { ensureDayShap
   const towersDecisions = decisions?.towers || {};
   const divergenceDecisions = decisions?.divergences || {};
   const gapDecisions = decisions?.gapDays || {};
+  const weatherDecisions = decisions?.weather || {};
 
   // 1. Torres aceitas por dia (ja aplicando correcoes de divergencia confirmadas).
   const additions = new Map(); // date -> Set(numero)
@@ -661,6 +741,7 @@ export function mergeAnalysisIntoForm(form, analysis, decisions, { ensureDayShap
   let daysTouched = 0;
   let towersAdded = 0;
   let towersKept = 0;
+  let climaFilled = 0;
   const detalhesDias = preservarDetalhesDias(existingDays, dates).map((day) => {
     const date = String(day?.data || '').trim();
     const isNew = !existingDates.includes(date);
@@ -684,6 +765,12 @@ export function mergeAnalysisIntoForm(form, analysis, decisions, { ensureDayShap
     }
     const gapDecision = gapDecisions[date];
     if (gapDecision?.reason === 'chuva' && !String(next.clima || '').trim()) next.clima = 'Chuva';
+    // Clima sugerido (Open-Meteo): so onde o dia ainda nao tem clima.
+    const weather = weatherDecisions[date];
+    if (weather?.accept && weather.clima && !String(next.clima || '').trim()) {
+      next.clima = weather.clima;
+      climaFilled += 1;
+    }
     return ensureDayShape(next);
   });
 
@@ -695,6 +782,7 @@ export function mergeAnalysisIntoForm(form, analysis, decisions, { ensureDayShap
       towersAdded,
       towersKept,
       gapDaysKept,
+      climaFilled,
       skippedUnresolved,
       skippedUndated: (analysis?.undated || []).length,
       pendingConflicts: Object.values(divergenceDecisions).filter((d) => d.status !== 'confirmed').length,

@@ -468,6 +468,16 @@ Body (PUT):
 
 O campo `max` da faixa C4 e armazenado como `null` e tratado como infinito pela engine de calculo.
 
+## Weather (`/api/weather`)
+
+Proxy do [Open-Meteo](https://open-meteo.com) (uso nao comercial, sem chave) para sugerir o clima dos dias da vistoria. O navegador nao chama o Open-Meteo direto porque a CSP de producao (`nginx.conf`, `connect-src 'self'`) bloqueia; o backend busca, classifica e guarda em cache. Sem persistencia.
+
+| Metodo | Rota | Permissao | Descricao |
+|---|---|---|---|
+| GET | `/api/weather/daily?lat&lon&start&end` | `requireActiveUser` | Clima diario classificado para um ponto e um intervalo (datas `YYYY-MM-DD`, `end >= start`, maximo 92 dias). Query validada por Zod (`schemas/weatherSchemas.js`, 400 `VALIDATION_ERROR`). Fonte: `archive-api` (ERA5, historico) quando `end` e anterior a hoje-6 dias; senao `forecast` com `past_days` (recorte ao intervalo). Timeout 5 s -> 504 `WEATHER_TIMEOUT`; upstream nao-ok/JSON invalido/rede -> 502 `WEATHER_UPSTREAM`. Cache em memoria por `fonte|lat(2 casas)|lon(2 casas)|start|end` (24 h archive, 1 h forecast, 500 entradas; `cached: true` na resposta). |
+
+Resposta (`data`): `{ source: 'archive'|'forecast', latitude, longitude, timezone: 'America/Sao_Paulo', start, end, cached, days: [{ date, weatherCode, precipitationSum, precipitationHours, tMax, tMin, clima, reason }] }`. `clima` e uma das opcoes do diario da vistoria (`Sol`, `Parcialmente Nublado`, `Nublado`, `Chuva`) ou `null`; `reason` e a justificativa curta em portugues ("chuvisco 6 h, 2 mm", "encoberto"). Regras de classificacao em `utils/weatherClassify.js` (precipitacao >= 1 mm, chuva/tempestade WMO ou chuvisco >= 2 h -> Chuva; 3/45/48 -> Nublado; 1-2 -> Parcialmente Nublado; 0 -> Sol). URLs e timeout configuraveis por `OPEN_METEO_ARCHIVE_URL`, `OPEN_METEO_FORECAST_URL`, `OPEN_METEO_TIMEOUT_MS`.
+
 ---
 
 ## Media (`/api/media`)

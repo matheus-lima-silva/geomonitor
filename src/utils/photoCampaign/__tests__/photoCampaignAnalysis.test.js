@@ -8,6 +8,11 @@ import {
   buildFileKey,
   buildPhotoAssignments,
   buildSubjectOverrides,
+  buildWeatherIndex,
+  applyWeatherSuggestions,
+  campaignCentroid,
+  dayCentroid,
+  projectTowersCentroid,
   toIsoWithLocalOffset,
   buildTowerIndex,
   findNearestTowers,
@@ -406,6 +411,73 @@ describe('buildDefaultDecisions + mergeAnalysisIntoForm', () => {
     const ensureDayShape = (day) => ({ ...day, marcado: true });
     const { form } = mergeAnalysisIntoForm(emptyForm, analysis, buildDefaultDecisions(analysis), { ensureDayShape });
     expect(form.detalhesDias[0].marcado).toBe(true);
+  });
+});
+
+describe('clima sugerido (Open-Meteo)', () => {
+  const weatherDays = [
+    { date: '2026-09-21', clima: 'Nublado', reason: 'encoberto', weatherCode: 3, precipitationSum: 0 },
+    { date: '2026-09-22', clima: 'Chuva', reason: 'chuvisco 6 h, 2 mm', weatherCode: 55, precipitationSum: 2, precipitationHours: 6 },
+    { date: '2026-09-23', clima: 'Chuva', reason: 'chuvisco 11 h, 3,4 mm' },
+    { date: '2026-09-24', clima: null, reason: '' },
+    { date: 'ontem', clima: 'Sol' },
+  ];
+  const campaign = [
+    photo({ n: 2, date: '2026-09-21', time: '14:31', name: 'a' }),
+    photo({ n: 5, date: '2026-09-22', time: '09:00', name: 'd' }),
+    photo({ n: 6, date: '2026-09-22', time: '10:30', name: 'f' }),
+    photo({ n: 9, date: '2026-09-24', time: '08:00', name: 'j' }),
+  ];
+
+  it('centroides: do dia, da campanha e das torres do empreendimento', () => {
+    const analysis = analyzePhotoCampaign(campaign, PROJECT);
+    const day22 = analysis.days.find((d) => d.data === '2026-09-22');
+    const c = dayCentroid(day22);
+    expect(c[0]).toBeCloseTo((towerLat(5) + towerLat(6)) / 2 + 10 * DEG_PER_M_LAT, 6);
+    expect(c[1]).toBe(-44);
+    expect(campaignCentroid(analysis)[1]).toBe(-44);
+    expect(dayCentroid({ towers: [], unresolved: [] })).toBeNull();
+    expect(projectTowersCentroid(PROJECT, ['1', '3'])[0]).toBeCloseTo(towerLat(2), 9);
+    expect(projectTowersCentroid(PROJECT, ['999'])[0]).toBeCloseTo((towerLat(1) + towerLat(20)) / 2, 9);
+    expect(projectTowersCentroid({ id: 'XX' })).toBeNull();
+  });
+
+  it('buildWeatherIndex ignora datas invalidas; applyWeatherSuggestions aceita por padrao e pre-marca gap com chuva', () => {
+    const index = buildWeatherIndex(weatherDays);
+    expect(index.size).toBe(4);
+    expect(index.get('2026-09-22')).toMatchObject({ clima: 'Chuva', precipitationHours: 6 });
+
+    const analysis = analyzePhotoCampaign(campaign, PROJECT);
+    expect(analysis.gapDays.map((g) => g.data)).toEqual(['2026-09-23']);
+    const decisions = applyWeatherSuggestions(buildDefaultDecisions(analysis), index, analysis);
+    expect(decisions.weather['2026-09-21']).toEqual({ accept: true, clima: 'Nublado', reason: 'encoberto' });
+    expect(decisions.weather['2026-09-22'].clima).toBe('Chuva');
+    expect(decisions.weather['2026-09-24']).toBeUndefined();
+    expect(decisions.gapDays['2026-09-23']).toEqual({ keep: true, reason: 'chuva' });
+    // Decisao anterior do usuario (recusar) e preservada ao reaplicar.
+    decisions.weather['2026-09-21'].accept = false;
+    expect(applyWeatherSuggestions(decisions, index, analysis).weather['2026-09-21'].accept).toBe(false);
+  });
+
+  it('mergeAnalysisIntoForm grava o clima sugerido so onde estiver vazio e so se aceito', () => {
+    const analysis = analyzePhotoCampaign(campaign, PROJECT);
+    const index = buildWeatherIndex(weatherDays);
+    const decisions = applyWeatherSuggestions(buildDefaultDecisions(analysis), index, analysis);
+    decisions.weather['2026-09-22'].accept = false;
+    const form = {
+      projetoId: 'BMDOPR', dataInicio: '2026-09-21', dataFim: '2026-09-21',
+      detalhesDias: [{ data: '2026-09-21', clima: 'Sol', torres: [], torresInput: '', torresDetalhadas: [] }],
+    };
+    const { form: merged, summary } = mergeAnalysisIntoForm(form, analysis, decisions);
+    const byDate = Object.fromEntries(merged.detalhesDias.map((d) => [d.data, d.clima]));
+    expect(byDate['2026-09-21']).toBe('Sol'); // ja preenchido: nao sobrescreve
+    expect(byDate['2026-09-22']).toBe(''); // recusado
+    expect(byDate['2026-09-23']).toBe('Chuva'); // gap com motivo chuva
+    expect(byDate['2026-09-24']).toBe(''); // sem sugestao
+    expect(summary.climaFilled).toBe(0);
+
+    decisions.weather['2026-09-22'].accept = true;
+    expect(mergeAnalysisIntoForm(form, analysis, decisions).summary.climaFilled).toBe(1);
   });
 });
 
