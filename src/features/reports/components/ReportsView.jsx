@@ -55,6 +55,7 @@ import {
   trashReportWorkspace,
   trashWorkspacePhoto,
   cropWorkspacePhotoFooter,
+  cropWorkspacePhotoFooterBatch,
   undoWorkspacePhotoFooterCrop,
   updateReportWorkspace,
 } from '../../../services/reportWorkspaceService';
@@ -636,6 +637,12 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
     return Number.isInteger(value) && value >= 1 && value <= 3650 ? value : 30;
   }, [rulesConfig]);
 
+  // Prazo de guarda dos backups do corte de rodape (depois o corte nao se desfaz).
+  const cropBackupRetentionDays = useMemo(() => {
+    const value = Number(rulesConfig?.retencao?.backup_corte_dias);
+    return Number.isInteger(value) && value >= 1 && value <= 3650 ? value : 30;
+  }, [rulesConfig]);
+
   // Vistorias do formulario de criacao: seguem o empreendimento do rascunho
   // (workspaceDraft.projectId), NAO o filtro de lista (selectedProjectId). O
   // formulario de criar workspace e desacoplado do filtro de lista (ver
@@ -1172,6 +1179,32 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
       showToast('Corte desfeito: original restaurado.', 'success');
     } catch (error) {
       showToast(error?.message || 'Erro ao desfazer o corte.', 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  // Corte do rodape em lote (todas as fotos de uma torre no grid).
+  async function handleCropPhotoFooterBatch(photoIds, band = {}) {
+    const ids = (Array.isArray(photoIds) ? photoIds : []).map((id) => String(id || '').trim()).filter(Boolean);
+    if (!ids.length || !selectedWorkspace) return;
+    try {
+      setBusy('photo-crop-batch');
+      const response = await cropWorkspacePhotoFooterBatch(selectedWorkspace.id, { photoIds: ids, ...band }, { updatedBy: userEmail });
+      const result = response?.data || {};
+      for (const photo of result.photos || []) {
+        replaceWorkspacePhoto(photo);
+        invalidatePhotoPreview(photo?.id);
+      }
+      const skipped = Array.isArray(result.skipped) ? result.skipped : [];
+      const alreadyCropped = skipped.filter((item) => item?.code === 'ALREADY_CROPPED').length;
+      const failed = skipped.length - alreadyCropped;
+      const parts = [`${result.cropped || 0} foto(s) cortada(s)`];
+      if (alreadyCropped) parts.push(`${alreadyCropped} ja cortada(s) pulada(s)`);
+      if (failed) parts.push(`${failed} com erro`);
+      showToast(`${parts.join(', ')}.`, failed ? 'info' : 'success');
+    } catch (error) {
+      showToast(error?.message || 'Erro ao cortar o rodape em lote.', 'error');
     } finally {
       setBusy('');
     }
@@ -2137,6 +2170,8 @@ export default function ReportsView({ userEmail = '', showToast = () => {}, onOp
             handleMovePhotoToTrash={handleMovePhotoToTrash}
             handleCropPhotoFooter={handleCropPhotoFooter}
             handleUndoPhotoFooterCrop={handleUndoPhotoFooterCrop}
+            handleCropPhotoFooterBatch={handleCropPhotoFooterBatch}
+            cropBackupRetentionDays={cropBackupRetentionDays}
             onCreateErosionFromPhoto={handleCreateErosionFromPhoto}
             handleRestorePhoto={handleRestorePhoto}
             handleRestoreAllTrashedPhotos={handleRestoreAllTrashedPhotos}

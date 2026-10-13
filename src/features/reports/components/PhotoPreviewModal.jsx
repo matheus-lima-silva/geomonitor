@@ -82,6 +82,7 @@ export default function PhotoPreviewModal({
   onChangeSubject,
   onCropFooter,
   onUndoCrop,
+  cropBackupRetentionDays = 30,
   towerPoint = null,
   photoPoint = null,
   towerLabel = '',
@@ -496,7 +497,8 @@ export default function PhotoPreviewModal({
                       ariaLabel="Faixa a remover em pixels"
                     />
                     <p className="m-0 text-xs text-slate-500">
-                      A faixa vermelha no palco mostra o que será removido. O original fica guardado e o corte pode ser desfeito.
+                      A faixa vermelha no palco mostra o que será removido. O original fica guardado por {cropBackupRetentionDays} dias
+                      (Admin › Retenção); depois disso o corte não pode mais ser desfeito.
                       {imageBox?.naturalHeight ? ` Foto com ${imageBox.naturalHeight} px de altura.` : ''}
                     </p>
                     <div className="flex items-center justify-end gap-2">

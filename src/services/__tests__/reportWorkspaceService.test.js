@@ -10,7 +10,7 @@ vi.mock('../../utils/serviceFactory', () => ({
   }),
 }));
 
-import { cropWorkspacePhotoFooter, undoWorkspacePhotoFooterCrop } from '../reportWorkspaceService';
+import { cropWorkspacePhotoFooter, cropWorkspacePhotoFooterBatch, undoWorkspacePhotoFooterCrop } from '../reportWorkspaceService';
 
 describe('reportWorkspaceService — corte do rodape', () => {
   beforeEach(() => {
@@ -31,6 +31,14 @@ describe('reportWorkspaceService — corte do rodape', () => {
     expect(init.headers.Authorization).toBe('Bearer token-123');
     expect(JSON.parse(init.body)).toEqual({ data: { pixels: 45 }, meta: { updatedBy: 'curador@x' } });
     expect(result.data.cropHistory).toHaveLength(1);
+  });
+
+  it('cropWorkspacePhotoFooterBatch faz POST em /crop-footer-batch com photoIds, faixa e skipCropped', async () => {
+    await cropWorkspacePhotoFooterBatch('RW-1', { photoIds: ['RPH-1', ' RPH-2 ', ''], pixels: 45, skipCropped: true }, { updatedBy: 'curador@x' });
+    const [url, init] = global.fetch.mock.calls[0];
+    expect(url).toBe('https://geo.lima.rio.br/api/report-workspaces/RW-1/photos/crop-footer-batch');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ data: { photoIds: ['RPH-1', 'RPH-2'], pixels: 45, skipCropped: true }, meta: { updatedBy: 'curador@x' } });
   });
 
   it('undoWorkspacePhotoFooterCrop faz POST em /crop-footer/undo', async () => {

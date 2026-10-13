@@ -437,7 +437,7 @@ Seed inclui: Engenheiro Civil, Eletricista, Ambiental, Mecanico; Geologo; Biolog
 
 Tabela Postgres: `rules_config` (singleton, `id = 'default'`).
 
-Armazena configuracao de regras de criticidade (`pontos`, `faixas`, `solucoes`), retencao (`lixeira_para_arquivo_dias`) e lista de feriados (`feriados: [{ data, nome, tipo }]`).
+Armazena configuracao de regras de criticidade (`pontos`, `faixas`, `solucoes`), retencao (`lixeira_para_arquivo_dias`: sugestao de arquivamento da lixeira; `backup_corte_dias`: prazo de guarda dos backups do corte de rodape, ambos 1..3650, default 30) e lista de feriados (`feriados: [{ data, nome, tipo }]`).
 
 | Metodo | Rota | Permissao | Descricao |
 |---|---|---|---|
@@ -526,7 +526,9 @@ Tabela: `report_photos` com campos `deleted_at` (lixeira) e `archived_at` (arqui
 | GET | `/api/report-workspaces/:id/photos/trash` | `requireWorkspaceRead` | Lista fotos na lixeira |
 | PUT | `/api/report-workspaces/:id/photos/:photoId` | `requireWorkspaceWrite` | Atualiza metadata (curadoria) |
 | POST | `/api/report-workspaces/:id/photos/:photoId/crop-footer` | `requireWorkspaceWrite` | Corta o rodape da marca d'agua da foto (body `{ data: { pixels: 1..400 } }` ou `{ percent: 0..0.4 }`); guarda backup do original no bucket (`<storage_key>.orig-<ts>`), atualiza sha/size do `media_asset` e registra em `payload.cropHistory[]`. Devolve a foto com `_links.cropFooterUndo`. 422 `CROP_FAILED` se a faixa cobrir a imagem |
-| POST | `/api/report-workspaces/:id/photos/:photoId/crop-footer/undo` | `requireWorkspaceWrite` | Desfaz o ultimo corte: restaura o original do backup, remove a entrada do historico e apaga o backup. 409 `NO_CROP_HISTORY` / `BACKUP_UNAVAILABLE` |
+| POST | `/api/report-workspaces/:id/photos/:photoId/crop-footer/undo` | `requireWorkspaceWrite` | Desfaz o ultimo corte: restaura o original do backup, remove a entrada do historico e apaga o backup. 409 `NO_CROP_HISTORY` / `BACKUP_UNAVAILABLE` (tambem quando a retencao ja apagou o backup) |
+| POST | `/api/report-workspaces/:id/photos/crop-footer-batch` | `requireWorkspaceWrite` | Corte do rodape em lote (body `{ data: { photoIds: string[1..200], pixels|percent, skipCropped?: boolean } }`, Zod `cropFooterBatchSchema`). Sequencial; fotos ja cortadas sao puladas quando `skipCropped` (default true); erro por foto nao interrompe o lote. Resposta `data: { cropped, skipped: [{ photoId, code, message }], photos: [envelope da foto] }` (codes `ALREADY_CROPPED`, `PHOTO_NOT_FOUND`, `PHOTO_WITHOUT_MEDIA`, `CROP_FAILED`). Dispara a retencao dos backups do workspace em segundo plano |
+| POST | `/api/report-workspaces/:id/photos/purge-crop-backups` | `requireWorkspaceWrite` | Retencao manual dos backups `.orig-<ts>`: apaga do bucket os backups com mais de `data.days` dias (default `rules_config.retencao.backup_corte_dias`, 30) e marca a entrada do `cropHistory` (`backup: null`, `purgedAt`, `purgedBy`). Resposta `{ purged, failed, photosTouched, days }`. A mesma rotina roda automaticamente (`setImmediate`, best-effort) apos cada `crop-footer`, `crop-footer/undo` e `crop-footer-batch` |
 | POST | `/api/report-workspaces/:id/photos/:photoId/trash` | `requireWorkspaceWrite` | Move foto para lixeira |
 | POST | `/api/report-workspaces/:id/photos/:photoId/restore` | `requireWorkspaceWrite` | Restaura da lixeira |
 | POST | `/api/report-workspaces/:id/photos/:photoId/archive` | `requireWorkspaceWrite` | Arquiva (imutavel) a partir da lixeira |

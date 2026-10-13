@@ -264,6 +264,14 @@ describe('PhotoPreviewModal — cortar rodape da marca d\'agua', () => {
     expect(onCropFooter.mock.calls[0][1]).toEqual({ pixels: 90 });
   });
 
+  it('o painel de corte informa o prazo de guarda do original', () => {
+    mount(<PhotoPreviewModal {...baseProps({ onCropFooter: vi.fn(), cropBackupRetentionDays: 60 })} />);
+    const toggle = [...container.querySelectorAll('button')].find((b) => b.textContent.includes("Cortar rodapé da marca d'água"));
+    act(() => { toggle.click(); });
+    expect(container.textContent).toContain('fica guardado por 60 dias');
+    expect(container.textContent).toContain('não pode mais ser desfeito');
+  });
+
   it('tecla C alterna o painel e o botao do cabecalho fica pressionado', () => {
     mount(<PhotoPreviewModal {...baseProps({ onCropFooter: vi.fn() })} />);
     act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c' })));

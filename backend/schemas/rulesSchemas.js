@@ -35,6 +35,8 @@ const criticalidadeSchema = z.object({
 // sao elegiveis para arquivamento automatico. Min 1 dia, max 10 anos.
 const retencaoSchema = z.object({
     lixeira_para_arquivo_dias: z.number().int().min(1).max(3650).optional(),
+    // Dias ate apagar o backup do original de um corte de rodape (photoFooterCrop).
+    backup_corte_dias: z.number().int().min(1).max(3650).optional(),
 }).passthrough();
 
 const feriadoSchema = z.object({

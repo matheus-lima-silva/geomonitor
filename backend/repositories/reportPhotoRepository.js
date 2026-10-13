@@ -556,8 +556,51 @@ async function removeAllByWorkspace(workspaceId) {
     }));
 }
 
+// Fotos do workspace (ativas ou na lixeira, nao arquivadas) com historico de
+// corte de rodape no payload. Usado pela retencao dos backups `.orig-<ts>`.
+async function listWithCropHistoryByWorkspace(workspaceId) {
+    const normalizedWorkspaceId = normalizeText(workspaceId);
+    const result = await postgresStore.query(
+        `
+            SELECT id, workspace_id, project_id, media_asset_id, tower_id, tower_source,
+                   include_in_report, caption, capture_at, gps_lat, gps_lon,
+                   inside_right_of_way, inside_tower_radius, distance_to_axis_m,
+                   distance_to_tower_m, curation_status, manual_override,
+                   sort_order, import_source, payload, created_at, updated_at, updated_by
+            FROM report_photos
+            WHERE workspace_id = $1
+              AND archived_at IS NULL
+              AND jsonb_typeof(payload->'cropHistory') = 'array'
+              AND jsonb_array_length(payload->'cropHistory') > 0
+            ORDER BY updated_at DESC, id ASC
+        `,
+        [normalizedWorkspaceId],
+    );
+    return result.rows.map((row) => hydratePhotoRow({
+        ...row,
+        payload: {
+            ...(row.payload || {}),
+            workspaceId: row.workspace_id,
+            projectId: row.project_id,
+            mediaAssetId: row.media_asset_id,
+            towerId: row.tower_id,
+            towerSource: row.tower_source,
+            includeInReport: row.include_in_report,
+            caption: row.caption,
+            captureAt: row.capture_at instanceof Date ? row.capture_at.toISOString() : row.capture_at,
+            gpsLat: row.gps_lat,
+            gpsLon: row.gps_lon,
+            curationStatus: row.curation_status,
+            manualOverride: row.manual_override,
+            sortOrder: row.sort_order,
+            importSource: row.import_source,
+        },
+    }));
+}
+
 module.exports = {
     listByWorkspace,
+    listWithCropHistoryByWorkspace,
     listTrashedByWorkspace,
     listArchivedByProject,
     getById,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '../../../components/AppIcon';
-import { Badge, Button, Card, EmptyState, HintText, Input, Select } from '../../../components/ui';
+import { Badge, Button, Card, Checkbox, EmptyState, HintText, Input, Select } from '../../../components/ui';
 import IconButton from '../../../components/ui/IconButton';
 import Modal from '../../../components/ui/Modal';
 import { PhotoCardSkeleton } from '../../../components/ui/Skeleton';
@@ -99,6 +99,8 @@ export default function WorkspacesTab({
   handleMovePhotoToTrash,
   handleCropPhotoFooter,
   handleUndoPhotoFooterCrop,
+  handleCropPhotoFooterBatch,
+  cropBackupRetentionDays = 30,
   onCreateErosionFromPhoto,
   handleRestorePhoto,
   handleRestoreAllTrashedPhotos,
@@ -184,6 +186,10 @@ export default function WorkspacesTab({
   const [setupCreateOpen, setSetupCreateOpen] = useState(!selectedWorkspace);
   const [setupImportOpen, setSetupImportOpen] = useState(false);
   const [campaignIntakeOpen, setCampaignIntakeOpen] = useState(false);
+  // Corte do rodape em lote por torre: alvo { label, photoIds, croppedCount } | null.
+  const [cropBatchTarget, setCropBatchTarget] = useState(null);
+  const [cropBatchPixels, setCropBatchPixels] = useState(45);
+  const [cropBatchSkip, setCropBatchSkip] = useState(true);
 
   // Fotos aguardando do wizard: abre o card de import para o usuario escolher o alvo.
   useEffect(() => {
@@ -1489,12 +1495,35 @@ export default function WorkspacesTab({
                     if (groupByTower) {
                       const groups = groupPhotosByTower(pagedPhotos, workspacePhotoDrafts);
                       for (const group of groups) {
+                        const canBatchCrop = canWriteSelected && typeof handleCropPhotoFooterBatch === 'function' && group.items.length > 0;
                         items.push(
                           <div
                             key={`h:${group.label}`}
-                            className="col-span-full text-2xs font-bold uppercase tracking-wide text-slate-500 pt-1"
+                            className="col-span-full flex flex-wrap items-center gap-2 text-2xs font-bold uppercase tracking-wide text-slate-500 pt-1"
                           >
-                            {group.label} ({group.items.length})
+                            <span>{group.label} ({group.items.length})</span>
+                            {canBatchCrop ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="normal-case tracking-normal"
+                                data-testid="rw-crop-batch-open"
+                                disabled={busy === 'photo-crop-batch'}
+                                title="Corta a ultima linha da marca d'agua de todas as fotos desta torre"
+                                onClick={() => {
+                                  setCropBatchPixels(45);
+                                  setCropBatchSkip(true);
+                                  setCropBatchTarget({
+                                    label: group.label,
+                                    photoIds: group.items.map((photo) => photo.id),
+                                    croppedCount: group.items.filter((photo) => Array.isArray(photo.cropHistory) && photo.cropHistory.length > 0).length,
+                                  });
+                                }}
+                              >
+                                <AppIcon name="crop" />
+                                Cortar rodape ({group.items.length})
+                              </Button>
+                            ) : null}
                           </div>,
                         );
                         for (const photo of group.items) items.push(renderPhotoCard(photo));
@@ -1661,8 +1690,67 @@ export default function WorkspacesTab({
       </Modal>
 
       {/* Modal de preview */}
+      <Modal
+        open={Boolean(cropBatchTarget)}
+        onClose={() => setCropBatchTarget(null)}
+        size="sm"
+        icon="crop"
+        title="Cortar rodape em lote"
+        subtitle={cropBatchTarget ? `${cropBatchTarget.label} · ${cropBatchTarget.photoIds.length} foto(s)` : ''}
+        footer={(
+          <>
+            <Button variant="outline" onClick={() => setCropBatchTarget(null)} disabled={busy === 'photo-crop-batch'}>Cancelar</Button>
+            <Button
+              variant="primary"
+              data-testid="rw-crop-batch-confirm"
+              disabled={busy === 'photo-crop-batch' || !Number.isInteger(Number(cropBatchPixels)) || Number(cropBatchPixels) < 1 || Number(cropBatchPixels) > 400}
+              onClick={async () => {
+                const target = cropBatchTarget;
+                if (!target) return;
+                const toCrop = cropBatchSkip ? target.photoIds.length - target.croppedCount : target.photoIds.length;
+                if (toCrop <= 0) { setCropBatchTarget(null); return; }
+                await handleCropPhotoFooterBatch?.(target.photoIds, { pixels: Number(cropBatchPixels), skipCropped: cropBatchSkip });
+                setCropBatchTarget(null);
+              }}
+            >
+              <AppIcon name="crop" />
+              {cropBatchTarget
+                ? `Cortar ${cropBatchSkip ? Math.max(0, cropBatchTarget.photoIds.length - cropBatchTarget.croppedCount) : cropBatchTarget.photoIds.length} foto(s)`
+                : 'Cortar'}
+            </Button>
+          </>
+        )}
+      >
+        {cropBatchTarget ? (
+          <div className="flex flex-col gap-3" data-testid="rw-crop-batch-modal">
+            <p className="m-0 text-sm text-slate-600">
+              Remove a faixa inferior (ultima linha da marca d'agua do Timestamp Camera) de todas as fotos desta torre.
+              O original de cada foto fica guardado por {cropBackupRetentionDays} dias; nesse prazo o corte pode ser desfeito foto a foto no lightbox.
+            </p>
+            <Input
+              id="rw-crop-batch-pixels"
+              label="Faixa a remover (px)"
+              type="number"
+              min="1"
+              max="400"
+              fullWidth={false}
+              className="w-32"
+              value={cropBatchPixels}
+              onChange={(event) => setCropBatchPixels(event.target.value === '' ? '' : Number(event.target.value))}
+              hint="45 px = 1 linha em fotos 1920x1080; 90 px = 2 linhas."
+            />
+            <Checkbox
+              id="rw-crop-batch-skip"
+              label={`Pular fotos ja cortadas${cropBatchTarget.croppedCount ? ` (${cropBatchTarget.croppedCount})` : ''}`}
+              checked={cropBatchSkip}
+              onChange={(event) => setCropBatchSkip(event.target.checked)}
+            />
+          </div>
+        ) : null}
+      </Modal>
+
       {campaignIntakeOpen ? (
-        <CampaignPhotoIntakeModal
+      <CampaignPhotoIntakeModal
           open
           mode="workspace"
           project={selectedWorkspaceProject}
@@ -1728,6 +1816,7 @@ export default function WorkspacesTab({
         onTrash={(p) => p && handleMovePhotoToTrash(p.id)}
         onCropFooter={handleCropPhotoFooter ? (p, band) => p && handleCropPhotoFooter(p.id, band) : undefined}
         onUndoCrop={handleUndoPhotoFooterCrop ? (p) => p && handleUndoPhotoFooterCrop(p.id) : undefined}
+        cropBackupRetentionDays={cropBackupRetentionDays}
         onCreateErosion={(p, choice) => p && onCreateErosionFromPhoto?.(p, choice)}
         towerPoint={activePreviewTowerPoint}
         photoPoint={activePreviewPhotoPoint}

@@ -102,6 +102,19 @@ export async function cropWorkspacePhotoFooter(workspaceId, photoId, band = {}, 
   });
 }
 
+// Corte do rodape em lote (ex.: todas as fotos de uma torre). `skipCropped`
+// (padrao true no backend) pula fotos que ja tem cropHistory.
+export async function cropWorkspacePhotoFooterBatch(workspaceId, { photoIds = [], pixels, percent, skipCropped } = {}, meta = {}) {
+  const data = { photoIds: (Array.isArray(photoIds) ? photoIds : []).map((id) => String(id || '').trim()).filter(Boolean) };
+  if (pixels !== undefined) data.pixels = pixels;
+  if (percent !== undefined) data.percent = percent;
+  if (skipCropped !== undefined) data.skipCropped = Boolean(skipCropped);
+  return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/crop-footer-batch`, {
+    method: 'POST',
+    body: JSON.stringify({ data, meta }),
+  });
+}
+
 export async function undoWorkspacePhotoFooterCrop(workspaceId, photoId, meta = {}) {
   return requestWorkspace(`${API_BASE_URL}/report-workspaces/${encodeURIComponent(workspaceId)}/photos/${encodeURIComponent(photoId)}/crop-footer/undo`, {
     method: 'POST',
