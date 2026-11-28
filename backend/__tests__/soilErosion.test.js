@@ -48,4 +48,10 @@ describe('fatores da RUSLE', () => {
         expect(computeRusle({ r: 7200, k: 0.015, slopeDeg: 2, cobertura: { 3: 1 } }).classe).toBe('baixa');
         expect(computeRusle({ r: null, k: 0.035, slopeDeg: 10, cobertura: { 15: 1 } })).toBeNull();
     });
+
+    it('registra a fonte do K na observacao', () => {
+        expect(computeRusle({ r: 7200, k: 0.03, slopeDeg: 5, cobertura: { 15: 1 }, kFonte: 'embrapa' }))
+            .toMatchObject({ kFonte: 'embrapa', observacao: expect.stringContaining('Embrapa') });
+        expect(computeRusle({ r: 7200, k: 0.03, slopeDeg: 5, cobertura: { 15: 1 } }).kFonte).toBe('provisorio');
+    });
 });

@@ -66,20 +66,30 @@ async function main() {
         } : null;
         if (!ibge) stats.semSolo += 1;
         const tipoSoloSugerido = ibge ? soilFormTypeFromIbge(ibge) : null;
-        const k = ibge ? provisionalK(ibge) : null;
+        const kOficial = Number(row.k_solos);
+        const usaEmbrapa = Number.isFinite(kOficial) && kOficial > 0;
+        const k = usaEmbrapa ? kOficial : (ibge ? provisionalK(ibge) : null);
+        stats.kEmbrapa = (stats.kEmbrapa || 0) + (usaEmbrapa ? 1 : 0);
         const r = sampleR(Number(row.longitude), Number(row.latitude));
-        const rusle = computeRusle({ r, k, slopeDeg: row.declividade, cobertura: row.cobertura });
+        const rusle = computeRusle({ r, k, slopeDeg: row.declividade, cobertura: row.cobertura, kFonte: usaEmbrapa ? 'embrapa' : 'provisorio' });
         if (!rusle) stats.semRusle += 1;
         if (tipoSoloSugerido) stats.tipos[tipoSoloSugerido] = (stats.tipos[tipoSoloSugerido] || 0) + 1;
         if (rusle) stats.classes[rusle.classe] = (stats.classes[rusle.classe] || 0) + 1;
         out.push({
             projectId: row.project_id,
             towerNumber: row.tower_number,
-            solo: { ibge, tipoSoloSugerido, kProvisorio: k, fonte: ibge ? `IBGE Pedologia 1:250.000 (${ibge.versao})` : null },
+            solo: {
+                ibge,
+                tipoSoloSugerido,
+                k,
+                kFonte: usaEmbrapa ? 'Embrapa Solos 2024' : (k ? 'provisorio por ordem de solo' : null),
+                classeErodibilidade: row.classe_erod || null,
+                fonte: ibge ? `IBGE Pedologia 1:250.000 (${ibge.versao})` : null,
+            },
             rusle,
         });
     });
-    console.log(`${rows.length} torre(s); sem classe de solo: ${stats.semSolo}; sem RUSLE: ${stats.semRusle}`);
+    console.log(`${rows.length} torre(s); sem classe de solo: ${stats.semSolo}; sem RUSLE: ${stats.semRusle}; K da Embrapa: ${stats.kEmbrapa || 0}`);
     console.log('tipo de solo sugerido:', JSON.stringify(stats.tipos));
     console.log('classe RUSLE:', JSON.stringify(stats.classes));
     if (!apply) {
@@ -89,7 +99,8 @@ async function main() {
     const updated = await towerEnvironmentRepository.mergeSoilErosion(out, {
         solo: { nome: 'IBGE BDiA Pedologia 1:250.000', versao: '2026' },
         erosividade: { nome: 'REDB-BR (Rainfall Erosivity Database for Brazil)', licenca: 'CC BY 4.0', doi: '10.5281/zenodo.4428308' },
-        rusle: { observacao: 'Indice relativo; K provisorio por ordem de solo; C por uso MapBiomas; rampa 50 m' },
+        erodibilidade: { nome: 'Erodibilidade dos solos do Brasil (Embrapa Solos, 2024)', licenca: 'CC BY-NC (uso nao comercial)' },
+        rusle: { observacao: 'Indice relativo; K da Embrapa (provisorio por ordem de solo quando falta); C por uso MapBiomas; rampa 50 m' },
     });
     console.log(`ok: ${updated} torre(s) atualizada(s)`);
 }

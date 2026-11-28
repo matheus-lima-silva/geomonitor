@@ -288,14 +288,16 @@ describe('ErosionTechnicalFields', () => {
         towerEnvironment: {
           ...env,
           solo: { tipoSoloSugerido: 'argiloso', ibge: { ordem: 'ARGISSOLO', subordem: 'VERMELHO-AMARELO', textura: 'Média/argilosa' } },
-          rusle: { classe: 'muito_alta', perdaSoloIndice: 53.6 },
+          rusle: { classe: 'muito_alta', perdaSoloIndice: 53.6, kFonte: 'embrapa' },
         },
       });
       const soil = container.querySelector('[data-testid="erosion-env-soil"]');
       expect(soil.textContent).toContain('argissolo vermelho-amarelo, textura média/argilosa');
       clickElement([...soil.querySelectorAll('button')].find((b) => b.textContent === 'Usar'));
       expect(props.onPatch).toHaveBeenLastCalledWith({ tipoSolo: 'argiloso' });
-      expect(container.querySelector('[data-testid="erosion-env-rusle"]').textContent).toContain('muito alta');
+      const rusle = container.querySelector('[data-testid="erosion-env-rusle"]').textContent;
+      expect(rusle).toContain('muito alta');
+      expect(rusle).toContain('K da Embrapa');
     });
 
     it('sem dados da torre nao mostra sugestoes', () => {

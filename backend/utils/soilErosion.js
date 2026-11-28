@@ -5,8 +5,9 @@
 //  - R (erosividade): REDB-BR (Zenodo 4428308, CC BY 4.0), MJ mm ha-1 h-1 ano-1;
 //  - LS: declividade do Copernicus DEM com comprimento de rampa fixo;
 //  - C: uso do solo MapBiomas;
-//  - K: ESTIMATIVA PROVISORIA por ordem de solo (ordem de grandeza de estudos
-//    brasileiros). O mapa de erodibilidade da Embrapa e CC BY-NC e nao foi usado.
+//  - K: mapa de erodibilidade dos solos do Brasil da Embrapa Solos (2024, CC BY-NC,
+//    uso nao comercial), tabela embrapa_erodibilidade; sem valor no ponto, cai na
+//    ESTIMATIVA PROVISORIA por ordem de solo.
 // A perda de solo (A = R.K.LS.C.P, P = 1) e um indice RELATIVO para ranquear torres,
 // nao uma medida de perda real.
 
@@ -106,7 +107,7 @@ const CLASSES_PERDA = [
 ];
 
 /** Indice RUSLE da torre. Retorna null se faltar algum fator. */
-function computeRusle({ r, k, slopeDeg, cobertura }) {
+function computeRusle({ r, k, slopeDeg, cobertura, kFonte = 'provisorio' }) {
     const ls = lsFactor(slopeDeg);
     const c = coverC(cobertura);
     if (![r, k, ls, c].every(Number.isFinite)) return null;
@@ -116,7 +117,10 @@ function computeRusle({ r, k, slopeDeg, cobertura }) {
         perdaSoloIndice: round(a, 2),
         classe: CLASSES_PERDA.find(([max]) => a < max)[1],
         fatores: { R: round(r, 0), K: k, LS: round(ls, 2), C: round(c, 3), P: 1 },
-        observacao: 'Indice relativo (RUSLE): K provisorio por ordem de solo, C por uso MapBiomas, rampa fixa de 50 m.',
+        kFonte,
+        observacao: kFonte === 'embrapa'
+            ? 'Indice relativo (RUSLE): K da Embrapa (2024), C por uso MapBiomas, rampa fixa de 50 m.'
+            : 'Indice relativo (RUSLE): K provisorio por ordem de solo, C por uso MapBiomas, rampa fixa de 50 m.',
     };
 }
 

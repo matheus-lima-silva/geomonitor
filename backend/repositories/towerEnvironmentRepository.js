@@ -96,7 +96,8 @@ async function listForSoilErosion(projectIds) {
             SELECT te.project_id, te.tower_number, te.latitude, te.longitude,
                    (te.payload->>'declividadeMediaGraus')::float8 AS declividade,
                    te.payload->'mapbiomas'->'cobertura' AS cobertura,
-                   p.simbolo, p.legenda, p.ordem, p.subordem, p.grande_grupo, p.textura, p.relevo, p.versao
+                   p.simbolo, p.legenda, p.ordem, p.subordem, p.grande_grupo, p.textura, p.relevo, p.versao,
+                   e.k_solos, e.classe_erod
             FROM tower_environment te
             LEFT JOIN LATERAL (
                 SELECT ip.simbolo, ip.legenda, ip.ordem, ip.subordem, ip.grande_grupo, ip.textura, ip.relevo, ip.versao
@@ -104,6 +105,12 @@ async function listForSoilErosion(projectIds) {
                 WHERE ST_Intersects(ip.geom, ST_SetSRID(ST_MakePoint(te.longitude, te.latitude), 4326)::geography)
                 LIMIT 1
             ) p ON true
+            LEFT JOIN LATERAL (
+                SELECT ee.k_solos, ee.classe_erod
+                FROM embrapa_erodibilidade ee
+                WHERE ST_Intersects(ee.geom, ST_SetSRID(ST_MakePoint(te.longitude, te.latitude), 4326)::geography)
+                LIMIT 1
+            ) e ON true
             WHERE te.project_id = ANY($1::text[])
         `,
         [projectIds],

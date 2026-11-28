@@ -730,7 +730,9 @@ function ErosionTechnicalFields({
           <div className="text-xs text-slate-500" data-testid="erosion-env-rusle">
             {`Suscetibilidade do entorno da torre ${envTower} (RUSLE, índice relativo): `}
             <strong className="text-slate-700">{RUSLE_LABELS[envRusle.classe] || envRusle.classe}</strong>
-            {` · K provisório por ordem de solo, C pelo uso do solo, rampa de 50 m.`}
+            {envRusle.kFonte === 'embrapa'
+              ? ' · K da Embrapa (2024), C pelo uso do solo, rampa de 50 m.'
+              : ' · K provisório por ordem de solo, C pelo uso do solo, rampa de 50 m.'}
           </div>
         ) : null}
         {envUses.length > 0 ? (
