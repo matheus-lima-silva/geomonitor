@@ -29,6 +29,7 @@ const adminSqlSnippetsRepository = require('./adminSqlSnippetsRepository');
 const systemAlertsRepository = require('./systemAlertsRepository');
 const osmRoadRepository = require('./osmRoadRepository');
 const towerAccessRepository = require('./towerAccessRepository');
+const towerEnvironmentRepository = require('./towerEnvironmentRepository');
 
 module.exports = {
     adminSqlAuditRepository,
@@ -62,4 +63,5 @@ module.exports = {
     paecPlantRepository,
     osmRoadRepository,
     towerAccessRepository,
+    towerEnvironmentRepository,
 };
