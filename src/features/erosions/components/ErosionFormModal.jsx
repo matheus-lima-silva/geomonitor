@@ -10,6 +10,7 @@ import {
 } from '../models/erosionPhotosModel';
 import {
   CircleMarker,
+  LayersControl,
   MapContainer,
   Polyline,
   Popup,
@@ -33,6 +34,7 @@ import {
 } from '../../shared/criticalitySummary';
 import { isHistoricalErosionRecord } from '../../shared/viewUtils';
 import ErosionTechnicalFields from './ErosionTechnicalFields';
+import ErosionMapViewport from './ErosionMapViewport';
 
 function MapClickPicker({ onPick }) {
   useMapEvents({
@@ -308,8 +310,10 @@ function ErosionFormModal({
     return [-15.793889, -47.882778];
   }, [currentPoint, photoPoint, towerPoint, nearbyTowerMarkers, linePath]);
 
-  const mapZoom = currentPoint || photoPoint || towerPoint || nearbyTowerMarkers.length > 0 ? 15 : (linePath.length > 0 ? 12 : 5);
-  const mapRenderKey = `${mapCenter[0].toFixed(6)}-${mapCenter[1].toFixed(6)}-${mapZoom}`;
+  const mapZoom = currentPoint || photoPoint || towerPoint || nearbyTowerMarkers.length > 0 ? 17 : (linePath.length > 0 ? 12 : 5);
+  // O mapa nao e recriado a cada clique/digito: so recentraliza quando muda o
+  // projeto ou a torre (ver ErosionMapViewport).
+  const mapRecenterKey = `${String(safeFormData.projetoId || '').trim()}|${String(safeFormData.torreRef || '').trim()}`;
 
   if (!open) return null;
 
@@ -689,7 +693,7 @@ function ErosionFormModal({
                 onClick={() => setShowInteractiveMap((prev) => !prev)}
               >
                 <AppIcon name="map" />
-                {showInteractiveMap ? 'Fechar mapa interativo' : 'Abrir mapa interativo (relevo)'}
+                {showInteractiveMap ? 'Fechar mapa interativo' : 'Abrir mapa interativo'}
               </Button>
               <Button
                 type="button"
@@ -727,23 +731,48 @@ function ErosionFormModal({
             {showInteractiveMap ? (
               <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
                 <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs text-slate-600">
-                  Clique no mapa para definir latitude/longitude.
+                  Clique no mapa para definir latitude/longitude. Troque a camada (satélite, relevo, mapa) no canto superior direito.
                 </div>
                 <div style={{ width: '100%', height: 320 }}>
                   <MapContainer
-                    key={mapRenderKey}
                     center={mapCenter}
                     zoom={mapZoom}
-                    maxZoom={17}
+                    maxZoom={19}
                     scrollWheelZoom
                     style={{ width: '100%', height: '100%' }}
                   >
-                    <TileLayer
-                      attribution="Map data: OpenStreetMap contributors | Style: OpenTopoMap"
-                      url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-                      maxZoom={17}
-                      maxNativeZoom={17}
+                    <ErosionMapViewport
+                      center={mapCenter}
+                      zoom={mapZoom}
+                      recenterKey={mapRecenterKey}
+                      point={currentPoint}
                     />
+                    <LayersControl position="topright">
+                      <LayersControl.BaseLayer checked name="Satélite">
+                        <TileLayer
+                          attribution="Imagens: Esri, Maxar, Earthstar Geographics"
+                          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                          maxZoom={19}
+                          maxNativeZoom={18}
+                        />
+                      </LayersControl.BaseLayer>
+                      <LayersControl.BaseLayer name="Relevo">
+                        <TileLayer
+                          attribution="Map data: OpenStreetMap contributors | Style: OpenTopoMap"
+                          url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+                          maxZoom={19}
+                          maxNativeZoom={17}
+                        />
+                      </LayersControl.BaseLayer>
+                      <LayersControl.BaseLayer name="Mapa (OSM)">
+                        <TileLayer
+                          attribution="&copy; OpenStreetMap contributors"
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                          maxZoom={19}
+                          maxNativeZoom={19}
+                        />
+                      </LayersControl.BaseLayer>
+                    </LayersControl>
                     {linePath.length >= 2 ? (
                       <Polyline positions={linePath} pathOptions={{ color: '#0f766e', weight: 3, opacity: 0.75, dashArray: '6 4' }} />
                     ) : null}
@@ -760,15 +789,7 @@ function ErosionFormModal({
                         <Popup>{`${formatTowerLabel(tower.towerNumber)} ${tower.isSelected ? '(selecionada)' : '(vizinha)'}`}</Popup>
                       </CircleMarker>
                     ))}
-                    {photoPoint ? (
-                      <CircleMarker
-                        center={photoPoint}
-                        radius={7}
-                        pathOptions={{ color: '#5b21b6', fillColor: '#a78bfa', fillOpacity: 0.9, weight: 2 }}
-                      >
-                        <Popup>{`Foto ${originPhoto?.photoId || ''} (GPS)`.trim()}</Popup>
-                      </CircleMarker>
-                    ) : null}
+                    {/* GPS da foto desenhado por cima do ponto: continua visivel quando coincidem. */}
                     {currentPoint ? (
                       <CircleMarker
                         center={currentPoint}
@@ -776,6 +797,15 @@ function ErosionFormModal({
                         pathOptions={{ color: '#1d4ed8', fillColor: '#3b82f6', fillOpacity: 0.95, weight: 2 }}
                       >
                         <Popup>Ponto selecionado</Popup>
+                      </CircleMarker>
+                    ) : null}
+                    {photoPoint ? (
+                      <CircleMarker
+                        center={photoPoint}
+                        radius={7}
+                        pathOptions={{ color: '#5b21b6', fillColor: '#a78bfa', fillOpacity: 0.9, weight: 2 }}
+                      >
+                        <Popup>{`Foto ${originPhoto?.photoId || ''} (GPS)`.trim()}</Popup>
                       </CircleMarker>
                     ) : null}
                     <MapClickPicker onPick={handleMapPick} />

@@ -9,9 +9,10 @@ function buildSituacaoFromStatus(status) {
     return shared.buildSituacaoFromStatus(status, normalizeErosionStatus);
 }
 
-function buildCriticalityHistory(previous, nextData, criticalidade) {
+function buildCriticalityHistory(previous, nextData, criticalidade, options = {}) {
     return shared.buildCriticalityHistory(previous, nextData, criticalidade, {
         normalizeStatusFn: normalizeErosionStatus,
+        inspectionDate: options.inspectionDate,
     });
 }
 
@@ -20,6 +21,7 @@ module.exports = {
     getInspectionDateScore: shared.getInspectionDateScore,
     normalizeErosionInspectionIds: shared.normalizeErosionInspectionIds,
     resolvePrimaryInspectionId: shared.resolvePrimaryInspectionId,
+    resolveInspectionDateForTower: shared.resolveInspectionDateForTower,
     normalizeNumeric: shared.normalizeNumeric,
     normalizeText: shared.normalizeText,
     buildManualFollowupEvent: shared.buildManualFollowupEvent,

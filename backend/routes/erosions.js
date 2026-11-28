@@ -3,7 +3,7 @@ const router = express.Router();
 const { verifyToken, requireActiveUser, requireEditor } = require('../utils/authMiddleware');
 const crypto = require('crypto');
 const { createHateoasResponse, generateHateoasLinks, createPaginatedHateoasResponse } = require('../utils/hateoas');
-const { erosionRepository, reportJobRepository, reportDefaultsRepository } = require('../repositories');
+const { erosionRepository, reportJobRepository, reportDefaultsRepository, inspectionRepository } = require('../repositories');
 const { normalizeKey } = require('../repositories/common');
 const { computeGeoDistance, resolveEffectiveStructureDistance } = require('../utils/geoDistance');
 const { triggerWorkerRun } = require('../utils/workerTrigger');
@@ -35,6 +35,7 @@ const { resolveLocationCoordinatesForSave } = require('../utils/erosionCoordinat
 const { normalizeErosionStatus } = require('../utils/statusUtils_dist');
 const {
     buildCriticalityHistory,
+    resolveInspectionDateForTower,
 } = require('../utils/internalErosionHelpers');
 function normalizeCriticalityPayload(payload) {
     if (!payload || typeof payload !== 'object') return null;
@@ -244,12 +245,23 @@ async function saveErosionHandler(req, res) {
                 origem: meta.origem,
             });
 
+        // Data de campo do historico: dia em que a torre foi vistoriada na vistoria vinculada.
+        let inspectionDate = '';
+        if (!isHistoricalRecord && nextData.vistoriaId) {
+            try {
+                const inspection = await inspectionRepository.getById(nextData.vistoriaId);
+                inspectionDate = resolveInspectionDateForTower(inspection, nextData.torreRef);
+            } catch (inspectionError) {
+                console.error('[Geomonitor API] Falha ao buscar vistoria da erosao:', inspectionError);
+            }
+        }
+
         const finalDocument = {
             ...nextData,
             acompanhamentosResumo: appendFollowupEvent(nextData.acompanhamentosResumo ?? history, event),
             historicoCriticidade: isHistoricalRecord
                 ? (Array.isArray(previous?.historicoCriticidade) ? previous.historicoCriticidade : [])
-                : buildCriticalityHistory(previous, nextData, criticalidade),
+                : buildCriticalityHistory(previous, nextData, criticalidade, { inspectionDate }),
         };
 
         await erosionRepository.save(finalDocument, { merge: true });
