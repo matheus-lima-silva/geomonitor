@@ -97,6 +97,7 @@ function ErosionTechnicalFields({
   validationErrors = {},
   isHistoricalRecord = false,
   towerAccessCount = null,
+  towerEnvironment = null,
 }) {
   const tiposFeicao = normalizeArray(formData.tiposFeicao);
   const usosSolo = normalizeArray(formData.usosSolo);
@@ -236,6 +237,23 @@ function ErosionTechnicalFields({
     else if (larguraLivre < PARTIAL_FREE_WIDTH_M) obstrucaoSugerida = 'parcial';
     else obstrucaoSugerida = 'sem_obstrucao';
   }
+  // Fase 5: sugestoes das bases publicas para a torre (nunca aplicadas sozinhas).
+  const env = towerEnvironment && typeof towerEnvironment === 'object' ? towerEnvironment : null;
+  const envSlope = Number(env?.declividadeMediaGraus);
+  const envSlopeMax = Number(env?.declividadeMaxGraus);
+  const envUses = Array.isArray(env?.usosSoloSugeridos) ? env.usosSoloSugeridos : [];
+  const envUsesMissing = envUses.filter((u) => !usosSolo.includes(u));
+  const envUsesSource = env?.usosSoloFonte || (env?.cobertura ? 'ESA WorldCover 2021' : '');
+  const envTower = String(env?.towerNumber ?? '').trim();
+  const usoLabel = (value) => EROSION_TECHNICAL_OPTIONS.usosSolo.find((o) => o.value === value)?.label || value;
+  function applySuggestedUses() {
+    const nextPatch = { usosSolo: [...new Set([...usosSolo, ...envUses])] };
+    if (envUses.includes('outro') && !String(formData.usoSoloOutro || '').trim() && env?.usoSoloOutroSugerido) {
+      nextPatch.usoSoloOutro = env.usoSoloOutroSugerido;
+    }
+    patch(nextPatch);
+  }
+
   const yesNoValue = (value) => (value === true ? 'sim' : value === false ? 'nao' : '');
   const yesNoParse = (value) => (value === 'sim' ? true : value === 'nao' ? false : null);
 
@@ -465,6 +483,16 @@ function ErosionTechnicalFields({
         </label>
         <label className="flex flex-col gap-1.5">
           <FieldLabel label="Declividade" hint={FIELD_HINTS.declividade} />
+          {Number.isFinite(envSlope) ? (
+            <span className="flex flex-wrap items-center gap-1 text-xs text-slate-500" data-testid="erosion-env-slope">
+              {`Terreno em volta da torre ${envTower}: ~${envSlope.toLocaleString('pt-BR')}°`}
+              {Number.isFinite(envSlopeMax) ? ` (máx. ${envSlopeMax.toLocaleString('pt-BR')}°)` : ''}
+              {' · relevo de 30 m, não mede a parede da erosão'}
+              {parseNumeric(formData.declividadeGraus) !== envSlope ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => updateField('declividadeGraus', envSlope)}>Usar</Button>
+              ) : null}
+            </span>
+          ) : null}
           <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={selectedSlopeRange} onChange={(e) => updateSlopeRange(e.target.value)}>
             <option value="">Não informado</option>
             <option value="D1">&lt; 10 graus</option>
@@ -681,6 +709,20 @@ function ErosionTechnicalFields({
 
       <fieldset className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl relative mt-6 pt-6">
         <legend className="absolute -top-3 left-3 px-2 bg-slate-50 text-sm font-bold text-slate-800 rounded-md">Usos do solo</legend>
+        {envUses.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600" data-testid="erosion-env-uses">
+            <span>
+              {`Sugestão para a torre ${envTower} (${envUsesSource}, raio de ${env?.raioM || 50} m): `}
+              <strong className="text-slate-800">{envUses.map(usoLabel).join(', ')}</strong>
+              {env?.usoSoloOutroSugerido ? ` (${env.usoSoloOutroSugerido})` : ''}
+            </span>
+            {envUsesMissing.length > 0 ? (
+              <Button type="button" variant="ghost" size="sm" onClick={applySuggestedUses}>Usar sugestão</Button>
+            ) : (
+              <span className="text-xs text-slate-500">já marcado</span>
+            )}
+          </div>
+        ) : null}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {EROSION_TECHNICAL_OPTIONS.usosSolo.map((option) => (
             <label key={option.value} className="flex items-start gap-2 text-sm text-slate-700 cursor-pointer hover:text-brand-600 transition-colors">
