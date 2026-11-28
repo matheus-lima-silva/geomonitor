@@ -353,6 +353,18 @@ Campos tecnicos V3 usados no calculo de criticidade:
 | `impactoVia` | object | Dados de impacto na via (condicional: quando `localTipo = via_acesso_exclusiva`) |
 | `fotosPrincipais` | object[] | Ate 6 referencias `{ photoId, workspaceId, mediaAssetId, caption?, sortOrder }` apontando para fotos de workspaces do mesmo projeto. Renderizadas no PDF completo e na galeria do modal de detalhes. Nao reutilizado pela ficha simplificada. |
 
+Campos da V3.1 (via de acesso; ver `docs/metodologia-criticidade-v3.md`, secao 6.1):
+
+| Campo | Tipo | Descricao |
+|---|---|---|
+| `medicaoMetodo` | string | `trena` \| `estimativa` \| `sem_medicao` ("Foi possivel medir a erosao?") |
+| `impactoVia.caminhonetePassa` | string | `passa` \| `dificuldade` \| `nao_passa`; sem profundidade medida define a classe P e da piso C3/C4 |
+| `impactoVia.possibilidadeDesvio` / `rotaAlternativaDisponivel` | boolean | "Da para desviar no local?" / "A torre tem outro acesso?" |
+| `impactoVia.larguraPlataformaMetros` | number | Largura da plataforma; com `larguraComprometidaMetros` o formulario sugere o grau de obstrucao |
+| `impactoVia.orientacaoSulco` | string | `longitudinal` (+1 no modificador de via) \| `transversal` |
+
+Em erosao de acesso, `distanciaEstruturaMetros` e a distancia ate a borda da via e **nao** e substituida pela distancia calculada ate a torre (que fica em `distanciaEstruturaCalculadaMetros`). A saida da criticidade traz `metodologia_versao`, `escala_via`, `profundidade_inferida` e `piso_trafegabilidade`.
+
 Campos de tracado (opcionais, nao entram no calculo):
 
 | Campo | Tipo | Descricao |

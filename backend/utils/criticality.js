@@ -36,6 +36,46 @@ const DEPTH_POINTS = {
   P4: { classe: 'P4', pontos: 6, min: 30, max: Infinity, minInclusive: false, maxInclusive: true },
 };
 
+// V3.1 (docs/metodologia-criticidade-v3.md, secao 5.5): erosao em via de acesso
+// usa escala de caminhonete. Vao livre de caminhonete 4x4 ~20-25 cm; largura de
+// plataforma ~4 m. Profundidade em metros; distancia = da erosao a borda da via.
+export const METODOLOGIA_VERSAO = 'V3.1';
+
+const DEPTH_POINTS_VIA = {
+  P1: { classe: 'P1', pontos: 0, min: -Infinity, max: 0.1, minInclusive: true, maxInclusive: true },
+  P2: { classe: 'P2', pontos: 2, min: 0.1, max: 0.25, minInclusive: false, maxInclusive: true },
+  P3: { classe: 'P3', pontos: 4, min: 0.25, max: 0.5, minInclusive: false, maxInclusive: true },
+  P4: { classe: 'P4', pontos: 6, min: 0.5, max: Infinity, minInclusive: false, maxInclusive: true },
+};
+
+const DISTANCE_POINTS_VIA = {
+  E1: { classe: 'E1', pontos: 0, min: 5, max: Infinity, minInclusive: false, maxInclusive: true },
+  E2: { classe: 'E2', pontos: 2, min: 3, max: 5, minInclusive: true, maxInclusive: true },
+  E3: { classe: 'E3', pontos: 4, min: 1, max: 3, minInclusive: true, maxInclusive: false },
+  E4: { classe: 'E4', pontos: 6, min: -Infinity, max: 1, minInclusive: true, maxInclusive: false },
+};
+
+// Sem profundidade medida, a resposta "A caminhonete passa?" define a classe P.
+const DEPTH_CLASS_BY_TRAFFIC = { nao_passa: 'P4', dificuldade: 'P3', passa: 'P1' };
+export const TRAFEGABILIDADE_VALUES = ['passa', 'dificuldade', 'nao_passa'];
+export const MEDICAO_METODO_VALUES = ['trena', 'estimativa', 'sem_medicao'];
+export const ORIENTACAO_SULCO_VALUES = ['longitudinal', 'transversal'];
+
+export const CRITICALITY_VIA_SCALES = {
+  profundidade: {
+    P1: { descricao: '<= 0,10 m', pontos: 0 },
+    P2: { descricao: '> 0,10 - 0,25 m', pontos: 2 },
+    P3: { descricao: '> 0,25 - 0,50 m', pontos: 4 },
+    P4: { descricao: '> 0,50 m', pontos: 6 },
+  },
+  exposicao: {
+    E1: { descricao: '> 5 m', pontos: 0 },
+    E2: { descricao: '3 - 5 m', pontos: 2 },
+    E3: { descricao: '1 - 3 m', pontos: 4 },
+    E4: { descricao: '< 1 m', pontos: 6 },
+  },
+};
+
 const ACTIVITY_RULES = {
   A1: { classe: 'A1', pontos: 0, label: 'estabilizado' },
   A2: { classe: 'A2', pontos: 2, label: 'indeterminado' },
@@ -364,6 +404,14 @@ function normalizeImpactoVia(vistoriaData = {}) {
     presencaDrenagemVia: booleanFromUnknown(raw.presencaDrenagemVia),
     estadoVia: normalizeTextLower(raw.estadoVia),
     integridadeEstruturalComprometida: booleanFromUnknown(raw.integridadeEstruturalComprometida),
+    // V3.1
+    caminhonetePassa: TRAFEGABILIDADE_VALUES.includes(normalizeTextLower(raw.caminhonetePassa))
+      ? normalizeTextLower(raw.caminhonetePassa) : '',
+    orientacaoSulco: ORIENTACAO_SULCO_VALUES.includes(normalizeTextLower(raw.orientacaoSulco))
+      ? normalizeTextLower(raw.orientacaoSulco) : '',
+    larguraPlataformaMetros: parseNumeric(raw.larguraPlataformaMetros),
+    possibilidadeDesvioInformada: raw.possibilidadeDesvio === true || raw.possibilidadeDesvio === false,
+    rotaAlternativaInformada: raw.rotaAlternativaDisponivel === true || raw.rotaAlternativaDisponivel === false,
   };
 }
 
@@ -390,6 +438,8 @@ function buildNormalizedInput(vistoriaData = {}) {
     vegetacao_interior: booleanFromUnknown(vistoriaData?.contexto_fisico?.vegetacao_interior ?? vistoriaData?.vegetacao_interior),
     agua_fundo: normalizeAguaFundo(vistoriaData),
     impactoVia,
+    medicao_metodo: MEDICAO_METODO_VALUES.includes(normalizeTextLower(vistoriaData?.medicaoMetodo))
+      ? normalizeTextLower(vistoriaData.medicaoMetodo) : '',
     latitude: parseNumeric(locationCoordinates.latitude),
     longitude: parseNumeric(locationCoordinates.longitude),
   };
@@ -410,6 +460,20 @@ function buildValidationAlerts(normalized, classification) {
     && normalized.distancia_estrutura_m < 5
     && ['C1', 'C2'].includes(classification.codigo)) {
     alerts.push('Revisar exposição: distância menor que 5m com criticidade abaixo de C3.');
+  }
+
+  const isVia = normalizeTextLower(normalized.local_tipo).includes('acesso');
+  const passa = normalized.impactoVia?.caminhonetePassa;
+  if (isVia && passa && Number.isFinite(normalized.profundidade_m)) {
+    if (passa === 'passa' && normalized.profundidade_m > 0.5) {
+      alerts.push('Inconsistência: caminhonete passa, mas a profundidade medida passa de 0,50 m.');
+    }
+    if (passa === 'nao_passa' && normalized.profundidade_m <= 0.1) {
+      alerts.push('Inconsistência: caminhonete não passa, mas a profundidade medida é de até 0,10 m.');
+    }
+  }
+  if (isVia && !passa) {
+    alerts.push('Erosão em acesso sem a resposta "A caminhonete passa?".');
   }
 
   if (normalized.sinais_avanco && normalized.vegetacao_interior) {
@@ -473,7 +537,7 @@ function resolveViaModifier(normalized) {
 
   const iv = normalized?.impactoVia;
   if (!iv || typeof iv !== 'object') return 0;
-  if (!iv.grauObstrucao && !iv.tipoImpactoVia && !iv.estadoVia) return 0;
+  if (!iv.grauObstrucao && !iv.tipoImpactoVia && !iv.estadoVia && !iv.orientacaoSulco) return 0;
 
   let mod = 0;
   if (iv.grauObstrucao === 'total') {
@@ -483,6 +547,8 @@ function resolveViaModifier(normalized) {
   }
   if (iv.tipoImpactoVia === 'ruptura_plataforma') mod += 2;
   if (iv.estadoVia === 'terra') mod += 1;
+  // V3.1: sulco na trilha da roda prende o pneu e evolui ao longo da via.
+  if (iv.orientacaoSulco === 'longitudinal') mod += 1;
 
   return Math.min(mod, 4);
 }
@@ -620,11 +686,22 @@ export function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_DEF
   const mergedConfig = mergeCriticalityConfig(config);
   const normalized = buildNormalizedInput(vistoriaData);
 
+  const isVia = normalizeTextLower(normalized.local_tipo).includes('acesso');
+  const caminhonetePassa = normalized.impactoVia?.caminhonetePassa || '';
+
   const tipo = resolveTypeScore(normalized.tipo_erosao);
-  const profundidade = resolveRange(DEPTH_POINTS, normalized.profundidade_m, 'P1');
+  let profundidade;
+  let profundidadeInferida = false;
+  if (isVia && !Number.isFinite(normalized.profundidade_m) && DEPTH_CLASS_BY_TRAFFIC[caminhonetePassa]) {
+    // V3.1: sem medida, a classe vem da resposta de trafegabilidade.
+    profundidade = { ...DEPTH_POINTS_VIA[DEPTH_CLASS_BY_TRAFFIC[caminhonetePassa]] };
+    profundidadeInferida = true;
+  } else {
+    profundidade = resolveRange(isVia ? DEPTH_POINTS_VIA : DEPTH_POINTS, normalized.profundidade_m, 'P1');
+  }
   const declividade = resolveRange(SLOPE_POINTS, normalized.declividade_graus, 'D1');
   const solo = resolveSoilScore(normalized.tipo_solo);
-  const exposicao = resolveRange(DISTANCE_POINTS, normalized.distancia_estrutura_m, 'E1');
+  const exposicao = resolveRange(isVia ? DISTANCE_POINTS_VIA : DISTANCE_POINTS, normalized.distancia_estrutura_m, 'E1');
   const atividade = resolveActivityScore(normalized.sinais_avanco, normalized.vegetacao_interior);
   const viaModifier = resolveViaModifier(normalized);
 
@@ -637,6 +714,21 @@ export function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_DEF
   const isCloseToStructure = Number.isFinite(normalized.distancia_estrutura_m) && normalized.distancia_estrutura_m < 5;
   if (isBaseTorre && isHighRiskType && isCloseToStructure && ['C1', 'C2'].includes(classification.codigo)) {
     classification = { codigo: 'C3', classe: 'Alto' };
+  }
+
+  // V3.1: piso por trafegabilidade em acesso. Nao passa -> no minimo C3; nao passa,
+  // sem desvio no local e sem outro acesso a torre -> C4.
+  let pisoTrafegabilidade = '';
+  if (isVia && caminhonetePassa === 'nao_passa') {
+    const iv = normalized.impactoVia;
+    const semSaida = iv.possibilidadeDesvioInformada && iv.possibilidadeDesvio === false
+      && iv.rotaAlternativaInformada && iv.rotaAlternativaDisponivel === false;
+    const piso = semSaida ? 'C4' : 'C3';
+    const ordem = ['C1', 'C2', 'C3', 'C4'];
+    if (ordem.indexOf(classification.codigo) < ordem.indexOf(piso)) {
+      classification = piso === 'C4' ? { codigo: 'C4', classe: 'Muito Alto' } : { codigo: 'C3', classe: 'Alto' };
+      pisoTrafegabilidade = piso;
+    }
   }
 
   const isForaFaixa = normalizeTextLower(normalized.local_tipo).includes('fora_faixa');
@@ -687,6 +779,10 @@ export function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_DEF
     recomendacao_contextual: solutions.recomendacao_contextual,
     alertas_validacao: alertas,
     campos_normalizados: normalized,
+    metodologia_versao: METODOLOGIA_VERSAO,
+    escala_via: isVia,
+    profundidade_inferida: profundidadeInferida,
+    piso_trafegabilidade: pisoTrafegabilidade,
   };
 }
 

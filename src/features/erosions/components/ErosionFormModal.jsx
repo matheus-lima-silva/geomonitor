@@ -38,6 +38,8 @@ import ErosionTechnicalFields from './ErosionTechnicalFields';
 import ErosionMapViewport from './ErosionMapViewport';
 import ErosionGeometryImport from './ErosionGeometryImport';
 import { geometryBounds, toLeafletPositions } from '../utils/geometryMetrics';
+import { listTowerAccesses } from '../../projects/services/towerAccessService';
+import { SEGMENT_STYLE, toLatLng } from '../../projects/utils/accessSegments';
 
 function MapClickPicker({ onPick }) {
   useMapEvents({
@@ -96,6 +98,21 @@ function ErosionFormModal({
   const [coordinatesExpanded, setCoordinatesExpanded] = useState(false);
   const [showInteractiveMap, setShowInteractiveMap] = useState(false);
   const [geometryFocusKey, setGeometryFocusKey] = useState(0);
+  // Acessos cadastrados do empreendimento (Fase 1b): desenha o acesso da torre no
+  // mapa e sugere "A torre tem outro acesso?". Falha silenciosa (sem cadastro/rede).
+  const [projectAccesses, setProjectAccesses] = useState(null);
+  const accessesProjectId = open ? String(formData?.projetoId || '').trim() : '';
+  useEffect(() => {
+    if (!accessesProjectId) {
+      setProjectAccesses(null);
+      return undefined;
+    }
+    let cancelled = false;
+    listTowerAccesses(accessesProjectId)
+      .then((result) => { if (!cancelled) setProjectAccesses(result.items); })
+      .catch(() => { if (!cancelled) setProjectAccesses(null); });
+    return () => { cancelled = true; };
+  }, [accessesProjectId]);
   const [step, setStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
@@ -324,6 +341,14 @@ function ErosionFormModal({
   const erosionGeometryPositions = erosionGeometry ? toLeafletPositions(erosionGeometry) : [];
   const erosionGeometryBounds = erosionGeometry ? geometryBounds(erosionGeometry) : [];
   const isAccessErosion = String(safeFormData.localContexto?.localTipo || '').includes('acesso');
+  const selectedTowerRef = String(safeFormData.torreRef || '').trim();
+  const towerAccesses = Array.isArray(projectAccesses) && selectedTowerRef
+    ? projectAccesses.filter((a) => a.kind === 'acesso' && String(a.towerNumber || '').trim() === selectedTowerRef)
+    : [];
+  // So sugere quando o empreendimento ja tem acessos cadastrados (0 = nao importado).
+  const towerAccessCount = Array.isArray(projectAccesses) && projectAccesses.length > 0 && selectedTowerRef
+    ? towerAccesses.length
+    : null;
 
   if (!open) return null;
 
@@ -659,6 +684,7 @@ function ErosionFormModal({
 
         <ErosionTechnicalFields
           formData={safeFormData}
+          towerAccessCount={towerAccessCount}
           readOnlyClasses={readOnlyClasses}
           validationErrors={validationErrors}
           isHistoricalRecord={isHistoricalRecord}
@@ -818,6 +844,14 @@ function ErosionFormModal({
                         />
                       </LayersControl.BaseLayer>
                     </LayersControl>
+                    {towerAccesses.flatMap((access) => (Array.isArray(access.segments) ? access.segments : []).map((segment, index) => (
+                      <Polyline
+                        // eslint-disable-next-line react/no-array-index-key
+                        key={`${access.id}-${index}`}
+                        positions={toLatLng(segment.coordinates)}
+                        pathOptions={{ color: SEGMENT_STYLE[segment.tipo]?.color || SEGMENT_STYLE.acesso.color, weight: 3, opacity: 0.8, dashArray: segment.inferido ? '8 6' : undefined }}
+                      />
+                    )))}
                     {linePath.length >= 2 ? (
                       <Polyline positions={linePath} pathOptions={{ color: '#0f766e', weight: 3, opacity: 0.75, dashArray: '6 4' }} />
                     ) : null}
@@ -877,6 +911,7 @@ function ErosionFormModal({
                   <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-green-500 border-2 border-green-900" /> Torres vizinhas</span>
                   {photoPoint ? <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-violet-400 border-2 border-violet-800" /> GPS da foto</span> : null}
                   {erosionGeometry && erosionGeometry.type !== 'Point' ? <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-1 bg-red-600" /> Traçado da erosão</span> : null}
+                  {towerAccesses.length > 0 ? <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-1 bg-orange-500" /> Acesso da torre (cadastro)</span> : null}
                   {linePath.length >= 2 ? <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-teal-700" /> Linha de transmissão</span> : null}
                 </div>
               </div>

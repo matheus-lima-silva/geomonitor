@@ -8,6 +8,7 @@ import {
 } from '../../shared/viewUtils';
 
 import HintText from '../../../components/ui/HintText';
+import { Button, Input, Select } from '../../../components/ui';
 
 function FieldLabel({ label, hint }) {
   return (
@@ -43,6 +44,14 @@ const RANGE_TO_VALUE = {
   },
 };
 
+// V3.1: em via de acesso a escala e de caminhonete (vao livre ~20-25 cm).
+const RANGE_TO_VALUE_VIA = {
+  profundidade: { P1: 0.05, P2: 0.18, P3: 0.38, P4: 0.75 },
+  exposicao: { E1: 8, E2: 4, E3: 2, E4: 0.5 },
+};
+const MIN_FREE_WIDTH_M = 3; // faixa de rodagem de uma caminhonete
+const PARTIAL_FREE_WIDTH_M = 3.5;
+
 const FIELD_HINTS = {
   localTipo: 'Identifique onde a erosao esta em relacao a linha de transmissao.',
   tipoFeicao: 'Selecione o tipo predominante. Para multiplas erosoes na mesma torre, cadastre cada uma separadamente.',
@@ -64,6 +73,11 @@ const FIELD_HINTS = {
   larguraComprometidaMetros: 'Largura da plataforma da via comprometida, em metros.',
   possibilidadeDesvio: 'Se ha espaco para desviar do trecho afetado sem sair da via.',
   rotaAlternativaDisponivel: 'Se existe outra via de acesso ate a torre ou estrutura.',
+  caminhonetePassa: 'Responda mesmo sem medir. Sem profundidade medida, esta resposta define a classe P (nao passa = P4). Nao passa garante no minimo C3; nao passa sem desvio e sem outro acesso, C4.',
+  medicaoMetodo: 'Sem medicao, a ficha usa a resposta de trafegabilidade (em acesso) e as faixas ficam opcionais.',
+  profundidadeVia: 'Em acesso a escala e de caminhonete: vao livre de uma 4x4 e de ~20-25 cm. Ex.: 0,35 = 35 cm.',
+  larguraPlataformaMetros: 'Largura total da plataforma da via no trecho. Com a largura comprometida, a ficha calcula a largura livre.',
+  orientacaoSulco: 'Longitudinal: corre ao longo da via, na trilha da roda (prende o pneu). Transversal: atravessa a via (degrau).',
 };
 
 function getDistanceHint(localTipo, posicaoRelativaVia) {
@@ -82,6 +96,7 @@ function ErosionTechnicalFields({
   readOnlyClasses,
   validationErrors = {},
   isHistoricalRecord = false,
+  towerAccessCount = null,
 }) {
   const tiposFeicao = normalizeArray(formData.tiposFeicao);
   const usosSolo = normalizeArray(formData.usosSolo);
@@ -122,7 +137,8 @@ function ErosionTechnicalFields({
   }
 
   function updateDepthRange(rangeCode) {
-    const numeric = RANGE_TO_VALUE.profundidade[rangeCode];
+    const table = localContexto.localTipo === 'via_acesso_exclusiva' ? RANGE_TO_VALUE_VIA : RANGE_TO_VALUE;
+    const numeric = table.profundidade[rangeCode];
     updateField('profundidadeMetros', Number.isFinite(numeric) ? numeric : '');
   }
 
@@ -136,7 +152,8 @@ function ErosionTechnicalFields({
   }
 
   function updateExposureRange(rangeCode) {
-    const numeric = RANGE_TO_VALUE.exposicao[rangeCode];
+    const table = localContexto.localTipo === 'via_acesso_exclusiva' ? RANGE_TO_VALUE_VIA : RANGE_TO_VALUE;
+    const numeric = table.exposicao[rangeCode];
     updateField('distanciaEstruturaMetros', Number.isFinite(numeric) ? numeric : '');
   }
 
@@ -150,6 +167,12 @@ function ErosionTechnicalFields({
 
   function deriveDepthRange(value) {
     if (!Number.isFinite(value)) return '';
+    if (localContexto.localTipo === 'via_acesso_exclusiva') {
+      if (value <= 0.1) return 'P1';
+      if (value <= 0.25) return 'P2';
+      if (value <= 0.5) return 'P3';
+      return 'P4';
+    }
     if (value <= 1) return 'P1';
     if (value <= 10) return 'P2';
     if (value <= 30) return 'P3';
@@ -166,13 +189,22 @@ function ErosionTechnicalFields({
 
   function deriveExposureRange(value) {
     if (!Number.isFinite(value)) return '';
+    if (localContexto.localTipo === 'via_acesso_exclusiva') {
+      if (value > 5) return 'E1';
+      if (value >= 3) return 'E2';
+      if (value >= 1) return 'E3';
+      return 'E4';
+    }
     if (value > 50) return 'E1';
     if (value >= 20) return 'E2';
     if (value >= 5) return 'E3';
     return 'E4';
   }
 
-  const selectedDepthRange = deriveDepthRange(parseNumeric(formData.profundidadeMetros)) || classes.profundidadeClasse || '';
+  // Em acesso, sem medida a classe P pode ser inferida pela trafegabilidade (V3.1):
+  // nao mostrar a classe inferida como se fosse uma faixa escolhida.
+  const selectedDepthRange = deriveDepthRange(parseNumeric(formData.profundidadeMetros))
+    || (localContexto.localTipo === 'via_acesso_exclusiva' ? '' : classes.profundidadeClasse) || '';
   const selectedSlopeRange = deriveSlopeRange(parseNumeric(formData.declividadeGraus))
     || classes.declividadeClasse || '';
   const selectedExposureRange = deriveExposureRange(parseNumeric(formData.distanciaEstruturaMetros)) || classes.exposicaoClasse || '';
@@ -190,6 +222,22 @@ function ErosionTechnicalFields({
     : '';
   const tipoFeicaoHint = [FIELD_HINTS.tipoFeicao, tipoFeicaoLegacyHint].filter(Boolean).join(' ');
   const distanceHint = getDistanceHint(localTipo, impactoVia.posicaoRelativaVia);
+  const isVia = localTipo === 'via_acesso_exclusiva';
+  const medicaoMetodo = formData.medicaoMetodo || '';
+  const semMedicao = medicaoMetodo === 'sem_medicao';
+  const larguraPlataforma = parseNumeric(impactoVia.larguraPlataformaMetros);
+  const larguraComprometida = parseNumeric(impactoVia.larguraComprometidaMetros);
+  const larguraLivre = Number.isFinite(larguraPlataforma) && Number.isFinite(larguraComprometida)
+    ? Math.max(0, larguraPlataforma - larguraComprometida)
+    : null;
+  let obstrucaoSugerida = '';
+  if (Number.isFinite(larguraLivre)) {
+    if (larguraLivre < MIN_FREE_WIDTH_M) obstrucaoSugerida = 'total';
+    else if (larguraLivre < PARTIAL_FREE_WIDTH_M) obstrucaoSugerida = 'parcial';
+    else obstrucaoSugerida = 'sem_obstrucao';
+  }
+  const yesNoValue = (value) => (value === true ? 'sim' : value === false ? 'nao' : '');
+  const yesNoParse = (value) => (value === 'sim' ? true : value === 'nao' ? false : null);
 
   function toggleMultiField(field, optionValue, checked) {
     const source = normalizeArray(formData[field]);
@@ -300,15 +348,119 @@ function ErosionTechnicalFields({
         </label>
       </div>
 
+      {isVia ? (
+        <fieldset className="flex flex-col gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl relative mt-6 pt-6" data-testid="erosion-traffic-block">
+          <legend className="absolute -top-3 left-3 px-2 bg-amber-50 text-sm font-bold text-slate-800 rounded-md">Condição de tráfego</legend>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Select
+              id="erosion-caminhonete-passa"
+              label={`A caminhonete passa?${isHistoricalRecord ? '' : ' *'}`}
+              hint={FIELD_HINTS.caminhonetePassa}
+              value={impactoVia.caminhonetePassa || ''}
+              onChange={(e) => updateImpactoVia('caminhonetePassa', e.target.value)}
+            >
+              <option value="">Selecione...</option>
+              {EROSION_TECHNICAL_OPTIONS.caminhonetePassa.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </Select>
+            <Select
+              id="erosion-desvio"
+              label="Dá para desviar no local?"
+              hint={FIELD_HINTS.possibilidadeDesvio}
+              value={yesNoValue(impactoVia.possibilidadeDesvio)}
+              onChange={(e) => updateImpactoVia('possibilidadeDesvio', yesNoParse(e.target.value))}
+            >
+              <option value="">Não informado</option>
+              <option value="sim">Sim</option>
+              <option value="nao">Não</option>
+            </Select>
+            <div className="flex flex-col gap-1">
+              <Select
+                id="erosion-outro-acesso"
+                label="A torre tem outro acesso?"
+                hint={FIELD_HINTS.rotaAlternativaDisponivel}
+                value={yesNoValue(impactoVia.rotaAlternativaDisponivel)}
+                onChange={(e) => updateImpactoVia('rotaAlternativaDisponivel', yesNoParse(e.target.value))}
+              >
+                <option value="">Não informado</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
+              </Select>
+              {Number.isFinite(towerAccessCount) ? (
+                <span className="flex flex-wrap items-center gap-2 text-xs text-slate-600" data-testid="erosion-tower-access-count">
+                  {`Cadastro de acessos: ${towerAccessCount} acesso(s) para esta torre.`}
+                  {impactoVia.rotaAlternativaDisponivel !== (towerAccessCount > 1) ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => updateImpactoVia('rotaAlternativaDisponivel', towerAccessCount > 1)}
+                    >
+                      {`Usar: ${towerAccessCount > 1 ? 'sim' : 'não'}`}
+                    </Button>
+                  ) : null}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </fieldset>
+      ) : null}
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+        <Select
+          id="erosion-medicao-metodo"
+          label="Foi possível medir a erosão?"
+          hint={FIELD_HINTS.medicaoMetodo}
+          value={medicaoMetodo}
+          onChange={(e) => updateField('medicaoMetodo', e.target.value)}
+        >
+          <option value="">Não informado</option>
+          {EROSION_TECHNICAL_OPTIONS.medicaoMetodo.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </Select>
+        {semMedicao ? (
+          <p className="md:col-span-3 m-0 self-end text-sm text-slate-600" data-testid="erosion-sem-medicao">
+            {isVia
+              ? 'Sem medição: a classe de profundidade vem da resposta "A caminhonete passa?". As faixas abaixo ficam opcionais.'
+              : 'Sem medição: as faixas abaixo ficam opcionais (estimativa).'}
+          </p>
+        ) : null}
+        {isVia && medicaoMetodo === 'trena' ? (
+          <Input
+            id="erosion-profundidade-medida"
+            label="Profundidade medida (m)"
+            hint={FIELD_HINTS.profundidadeVia}
+            type="number"
+            min="0"
+            step="0.01"
+            value={formData.profundidadeMetros ?? ''}
+            onChange={(e) => updateField('profundidadeMetros', e.target.value)}
+          />
+        ) : null}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
         <label className="flex flex-col gap-1.5">
-          <FieldLabel label="Profundidade" hint={FIELD_HINTS.profundidade} />
+          <FieldLabel label="Profundidade" hint={isVia ? FIELD_HINTS.profundidadeVia : FIELD_HINTS.profundidade} />
           <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={selectedDepthRange} onChange={(e) => updateDepthRange(e.target.value)}>
             <option value="">Não informado</option>
-            <option value="P1">&lt;= 1 m</option>
-            <option value="P2">1 a 10 m</option>
-            <option value="P3">10 a 30 m</option>
-            <option value="P4">&gt; 30 m</option>
+            {isVia ? (
+              <>
+                <option value="P1">até 10 cm</option>
+                <option value="P2">10 a 25 cm</option>
+                <option value="P3">25 a 50 cm</option>
+                <option value="P4">mais de 50 cm</option>
+              </>
+            ) : (
+              <>
+                <option value="P1">&lt;= 1 m</option>
+                <option value="P2">1 a 10 m</option>
+                <option value="P3">10 a 30 m</option>
+                <option value="P4">&gt; 30 m</option>
+              </>
+            )}
           </select>
         </label>
         <label className="flex flex-col gap-1.5">
@@ -336,10 +488,21 @@ function ErosionTechnicalFields({
           ) : (
             <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={selectedExposureRange} onChange={(e) => updateExposureRange(e.target.value)}>
               <option value="">Não informado</option>
-              <option value="E1">&gt; 50 m</option>
-              <option value="E2">20 a 50 m</option>
-              <option value="E3">5 a &lt; 20 m</option>
-              <option value="E4">&lt; 5 m</option>
+              {isVia ? (
+                <>
+                  <option value="E1">mais de 5 m</option>
+                  <option value="E2">3 a 5 m</option>
+                  <option value="E3">1 a 3 m</option>
+                  <option value="E4">menos de 1 m</option>
+                </>
+              ) : (
+                <>
+                  <option value="E1">&gt; 50 m</option>
+                  <option value="E2">20 a 50 m</option>
+                  <option value="E3">5 a &lt; 20 m</option>
+                  <option value="E4">&lt; 5 m</option>
+                </>
+              )}
             </select>
           )}
         </label>
@@ -404,23 +567,40 @@ function ErosionTechnicalFields({
               <FieldLabel label="Largura comprometida (m)" hint={FIELD_HINTS.larguraComprometidaMetros} />
               <input type="number" className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={impactoVia.larguraComprometidaMetros ?? ''} onChange={(e) => updateImpactoVia('larguraComprometidaMetros', e.target.value)} min="0" step="0.1" />
             </label>
-            <label className="flex flex-col gap-1.5">
-              <FieldLabel label="Possibilidade de desvio" hint={FIELD_HINTS.possibilidadeDesvio} />
-              <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={impactoVia.possibilidadeDesvio === true ? 'sim' : impactoVia.possibilidadeDesvio === false ? 'nao' : ''} onChange={(e) => updateImpactoVia('possibilidadeDesvio', e.target.value === 'sim' ? true : e.target.value === 'nao' ? false : null)}>
-                <option value="">Não informado</option>
-                <option value="sim">Sim</option>
-                <option value="nao">Não</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <FieldLabel label="Rota alternativa" hint={FIELD_HINTS.rotaAlternativaDisponivel} />
-              <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={impactoVia.rotaAlternativaDisponivel === true ? 'sim' : impactoVia.rotaAlternativaDisponivel === false ? 'nao' : ''} onChange={(e) => updateImpactoVia('rotaAlternativaDisponivel', e.target.value === 'sim' ? true : e.target.value === 'nao' ? false : null)}>
-                <option value="">Não informado</option>
-                <option value="sim">Sim</option>
-                <option value="nao">Não</option>
-              </select>
-            </label>
+            <Input
+              id="erosion-largura-plataforma"
+              label="Largura da plataforma (m)"
+              hint={FIELD_HINTS.larguraPlataformaMetros}
+              type="number"
+              min="0"
+              step="0.1"
+              value={impactoVia.larguraPlataformaMetros ?? ''}
+              onChange={(e) => updateImpactoVia('larguraPlataformaMetros', e.target.value)}
+            />
+            <Select
+              id="erosion-orientacao-sulco"
+              label="Orientação do sulco"
+              hint={FIELD_HINTS.orientacaoSulco}
+              value={impactoVia.orientacaoSulco || ''}
+              onChange={(e) => updateImpactoVia('orientacaoSulco', e.target.value)}
+            >
+              <option value="">Não informado</option>
+              {EROSION_TECHNICAL_OPTIONS.orientacaoSulco.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </Select>
           </div>
+          {Number.isFinite(larguraLivre) ? (
+            <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700" data-testid="erosion-largura-livre">
+              {`Largura livre: ${larguraLivre.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} m `}
+              {`(caminhonete precisa de ~${MIN_FREE_WIDTH_M} m) → obstrução sugerida: ${obstrucaoSugerida === 'sem_obstrucao' ? 'sem obstrução' : obstrucaoSugerida}.`}
+              {impactoVia.grauObstrucao !== obstrucaoSugerida ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => updateImpactoVia('grauObstrucao', obstrucaoSugerida)}>
+                  Usar sugestão
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </fieldset>
       )}
 

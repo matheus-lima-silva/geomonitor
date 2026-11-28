@@ -79,6 +79,21 @@ export const EROSION_TECHNICAL_ENUMS = {
 };
 
 export const EROSION_TECHNICAL_OPTIONS = {
+    // V3.1 — condicao de trafego em acesso e forma de medicao
+    caminhonetePassa: [
+        { value: 'passa', label: 'Passa' },
+        { value: 'dificuldade', label: 'Passa com dificuldade' },
+        { value: 'nao_passa', label: 'Não passa' },
+    ],
+    medicaoMetodo: [
+        { value: 'trena', label: 'Sim, com trena' },
+        { value: 'estimativa', label: 'Só no olho (estimativa)' },
+        { value: 'sem_medicao', label: 'Não foi possível medir' },
+    ],
+    orientacaoSulco: [
+        { value: 'longitudinal', label: 'Longitudinal (na trilha da roda)' },
+        { value: 'transversal', label: 'Transversal (degrau na via)' },
+    ],
     presencaAguaFundo: [
         { value: 'sim', label: 'Sim' },
         { value: 'nao', label: 'Nao' },
@@ -337,6 +352,23 @@ export function normalizeErosionTechnicalFields(data = {}) {
     };
 }
 
+// V3.1: em via de acesso a escala e de caminhonete (metros, ver criticality.js).
+function mapDepthClassVia(value) {
+    if (!Number.isFinite(value)) return '';
+    if (value <= 0.1) return 'P1';
+    if (value <= 0.25) return 'P2';
+    if (value <= 0.5) return 'P3';
+    return 'P4';
+}
+
+function mapExposureClassVia(value) {
+    if (!Number.isFinite(value)) return '';
+    if (value > 5) return 'E1';
+    if (value >= 3) return 'E2';
+    if (value >= 1) return 'E3';
+    return 'E4';
+}
+
 function mapDepthClass(value) {
     if (!Number.isFinite(value)) return '';
     if (value <= 1) return 'P1';
@@ -361,12 +393,17 @@ function mapExposureClass(value) {
     return 'E4';
 }
 
+export function isViaAcessoErosion(data = {}) {
+    return String(normalizeLocalContexto(data).localTipo || '').includes('acesso');
+}
+
 export function deriveCriticalityDimensionClasses(data = {}) {
     const technical = normalizeErosionTechnicalFields(data);
+    const via = isViaAcessoErosion(data);
     return {
-        profundidadeClasse: mapDepthClass(technical.profundidadeMetros),
+        profundidadeClasse: (via ? mapDepthClassVia : mapDepthClass)(technical.profundidadeMetros),
         declividadeClasse: mapSlopeClass(technical.declividadeGraus),
-        exposicaoClasse: mapExposureClass(technical.distanciaEstruturaMetros),
+        exposicaoClasse: (via ? mapExposureClassVia : mapExposureClass)(technical.distanciaEstruturaMetros),
     };
 }
 
