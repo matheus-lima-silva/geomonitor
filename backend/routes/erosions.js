@@ -139,11 +139,17 @@ async function saveErosionHandler(req, res) {
                     towerRadiusM: defaults?.baseTowerRadiusMeters,
                 });
                 distanciaCalculadaMetros = geo ? geo.distanceToTowerM : null;
-                distanciaEfetivaMetros = resolveEffectiveStructureDistance({
-                    manualOverride: Boolean(sanitizedPayload.distanciaEstruturaManual),
-                    manualValue: technical.distanciaEstruturaMetros,
-                    computed: distanciaCalculadaMetros,
-                });
+                // V3.1: em acesso, a distancia da criticidade e ate a borda da via
+                // (informada em campo), nao ate a torre. A distancia a torre fica
+                // registrada em distanciaEstruturaCalculadaMetros.
+                const isViaAcesso = String(technical.localContexto?.localTipo || '').includes('acesso');
+                distanciaEfetivaMetros = isViaAcesso
+                    ? technical.distanciaEstruturaMetros
+                    : resolveEffectiveStructureDistance({
+                        manualOverride: Boolean(sanitizedPayload.distanciaEstruturaManual),
+                        manualValue: technical.distanciaEstruturaMetros,
+                        computed: distanciaCalculadaMetros,
+                    });
                 criticalityInput.distancia_estrutura_m = distanciaEfetivaMetros;
                 if (criticalityInput.exposicao && typeof criticalityInput.exposicao === 'object') {
                     criticalityInput.exposicao = {

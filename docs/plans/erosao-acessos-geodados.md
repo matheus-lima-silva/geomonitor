@@ -61,6 +61,8 @@ Rotulos e faixas de medida em escala de via ficam na Fase 2 (dependem da V3.1).
 
 ## Fase 2 — Ficha orientada a trafegabilidade (V3.1)
 
+**Status (2026-11-27)**: feito em `feat/erosao-fase2-trafegabilidade` (empilhada sobre a 1b) — engine V3.1 em `backend/utils/criticality.js` (escala de via, profundidade inferida, pisos C3/C4, +1 sulco longitudinal, alertas, `metodologia_versao`), bloco "Condicao de trafego" e "Foi possivel medir a erosao?" na ficha, faixas em cm, largura da plataforma/largura livre com sugestao de obstrucao, orientacao do sulco, "A torre tem outro acesso?" sugerido pelo cadastro de acessos, acesso da torre desenhado no mapa da ficha, distancia em acesso = ate a borda da via (sem trocar pela distancia a torre). Documentado na secao 6.1 da metodologia. **Pendente**: posicao em relacao a fundacao, causa/origem da agua, papel das fotos, alertas de consistencia de extensao vs GPS das fotos; os campos novos usam os primitivos (rotulo em caixa alta) e os antigos ainda nao — unificar na Fase 9.
+
 **Bloco 1, logo apos local e torre — condicao de trafego** (responde-se mesmo sem trena):
 
 1. "A caminhonete passa?": passa / passa com dificuldade / nao passa.

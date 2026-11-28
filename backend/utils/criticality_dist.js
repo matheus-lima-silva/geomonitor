@@ -20,6 +20,11 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var criticality_exports = {};
 __export(criticality_exports, {
   CRITICALITY_DEFAULTS: () => CRITICALITY_DEFAULTS,
+  CRITICALITY_VIA_SCALES: () => CRITICALITY_VIA_SCALES,
+  MEDICAO_METODO_VALUES: () => MEDICAO_METODO_VALUES,
+  METODOLOGIA_VERSAO: () => METODOLOGIA_VERSAO,
+  ORIENTACAO_SULCO_VALUES: () => ORIENTACAO_SULCO_VALUES,
+  TRAFEGABILIDADE_VALUES: () => TRAFEGABILIDADE_VALUES,
   buildCriticalityTrend: () => buildCriticalityTrend,
   calcularCriticidade: () => calcularCriticidade,
   calcular_criticidade: () => calcular_criticidade,
@@ -82,6 +87,37 @@ var DEPTH_POINTS = {
   P2: { classe: "P2", pontos: 2, min: 1, max: 10, minInclusive: false, maxInclusive: true },
   P3: { classe: "P3", pontos: 4, min: 10, max: 30, minInclusive: false, maxInclusive: true },
   P4: { classe: "P4", pontos: 6, min: 30, max: Infinity, minInclusive: false, maxInclusive: true }
+};
+var METODOLOGIA_VERSAO = "V3.1";
+var DEPTH_POINTS_VIA = {
+  P1: { classe: "P1", pontos: 0, min: -Infinity, max: 0.1, minInclusive: true, maxInclusive: true },
+  P2: { classe: "P2", pontos: 2, min: 0.1, max: 0.25, minInclusive: false, maxInclusive: true },
+  P3: { classe: "P3", pontos: 4, min: 0.25, max: 0.5, minInclusive: false, maxInclusive: true },
+  P4: { classe: "P4", pontos: 6, min: 0.5, max: Infinity, minInclusive: false, maxInclusive: true }
+};
+var DISTANCE_POINTS_VIA = {
+  E1: { classe: "E1", pontos: 0, min: 5, max: Infinity, minInclusive: false, maxInclusive: true },
+  E2: { classe: "E2", pontos: 2, min: 3, max: 5, minInclusive: true, maxInclusive: true },
+  E3: { classe: "E3", pontos: 4, min: 1, max: 3, minInclusive: true, maxInclusive: false },
+  E4: { classe: "E4", pontos: 6, min: -Infinity, max: 1, minInclusive: true, maxInclusive: false }
+};
+var DEPTH_CLASS_BY_TRAFFIC = { nao_passa: "P4", dificuldade: "P3", passa: "P1" };
+var TRAFEGABILIDADE_VALUES = ["passa", "dificuldade", "nao_passa"];
+var MEDICAO_METODO_VALUES = ["trena", "estimativa", "sem_medicao"];
+var ORIENTACAO_SULCO_VALUES = ["longitudinal", "transversal"];
+var CRITICALITY_VIA_SCALES = {
+  profundidade: {
+    P1: { descricao: "<= 0,10 m", pontos: 0 },
+    P2: { descricao: "> 0,10 - 0,25 m", pontos: 2 },
+    P3: { descricao: "> 0,25 - 0,50 m", pontos: 4 },
+    P4: { descricao: "> 0,50 m", pontos: 6 }
+  },
+  exposicao: {
+    E1: { descricao: "> 5 m", pontos: 0 },
+    E2: { descricao: "3 - 5 m", pontos: 2 },
+    E3: { descricao: "1 - 3 m", pontos: 4 },
+    E4: { descricao: "< 1 m", pontos: 6 }
+  }
 };
 var ACTIVITY_RULES = {
   A1: { classe: "A1", pontos: 0, label: "estabilizado" },
@@ -363,7 +399,13 @@ function normalizeImpactoVia(vistoriaData = {}) {
     rotaAlternativaDisponivel: booleanFromUnknown(raw.rotaAlternativaDisponivel),
     presencaDrenagemVia: booleanFromUnknown(raw.presencaDrenagemVia),
     estadoVia: normalizeTextLower(raw.estadoVia),
-    integridadeEstruturalComprometida: booleanFromUnknown(raw.integridadeEstruturalComprometida)
+    integridadeEstruturalComprometida: booleanFromUnknown(raw.integridadeEstruturalComprometida),
+    // V3.1
+    caminhonetePassa: TRAFEGABILIDADE_VALUES.includes(normalizeTextLower(raw.caminhonetePassa)) ? normalizeTextLower(raw.caminhonetePassa) : "",
+    orientacaoSulco: ORIENTACAO_SULCO_VALUES.includes(normalizeTextLower(raw.orientacaoSulco)) ? normalizeTextLower(raw.orientacaoSulco) : "",
+    larguraPlataformaMetros: parseNumeric(raw.larguraPlataformaMetros),
+    possibilidadeDesvioInformada: raw.possibilidadeDesvio === true || raw.possibilidadeDesvio === false,
+    rotaAlternativaInformada: raw.rotaAlternativaDisponivel === true || raw.rotaAlternativaDisponivel === false
   };
 }
 function buildNormalizedInput(vistoriaData = {}) {
@@ -387,6 +429,7 @@ function buildNormalizedInput(vistoriaData = {}) {
     vegetacao_interior: booleanFromUnknown(vistoriaData?.contexto_fisico?.vegetacao_interior ?? vistoriaData?.vegetacao_interior),
     agua_fundo: normalizeAguaFundo(vistoriaData),
     impactoVia,
+    medicao_metodo: MEDICAO_METODO_VALUES.includes(normalizeTextLower(vistoriaData?.medicaoMetodo)) ? normalizeTextLower(vistoriaData.medicaoMetodo) : "",
     latitude: parseNumeric(locationCoordinates.latitude),
     longitude: parseNumeric(locationCoordinates.longitude)
   };
@@ -401,6 +444,19 @@ function buildValidationAlerts(normalized, classification) {
   }
   if (Number.isFinite(normalized.distancia_estrutura_m) && normalized.distancia_estrutura_m < 5 && ["C1", "C2"].includes(classification.codigo)) {
     alerts.push("Revisar exposi\xE7\xE3o: dist\xE2ncia menor que 5m com criticidade abaixo de C3.");
+  }
+  const isVia = normalizeTextLower(normalized.local_tipo).includes("acesso");
+  const passa = normalized.impactoVia?.caminhonetePassa;
+  if (isVia && passa && Number.isFinite(normalized.profundidade_m)) {
+    if (passa === "passa" && normalized.profundidade_m > 0.5) {
+      alerts.push("Inconsist\xEAncia: caminhonete passa, mas a profundidade medida passa de 0,50 m.");
+    }
+    if (passa === "nao_passa" && normalized.profundidade_m <= 0.1) {
+      alerts.push("Inconsist\xEAncia: caminhonete n\xE3o passa, mas a profundidade medida \xE9 de at\xE9 0,10 m.");
+    }
+  }
+  if (isVia && !passa) {
+    alerts.push('Eros\xE3o em acesso sem a resposta "A caminhonete passa?".');
   }
   if (normalized.sinais_avanco && normalized.vegetacao_interior) {
     alerts.push("H\xE1 sinais de avan\xE7o e vegeta\xE7\xE3o interior; verificar poss\xEDvel estabiliza\xE7\xE3o parcial.");
@@ -449,7 +505,7 @@ function resolveViaModifier(normalized) {
   if (!isViaAccess) return 0;
   const iv = normalized?.impactoVia;
   if (!iv || typeof iv !== "object") return 0;
-  if (!iv.grauObstrucao && !iv.tipoImpactoVia && !iv.estadoVia) return 0;
+  if (!iv.grauObstrucao && !iv.tipoImpactoVia && !iv.estadoVia && !iv.orientacaoSulco) return 0;
   let mod = 0;
   if (iv.grauObstrucao === "total") {
     mod += 3;
@@ -458,6 +514,7 @@ function resolveViaModifier(normalized) {
   }
   if (iv.tipoImpactoVia === "ruptura_plataforma") mod += 2;
   if (iv.estadoVia === "terra") mod += 1;
+  if (iv.orientacaoSulco === "longitudinal") mod += 1;
   return Math.min(mod, 4);
 }
 function resolveTypeScore(tipo) {
@@ -560,11 +617,20 @@ function applyRecommendationPolicy({
 function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_DEFAULTS) {
   const mergedConfig = mergeCriticalityConfig(config);
   const normalized = buildNormalizedInput(vistoriaData);
+  const isVia = normalizeTextLower(normalized.local_tipo).includes("acesso");
+  const caminhonetePassa = normalized.impactoVia?.caminhonetePassa || "";
   const tipo = resolveTypeScore(normalized.tipo_erosao);
-  const profundidade = resolveRange(DEPTH_POINTS, normalized.profundidade_m, "P1");
+  let profundidade;
+  let profundidadeInferida = false;
+  if (isVia && !Number.isFinite(normalized.profundidade_m) && DEPTH_CLASS_BY_TRAFFIC[caminhonetePassa]) {
+    profundidade = { ...DEPTH_POINTS_VIA[DEPTH_CLASS_BY_TRAFFIC[caminhonetePassa]] };
+    profundidadeInferida = true;
+  } else {
+    profundidade = resolveRange(isVia ? DEPTH_POINTS_VIA : DEPTH_POINTS, normalized.profundidade_m, "P1");
+  }
   const declividade = resolveRange(SLOPE_POINTS, normalized.declividade_graus, "D1");
   const solo = resolveSoilScore(normalized.tipo_solo);
-  const exposicao = resolveRange(DISTANCE_POINTS, normalized.distancia_estrutura_m, "E1");
+  const exposicao = resolveRange(isVia ? DISTANCE_POINTS_VIA : DISTANCE_POINTS, normalized.distancia_estrutura_m, "E1");
   const atividade = resolveActivityScore(normalized.sinais_avanco, normalized.vegetacao_interior);
   const viaModifier = resolveViaModifier(normalized);
   const criticidade_score = tipo.pontos + profundidade.pontos + declividade.pontos + solo.pontos + exposicao.pontos + atividade.pontos + viaModifier;
@@ -574,6 +640,17 @@ function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_DEFAULTS) 
   const isCloseToStructure = Number.isFinite(normalized.distancia_estrutura_m) && normalized.distancia_estrutura_m < 5;
   if (isBaseTorre && isHighRiskType && isCloseToStructure && ["C1", "C2"].includes(classification.codigo)) {
     classification = { codigo: "C3", classe: "Alto" };
+  }
+  let pisoTrafegabilidade = "";
+  if (isVia && caminhonetePassa === "nao_passa") {
+    const iv = normalized.impactoVia;
+    const semSaida = iv.possibilidadeDesvioInformada && iv.possibilidadeDesvio === false && iv.rotaAlternativaInformada && iv.rotaAlternativaDisponivel === false;
+    const piso = semSaida ? "C4" : "C3";
+    const ordem = ["C1", "C2", "C3", "C4"];
+    if (ordem.indexOf(classification.codigo) < ordem.indexOf(piso)) {
+      classification = piso === "C4" ? { codigo: "C4", classe: "Muito Alto" } : { codigo: "C3", classe: "Alto" };
+      pisoTrafegabilidade = piso;
+    }
   }
   const isForaFaixa = normalizeTextLower(normalized.local_tipo).includes("fora_faixa");
   const isAreaTerceiros = normalized.localizacao_exposicao === "area_terceiros";
@@ -620,7 +697,11 @@ function calcular_criticidade(vistoriaData = {}, config = CRITICALITY_DEFAULTS) 
     lista_solucoes_possiveis_intervencao: solutions.lista_solucoes_possiveis_intervencao,
     recomendacao_contextual: solutions.recomendacao_contextual,
     alertas_validacao: alertas,
-    campos_normalizados: normalized
+    campos_normalizados: normalized,
+    metodologia_versao: METODOLOGIA_VERSAO,
+    escala_via: isVia,
+    profundidade_inferida: profundidadeInferida,
+    piso_trafegabilidade: pisoTrafegabilidade
   };
 }
 function calcularCriticidade(vistoriaData = {}, config = CRITICALITY_DEFAULTS) {
@@ -720,6 +801,11 @@ function normalizeCriticalityHistory(value) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   CRITICALITY_DEFAULTS,
+  CRITICALITY_VIA_SCALES,
+  MEDICAO_METODO_VALUES,
+  METODOLOGIA_VERSAO,
+  ORIENTACAO_SULCO_VALUES,
+  TRAFEGABILIDADE_VALUES,
   buildCriticalityTrend,
   calcularCriticidade,
   calcular_criticidade,

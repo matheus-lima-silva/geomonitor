@@ -185,4 +185,67 @@ describe('ErosionTechnicalFields', () => {
     clickElement(distanceHintButton);
     expect(container.textContent).toContain('Erosao no leito da via: distancia zero.');
   });
+  describe('V3.1 — erosao em acesso', () => {
+    const viaContext = {
+      localTipo: 'via_acesso_exclusiva',
+      exposicao: 'faixa_servidao',
+      estruturaProxima: 'acesso',
+      localDescricao: '',
+    };
+
+    it('mostra o bloco de trafego primeiro e grava as respostas em impactoVia', () => {
+      const props = renderFields(root, { formData: { localContexto: viaContext, impactoVia: { posicaoRelativaVia: 'talude_jusante' } } });
+      const block = container.querySelector('[data-testid="erosion-traffic-block"]');
+      expect(block).toBeTruthy();
+      expect(block.textContent).toContain('A caminhonete passa?');
+      expect(block.textContent).toContain('Dá para desviar no local?');
+      expect(block.textContent).toContain('A torre tem outro acesso?');
+
+      changeInput(container.querySelector('#erosion-caminhonete-passa'), 'nao_passa');
+      expect(props.onPatch).toHaveBeenLastCalledWith({ impactoVia: { posicaoRelativaVia: 'talude_jusante', caminhonetePassa: 'nao_passa' } });
+
+      changeInput(container.querySelector('#erosion-desvio'), 'nao');
+      expect(props.onPatch).toHaveBeenLastCalledWith({ impactoVia: { posicaoRelativaVia: 'talude_jusante', possibilidadeDesvio: false } });
+    });
+
+    it('nao mostra o bloco de trafego fora de acesso', () => {
+      renderFields(root);
+      expect(container.querySelector('[data-testid="erosion-traffic-block"]')).toBeNull();
+      expect(container.querySelector('#erosion-medicao-metodo')).toBeTruthy();
+    });
+
+    it('usa faixas de profundidade em centimetros e grava o meio da faixa', () => {
+      const props = renderFields(root, { formData: { localContexto: viaContext, impactoVia: {} } });
+      const depthSelect = [...container.querySelectorAll('select')].find((sel) => [...sel.options].some((o) => o.textContent === '25 a 50 cm'));
+      expect(depthSelect).toBeTruthy();
+      changeInput(depthSelect, 'P3');
+      expect(props.onPatch).toHaveBeenLastCalledWith({ profundidadeMetros: 0.38 });
+    });
+
+    it('sem medicao, explica que a classe vem da resposta da caminhonete', () => {
+      renderFields(root, { formData: { localContexto: viaContext, impactoVia: {}, medicaoMetodo: 'sem_medicao' } });
+      expect(container.querySelector('[data-testid="erosion-sem-medicao"]').textContent).toContain('A caminhonete passa?');
+    });
+
+    it('calcula a largura livre e sugere o grau de obstrucao', () => {
+      const props = renderFields(root, {
+        formData: { localContexto: viaContext, impactoVia: { larguraPlataformaMetros: '4', larguraComprometidaMetros: '1.5', grauObstrucao: 'parcial' } },
+      });
+      const info = container.querySelector('[data-testid="erosion-largura-livre"]');
+      expect(info.textContent).toContain('Largura livre: 2,5 m');
+      expect(info.textContent).toContain('obstrução sugerida: total');
+      const useButton = [...info.querySelectorAll('button')].find((b) => b.textContent.includes('Usar sugestão'));
+      clickElement(useButton);
+      expect(props.onPatch).toHaveBeenLastCalledWith({ impactoVia: { larguraPlataformaMetros: '4', larguraComprometidaMetros: '1.5', grauObstrucao: 'total' } });
+    });
+
+    it('sugere "outro acesso" pelo cadastro de acessos da torre', () => {
+      const props = renderFields(root, { formData: { localContexto: viaContext, impactoVia: {} }, towerAccessCount: 2 });
+      const hint = container.querySelector('[data-testid="erosion-tower-access-count"]');
+      expect(hint.textContent).toContain('2 acesso(s)');
+      const useButton = [...hint.querySelectorAll('button')].find((b) => b.textContent.includes('Usar: sim'));
+      clickElement(useButton);
+      expect(props.onPatch).toHaveBeenLastCalledWith({ impactoVia: { rotaAlternativaDisponivel: true } });
+    });
+  });
 });

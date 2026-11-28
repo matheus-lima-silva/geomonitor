@@ -1,4 +1,4 @@
-# Metodologia de Calculo de Criticidade — V3
+# Metodologia de Calculo de Criticidade — V3 (revisao V3.1)
 
 **Documento tecnico | GeoMonitor — Monitoramento de Erosoes em Linhas de Transmissao**
 
@@ -171,7 +171,35 @@ A dimensao **E (Exposicao)** possui regras especiais quando o ponto erosivo esta
 
 - **posicao = leito**: a erosao ocorre no proprio leito da via. Nesse caso, a classe **E4** e atribuida automaticamente, com distancia considerada igual a **zero**.
 
-- **posicao = talude**: a erosao ocorre no talude adjacente a via. A distancia e medida a partir da borda da erosao ate a **borda da plataforma da via**, aplicando-se as faixas normais da dimensao E.
+- **posicao = talude**: a erosao ocorre no talude adjacente a via. A distancia e medida a partir da borda da erosao ate a **borda da plataforma da via**. Na V3.1 essa distancia usa a escala de via (secao 6.1), e o save **nao** a substitui pela distancia calculada ate a torre (que continua registrada em `distanciaEstruturaCalculadaMetros`).
+
+### 6.1 V3.1 — Escala de caminhonete em via de acesso
+
+Desde a V3.1 (`metodologia_versao = 'V3.1'` na saida da engine), quando `local_tipo` e via de acesso as dimensoes P e E usam a escala de quem trafega de caminhonete 4x4 (vao livre ~20-25 cm, faixa de rodagem ~3 m, plataforma ~4 m). Fora de acesso, nada muda.
+
+| Classe | Profundidade em acesso | Distancia a borda da via | Pontos |
+|---|---|---|---|
+| P1 / E1 | <= 0,10 m | > 5 m | 0 |
+| P2 / E2 | > 0,10 - 0,25 m | 3 - 5 m | 2 |
+| P3 / E3 | > 0,25 - 0,50 m | 1 - 3 m | 4 |
+| P4 / E4 | > 0,50 m | < 1 m | 6 |
+
+**Condicao de trafego** (respondida mesmo sem trena, campos em `impactoVia`):
+
+- `caminhonetePassa`: `passa` / `dificuldade` / `nao_passa`;
+- `possibilidadeDesvio`: "Da para desviar no local?";
+- `rotaAlternativaDisponivel`: "A torre tem outro acesso?" (pre-preenchida pelo cadastro de acessos, `tower_accesses`);
+- `medicaoMetodo` (no nivel da erosao): `trena` / `estimativa` / `sem_medicao` — "Foi possivel medir a erosao?".
+
+**Regras**:
+
+1. **Profundidade inferida**: sem profundidade medida, a classe P vem da resposta — `nao_passa` = P4, `dificuldade` = P3, `passa` = P1 (`profundidade_inferida = true`). Medida, quando existe, tem prioridade.
+2. **Piso por trafegabilidade**: `nao_passa` garante no minimo **C3**; `nao_passa` com `possibilidadeDesvio = false` **e** `rotaAlternativaDisponivel = false` (ambos informados) garante **C4** (`piso_trafegabilidade`).
+3. **Sulco longitudinal** (`orientacaoSulco = longitudinal`, na trilha da roda) soma +1 ao modificador de via (teto +4 mantido).
+4. **Largura livre** = largura da plataforma - largura comprometida; o formulario sugere o grau de obstrucao (< 3,0 m = total; 3,0-3,5 m = parcial). A engine continua usando o grau de obstrucao informado.
+5. **Alertas**: "caminhonete passa" com profundidade > 0,50 m; "nao passa" com profundidade <= 0,10 m; erosao em acesso sem a resposta da caminhonete.
+
+**Vigencia**: vale para todo calculo feito a partir da V3.1 (cadastro, edicao e recalculo). Registros antigos so mudam se forem recalculados; a saida traz `metodologia_versao` para distinguir.
 
 ---
 
@@ -332,7 +360,8 @@ Classificacao: **C4 — Muito Alto** (>= 28).
 |--------|-----------|
 | **V1** | Versao legado. Utilizava 5 dimensoes com escalas inconsistentes entre si (intervalos de pontuacao variavam por dimensao). Nao contemplava sinais de avanco como dimensao independente. |
 | **V2** | Introducao da separacao backend/frontend, porem com divergencia entre os modulos. O backend utilizava as dimensoes T/P/D/S/E (com S = solo). O frontend utilizava T/P/D/S(sinaisAvanco)/E, substituindo o tipo de solo por sinais de avanco. Essa divergencia causava inconsistencias nos calculos dependendo do ponto de entrada. |
-| **V3 (atual)** | Unificacao completa. Seis dimensoes independentes — T/P/D/S/E/A — com balanceamento uniforme de 0 a 6 pontos em todas as dimensoes. Introducao do modificador de via de acesso, regras especiais para posicao leito/talude, piso minimo C3, cap de monitoramento e filtro de torre. Engine unica de calculo compartilhada entre backend e frontend. |
+| **V3.1 (atual)** | Escala de caminhonete para via de acesso (P e E em centimetros/metros de plataforma), condicao de trafego ("A caminhonete passa?", desvio, outro acesso), profundidade inferida pela trafegabilidade quando nao ha medida, piso C3/C4 por trafegabilidade, +1 no modificador para sulco longitudinal, distancia em acesso medida ate a borda da via (sem substituir pela distancia a torre). Saida com `metodologia_versao`. |
+| **V3** | Unificacao completa. Seis dimensoes independentes — T/P/D/S/E/A — com balanceamento uniforme de 0 a 6 pontos em todas as dimensoes. Introducao do modificador de via de acesso, regras especiais para posicao leito/talude, piso minimo C3, cap de monitoramento e filtro de torre. Engine unica de calculo compartilhada entre backend e frontend. |
 
 ---
 

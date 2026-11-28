@@ -102,6 +102,8 @@ const erosionDataSchema = z.object({
     medidaPreventiva: z.string().optional(),
     fotosLinks: z.array(z.string()).optional(),
     fotosPrincipais: fotosPrincipaisSchema,
+    // V3.1: "Foi possivel medir a erosao?"
+    medicaoMetodo: z.enum(['trena', 'estimativa', 'sem_medicao', '']).nullish(),
     geometria: geometriaSchema,
     geometriaOrigem: geometriaOrigemSchema,
     geometriaMetricas: geometriaMetricasSchema,

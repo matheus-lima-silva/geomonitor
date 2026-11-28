@@ -276,6 +276,39 @@ describe('POST /api/erosions (Zod + save)', () => {
         expect(invalid.body.code).toBe('VALIDATION_ERROR');
     });
 
+    it('V3.1: em acesso usa a distancia ate a borda da via, nao a distancia calculada ate a torre', async () => {
+        const { computeGeoDistance } = require('../../utils/geoDistance');
+        computeGeoDistance.mockResolvedValueOnce({ distanceToTowerM: 17.6, distanceToAxisM: 5 });
+        const res = await request(app)
+            .post('/api/erosions')
+            .set('Authorization', 'Bearer t')
+            .send(wizardPayload({
+                tiposFeicao: ['ravina'],
+                localContexto: { localTipo: 'via_acesso_exclusiva', exposicao: 'faixa_servidao', estruturaProxima: 'acesso' },
+                distanciaEstruturaMetros: 2,
+                profundidadeMetros: null,
+                medicaoMetodo: 'sem_medicao',
+                impactoVia: { posicaoRelativaVia: 'talude_jusante', caminhonetePassa: 'nao_passa', possibilidadeDesvio: false, rotaAlternativaDisponivel: false },
+            }));
+
+        expect(res.status).toBe(201);
+        const saved = mockState.erosions.get('ERS-NEW');
+        expect(saved.distanciaEstruturaMetros).toBe(2);
+        expect(saved.distanciaEstruturaCalculadaMetros).toBe(17.6);
+        expect(saved.medicaoMetodo).toBe('sem_medicao');
+        expect(saved.criticalidade).toMatchObject({
+            metodologia_versao: 'V3.1', exposicao_classe: 'E3', profundidade_classe: 'P4', profundidade_inferida: true, codigo: 'C4',
+        });
+    });
+
+    it('rejeita medicaoMetodo fora da lista', async () => {
+        const res = await request(app)
+            .post('/api/erosions')
+            .set('Authorization', 'Bearer t')
+            .send(wizardPayload({ medicaoMetodo: 'regua' }));
+        expect(res.status).toBe(400);
+    });
+
     it('rejeita sinaisAvanco como array (tipo antigo) com 400 VALIDATION_ERROR', async () => {
         const res = await request(app)
             .post('/api/erosions')
