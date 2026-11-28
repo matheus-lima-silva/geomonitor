@@ -21,7 +21,7 @@
 //   --refresh        recarrega tambem os ladrilhos ja carregados
 //   --tile=0.2       tamanho do ladrilho em graus
 //   --margin=0.03    margem em graus em volta das torres (~3 km)
-//   --endpoint=URL   servidor Overpass (default: overpass-api.de, com espelho kumi.systems)
+//   --endpoint=URL   servidor Overpass (default: espelho mail.ru, depois overpass-api.de e kumi.systems)
 
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
@@ -36,7 +36,10 @@ function argValue(name) {
 const hasFlag = (name) => process.argv.includes(`--${name}`);
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
+// Ordem importa: o primeiro que responder e usado. Em 2026-11 o overpass-api.de
+// e o kumi.systems devolviam 502/504 com frequencia; o espelho mail.ru respondia.
 const DEFAULT_ENDPOINTS = [
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
     'https://overpass-api.de/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',
 ];
