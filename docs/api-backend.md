@@ -761,7 +761,7 @@ Tabela Postgres: `tower_environment` (migracao `0033`), preenchida por `backend/
 
 | Metodo | Rota | Permissao | Descricao |
 |---|---|---|---|
-| GET | `/api/projects/:id/tower-environment` | `requireActiveUser` | Atributos por torre: `elevacaoM`, `declividadeMediaGraus`, `declividadeMaxGraus`, `orientacao`, `cobertura` (fracao por classe WorldCover no raio), `classeNoPonto`, `usosSoloSugeridos`, `usoSoloOutroSugerido`, `raioM`, `sources`, `computedAt` |
+| GET | `/api/projects/:id/tower-environment` | `requireActiveUser` | Atributos por torre (inclui `mapbiomas`, `solo` = classe IBGE + `tipoSoloSugerido`, `rusle` = indice relativo e classe): `elevacaoM`, `declividadeMediaGraus`, `declividadeMaxGraus`, `orientacao`, `cobertura` (fracao por classe WorldCover no raio), `classeNoPonto`, `usosSoloSugeridos`, `usoSoloOutroSugerido`, `raioM`, `sources`, `computedAt` |
 
 ---
 

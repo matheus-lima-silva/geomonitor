@@ -283,6 +283,21 @@ describe('ErosionTechnicalFields', () => {
       expect(container.querySelector('[data-testid="erosion-env-uses"]').textContent).toContain('já marcado');
     });
 
+    it('sugere o tipo de solo do IBGE e mostra a suscetibilidade RUSLE', () => {
+      const props = renderFields(root, {
+        towerEnvironment: {
+          ...env,
+          solo: { tipoSoloSugerido: 'argiloso', ibge: { ordem: 'ARGISSOLO', subordem: 'VERMELHO-AMARELO', textura: 'Média/argilosa' } },
+          rusle: { classe: 'muito_alta', perdaSoloIndice: 53.6 },
+        },
+      });
+      const soil = container.querySelector('[data-testid="erosion-env-soil"]');
+      expect(soil.textContent).toContain('argissolo vermelho-amarelo, textura média/argilosa');
+      clickElement([...soil.querySelectorAll('button')].find((b) => b.textContent === 'Usar'));
+      expect(props.onPatch).toHaveBeenLastCalledWith({ tipoSolo: 'argiloso' });
+      expect(container.querySelector('[data-testid="erosion-env-rusle"]').textContent).toContain('muito alta');
+    });
+
     it('sem dados da torre nao mostra sugestoes', () => {
       renderFields(root);
       expect(container.querySelector('[data-testid="erosion-env-uses"]')).toBeNull();

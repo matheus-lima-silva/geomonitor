@@ -86,7 +86,57 @@ async function mergeMapbiomas(rows, source) {
     return updated;
 }
 
+/**
+ * Torres com o necessario para solo e RUSLE: classe de solo do IBGE no ponto da
+ * torre (ibge_pedologia), declividade e cobertura MapBiomas ja calculadas.
+ */
+async function listForSoilErosion(projectIds) {
+    const result = await postgresStore.query(
+        `
+            SELECT te.project_id, te.tower_number, te.latitude, te.longitude,
+                   (te.payload->>'declividadeMediaGraus')::float8 AS declividade,
+                   te.payload->'mapbiomas'->'cobertura' AS cobertura,
+                   p.simbolo, p.legenda, p.ordem, p.subordem, p.grande_grupo, p.textura, p.relevo, p.versao
+            FROM tower_environment te
+            LEFT JOIN LATERAL (
+                SELECT ip.simbolo, ip.legenda, ip.ordem, ip.subordem, ip.grande_grupo, ip.textura, ip.relevo, ip.versao
+                FROM ibge_pedologia ip
+                WHERE ST_Intersects(ip.geom, ST_SetSRID(ST_MakePoint(te.longitude, te.latitude), 4326)::geography)
+                LIMIT 1
+            ) p ON true
+            WHERE te.project_id = ANY($1::text[])
+        `,
+        [projectIds],
+    );
+    return result.rows;
+}
+
+/** Grava solo e RUSLE no payload (lote). rows: [{ projectId, towerNumber, solo, rusle }] */
+async function mergeSoilErosion(rows, sources) {
+    let updated = 0;
+    for (let start = 0; start < rows.length; start += 1000) {
+        const chunk = rows.slice(start, start + 1000);
+        const result = await postgresStore.query(
+            `
+                UPDATE tower_environment te SET
+                    payload = te.payload || jsonb_build_object('solo', r.solo, 'rusle', r.rusle),
+                    sources = te.sources || $2::jsonb
+                FROM jsonb_to_recordset($1::jsonb) AS r(project_id text, tower_number text, solo jsonb, rusle jsonb)
+                WHERE te.project_id = r.project_id AND te.tower_number = r.tower_number
+            `,
+            [
+                JSON.stringify(chunk.map((row) => ({ project_id: row.projectId, tower_number: String(row.towerNumber), solo: row.solo, rusle: row.rusle }))),
+                JSON.stringify(sources),
+            ],
+        );
+        updated += result.rowCount;
+    }
+    return updated;
+}
+
 module.exports = {
+    listForSoilErosion,
+    mergeSoilErosion,
     mergeMapbiomas,
     listByProject,
     listComputedKeys,

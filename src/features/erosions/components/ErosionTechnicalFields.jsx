@@ -246,6 +246,15 @@ function ErosionTechnicalFields({
   const envUsesSource = env?.usosSoloFonte || (env?.cobertura ? 'ESA WorldCover 2021' : '');
   const envTower = String(env?.towerNumber ?? '').trim();
   const usoLabel = (value) => EROSION_TECHNICAL_OPTIONS.usosSolo.find((o) => o.value === value)?.label || value;
+  const envSoil = env?.solo && typeof env.solo === 'object' ? env.solo : null;
+  const envSoilType = envSoil?.tipoSoloSugerido || '';
+  const envSoilName = envSoil?.ibge
+    ? [envSoil.ibge.ordem, envSoil.ibge.subordem].filter(Boolean).join(' ').toLowerCase()
+    : '';
+  const envSoilLabel = EROSION_TECHNICAL_OPTIONS.tipoSolo.find((o) => o.value === envSoilType)?.label || envSoilType;
+  const envRusle = env?.rusle && typeof env.rusle === 'object' ? env.rusle : null;
+  const RUSLE_LABELS = { baixa: 'baixa', moderada: 'moderada', alta: 'alta', muito_alta: 'muito alta' };
+
   function applySuggestedUses() {
     const nextPatch = { usosSolo: [...new Set([...usosSolo, ...envUses])] };
     if (envUses.includes('outro') && !String(formData.usoSoloOutro || '').trim() && env?.usoSoloOutroSugerido) {
@@ -536,6 +545,14 @@ function ErosionTechnicalFields({
         </label>
         <label className="flex flex-col gap-1.5">
           <FieldLabel label="Tipo de solo" hint={FIELD_HINTS.tipoSolo} />
+          {envSoilType ? (
+            <span className="flex flex-wrap items-center gap-1 text-xs text-slate-500" data-testid="erosion-env-soil">
+              {`IBGE (torre ${envTower}): ${envSoilName}${envSoil?.ibge?.textura ? `, textura ${String(envSoil.ibge.textura).toLowerCase()}` : ''} → ${envSoilLabel}`}
+              {formData.tipoSolo !== envSoilType ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => updateField('tipoSolo', envSoilType)}>Usar</Button>
+              ) : null}
+            </span>
+          ) : null}
           <select className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 disabled:bg-slate-50 disabled:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" value={formData.tipoSolo || ''} onChange={(e) => updateField('tipoSolo', e.target.value)}>
             <option value="">Não informado</option>
             {EROSION_TECHNICAL_OPTIONS.tipoSolo.map((option) => (
@@ -709,6 +726,13 @@ function ErosionTechnicalFields({
 
       <fieldset className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl relative mt-6 pt-6">
         <legend className="absolute -top-3 left-3 px-2 bg-slate-50 text-sm font-bold text-slate-800 rounded-md">Usos do solo</legend>
+        {envRusle ? (
+          <div className="text-xs text-slate-500" data-testid="erosion-env-rusle">
+            {`Suscetibilidade do entorno da torre ${envTower} (RUSLE, índice relativo): `}
+            <strong className="text-slate-700">{RUSLE_LABELS[envRusle.classe] || envRusle.classe}</strong>
+            {` · K provisório por ordem de solo, C pelo uso do solo, rampa de 50 m.`}
+          </div>
+        ) : null}
         {envUses.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600" data-testid="erosion-env-uses">
             <span>
