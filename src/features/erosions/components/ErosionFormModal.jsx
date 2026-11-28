@@ -39,6 +39,7 @@ import ErosionMapViewport from './ErosionMapViewport';
 import ErosionGeometryImport from './ErosionGeometryImport';
 import { geometryBounds, toLeafletPositions } from '../utils/geometryMetrics';
 import { listTowerAccesses } from '../../projects/services/towerAccessService';
+import { indexByTower, listTowerEnvironment } from '../../projects/services/towerEnvironmentService';
 import { SEGMENT_STYLE, toLatLng } from '../../projects/utils/accessSegments';
 
 function MapClickPicker({ onPick }) {
@@ -111,6 +112,20 @@ function ErosionFormModal({
     listTowerAccesses(accessesProjectId)
       .then((result) => { if (!cancelled) setProjectAccesses(result.items); })
       .catch(() => { if (!cancelled) setProjectAccesses(null); });
+    return () => { cancelled = true; };
+  }, [accessesProjectId]);
+
+  // Meio fisico por torre (Fase 5): sugestoes de declividade e uso do solo.
+  const [towerEnvironmentIndex, setTowerEnvironmentIndex] = useState(null);
+  useEffect(() => {
+    if (!accessesProjectId) {
+      setTowerEnvironmentIndex(null);
+      return undefined;
+    }
+    let cancelled = false;
+    listTowerEnvironment(accessesProjectId)
+      .then((items) => { if (!cancelled) setTowerEnvironmentIndex(indexByTower(items)); })
+      .catch(() => { if (!cancelled) setTowerEnvironmentIndex(null); });
     return () => { cancelled = true; };
   }, [accessesProjectId]);
   const [step, setStep] = useState(0);
@@ -303,6 +318,25 @@ function ErosionFormModal({
       && Math.abs(Number(a[0]) - Number(b[0])) < 1e-6
       && Math.abs(Number(a[1]) - Number(b[1])) < 1e-6;
   }
+  // Fase 5: torre mais proxima do ponto marcado (sugestao quando difere da escolhida).
+  const nearestTowerToPoint = useMemo(() => {
+    if (!currentPoint) return null;
+    const rows = Array.isArray(selectedProject?.torresCoordenadas) ? selectedProject.torresCoordenadas : [];
+    let best = null;
+    rows.forEach((row) => {
+      const numero = String(row?.numero ?? '').trim();
+      const lat = parseCoordinateNumber(row?.latitude);
+      const lng = parseCoordinateNumber(row?.longitude);
+      if (!numero || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const kx = 111320 * Math.cos((currentPoint[0] * Math.PI) / 180);
+      const d = Math.hypot((lng - currentPoint[1]) * kx, (lat - currentPoint[0]) * 110540);
+      if (!best || d < best.distanceM) best = { numero, distanceM: d };
+    });
+    return best && best.distanceM <= 2000 ? best : null;
+  }, [currentPoint, selectedProject?.torresCoordenadas]);
+  const suggestNearestTower = nearestTowerToPoint
+    && compareTowerNumbers(nearestTowerToPoint.numero, String(safeFormData.torreRef || '').trim()) !== 0;
+
   const currentPointSourceLabel = currentPoint && photoPoint && samePoint(currentPoint, photoPoint)
     ? `Ponto atual = GPS da foto ${originPhoto?.photoId || ''}`.trim()
     : (currentPoint && towerPoint && samePoint(currentPoint, towerPoint)
@@ -685,6 +719,7 @@ function ErosionFormModal({
         <ErosionTechnicalFields
           formData={safeFormData}
           towerAccessCount={towerAccessCount}
+          towerEnvironment={towerEnvironmentIndex && selectedTowerRef ? (towerEnvironmentIndex.get(selectedTowerRef) || null) : null}
           readOnlyClasses={readOnlyClasses}
           validationErrors={validationErrors}
           isHistoricalRecord={isHistoricalRecord}
@@ -788,6 +823,14 @@ function ErosionFormModal({
               {!towerPoint ? (
                 <span className="text-xs text-slate-500">
                   Sem coordenada de torre.
+                </span>
+              ) : null}
+              {suggestNearestTower ? (
+                <span className="flex flex-wrap items-center gap-1 text-xs text-slate-600" data-testid="erosion-nearest-tower">
+                  {`Torre mais próxima do ponto: ${formatTowerLabel(nearestTowerToPoint.numero)} (${Math.round(nearestTowerToPoint.distanceM)} m)`}
+                  <Button type="button" variant="ghost" size="sm" onClick={() => updateField('torreRef', nearestTowerToPoint.numero)}>
+                    Usar esta torre
+                  </Button>
                 </span>
               ) : null}
               {currentPointSourceLabel ? (

@@ -264,6 +264,25 @@ describe('ErosionFormModal', () => {
     expect(layers).toEqual(['Satélite', 'Relevo', 'Mapa (OSM)']);
   });
 
+  it('sugere a torre mais proxima do ponto quando difere da escolhida', () => {
+    const props = renderModal(root, {
+      utmErrorToken: 1,
+      projects: [{ id: 'P1', torresCoordenadas: [
+        { numero: '104', latitude: '-21.828203', longitude: '-47.881116' },
+        { numero: '105', latitude: '-21.82778', longitude: '-47.876326' },
+      ] }],
+      formData: {
+        id: 'ERS-1', projetoId: 'P1', torreRef: '104', localContexto: {}, usosSolo: [], fotosLinks: [], status: 'Ativo', obs: '',
+        locationCoordinates: { latitude: '-21.8278', longitude: '-47.8765' },
+      },
+    });
+    const hint = container.querySelector('[data-testid="erosion-nearest-tower"]');
+    expect(hint.textContent).toContain('Torre mais próxima do ponto: Torre 105');
+    act(() => { [...hint.querySelectorAll('button')].find((b) => b.textContent.includes('Usar esta torre')).click(); });
+    const updater = props.setFormData.mock.calls.at(-1)[0];
+    expect(updater(props.formData).torreRef).toBe('105');
+  });
+
   it('"Usar coordenada da foto" fica desabilitado sem foto de origem com GPS', () => {
     renderModal(root, { utmErrorToken: 1 });
     const button = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Usar coordenada da foto'));

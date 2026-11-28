@@ -111,6 +111,8 @@ Recorte na area dos lotes (bbox dos empreendimentos + 5 km). Rasters em COG no M
 
 ## Fase 5 — Sugestoes na ficha e seletor de torre
 
+**Status (2026-11-28)**: feito em `feat/erosao-fase5-sugestoes` — a ficha busca `GET /api/projects/:id/tower-environment` e, para a torre escolhida, sugere usos do solo (MapBiomas C11, fonte e raio indicados; soma aos ja marcados) e a declividade do terreno em volta (com aviso de que o relevo de 30 m nao mede a parede da erosao); ao marcar o ponto, sugere a torre mais proxima quando difere da escolhida. Tudo so com clique. **Pendente**: classe de solo (IBGE/Embrapa ainda nao carregados), declividade no ponto exato da erosao (endpoint de amostragem pontual), camadas de declividade/solo/uso no mapa.
+
 - Clique no mapa sugere a torre mais proxima; camadas de declividade, solo e uso.
 - Cartao de sugestoes ao escolher a torre; a ficha guarda a origem de cada valor (base publica ou campo).
 - Declividade do ponto exato consultada no terreno (endpoint no worker).

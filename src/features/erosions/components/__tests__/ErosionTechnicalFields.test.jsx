@@ -248,4 +248,45 @@ describe('ErosionTechnicalFields', () => {
       expect(props.onPatch).toHaveBeenLastCalledWith({ impactoVia: { rotaAlternativaDisponivel: true } });
     });
   });
+  describe('Fase 5 — sugestoes das bases publicas', () => {
+    const env = {
+      towerNumber: '104',
+      declividadeMediaGraus: 9.5,
+      declividadeMaxGraus: 13.6,
+      usosSoloSugeridos: ['pastagem', 'outro'],
+      usoSoloOutroSugerido: 'Mineracao',
+      usosSoloFonte: 'MapBiomas C11 2024',
+      raioM: 50,
+    };
+
+    it('mostra a declividade do terreno e aplica so quando o usuario pede', () => {
+      const props = renderFields(root, { towerEnvironment: env });
+      const slope = container.querySelector('[data-testid="erosion-env-slope"]');
+      expect(slope.textContent).toContain('Terreno em volta da torre 104: ~9,5°');
+      expect(slope.textContent).toContain('máx. 13,6°');
+      expect(props.onPatch).not.toHaveBeenCalled();
+      clickElement([...slope.querySelectorAll('button')].find((b) => b.textContent === 'Usar'));
+      expect(props.onPatch).toHaveBeenLastCalledWith({ declividadeGraus: 9.5 });
+    });
+
+    it('sugere usos do solo com a fonte e soma aos ja marcados', () => {
+      const props = renderFields(root, { towerEnvironment: env, formData: { usosSolo: ['acesso'] } });
+      const uses = container.querySelector('[data-testid="erosion-env-uses"]');
+      expect(uses.textContent).toContain('MapBiomas C11 2024, raio de 50 m');
+      expect(uses.textContent).toContain('Mineracao');
+      clickElement([...uses.querySelectorAll('button')].find((b) => b.textContent === 'Usar sugestão'));
+      expect(props.onPatch).toHaveBeenLastCalledWith({ usosSolo: ['acesso', 'pastagem', 'outro'], usoSoloOutro: 'Mineracao' });
+    });
+
+    it('indica "ja marcado" quando os usos sugeridos ja estao na ficha', () => {
+      renderFields(root, { towerEnvironment: { ...env, usosSoloSugeridos: ['pastagem'], usoSoloOutroSugerido: '' }, formData: { usosSolo: ['pastagem'] } });
+      expect(container.querySelector('[data-testid="erosion-env-uses"]').textContent).toContain('já marcado');
+    });
+
+    it('sem dados da torre nao mostra sugestoes', () => {
+      renderFields(root);
+      expect(container.querySelector('[data-testid="erosion-env-uses"]')).toBeNull();
+      expect(container.querySelector('[data-testid="erosion-env-slope"]')).toBeNull();
+    });
+  });
 });
