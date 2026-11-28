@@ -243,6 +243,39 @@ describe('POST /api/erosions (Zod + save)', () => {
         expect(mockState.erosions.get('ERS-NEW').historicoCriticidade[0].data_vistoria).toBe('2026-11-12');
     });
 
+    it('persiste o tracado importado (geometria + origem + metricas)', async () => {
+        const geometria = { type: 'LineString', coordinates: [[-47.8816, -21.8285], [-47.8809, -21.8283], [-47.8808, -21.8275]] };
+        const res = await request(app)
+            .post('/api/erosions')
+            .set('Authorization', 'Bearer t')
+            .send(wizardPayload({
+                geometria,
+                geometriaOrigem: { arquivo: 'Trecho.kmz', formato: 'kmz', feicao: 'Trecho erodido', importadoEm: '2026-11-27T12:00:00.000Z' },
+                geometriaMetricas: { comprimentoMetros: 184, vertices: 3 },
+            }));
+
+        expect(res.status).toBe(201);
+        const saved = mockState.erosions.get('ERS-NEW');
+        expect(saved.geometria).toEqual(geometria);
+        expect(saved.geometriaOrigem.formato).toBe('kmz');
+        expect(saved.geometriaMetricas.comprimentoMetros).toBe(184);
+    });
+
+    it('aceita remover o tracado (geometria null) e rejeita tracado invalido', async () => {
+        const cleared = await request(app)
+            .post('/api/erosions')
+            .set('Authorization', 'Bearer t')
+            .send(wizardPayload({ geometria: null, geometriaOrigem: null, geometriaMetricas: null }));
+        expect(cleared.status).toBe(201);
+
+        const invalid = await request(app)
+            .post('/api/erosions')
+            .set('Authorization', 'Bearer t')
+            .send(wizardPayload({ geometria: { type: 'LineString', coordinates: [[-47, -95], [-47.1, -21]] } }));
+        expect(invalid.status).toBe(400);
+        expect(invalid.body.code).toBe('VALIDATION_ERROR');
+    });
+
     it('rejeita sinaisAvanco como array (tipo antigo) com 400 VALIDATION_ERROR', async () => {
         const res = await request(app)
             .post('/api/erosions')

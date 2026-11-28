@@ -28,6 +28,7 @@ import { normalizeLocationCoordinates, parseCoordinateNumber } from '../../share
 import {
   CircleMarker,
   MapContainer,
+  Polygon,
   Polyline,
   Tooltip,
   TileLayer,
@@ -38,6 +39,13 @@ import {
   formatCriticalityPoints,
 } from '../../shared/criticalitySummary';
 import { recalculateAndSaveErosion } from '../../../services/erosionService';
+import {
+  GEOMETRY_TYPE_LABELS,
+  formatArea,
+  formatMeters,
+  geometryBounds,
+  toLeafletPositions,
+} from '../utils/geometryMetrics';
 import { resolveErosionCriticality } from '../../../../shared/erosionHelpers';
 
 const EMPTY_EVENT_FORM = {
@@ -216,6 +224,14 @@ function ErosionDetailsModal({
 
   const mapZoom = currentPoint || towerPoint || nearbyTowerMarkers.length > 0 ? 15 : (linePath.length > 0 ? 12 : 5);
   const mapRenderKey = open && mapCenter ? `${mapCenter[0].toFixed(6)}-${mapCenter[1].toFixed(6)}-${mapZoom}` : 'off';
+
+  // Tracado importado (KML/KMZ/GPX): quando existe, o mapa enquadra tracado + ponto.
+  const erosionGeometry = erosion?.geometria && typeof erosion.geometria === 'object' ? erosion.geometria : null;
+  const erosionGeometryPositions = erosionGeometry ? toLeafletPositions(erosionGeometry) : [];
+  const erosionGeometryMetrics = erosion?.geometriaMetricas || {};
+  const mapBounds = erosionGeometry
+    ? [...geometryBounds(erosionGeometry), ...(currentPoint ? [currentPoint] : [])]
+    : null;
 
   const saturacaoPorAgua = String(erosion?.saturacaoPorAgua || '').trim();
   const technical = normalizeErosionTechnicalFields(erosion || {});
@@ -484,6 +500,16 @@ function ErosionDetailsModal({
             <div><strong className="text-slate-900">Hemisferio:</strong> {locationCoordinates.utmHemisphere || '-'}</div>
             <div><strong className="text-slate-900">Altitude:</strong> {locationCoordinates.altitude || '-'}</div>
             <div><strong className="text-slate-900">Referencia:</strong> {locationCoordinates.reference || '-'}</div>
+            {erosionGeometry ? (
+              <div className="col-span-2 md:col-span-4" data-testid="erosion-details-geometry">
+                <strong className="text-slate-900">Traçado:</strong>
+                {' '}
+                {GEOMETRY_TYPE_LABELS[erosionGeometry.type] || erosionGeometry.type}
+                {erosionGeometry.type === 'LineString' ? ` · ${formatMeters(erosionGeometryMetrics.comprimentoMetros)}` : ''}
+                {erosionGeometry.type === 'Polygon' ? ` · ${formatArea(erosionGeometryMetrics.areaM2)}` : ''}
+                {erosion?.geometriaOrigem?.arquivo ? ` · ${erosion.geometriaOrigem.arquivo}` : ''}
+              </div>
+            ) : null}
           </div>
           {hasCoordinates(erosion) ? (
             <div className="mt-5 pt-4 border-t border-slate-100 flex justify-end">
@@ -498,9 +524,11 @@ function ErosionDetailsModal({
             <div id="erosion-details-map" className="mt-4 rounded-xl overflow-hidden border border-slate-200 shadow-sm">
               <div style={{ height: 280 }}>
                 <MapContainer
-                  key={mapRenderKey}
+                  key={`${mapRenderKey}-${mapBounds ? mapBounds.length : 0}`}
                   center={mapCenter}
                   zoom={mapZoom}
+                  bounds={mapBounds && mapBounds.length > 1 ? mapBounds : undefined}
+                  boundsOptions={{ padding: [20, 20], maxZoom: 18 }}
                   scrollWheelZoom={false}
                   zoomControl={false}
                   dragging={false}
@@ -533,6 +561,12 @@ function ErosionDetailsModal({
                       </Tooltip>
                     </CircleMarker>
                   ))}
+                  {erosionGeometry?.type === 'LineString' ? (
+                    <Polyline positions={erosionGeometryPositions} pathOptions={{ color: '#dc2626', weight: 5, opacity: 0.85 }} />
+                  ) : null}
+                  {erosionGeometry?.type === 'Polygon' ? (
+                    <Polygon positions={erosionGeometryPositions} pathOptions={{ color: '#dc2626', weight: 3, fillColor: '#f87171', fillOpacity: 0.3 }} />
+                  ) : null}
                   {currentPoint ? (
                     <CircleMarker
                       center={currentPoint}
@@ -547,6 +581,7 @@ function ErosionDetailsModal({
                 <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-amber-500 border-2 border-slate-900" /> Torre selecionada</span>
                 <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-green-500 border-2 border-green-900" /> Torres vizinhas</span>
                 {linePath.length >= 2 ? <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-teal-700" /> Linha de transmissão</span> : null}
+                {erosionGeometry && erosionGeometry.type !== 'Point' ? <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-1 bg-red-600" /> Traçado da erosão</span> : null}
               </div>
             </div>
           ) : null}

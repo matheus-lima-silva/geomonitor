@@ -12,6 +12,7 @@ import {
   CircleMarker,
   LayersControl,
   MapContainer,
+  Polygon,
   Polyline,
   Popup,
   TileLayer,
@@ -35,6 +36,8 @@ import {
 import { isHistoricalErosionRecord } from '../../shared/viewUtils';
 import ErosionTechnicalFields from './ErosionTechnicalFields';
 import ErosionMapViewport from './ErosionMapViewport';
+import ErosionGeometryImport from './ErosionGeometryImport';
+import { geometryBounds, toLeafletPositions } from '../utils/geometryMetrics';
 
 function MapClickPicker({ onPick }) {
   useMapEvents({
@@ -92,6 +95,7 @@ function ErosionFormModal({
 }) {
   const [coordinatesExpanded, setCoordinatesExpanded] = useState(false);
   const [showInteractiveMap, setShowInteractiveMap] = useState(false);
+  const [geometryFocusKey, setGeometryFocusKey] = useState(0);
   const [step, setStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
@@ -315,6 +319,12 @@ function ErosionFormModal({
   // projeto ou a torre (ver ErosionMapViewport).
   const mapRecenterKey = `${String(safeFormData.projetoId || '').trim()}|${String(safeFormData.torreRef || '').trim()}`;
 
+  // Tracado importado (KML/KMZ/GPX): GeoJSON [lon, lat] -> posicoes Leaflet.
+  const erosionGeometry = safeFormData.geometria && typeof safeFormData.geometria === 'object' ? safeFormData.geometria : null;
+  const erosionGeometryPositions = erosionGeometry ? toLeafletPositions(erosionGeometry) : [];
+  const erosionGeometryBounds = erosionGeometry ? geometryBounds(erosionGeometry) : [];
+  const isAccessErosion = String(safeFormData.localContexto?.localTipo || '').includes('acesso');
+
   if (!open) return null;
 
   function updateField(field, value) {
@@ -385,6 +395,26 @@ function ErosionFormModal({
   function handleUsePhotoCoordinates() {
     if (!photoPoint) return;
     applyDecimalCoordinates(photoPoint[0], photoPoint[1]);
+  }
+
+  function handleGeometryChange(patch) {
+    setFormData((prev) => ({ ...((prev && typeof prev === 'object') ? prev : {}), ...patch }));
+  }
+
+  function handleGeometryImported() {
+    setCoordinatesExpanded(true);
+    setShowInteractiveMap(true);
+    setGeometryFocusKey((prev) => prev + 1);
+  }
+
+  function handleUseGeometryExtension(meters) {
+    setFormData((prev) => {
+      const source = (prev && typeof prev === 'object') ? prev : {};
+      return {
+        ...source,
+        impactoVia: { ...((source.impactoVia && typeof source.impactoVia === 'object') ? source.impactoVia : {}), extensaoAfetadaMetros: meters },
+      };
+    });
   }
 
   function handleMapPick(latitude, longitude) {
@@ -666,6 +696,19 @@ function ErosionFormModal({
           </Button>
         </div>
 
+        <ErosionGeometryImport
+          geometria={erosionGeometry}
+          geometriaOrigem={safeFormData.geometriaOrigem}
+          geometriaMetricas={safeFormData.geometriaMetricas}
+          towerPoint={towerPoint}
+          towerLabel={safeFormData.torreRef ? formatTowerLabel(safeFormData.torreRef) : ''}
+          showExtensionAction={isAccessErosion}
+          onChange={handleGeometryChange}
+          onUsePoint={applyDecimalCoordinates}
+          onUseExtension={handleUseGeometryExtension}
+          onImported={handleGeometryImported}
+        />
+
         {coordinatesExpanded ? (
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -746,6 +789,8 @@ function ErosionFormModal({
                       zoom={mapZoom}
                       recenterKey={mapRecenterKey}
                       point={currentPoint}
+                      focusKey={geometryFocusKey}
+                      focusBounds={erosionGeometryBounds}
                     />
                     <LayersControl position="topright">
                       <LayersControl.BaseLayer checked name="Satélite">
@@ -789,6 +834,21 @@ function ErosionFormModal({
                         <Popup>{`${formatTowerLabel(tower.towerNumber)} ${tower.isSelected ? '(selecionada)' : '(vizinha)'}`}</Popup>
                       </CircleMarker>
                     ))}
+                    {erosionGeometry?.type === 'LineString' ? (
+                      <Polyline positions={erosionGeometryPositions} pathOptions={{ color: '#dc2626', weight: 5, opacity: 0.85 }}>
+                        <Popup>{safeFormData.geometriaOrigem?.feicao || 'Traçado da erosão'}</Popup>
+                      </Polyline>
+                    ) : null}
+                    {erosionGeometry?.type === 'Polygon' ? (
+                      <Polygon positions={erosionGeometryPositions} pathOptions={{ color: '#dc2626', weight: 3, fillColor: '#f87171', fillOpacity: 0.3 }}>
+                        <Popup>{safeFormData.geometriaOrigem?.feicao || 'Traçado da erosão'}</Popup>
+                      </Polygon>
+                    ) : null}
+                    {erosionGeometry?.type === 'Point' ? (
+                      <CircleMarker center={erosionGeometryPositions[0]} radius={6} pathOptions={{ color: '#991b1b', fillColor: '#dc2626', fillOpacity: 0.9, weight: 2 }}>
+                        <Popup>{safeFormData.geometriaOrigem?.feicao || 'Ponto importado'}</Popup>
+                      </CircleMarker>
+                    ) : null}
                     {/* GPS da foto desenhado por cima do ponto: continua visivel quando coincidem. */}
                     {currentPoint ? (
                       <CircleMarker
@@ -816,6 +876,7 @@ function ErosionFormModal({
                   <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-amber-500 border-2 border-slate-900" /> Torre selecionada</span>
                   <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-green-500 border-2 border-green-900" /> Torres vizinhas</span>
                   {photoPoint ? <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-violet-400 border-2 border-violet-800" /> GPS da foto</span> : null}
+                  {erosionGeometry && erosionGeometry.type !== 'Point' ? <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-1 bg-red-600" /> Traçado da erosão</span> : null}
                   {linePath.length >= 2 ? <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-0.5 bg-teal-700" /> Linha de transmissão</span> : null}
                 </div>
               </div>
