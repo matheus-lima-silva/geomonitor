@@ -755,6 +755,16 @@ Body da previa: `{ data: { features: [{ id, name, geometry: LineString }], sourc
 
 ---
 
+## Tower Environment (`/api/projects/:id/tower-environment`)
+
+Tabela Postgres: `tower_environment` (migracao `0033`), preenchida por `backend/scripts/computeTowerEnvironment.js` lendo so os trechos necessarios do Copernicus DEM GLO-30 e do ESA WorldCover 10 m (HTTP Range, `utils/rasterSources.js`).
+
+| Metodo | Rota | Permissao | Descricao |
+|---|---|---|---|
+| GET | `/api/projects/:id/tower-environment` | `requireActiveUser` | Atributos por torre: `elevacaoM`, `declividadeMediaGraus`, `declividadeMaxGraus`, `orientacao`, `cobertura` (fracao por classe WorldCover no raio), `classeNoPonto`, `usosSoloSugeridos`, `usoSoloOutroSugerido`, `raioM`, `sources`, `computedAt` |
+
+---
+
 ## Project Report Defaults (`/api/projects/:id/report-defaults`)
 
 Tabela Postgres: `project_report_defaults`. Configuracoes por projeto para geracao de relatorios (buffer de faixa de servidao, raio de sugestao de torre, textos base).

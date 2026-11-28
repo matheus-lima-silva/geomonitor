@@ -52,6 +52,9 @@ jest.mock('../../repositories', () => {
             }),
             remove: jest.fn(async (projectId, id) => mockAccesses.delete(id)),
         },
+        towerEnvironmentRepository: {
+            listByProject: jest.fn(async () => [{ projectId: 'ARAPCA', towerNumber: '104', elevacaoM: 659, declividadeMediaGraus: 9.5, usosSoloSugeridos: ['pastagem'] }]),
+        },
         erosionRepository: { list: noopList },
         reportJobRepository: { list: noopList },
         userRepository: { list: noopList, listPaginated: jest.fn(async () => ({ items: [], total: 0, page: 1, limit: 50 })) },
@@ -160,5 +163,14 @@ describe('CRUD /api/projects/:id/accesses', () => {
             .set('Authorization', 'Bearer t')
             .send({ data: { items: [{ kind: 'acesso', geometry: { type: 'LineString', coordinates: LINE }, segments: [] }] } });
         expect(res.status).toBe(400);
+    });
+});
+
+describe('GET /api/projects/:id/tower-environment', () => {
+    it('lista os atributos do meio fisico por torre', async () => {
+        const res = await request(app).get('/api/projects/arapca/tower-environment').set('Authorization', 'Bearer t');
+        expect(res.status).toBe(200);
+        expect(res.body.data[0]).toMatchObject({ towerNumber: '104', elevacaoM: 659 });
+        expect(res.body._links.self.href).toContain('/projects/ARAPCA/tower-environment');
     });
 });
