@@ -204,6 +204,45 @@ describe('POST /api/erosions (Zod + save)', () => {
         expect(saved.fotosPrincipais[0].mediaAssetId).toBe('MA-1');
     });
 
+    it('historico de criticidade usa a data em que a torre foi vistoriada (nao a data do save)', async () => {
+        const { inspectionRepository } = require('../../repositories');
+        inspectionRepository.getById.mockResolvedValueOnce({
+            id: 'VS-PRJ-1-12112026-0001',
+            dataInicio: '2026-11-12',
+            dataFim: '2026-11-13',
+            detalhesDias: [
+                { data: '2026-11-12', torres: ['40', '41'] },
+                { data: '2026-11-13', torres: ['44', '45'] },
+            ],
+        });
+
+        const res = await request(app)
+            .post('/api/erosions')
+            .set('Authorization', 'Bearer t')
+            .send(wizardPayload({ vistoriaId: 'VS-PRJ-1-12112026-0001' }));
+
+        expect(res.status).toBe(201);
+        expect(inspectionRepository.getById).toHaveBeenCalledWith('VS-PRJ-1-12112026-0001');
+        const saved = mockState.erosions.get('ERS-NEW');
+        expect(saved.historicoCriticidade).toHaveLength(1);
+        expect(saved.historicoCriticidade[0].data_vistoria).toBe('2026-11-13');
+    });
+
+    it('historico cai no inicio da vistoria quando a torre nao aparece nos dias', async () => {
+        const { inspectionRepository } = require('../../repositories');
+        inspectionRepository.getById.mockResolvedValueOnce({
+            id: 'VS-X', dataInicio: '2026-11-12', detalhesDias: [{ data: '2026-11-14', torres: ['99'] }],
+        });
+
+        const res = await request(app)
+            .post('/api/erosions')
+            .set('Authorization', 'Bearer t')
+            .send(wizardPayload({ vistoriaId: 'VS-X' }));
+
+        expect(res.status).toBe(201);
+        expect(mockState.erosions.get('ERS-NEW').historicoCriticidade[0].data_vistoria).toBe('2026-11-12');
+    });
+
     it('rejeita sinaisAvanco como array (tipo antigo) com 400 VALIDATION_ERROR', async () => {
         const res = await request(app)
             .post('/api/erosions')

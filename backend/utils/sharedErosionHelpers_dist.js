@@ -37,6 +37,7 @@ __export(erosionHelpers_exports, {
   normalizeNumeric: () => normalizeNumeric,
   normalizeText: () => normalizeText,
   resolveErosionCriticality: () => resolveErosionCriticality,
+  resolveInspectionDateForTower: () => resolveInspectionDateForTower,
   resolvePrimaryInspectionId: () => resolvePrimaryInspectionId,
   unwrapCriticalityPayload: () => unwrapCriticalityPayload
 });
@@ -152,6 +153,24 @@ function getInspectionDateScore(inspection) {
   }
   return null;
 }
+function toIsoDay(value) {
+  const match = String(value || "").trim().match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : "";
+}
+function resolveInspectionDateForTower(inspection, towerRef) {
+  if (!inspection || typeof inspection !== "object") return "";
+  const tower = String(towerRef ?? "").trim();
+  const days = Array.isArray(inspection.detalhesDias) ? inspection.detalhesDias : [];
+  if (tower) {
+    const matching = days.filter((day) => {
+      const torres = Array.isArray(day?.torres) ? day.torres : [];
+      const detalhadas = Array.isArray(day?.torresDetalhadas) ? day.torresDetalhadas : [];
+      return torres.some((t) => String(t ?? "").trim() === tower) || detalhadas.some((t) => String(t?.numero ?? "").trim() === tower);
+    }).map((day) => toIsoDay(day?.data)).filter(Boolean).sort();
+    if (matching.length > 0) return matching[0];
+  }
+  return toIsoDay(inspection.dataInicio) || toIsoDay(inspection.data) || toIsoDay(inspection.dataFim);
+}
 function normalizeErosionInspectionIds(erosion) {
   const primary = String(erosion?.vistoriaId || "").trim();
   const list = Array.isArray(erosion?.vistoriaIds) ? erosion.vistoriaIds : [];
@@ -182,7 +201,7 @@ function buildSituacaoFromStatus(status, normalizeStatusFn) {
   return "ativo";
 }
 function buildCriticalityHistory(previous, nextData, criticalidade, deps = {}) {
-  const { buildCriticalityTrend: trendFn = buildCriticalityTrend, normalizeStatusFn } = deps;
+  const { buildCriticalityTrend: trendFn = buildCriticalityTrend, normalizeStatusFn, inspectionDate } = deps;
   const previousHistory = normalizeCriticalityHistory(
     nextData.historicoCriticidade ?? previous?.historicoCriticidade
   );
@@ -193,7 +212,7 @@ function buildCriticalityHistory(previous, nextData, criticalidade, deps = {}) {
   const scoreAtual = getCriticalityScore(criticalidade);
   const tendencia = trendFn(scoreAnterior, scoreAtual);
   const dataVistoria = String(
-    nextData.dataVistoria || nextData.data_vistoria || nextData.dataCadastro || nextData.data || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10)
+    nextData.dataVistoria || nextData.data_vistoria || toIsoDay(inspectionDate) || nextData.dataCadastro || nextData.data || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10)
   ).trim();
   const snapshot = {
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
@@ -263,6 +282,7 @@ var LEGACY_CLEANUP_EXTRA_FIELDS = [
   normalizeNumeric,
   normalizeText,
   resolveErosionCriticality,
+  resolveInspectionDateForTower,
   resolvePrimaryInspectionId,
   unwrapCriticalityPayload
 });

@@ -5,6 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('react-leaflet', () => ({
   MapContainer: ({ children }) => <div>{children}</div>,
   TileLayer: () => null,
+  LayersControl: Object.assign(
+    ({ children }) => <div data-testid="layers-control">{children}</div>,
+    { BaseLayer: ({ name, children }) => <div data-layer={name}>{children}</div> },
+  ),
+  useMap: () => null,
   CircleMarker: ({ children }) => <div>{children}</div>,
   Polyline: () => null,
   Popup: ({ children }) => <div>{children}</div>,
@@ -253,6 +258,9 @@ describe('ErosionFormModal', () => {
     act(() => { mapButton.click(); });
     expect(container.textContent).toContain('GPS da foto');
     expect(container.textContent).toContain('Foto RPH-7 (GPS)');
+    // Camadas base: satelite (padrao), relevo e OSM.
+    const layers = [...container.querySelectorAll('[data-layer]')].map((el) => el.getAttribute('data-layer'));
+    expect(layers).toEqual(['Satélite', 'Relevo', 'Mapa (OSM)']);
   });
 
   it('"Usar coordenada da foto" fica desabilitado sem foto de origem com GPS', () => {

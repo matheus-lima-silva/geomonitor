@@ -38,6 +38,10 @@ vi.mock('react-leaflet', () => ({
   Popup: ({ children }) => <div>{children}</div>,
   Tooltip: ({ children }) => <div>{children}</div>,
   Marker: ({ children }) => <div>{children}</div>,
+  LayersControl: Object.assign(
+    ({ children }) => <div>{children}</div>,
+    { BaseLayer: ({ children }) => <div>{children}</div> },
+  ),
   useMapEvents: () => null,
   useMap: () => null,
 }));
