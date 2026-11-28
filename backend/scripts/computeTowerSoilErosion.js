@@ -8,6 +8,8 @@
 //   node scripts/computeTowerSoilErosion.js --all            # dry-run (resumo)
 //   node scripts/computeTowerSoilErosion.js --all --apply
 //   node scripts/computeTowerSoilErosion.js --projects=ARAPCA --apply
+//   --ls=fluxo usa o LS por fluxo acumulado (payload.lsFluxo, scripts/computeTowerFlowLs.js)
+//   onde existir; sem a flag, rampa fixa de 50 m.
 
 const fs = require('fs');
 const path = require('path');
@@ -45,6 +47,8 @@ async function loadRFactorSampler(file = R_TIF) {
 
 async function main() {
     const apply = process.argv.includes('--apply');
+    const lsModo = argValue('ls') || 'rampa';
+    if (!['rampa', 'fluxo'].includes(lsModo)) throw new Error('--ls deve ser rampa ou fluxo.');
     const wanted = argValue('projects').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
     if (!process.argv.includes('--all') && wanted.length === 0) throw new Error('Informe --projects=A,B ou --all.');
     const projects = (await projectRepository.list())
@@ -58,7 +62,7 @@ async function main() {
     }
 
     const out = [];
-    const stats = { semSolo: 0, semRusle: 0, tipos: {}, classes: {}, declividade: {} };
+    const stats = { semSolo: 0, semRusle: 0, tipos: {}, classes: {}, declividade: {}, ls: {} };
     rows.forEach((row) => {
         const ibge = row.simbolo || row.ordem ? {
             simbolo: row.simbolo, legenda: row.legenda, ordem: row.ordem, subordem: row.subordem,
@@ -71,7 +75,9 @@ async function main() {
         const k = usaEmbrapa ? kOficial : (ibge ? provisionalK(ibge) : null);
         stats.kEmbrapa = (stats.kEmbrapa || 0) + (usaEmbrapa ? 1 : 0);
         const r = sampleR(Number(row.longitude), Number(row.latitude));
-        const rusleBase = computeRusle({ r, k, slopeDeg: row.declividade, cobertura: row.cobertura, kFonte: usaEmbrapa ? 'embrapa' : 'provisorio' });
+        const lsFluxo = lsModo === 'fluxo' && row.ls_fluxo !== null ? Number(row.ls_fluxo) : null;
+        const rusleBase = computeRusle({ r, k, slopeDeg: row.declividade, cobertura: row.cobertura, kFonte: usaEmbrapa ? 'embrapa' : 'provisorio', lsFluxo });
+        if (rusleBase) stats.ls[rusleBase.lsFonte] = (stats.ls[rusleBase.lsFonte] || 0) + 1;
         const rusle = rusleBase ? { ...rusleBase, declividadeFonte: row.declividade_fonte || null } : null;
         if (row.declividade_fonte) stats.declividade[row.declividade_fonte] = (stats.declividade[row.declividade_fonte] || 0) + 1;
         if (!rusle) stats.semRusle += 1;
@@ -95,6 +101,7 @@ async function main() {
     console.log('tipo de solo sugerido:', JSON.stringify(stats.tipos));
     console.log('classe RUSLE:', JSON.stringify(stats.classes));
     console.log('fonte da declividade:', JSON.stringify(stats.declividade));
+    console.log('fonte do LS:', JSON.stringify(stats.ls));
     if (!apply) {
         console.log('dry-run: nada gravado (use --apply)');
         return;

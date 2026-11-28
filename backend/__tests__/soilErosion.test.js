@@ -49,6 +49,18 @@ describe('fatores da RUSLE', () => {
         expect(computeRusle({ r: null, k: 0.035, slopeDeg: 10, cobertura: { 15: 1 } })).toBeNull();
     });
 
+    it('usa o LS por fluxo quando informado e registra a fonte', () => {
+        const base = { r: 7000, k: 0.02, slopeDeg: 5, cobertura: { 15: 1 } };
+        const rampa = computeRusle(base);
+        const fluxo = computeRusle({ ...base, lsFluxo: 3 });
+        expect(rampa.lsFonte).toBe('rampa_50m');
+        expect(fluxo.lsFonte).toBe('fluxo');
+        expect(fluxo.fatores.LS).toBe(3);
+        expect(fluxo.perdaSoloIndice).toBeCloseTo(rampa.perdaSoloIndice * (3 / rampa.fatores.LS), 0);
+        expect(fluxo.observacao).toContain('fluxo acumulado');
+        expect(computeRusle({ ...base, lsFluxo: null }).lsFonte).toBe('rampa_50m');
+    });
+
     it('registra a fonte do K na observacao', () => {
         expect(computeRusle({ r: 7200, k: 0.03, slopeDeg: 5, cobertura: { 15: 1 }, kFonte: 'embrapa' }))
             .toMatchObject({ kFonte: 'embrapa', observacao: expect.stringContaining('Embrapa') });

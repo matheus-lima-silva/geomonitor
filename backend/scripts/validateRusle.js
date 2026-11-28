@@ -13,10 +13,15 @@ require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
 const { towerEnvironmentRepository } = require('../repositories');
 const { computeAuc, computeAucWithinGroups, erosionRateByClass } = require('../utils/rusleValidation');
+const { lsFactor } = require('../utils/soilErosion');
 
 const MEDIDAS = [
     ['indice', 'Indice RUSLE'],
-    ['ls', 'LS (relevo, Copernicus)'],
+    ['ls', 'LS gravado na RUSLE'],
+    ['indiceRampa', 'Indice com LS rampa 50 m'],
+    ['indiceFluxo', 'Indice com LS por fluxo'],
+    ['lsRampa', 'LS rampa 50 m'],
+    ['lsFluxo', 'LS por fluxo acumulado'],
     ['declividadeCopernicus', 'Declividade Copernicus'],
     ['declividadeAnadem', 'Declividade ANADEM'],
     ['c', 'C (cobertura)'],
@@ -27,8 +32,19 @@ const MEDIDAS = [
 const fmt = (v) => (v === null ? '-' : v.toFixed(2));
 
 async function main() {
+    // Os dois LS sao recalculados aqui para comparar no mesmo conjunto de torres.
     const rows = (await towerEnvironmentRepository.listForRusleValidation())
-        .filter((r) => Number.isFinite(r.indice));
+        .filter((r) => Number.isFinite(r.indice))
+        .map((r) => {
+            const lsRampa = lsFactor(r.declividadeCopernicus);
+            const base = [r.r, r.k, r.c].every(Number.isFinite) ? r.r * r.k * r.c : null;
+            return {
+                ...r,
+                lsRampa,
+                indiceRampa: base !== null && Number.isFinite(lsRampa) ? base * lsRampa : null,
+                indiceFluxo: base !== null && Number.isFinite(r.lsFluxo) ? base * r.lsFluxo : null,
+            };
+        });
     const comErosao = rows.filter((r) => r.erosao).length;
     console.log(`${rows.length} torre(s) vistoriada(s) com indice RUSLE: ${comErosao} com erosao, ${rows.length - comErosao} sem`);
     MEDIDAS.forEach(([campo, nome]) => {

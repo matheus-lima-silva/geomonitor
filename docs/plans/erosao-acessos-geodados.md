@@ -120,7 +120,7 @@ Recorte na area dos lotes (bbox dos empreendimentos + 5 km). Rasters em COG no M
 
 ## Fase 6 — Suscetibilidade (RUSLE)
 
-**Status (2026-11-28)**: primeira versao em `feat/erosao-fase6-suscetibilidade`. Solo: IBGE Pedologia 1:250.000 versao 2026 (migracao `0034`, `ibge_pedologia`, 3.924 poligonos recortados na area das torres; carga via `ogr2ogr -f PGDump` na imagem GDAL, sem credencial, + `psql` no container do banco). R: REDB-BR (`backend/geodata/REDBBR_Rfactor.tif`, CC BY 4.0, grade de 0,16 grau). `scripts/computeTowerSoilErosion.js` grava `payload.solo` (classe IBGE + tipo de solo sugerido) e `payload.rusle` (indice e classe) por torre. **K**: mapa de erodibilidade dos solos do Brasil da Embrapa Solos (2024, CC BY-NC; uso liberado porque o projeto e estudo pessoal, nao comercial), migracao `0035` (`embrapa_erodibilidade`, 3.952 unidades recortadas; K = 0 em agua/area urbana/rocha, onde cai no K provisorio por ordem de solo). **Provisorio**: C por classe MapBiomas, rampa fixa de 50 m (LS sem rede de drenagem). Resultado: tipo de solo para 22.052 torres; RUSLE para 21.713 (baixa 4.957, moderada 5.132, alta 5.814, muito alta 5.810). A ficha mostra o tipo de solo sugerido (com botao) e a classe RUSLE da torre. Com o K da Embrapa: baixa 8.507, moderada 3.991, alta 5.262, muito alta 3.953. Pendente: ranking/mapa de calor no Dashboard, LS com fluxo acumulado.
+**Status (2026-11-28)**: primeira versao em `feat/erosao-fase6-suscetibilidade`. Solo: IBGE Pedologia 1:250.000 versao 2026 (migracao `0034`, `ibge_pedologia`, 3.924 poligonos recortados na area das torres; carga via `ogr2ogr -f PGDump` na imagem GDAL, sem credencial, + `psql` no container do banco). R: REDB-BR (`backend/geodata/REDBBR_Rfactor.tif`, CC BY 4.0, grade de 0,16 grau). `scripts/computeTowerSoilErosion.js` grava `payload.solo` (classe IBGE + tipo de solo sugerido) e `payload.rusle` (indice e classe) por torre. **K**: mapa de erodibilidade dos solos do Brasil da Embrapa Solos (2024, CC BY-NC; uso liberado porque o projeto e estudo pessoal, nao comercial), migracao `0035` (`embrapa_erodibilidade`, 3.952 unidades recortadas; K = 0 em agua/area urbana/rocha, onde cai no K provisorio por ordem de solo). **Provisorio**: C por classe MapBiomas, rampa fixa de 50 m (LS sem rede de drenagem). Resultado: tipo de solo para 22.052 torres; RUSLE para 21.713 (baixa 4.957, moderada 5.132, alta 5.814, muito alta 5.810). A ficha mostra o tipo de solo sugerido (com botao) e a classe RUSLE da torre. Com o K da Embrapa: baixa 8.507, moderada 3.991, alta 5.262, muito alta 3.953. Pendente: ranking/mapa de calor no Dashboard.
 
 **Validacao (2026-11-28)**, `scripts/validateRusle.js` (so leitura, rodar de novo quando entrarem vistorias): torre com erosao = marcada `temErosao` em alguma vistoria (`detalhesDias[].torresDetalhadas`) ou com erosao cadastrada; sem erosao = vistoriada sem marcacao. 280 torres com indice (52 com erosao, concentradas em SIMRLE, BFLCHP e ANGZOE).
 
@@ -132,6 +132,17 @@ Recorte na area dos lotes (bbox dos empreendimentos + 5 km). Rasters em COG no M
 | C, K, R sozinhos | 0,53 / 0,53 / 0,50 | 0,57 / 0,54 / 0,44 |
 
 Taxa de erosao por classe (Copernicus): baixa 7%, moderada 14%, alta 14%, muito alta 31%. Leitura: o indice separa de forma moderada e quase todo o sinal vem do relevo; boa parte do acerto e entre regioes (dentro do empreendimento cai para 0,58). O ANADEM perdeu para o Copernicus em 99% das reamostragens pareadas (diferenca media -0,03); hipotese: o modelo de superficie registra cortes, aterros e vocorocas com vegetacao perto da torre, que o ANADEM suaviza. Amostra pequena: tratar como indicio e revalidar com mais vistorias. Decisao: RUSLE com declividade do Copernicus.
+
+**LS pelo escoamento real (2026-11-28)**: `utils/flowLs.js` + `scripts/computeTowerFlowLs.js`. Janela de 600 m do Copernicus em volta da torre (HTTP Range), preenchimento de depressoes (priority-flood), fluxo acumulado multiplo (Freeman, p = 1,1), L de Desmet & Govers (1996) com S e m de McCool (1987), rampa equivalente limitada a 300 m; media no raio de 50 m. Grava `payload.lsFluxo`; a RUSLE so usa com `computeTowerSoilErosion --ls=fluxo`. Validacao nas mesmas 280 torres:
+
+| LS | AUC geral | AUC dentro do empreendimento |
+|---|---|---|
+| Rampa fixa de 50 m (atual) | 0,70 | 0,58 |
+| Fluxo, rampa ate 100 / 300 / 1.000 m | 0,68 / 0,67 / 0,67 | 0,60 / 0,60 / 0,60 |
+| Fluxo, maximo no raio (rampa ate 300 m) | 0,68 | 0,62 |
+| Fluxo, janela de 1.200 m | 0,67 | 0,60 |
+
+Nenhuma variante melhorou a AUC geral (diferencas de -0,01 a -0,03, IC95% cruzando zero); dentro do empreendimento ganham 0,02 a 0,04, tambem dentro do ruido. A rampa equivalente no entorno das torres tem mediana de 41 m (p90 173 m), perto dos 50 m fixos, o que explica a pouca diferenca: torres ficam em topo ou meia encosta. Decisao: manter a rampa fixa de 50 m por padrao; o LS por fluxo fica pronto (`--ls=fluxo`) para revalidar quando houver mais vistorias, e calculado so nas torres vistoriadas.
 
 - A = R . K . LS . C . P por torre, por vao e por acesso (C pelo uso MapBiomas; P = 1 de inicio).
 - Ranking e mapa de calor ao lado da criticidade V3, sem substitui-la.

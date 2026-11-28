@@ -761,7 +761,7 @@ Tabela Postgres: `tower_environment` (migracao `0033`), preenchida por `backend/
 
 | Metodo | Rota | Permissao | Descricao |
 |---|---|---|---|
-| GET | `/api/projects/:id/tower-environment` | `requireActiveUser` | Atributos por torre (inclui `mapbiomas`, `anadem` = declividade media/maxima e elevacao pelo ANADEM v1, so referencia (a RUSLE e a sugestao da ficha usam o Copernicus), `solo` = classe IBGE + `tipoSoloSugerido`, `rusle` = indice relativo, classe e `declividadeFonte`): `elevacaoM`, `declividadeMediaGraus`, `declividadeMaxGraus`, `orientacao`, `cobertura` (fracao por classe WorldCover no raio), `classeNoPonto`, `usosSoloSugeridos`, `usoSoloOutroSugerido`, `raioM`, `sources`, `computedAt` |
+| GET | `/api/projects/:id/tower-environment` | `requireActiveUser` | Atributos por torre (inclui `mapbiomas`, `anadem` = declividade media/maxima e elevacao pelo ANADEM v1, so referencia (a RUSLE e a sugestao da ficha usam o Copernicus), `solo` = classe IBGE + `tipoSoloSugerido`, `lsFluxo` = LS pelo fluxo acumulado, quando calculado, `rusle` = indice relativo, classe, `declividadeFonte` e `lsFonte`): `elevacaoM`, `declividadeMediaGraus`, `declividadeMaxGraus`, `orientacao`, `cobertura` (fracao por classe WorldCover no raio), `classeNoPonto`, `usosSoloSugeridos`, `usoSoloOutroSugerido`, `raioM`, `sources`, `computedAt` |
 
 ---
 

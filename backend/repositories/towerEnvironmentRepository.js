@@ -123,6 +123,7 @@ async function listForSoilErosion(projectIds) {
         `
             SELECT te.project_id, te.tower_number, te.latitude, te.longitude,
                    (te.payload->>'declividadeMediaGraus')::float8 AS declividade,
+                   (te.payload->'lsFluxo'->>'ls')::float8 AS ls_fluxo,
                    CASE WHEN te.payload->>'declividadeMediaGraus' IS NOT NULL THEN 'copernicus' END AS declividade_fonte,
                    te.payload->'mapbiomas'->'cobertura' AS cobertura,
                    p.simbolo, p.legenda, p.ordem, p.subordem, p.grande_grupo, p.textura, p.relevo, p.versao,
@@ -180,7 +181,8 @@ async function listForRusleValidation() {
                    (te.payload->'rusle'->'fatores'->>'K')::float8 AS k,
                    (te.payload->'rusle'->'fatores'->>'R')::float8 AS r,
                    (te.payload->>'declividadeMediaGraus')::float8 AS declividade_copernicus,
-                   (te.payload->'anadem'->>'declividadeMediaGraus')::float8 AS declividade_anadem
+                   (te.payload->'anadem'->>'declividadeMediaGraus')::float8 AS declividade_anadem,
+                   (te.payload->'lsFluxo'->>'ls')::float8 AS ls_fluxo
             FROM torres t
             JOIN tower_environment te ON te.project_id = t.project_id AND te.tower_number = t.tower_number
             LEFT JOIN vistoriadas v ON v.project_id = t.project_id AND v.tower_number = t.tower_number
@@ -200,7 +202,46 @@ async function listForRusleValidation() {
         r: num(row.r),
         declividadeCopernicus: num(row.declividade_copernicus),
         declividadeAnadem: num(row.declividade_anadem),
+        lsFluxo: num(row.ls_fluxo),
     }));
+}
+
+/** Torres para o LS por fluxo acumulado (sem lsFluxo ainda, salvo refresh). */
+async function listForFlowLs(projectIds, { refresh = false } = {}) {
+    const result = await postgresStore.query(
+        `SELECT project_id, tower_number, latitude, longitude FROM tower_environment
+         WHERE project_id = ANY($1::text[]) AND ($2::boolean OR payload->'lsFluxo' IS NULL)`,
+        [projectIds, refresh],
+    );
+    return result.rows.map((row) => ({
+        projectId: row.project_id,
+        towerNumber: row.tower_number,
+        latitude: Number(row.latitude),
+        longitude: Number(row.longitude),
+    }));
+}
+
+/** Grava o LS por fluxo acumulado no bloco payload.lsFluxo (lote). rows: [{ projectId, towerNumber, lsFluxo }] */
+async function mergeLsFluxo(rows, source) {
+    let updated = 0;
+    for (let start = 0; start < rows.length; start += 1000) {
+        const chunk = rows.slice(start, start + 1000);
+        const result = await postgresStore.query(
+            `
+                UPDATE tower_environment te SET
+                    payload = te.payload || jsonb_build_object('lsFluxo', r.ls_fluxo),
+                    sources = te.sources || jsonb_build_object('lsFluxo', $2::jsonb)
+                FROM jsonb_to_recordset($1::jsonb) AS r(project_id text, tower_number text, ls_fluxo jsonb)
+                WHERE te.project_id = r.project_id AND te.tower_number = r.tower_number
+            `,
+            [
+                JSON.stringify(chunk.map((row) => ({ project_id: row.projectId, tower_number: String(row.towerNumber), ls_fluxo: row.lsFluxo }))),
+                JSON.stringify(source),
+            ],
+        );
+        updated += result.rowCount;
+    }
+    return updated;
 }
 
 /** Grava solo e RUSLE no payload (lote). rows: [{ projectId, towerNumber, solo, rusle }] */
@@ -227,7 +268,9 @@ async function mergeSoilErosion(rows, sources) {
 }
 
 module.exports = {
+    listForFlowLs,
     listForRusleValidation,
+    mergeLsFluxo,
     listForSoilErosion,
     mergeAnadem,
     mergeSoilErosion,

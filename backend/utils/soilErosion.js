@@ -106,9 +106,14 @@ const CLASSES_PERDA = [
     [Infinity, 'muito_alta'],
 ];
 
-/** Indice RUSLE da torre. Retorna null se faltar algum fator. */
-function computeRusle({ r, k, slopeDeg, cobertura, kFonte = 'provisorio' }) {
-    const ls = lsFactor(slopeDeg);
+/**
+ * Indice RUSLE da torre. Retorna null se faltar algum fator.
+ * `lsFluxo` (opcional): LS ja calculado pelo fluxo acumulado (utils/flowLs.js);
+ * sem ele, LS sai da declividade com rampa fixa de 50 m.
+ */
+function computeRusle({ r, k, slopeDeg, cobertura, kFonte = 'provisorio', lsFluxo = null }) {
+    const usaFluxo = Number.isFinite(lsFluxo);
+    const ls = usaFluxo ? lsFluxo : lsFactor(slopeDeg);
     const c = coverC(cobertura);
     if (![r, k, ls, c].every(Number.isFinite)) return null;
     const a = r * k * ls * c;
@@ -118,9 +123,8 @@ function computeRusle({ r, k, slopeDeg, cobertura, kFonte = 'provisorio' }) {
         classe: CLASSES_PERDA.find(([max]) => a < max)[1],
         fatores: { R: round(r, 0), K: k, LS: round(ls, 2), C: round(c, 3), P: 1 },
         kFonte,
-        observacao: kFonte === 'embrapa'
-            ? 'Indice relativo (RUSLE): K da Embrapa (2024), C por uso MapBiomas, rampa fixa de 50 m.'
-            : 'Indice relativo (RUSLE): K provisorio por ordem de solo, C por uso MapBiomas, rampa fixa de 50 m.',
+        lsFonte: usaFluxo ? 'fluxo' : 'rampa_50m',
+        observacao: `Indice relativo (RUSLE): ${kFonte === 'embrapa' ? 'K da Embrapa (2024)' : 'K provisorio por ordem de solo'}, C por uso MapBiomas, ${usaFluxo ? 'LS pelo fluxo acumulado (Desmet & Govers)' : 'rampa fixa de 50 m'}.`,
     };
 }
 
