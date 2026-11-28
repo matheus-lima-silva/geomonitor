@@ -24,6 +24,9 @@ vi.mock('../../../../context/ToastContext', () => ({
   useToast: () => ({
     show: showMock,
   }),
+  useOptionalToast: () => ({
+    show: showMock,
+  }),
 }));
 
 // Thumbnails das fotos principais usam MediaImage (resolve URL assinada via rede);
@@ -35,6 +38,7 @@ vi.mock('react-leaflet', () => ({
   TileLayer: () => null,
   CircleMarker: ({ children }) => <div>{children}</div>,
   Polyline: () => null,
+  Polygon: () => null,
   Popup: ({ children }) => <div>{children}</div>,
   Tooltip: ({ children }) => <div>{children}</div>,
   Marker: ({ children }) => <div>{children}</div>,

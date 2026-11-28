@@ -353,13 +353,21 @@ Campos tecnicos V3 usados no calculo de criticidade:
 | `impactoVia` | object | Dados de impacto na via (condicional: quando `localTipo = via_acesso_exclusiva`) |
 | `fotosPrincipais` | object[] | Ate 6 referencias `{ photoId, workspaceId, mediaAssetId, caption?, sortOrder }` apontando para fotos de workspaces do mesmo projeto. Renderizadas no PDF completo e na galeria do modal de detalhes. Nao reutilizado pela ficha simplificada. |
 
+Campos de tracado (opcionais, nao entram no calculo):
+
+| Campo | Tipo | Descricao |
+|---|---|---|
+| `geometria` | GeoJSON \| null | Tracado importado de KML/KMZ/GPX: `{ type: 'Point' \| 'LineString' \| 'Polygon', coordinates }` com coordenadas `[lon, lat]`. Validado no Zod (faixas de lat/lon, ate 10.000 vertices). `null` remove o tracado. |
+| `geometriaOrigem` | object \| null | `{ arquivo, formato: 'kml' \| 'kmz' \| 'gpx', feicao, importadoEm }`. |
+| `geometriaMetricas` | object \| null | `{ comprimentoMetros?, perimetroMetros?, areaM2?, vertices }` calculadas no frontend na importacao. |
+
 O endpoint executa:
 1. Validacao de campos tecnicos
 2. Normalizacao de coordenadas (Decimal/UTM/DMS)
 3. Calculo de criticidade V3 (T+P+D+S+E+A + modificador via)
 4. Derivacao de tipo de erosao
 5. Persistencia na tabela `erosions`
-6. Registro de historico de criticidade
+6. Registro de historico de criticidade (`data_vistoria` = dia em que a torre aparece na vistoria vinculada; sem isso, inicio da vistoria)
 7. Evento de acompanhamento automatico
 
 Status:

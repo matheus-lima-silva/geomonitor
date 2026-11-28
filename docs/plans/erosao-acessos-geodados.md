@@ -26,6 +26,8 @@ Rotulos e faixas de medida em escala de via ficam na Fase 2 (dependem da V3.1).
 
 ### 1a. Tracado da erosao (na ficha)
 
+**Status (2026-11-27)**: feito em `feat/erosao-fase1a-geometria` — parser KML/KMZ/GPX (`src/features/erosions/utils/geometryFile.js`, testado com o KMZ do Google Earth da ARAPCA T104 e o KMZ de 1.294 linhas do MAPS.ME/STPCA), metricas (`geometryMetrics.js`), painel `ErosionGeometryImport` no passo Localizacao (escolha do elemento ordenada pela distancia a torre; botoes de sugestao: ponto do tracado mais perto da torre, centro do tracado, extensao afetada), desenho no mapa do formulario e do detalhe, validacao Zod. **Adiado**: coluna PostGIS gerada (vai junto com as tabelas geograficas da 1b), distancia a torre medida ate o tracado no backend, geometria no PDF da ficha e no KMZ exportado.
+
 - Importar ponto, linha ou poligono (ex.: KMZ do trecho erodido da ARAPCA T104, linha de 184 m).
 - `geometria` (GeoJSON) + `geometriaOrigem` (arquivo, placemark) no payload; comprimento, area e perimetro derivados e sugeridos para a extensao afetada.
 - Schema Zod aceita o campo (sem quebrar o `/simulate`, ver acoplamento save/simulate); coluna PostGIS gerada + GIST.

@@ -24,6 +24,40 @@ const impactoViaSchema = z.object({
     detalhes: z.record(z.string(), z.any()).optional(),
 }).passthrough().optional().nullable();
 
+// Tracado da erosao importado de KML/KMZ/GPX (GeoJSON, coordenadas [lon, lat]).
+// Validado aqui porque vira coluna/consulta PostGIS mais adiante: coordenada fora
+// de faixa ou estrutura errada derrubaria o save la na frente.
+const MAX_GEOMETRY_VERTICES = 10000;
+const lonLatSchema = z.tuple([
+    z.number().min(-180).max(180),
+    z.number().min(-90).max(90),
+]);
+const geometriaSchema = z.discriminatedUnion('type', [
+    z.object({ type: z.literal('Point'), coordinates: lonLatSchema }),
+    z.object({ type: z.literal('LineString'), coordinates: z.array(lonLatSchema).min(2).max(MAX_GEOMETRY_VERTICES) }),
+    z.object({
+        type: z.literal('Polygon'),
+        coordinates: z.array(z.array(lonLatSchema).min(4)).min(1).max(50),
+    }).refine(
+        (g) => g.coordinates.reduce((sum, ring) => sum + ring.length, 0) <= MAX_GEOMETRY_VERTICES,
+        { message: `geometria aceita no maximo ${MAX_GEOMETRY_VERTICES} vertices.` },
+    ),
+]).nullish();
+
+const geometriaOrigemSchema = z.object({
+    arquivo: z.string().max(300).optional(),
+    formato: z.enum(['kml', 'kmz', 'gpx']).optional(),
+    feicao: z.string().max(300).optional(),
+    importadoEm: z.string().optional(),
+}).passthrough().nullish();
+
+const geometriaMetricasSchema = z.object({
+    comprimentoMetros: z.number().nonnegative().optional(),
+    perimetroMetros: z.number().nonnegative().optional(),
+    areaM2: z.number().nonnegative().optional(),
+    vertices: z.number().int().nonnegative().optional(),
+}).passthrough().nullish();
+
 const fotoPrincipalSchema = z.object({
     photoId: z.string().trim().min(1),
     workspaceId: z.string().trim().min(1),
@@ -68,6 +102,9 @@ const erosionDataSchema = z.object({
     medidaPreventiva: z.string().optional(),
     fotosLinks: z.array(z.string()).optional(),
     fotosPrincipais: fotosPrincipaisSchema,
+    geometria: geometriaSchema,
+    geometriaOrigem: geometriaOrigemSchema,
+    geometriaMetricas: geometriaMetricasSchema,
     backfillEstimado: z.boolean().optional(),
     latitude: numericLike,
     longitude: numericLike,

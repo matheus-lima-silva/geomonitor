@@ -13,6 +13,7 @@ vi.mock('react-leaflet', () => ({
   TileLayer: () => null,
   CircleMarker: ({ children }) => <div>{children}</div>,
   Polyline: () => null,
+  Polygon: () => null,
   Popup: ({ children }) => <div>{children}</div>,
   Tooltip: ({ children }) => <div>{children}</div>,
   useMapEvents: () => null,
@@ -233,6 +234,26 @@ describe('ErosionDetailsModal', () => {
     });
 
     expect(container.textContent).toContain('D4 (> 45 graus)');
+  });
+
+  it('mostra o tracado importado (tipo, comprimento e arquivo)', () => {
+    renderModal(root, {
+      erosion: {
+        id: 'ERS-G',
+        projetoId: 'P1',
+        acompanhamentosResumo: [],
+        locationCoordinates: { latitude: '-21.828227', longitude: '-47.880947' },
+        geometria: { type: 'LineString', coordinates: [[-47.8816, -21.8285], [-47.8808, -21.8275]] },
+        geometriaOrigem: { arquivo: 'Trecho erodido.kmz', formato: 'kmz' },
+        geometriaMetricas: { comprimentoMetros: 184 },
+      },
+    });
+
+    const geometry = container.querySelector('[data-testid="erosion-details-geometry"]');
+    expect(geometry).toBeTruthy();
+    expect(geometry.textContent).toContain('Linha');
+    expect(geometry.textContent).toContain('184 m');
+    expect(geometry.textContent).toContain('Trecho erodido.kmz');
   });
 
   it('shows empty history state when no followup data exists', () => {

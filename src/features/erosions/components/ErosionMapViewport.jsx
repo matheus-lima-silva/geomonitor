@@ -16,10 +16,11 @@ function isValidPoint(point) {
  * - Quando o ponto selecionado muda e saiu da area visivel, faz pan mantendo o zoom
  *   (com debounce, para nao pular a cada digito da coordenada). Clique no mapa nao
  *   move nem tira o zoom, porque o ponto clicado ja esta visivel.
+ * - Enquadra o tracado importado quando `focusKey` muda.
  * - Recalcula o tamanho quando o container muda de dimensao (ex.: etapa do wizard
  *   que estava oculta passa a ser exibida), evitando tiles cinzas.
  */
-export default function ErosionMapViewport({ center, zoom, recenterKey, point }) {
+export default function ErosionMapViewport({ center, zoom, recenterKey, point, focusKey = 0, focusBounds = [] }) {
   const map = useMap();
   const lastRecenterKey = useRef(null);
   // Ultimo centro "desejado": usado para recentralizar quando o mapa, montado
@@ -33,6 +34,17 @@ export default function ErosionMapViewport({ center, zoom, recenterKey, point })
     lastRecenterKey.current = recenterKey;
     if (isValidPoint(center)) map.setView(center, zoom, { animate: false });
   }, [map, recenterKey, center, zoom]);
+
+  // Enquadra o tracado recem-importado (focusKey muda a cada importacao; comeca
+  // em 0, entao um mapa aberto depois da importacao tambem enquadra).
+  const lastFocusKey = useRef(0);
+  useEffect(() => {
+    if (!map || focusKey === lastFocusKey.current) return;
+    lastFocusKey.current = focusKey;
+    const valid = (focusBounds || []).filter(isValidPoint);
+    if (valid.length === 1) map.setView(valid[0], 18, { animate: false });
+    else if (valid.length > 1) map.fitBounds(valid, { padding: [24, 24], maxZoom: 18, animate: false });
+  }, [map, focusKey, focusBounds]);
 
   useEffect(() => {
     if (!map || !isValidPoint(point)) return undefined;

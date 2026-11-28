@@ -12,6 +12,7 @@ vi.mock('react-leaflet', () => ({
   useMap: () => null,
   CircleMarker: ({ children }) => <div>{children}</div>,
   Polyline: () => null,
+  Polygon: () => null,
   Popup: ({ children }) => <div>{children}</div>,
   Tooltip: ({ children }) => <div>{children}</div>,
   useMapEvents: () => null,
