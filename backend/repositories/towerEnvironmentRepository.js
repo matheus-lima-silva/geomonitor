@@ -86,7 +86,194 @@ async function mergeMapbiomas(rows, source) {
     return updated;
 }
 
+/**
+ * Grava a declividade do ANADEM no bloco payload.anadem (lote), so como
+ * referencia. Os campos de topo do Copernicus ficam como estao. rows: [{ projectId, towerNumber, anadem }]
+ */
+async function mergeAnadem(rows, source) {
+    let updated = 0;
+    for (let start = 0; start < rows.length; start += 1000) {
+        const chunk = rows.slice(start, start + 1000);
+        const result = await postgresStore.query(
+            `
+                UPDATE tower_environment te SET
+                    payload = te.payload || jsonb_build_object('anadem', r.anadem),
+                    sources = te.sources || jsonb_build_object('relevoAnadem', $2::jsonb)
+                FROM jsonb_to_recordset($1::jsonb) AS r(project_id text, tower_number text, anadem jsonb)
+                WHERE te.project_id = r.project_id AND te.tower_number = r.tower_number
+            `,
+            [
+                JSON.stringify(chunk.map((row) => ({ project_id: row.projectId, tower_number: String(row.towerNumber), anadem: row.anadem }))),
+                JSON.stringify(source),
+            ],
+        );
+        updated += result.rowCount;
+    }
+    return updated;
+}
+
+/**
+ * Torres com o necessario para solo e RUSLE: classe de solo do IBGE no ponto da
+ * torre (ibge_pedologia), declividade do Copernicus e cobertura MapBiomas ja
+ * calculadas. A RUSLE fica no Copernicus: na validacao contra as torres
+ * vistoriadas (2026-11-28) o ANADEM separou pior as torres com erosao.
+ */
+async function listForSoilErosion(projectIds) {
+    const result = await postgresStore.query(
+        `
+            SELECT te.project_id, te.tower_number, te.latitude, te.longitude,
+                   (te.payload->>'declividadeMediaGraus')::float8 AS declividade,
+                   (te.payload->'lsFluxo'->>'ls')::float8 AS ls_fluxo,
+                   CASE WHEN te.payload->>'declividadeMediaGraus' IS NOT NULL THEN 'copernicus' END AS declividade_fonte,
+                   te.payload->'mapbiomas'->'cobertura' AS cobertura,
+                   p.simbolo, p.legenda, p.ordem, p.subordem, p.grande_grupo, p.textura, p.relevo, p.versao,
+                   e.k_solos, e.classe_erod
+            FROM tower_environment te
+            LEFT JOIN LATERAL (
+                SELECT ip.simbolo, ip.legenda, ip.ordem, ip.subordem, ip.grande_grupo, ip.textura, ip.relevo, ip.versao
+                FROM ibge_pedologia ip
+                WHERE ST_Intersects(ip.geom, ST_SetSRID(ST_MakePoint(te.longitude, te.latitude), 4326)::geography)
+                LIMIT 1
+            ) p ON true
+            LEFT JOIN LATERAL (
+                SELECT ee.k_solos, ee.classe_erod
+                FROM embrapa_erodibilidade ee
+                WHERE ST_Intersects(ee.geom, ST_SetSRID(ST_MakePoint(te.longitude, te.latitude), 4326)::geography)
+                LIMIT 1
+            ) e ON true
+            WHERE te.project_id = ANY($1::text[])
+        `,
+        [projectIds],
+    );
+    return result.rows;
+}
+
+/**
+ * Torres vistoriadas com rotulo de erosao (Fase 6, validacao da RUSLE): erosao = 1
+ * se alguma vistoria marcou "temErosao" na torre ou se ha erosao cadastrada nela;
+ * 0 se foi vistoriada sem marcacao. Traz o indice RUSLE, os fatores e as duas
+ * declividades. So torres com linha em tower_environment.
+ */
+async function listForRusleValidation() {
+    const result = await postgresStore.query(
+        `
+            WITH vistoriadas AS (
+                SELECT i.payload->>'projetoId' AS project_id, td->>'numero' AS tower_number,
+                       bool_or(COALESCE((td->>'temErosao')::boolean, false)) AS tem_erosao
+                FROM inspections i
+                CROSS JOIN LATERAL jsonb_array_elements(COALESCE(i.payload->'detalhesDias', '[]'::jsonb)) d
+                CROSS JOIN LATERAL jsonb_array_elements(COALESCE(d->'torresDetalhadas', '[]'::jsonb)) td
+                WHERE COALESCE((i.payload->>'_deleted')::boolean, false) = false
+                GROUP BY 1, 2
+            ), cadastradas AS (
+                SELECT DISTINCT project_id, payload->>'torreRef' AS tower_number FROM erosions
+                WHERE COALESCE(payload->>'torreRef', '') <> ''
+            ), torres AS (
+                SELECT project_id, tower_number FROM vistoriadas
+                UNION SELECT project_id, tower_number FROM cadastradas
+            )
+            SELECT t.project_id, t.tower_number,
+                   (COALESCE(v.tem_erosao, false) OR c.tower_number IS NOT NULL) AS erosao,
+                   te.payload->'rusle'->>'classe' AS classe,
+                   (te.payload->'rusle'->>'perdaSoloIndice')::float8 AS indice,
+                   (te.payload->'rusle'->'fatores'->>'LS')::float8 AS ls,
+                   (te.payload->'rusle'->'fatores'->>'C')::float8 AS c,
+                   (te.payload->'rusle'->'fatores'->>'K')::float8 AS k,
+                   (te.payload->'rusle'->'fatores'->>'R')::float8 AS r,
+                   (te.payload->>'declividadeMediaGraus')::float8 AS declividade_copernicus,
+                   (te.payload->'anadem'->>'declividadeMediaGraus')::float8 AS declividade_anadem,
+                   (te.payload->'lsFluxo'->>'ls')::float8 AS ls_fluxo
+            FROM torres t
+            JOIN tower_environment te ON te.project_id = t.project_id AND te.tower_number = t.tower_number
+            LEFT JOIN vistoriadas v ON v.project_id = t.project_id AND v.tower_number = t.tower_number
+            LEFT JOIN cadastradas c ON c.project_id = t.project_id AND c.tower_number = t.tower_number
+        `,
+    );
+    const num = (v) => (v === null || v === undefined ? null : Number(v));
+    return result.rows.map((row) => ({
+        projectId: row.project_id,
+        towerNumber: row.tower_number,
+        erosao: row.erosao ? 1 : 0,
+        classe: row.classe,
+        indice: num(row.indice),
+        ls: num(row.ls),
+        c: num(row.c),
+        k: num(row.k),
+        r: num(row.r),
+        declividadeCopernicus: num(row.declividade_copernicus),
+        declividadeAnadem: num(row.declividade_anadem),
+        lsFluxo: num(row.ls_fluxo),
+    }));
+}
+
+/** Torres para o LS por fluxo acumulado (sem lsFluxo ainda, salvo refresh). */
+async function listForFlowLs(projectIds, { refresh = false } = {}) {
+    const result = await postgresStore.query(
+        `SELECT project_id, tower_number, latitude, longitude FROM tower_environment
+         WHERE project_id = ANY($1::text[]) AND ($2::boolean OR payload->'lsFluxo' IS NULL)`,
+        [projectIds, refresh],
+    );
+    return result.rows.map((row) => ({
+        projectId: row.project_id,
+        towerNumber: row.tower_number,
+        latitude: Number(row.latitude),
+        longitude: Number(row.longitude),
+    }));
+}
+
+/** Grava o LS por fluxo acumulado no bloco payload.lsFluxo (lote). rows: [{ projectId, towerNumber, lsFluxo }] */
+async function mergeLsFluxo(rows, source) {
+    let updated = 0;
+    for (let start = 0; start < rows.length; start += 1000) {
+        const chunk = rows.slice(start, start + 1000);
+        const result = await postgresStore.query(
+            `
+                UPDATE tower_environment te SET
+                    payload = te.payload || jsonb_build_object('lsFluxo', r.ls_fluxo),
+                    sources = te.sources || jsonb_build_object('lsFluxo', $2::jsonb)
+                FROM jsonb_to_recordset($1::jsonb) AS r(project_id text, tower_number text, ls_fluxo jsonb)
+                WHERE te.project_id = r.project_id AND te.tower_number = r.tower_number
+            `,
+            [
+                JSON.stringify(chunk.map((row) => ({ project_id: row.projectId, tower_number: String(row.towerNumber), ls_fluxo: row.lsFluxo }))),
+                JSON.stringify(source),
+            ],
+        );
+        updated += result.rowCount;
+    }
+    return updated;
+}
+
+/** Grava solo e RUSLE no payload (lote). rows: [{ projectId, towerNumber, solo, rusle }] */
+async function mergeSoilErosion(rows, sources) {
+    let updated = 0;
+    for (let start = 0; start < rows.length; start += 1000) {
+        const chunk = rows.slice(start, start + 1000);
+        const result = await postgresStore.query(
+            `
+                UPDATE tower_environment te SET
+                    payload = te.payload || jsonb_build_object('solo', r.solo, 'rusle', r.rusle),
+                    sources = te.sources || $2::jsonb
+                FROM jsonb_to_recordset($1::jsonb) AS r(project_id text, tower_number text, solo jsonb, rusle jsonb)
+                WHERE te.project_id = r.project_id AND te.tower_number = r.tower_number
+            `,
+            [
+                JSON.stringify(chunk.map((row) => ({ project_id: row.projectId, tower_number: String(row.towerNumber), solo: row.solo, rusle: row.rusle }))),
+                JSON.stringify(sources),
+            ],
+        );
+        updated += result.rowCount;
+    }
+    return updated;
+}
+
 module.exports = {
+    listForFlowLs,
+    listForRusleValidation,
+    mergeLsFluxo,
+    listForSoilErosion,
+    mergeAnadem,
+    mergeSoilErosion,
     mergeMapbiomas,
     listByProject,
     listComputedKeys,

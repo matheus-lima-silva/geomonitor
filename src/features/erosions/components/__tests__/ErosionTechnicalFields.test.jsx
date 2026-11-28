@@ -269,6 +269,17 @@ describe('ErosionTechnicalFields', () => {
       expect(props.onPatch).toHaveBeenLastCalledWith({ declividadeGraus: 9.5 });
     });
 
+    it('mostra o ANADEM so como referencia e aplica o Copernicus', () => {
+      const props = renderFields(root, {
+        towerEnvironment: { ...env, anadem: { declividadeMediaGraus: 7.4, declividadeMaxGraus: 8.7 } },
+      });
+      const slope = container.querySelector('[data-testid="erosion-env-slope"]');
+      expect(slope.textContent).toContain('~9,5°');
+      expect(slope.textContent).toContain('terreno sem vegetação (ANADEM): ~7,4°');
+      clickElement([...slope.querySelectorAll('button')].find((b) => b.textContent === 'Usar'));
+      expect(props.onPatch).toHaveBeenLastCalledWith({ declividadeGraus: 9.5 });
+    });
+
     it('sugere usos do solo com a fonte e soma aos ja marcados', () => {
       const props = renderFields(root, { towerEnvironment: env, formData: { usosSolo: ['acesso'] } });
       const uses = container.querySelector('[data-testid="erosion-env-uses"]');
@@ -281,6 +292,23 @@ describe('ErosionTechnicalFields', () => {
     it('indica "ja marcado" quando os usos sugeridos ja estao na ficha', () => {
       renderFields(root, { towerEnvironment: { ...env, usosSoloSugeridos: ['pastagem'], usoSoloOutroSugerido: '' }, formData: { usosSolo: ['pastagem'] } });
       expect(container.querySelector('[data-testid="erosion-env-uses"]').textContent).toContain('já marcado');
+    });
+
+    it('sugere o tipo de solo do IBGE e mostra a suscetibilidade RUSLE', () => {
+      const props = renderFields(root, {
+        towerEnvironment: {
+          ...env,
+          solo: { tipoSoloSugerido: 'argiloso', ibge: { ordem: 'ARGISSOLO', subordem: 'VERMELHO-AMARELO', textura: 'Média/argilosa' } },
+          rusle: { classe: 'muito_alta', perdaSoloIndice: 53.6, kFonte: 'embrapa' },
+        },
+      });
+      const soil = container.querySelector('[data-testid="erosion-env-soil"]');
+      expect(soil.textContent).toContain('argissolo vermelho-amarelo, textura média/argilosa');
+      clickElement([...soil.querySelectorAll('button')].find((b) => b.textContent === 'Usar'));
+      expect(props.onPatch).toHaveBeenLastCalledWith({ tipoSolo: 'argiloso' });
+      const rusle = container.querySelector('[data-testid="erosion-env-rusle"]').textContent;
+      expect(rusle).toContain('muito alta');
+      expect(rusle).toContain('K da Embrapa');
     });
 
     it('sem dados da torre nao mostra sugestoes', () => {

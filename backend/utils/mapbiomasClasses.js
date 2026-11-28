@@ -127,6 +127,7 @@ function parseMapbiomasTowerCsv(text) {
 
 module.exports = {
     MAPBIOMAS_CLASSES,
+    parseCsvLine,
     summarizeMapbiomasHistogram,
     parseMapbiomasTowerCsv,
 };
