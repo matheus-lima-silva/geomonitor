@@ -11,6 +11,7 @@ import ProjectFormModal from './ProjectFormModal';
 import KmlReviewModal from './KmlReviewModal';
 import KmlLinePickerModal from './KmlLinePickerModal';
 import RoutePlannerModal from './RoutePlannerModal';
+import ProjectAccessesModal from './ProjectAccessesModal';
 import { ConfirmDeleteModal } from '../../../components/ui';
 
 function ProjectsView({ projects, inspections, operatingLicenses, feriados = [], userEmail, showToast, reloadProjects, onOpenProjectInspections, searchTerm, editProjectId, onEditProjectHandled, loading = false }) {
@@ -21,6 +22,7 @@ function ProjectsView({ projects, inspections, operatingLicenses, feriados = [],
   const [filterTipo, setFilterTipo] = useState('');
   const [sortBy, setSortBy] = useState('cadastro');
   const [onlyPendencies, setOnlyPendencies] = useState(false);
+  const [accessesProject, setAccessesProject] = useState(null);
 
   const feriadosIndex = useMemo(() => buildFeriadosIndex(feriados), [feriados]);
 
@@ -338,6 +340,18 @@ function ProjectsView({ projects, inspections, operatingLicenses, feriados = [],
                     Tracar rota
                   </Button>
                 )}
+                {hasKmlData && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    className="flex-1"
+                    onClick={() => setAccessesProject(p)}
+                  >
+                    <AppIcon name="map" size={18} />
+                    Acessos
+                  </Button>
+                )}
               </div>
 
               {!hasKmlData && (
@@ -425,6 +439,11 @@ function ProjectsView({ projects, inspections, operatingLicenses, feriados = [],
         onBatchCreate={state.kmlPendingMode === 'create' ? (groups) => safeRun(() => state.batchCreateFromKml(groups)) : undefined}
         batchCreating={state.batchCreating}
         onCancel={state.closeKmlLinePicker}
+      />
+
+      <ProjectAccessesModal
+        project={accessesProject}
+        onClose={() => setAccessesProject(null)}
       />
 
       <RoutePlannerModal

@@ -36,6 +36,8 @@ Rotulos e faixas de medida em escala de via ficam na Fase 2 (dependem da V3.1).
 
 ### 1b. Tracado do acesso (no cadastro do empreendimento)
 
+**Status (2026-11-27)**: base feita em `feat/erosao-fase1b-acessos` — migracao `0032` (`tower_accesses`, `osm_roads`, `osm_road_loads`), `scripts/loadOsmRoads.js` (Overpass em grade fixa so em volta das torres, com retentativa, espelho e retomada), previa/gravacao/edicao/remocao em `/api/projects/:id/accesses`, modal "Acessos" no card do empreendimento (importacao, revisao com filtros e alertas, mapa colorido, repintura por clique, substituir ou adicionar). Validado em banco de rascunho no homelab: carga de 21 ladrilhos (ARAPCA, CAMPCA, PCAABA, PCAIJU) = 96.005 vias em ~30 min (Overpass lento); previa do KMZ STPCA (1.294 linhas, 2.195 km) em ~23 s, amostra de 20 m: 324 acessos de torre / 238 rotas-guia / 732 ignorados para PCAIJU; 125 torres com acesso, trecho de acesso mediano 376 m. **Pendente**: carregar o OSM em producao apos o deploy (migracao + `node scripts/loadOsmRoads.js --all --apply`), mostrar o acesso da torre no mapa da ficha de erosao, KMZ colorido para o celular, tracado estimado pelas fotos de acesso.
+
 - **Entradas**, todas para a tabela `tower_accesses`:
   - arquivo com varios acessos (ex.: KMZ STPCA: 1.294 linhas, 2.195 km);
   - arquivo com um acesso, pela ficha ou pela torre;
@@ -124,6 +126,17 @@ Recorte na area dos lotes (bbox dos empreendimentos + 5 km). Rasters em COG no M
 
 - Chuva acumulada (Open-Meteo, ja integrado, ou CHIRPS) x suscetibilidade -> alerta de "vistoriar apos evento" no cronograma.
 - Depois: solo exposto novo pelo NDVI do Sentinel-2.
+
+## Fase 9 — Revisao e melhoria do frontend
+
+Pedido do usuario (2026-11-27). Melhor momento: logo depois das Fases 1b e 2, que concentram a interface nova (painel de tracado, modal de acessos, ficha reordenada); pode ser repetida no fim das Fases 5 e 6.
+
+- **Auditoria das telas novas e alteradas** contra [../ui/ui-audit-report.md](../ui/ui-audit-report.md) e `src/CLAUDE.md`: primitivos, tokens, `AppIcon`, toasts, acessibilidade (foco, `aria-*`, teclado nas listas selecionaveis).
+- **Uso em campo**: formulario de erosao e modal de acessos no celular/tablet (layout em coluna, alvos de toque, mapa em tela cheia), leitura ao sol (contraste), conexao fraca.
+- **Mapas**: padronizar camadas (satelite/relevo/OSM) e legenda num componente unico reutilizado no formulario, no detalhe da erosao e nos acessos; zoom pela roda do mouse dentro de modais rolaveis (hoje rolar a pagina por cima do mapa da zoom).
+- **Desempenho**: listas grandes (KMZ com ~1.300 linhas, ~1.400 torres) com virtualizacao/paginacao; desenho no mapa em canvas; tempo de importacao e de previa medido.
+- **Fluxos**: ordem das perguntas da ficha (bloco de trafegabilidade primeiro), mensagens de erro e estados vazios, desfazer em acoes destrutivas, consistencia de rotulos PT-BR.
+- **Saida**: lista priorizada de ajustes com prints antes/depois, entrada no `ui-audit-report.md` e PRs pequenos por tela.
 
 ## Decisoes em aberto
 

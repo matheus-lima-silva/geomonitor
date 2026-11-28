@@ -726,6 +726,23 @@ Tabela Postgres: `project_dossiers`. Compilacao de licencas, erosoes e workspace
 
 ---
 
+## Tower Accesses (`/api/projects/:id/accesses`)
+
+Tabelas Postgres: `tower_accesses` (tracado por torre ou rota-guia, `geography(LineString)` + `segments` JSONB) e `osm_roads` / `osm_road_loads` (vias publicas do OpenStreetMap, carregadas por `backend/scripts/loadOsmRoads.js`). Migracao `0032`. Plano: `docs/plans/erosao-acessos-geodados.md` (Fase 1b).
+
+| Metodo | Rota | Permissao | Descricao |
+|---|---|---|---|
+| GET | `/api/projects/:id/accesses` | `requireActiveUser` | Lista acessos e rotas-guia; `_links` da colecao trazem `preview` e `create` |
+| POST | `/api/projects/:id/accesses/preview` | `requireEditor` | Previa sem gravar: sugere torre (ponta a <= 100 m), orienta entrada -> torre e pinta trechos `asfalto` / `terra` / `acesso` contra `osm_roads` (amostra a cada 10 m, tolerancia 15 m, trechos < 30 m fundidos) |
+| POST | `/api/projects/:id/accesses` | `requireEditor` | Grava em lote (`items`); `replaceIds` apaga acessos substituidos na mesma transacao |
+| GET | `/api/projects/:id/accesses/:accessId` | `requireActiveUser` | Busca acesso |
+| PUT | `/api/projects/:id/accesses/:accessId` | `requireEditor` | Atualiza torre, tipo, nome e trechos (repintura manual) |
+| DELETE | `/api/projects/:id/accesses/:accessId` | `requireEditor` | Remove acesso (204) |
+
+Body da previa: `{ data: { features: [{ id, name, geometry: LineString }], source? } }` (ate 3.000 linhas / 400.000 vertices). Resposta: `data.items[]` com `featureId`, `action` (`acesso` \| `rota_guia` \| `ignorar`), `towerNumber`, `towerDistanceM`, `relation` (`ponta` \| `passa` \| `longe`), `geometry` orientada, `lengthM`, `segments[]` (`{ tipo, inferido, manual, comprimentoM, coordinates }`), `resumo` (metros por tipo) e `flags` (`sem_osm`, `tipo_inferido`, `passa_perto_da_torre`, `acesso_curto`); `data.meta.osmLoaded` indica se ha vias carregadas na area. Sem tag `surface` no OSM, o tipo vem do tipo de via (rodovias/ruas = asfalto, `unclassified` = terra) e o trecho fica `inferido`.
+
+---
+
 ## Project Report Defaults (`/api/projects/:id/report-defaults`)
 
 Tabela Postgres: `project_report_defaults`. Configuracoes por projeto para geracao de relatorios (buffer de faixa de servidao, raio de sugestao de torre, textos base).
