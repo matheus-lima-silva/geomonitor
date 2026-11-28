@@ -241,6 +241,8 @@ function ErosionTechnicalFields({
   const env = towerEnvironment && typeof towerEnvironment === 'object' ? towerEnvironment : null;
   const envSlope = Number(env?.declividadeMediaGraus);
   const envSlopeMax = Number(env?.declividadeMaxGraus);
+  // ANADEM (modelo de terreno) so como referencia: a sugestao segue o Copernicus.
+  const envSlopeAnadem = Number(env?.anadem?.declividadeMediaGraus);
   const envUses = Array.isArray(env?.usosSoloSugeridos) ? env.usosSoloSugeridos : [];
   const envUsesMissing = envUses.filter((u) => !usosSolo.includes(u));
   const envUsesSource = env?.usosSoloFonte || (env?.cobertura ? 'ESA WorldCover 2021' : '');
@@ -496,6 +498,7 @@ function ErosionTechnicalFields({
             <span className="flex flex-wrap items-center gap-1 text-xs text-slate-500" data-testid="erosion-env-slope">
               {`Terreno em volta da torre ${envTower}: ~${envSlope.toLocaleString('pt-BR')}°`}
               {Number.isFinite(envSlopeMax) ? ` (máx. ${envSlopeMax.toLocaleString('pt-BR')}°)` : ''}
+              {Number.isFinite(envSlopeAnadem) ? ` · terreno sem vegetação (ANADEM): ~${envSlopeAnadem.toLocaleString('pt-BR')}°` : ''}
               {' · relevo de 30 m, não mede a parede da erosão'}
               {parseNumeric(formData.declividadeGraus) !== envSlope ? (
                 <Button type="button" variant="ghost" size="sm" onClick={() => updateField('declividadeGraus', envSlope)}>Usar</Button>

@@ -269,6 +269,17 @@ describe('ErosionTechnicalFields', () => {
       expect(props.onPatch).toHaveBeenLastCalledWith({ declividadeGraus: 9.5 });
     });
 
+    it('mostra o ANADEM so como referencia e aplica o Copernicus', () => {
+      const props = renderFields(root, {
+        towerEnvironment: { ...env, anadem: { declividadeMediaGraus: 7.4, declividadeMaxGraus: 8.7 } },
+      });
+      const slope = container.querySelector('[data-testid="erosion-env-slope"]');
+      expect(slope.textContent).toContain('~9,5°');
+      expect(slope.textContent).toContain('terreno sem vegetação (ANADEM): ~7,4°');
+      clickElement([...slope.querySelectorAll('button')].find((b) => b.textContent === 'Usar'));
+      expect(props.onPatch).toHaveBeenLastCalledWith({ declividadeGraus: 9.5 });
+    });
+
     it('sugere usos do solo com a fonte e soma aos ja marcados', () => {
       const props = renderFields(root, { towerEnvironment: env, formData: { usosSolo: ['acesso'] } });
       const uses = container.querySelector('[data-testid="erosion-env-uses"]');

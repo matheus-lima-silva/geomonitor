@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Solo (IBGE) e indice de suscetibilidade RUSLE por torre (Fases 3/6,
 // docs/plans/erosao-acessos-geodados.md). Usa o que ja esta em tower_environment
-// (declividade do DEM, cobertura MapBiomas), a tabela ibge_pedologia e o fator R
+// (declividade do Copernicus, cobertura MapBiomas), a tabela ibge_pedologia e o fator R
 // do REDB-BR (backend/geodata/REDBBR_Rfactor.tif, CC BY 4.0).
 //
 // Uso (no homelab roda dentro do container da API):
@@ -58,7 +58,7 @@ async function main() {
     }
 
     const out = [];
-    const stats = { semSolo: 0, semRusle: 0, tipos: {}, classes: {} };
+    const stats = { semSolo: 0, semRusle: 0, tipos: {}, classes: {}, declividade: {} };
     rows.forEach((row) => {
         const ibge = row.simbolo || row.ordem ? {
             simbolo: row.simbolo, legenda: row.legenda, ordem: row.ordem, subordem: row.subordem,
@@ -71,7 +71,9 @@ async function main() {
         const k = usaEmbrapa ? kOficial : (ibge ? provisionalK(ibge) : null);
         stats.kEmbrapa = (stats.kEmbrapa || 0) + (usaEmbrapa ? 1 : 0);
         const r = sampleR(Number(row.longitude), Number(row.latitude));
-        const rusle = computeRusle({ r, k, slopeDeg: row.declividade, cobertura: row.cobertura, kFonte: usaEmbrapa ? 'embrapa' : 'provisorio' });
+        const rusleBase = computeRusle({ r, k, slopeDeg: row.declividade, cobertura: row.cobertura, kFonte: usaEmbrapa ? 'embrapa' : 'provisorio' });
+        const rusle = rusleBase ? { ...rusleBase, declividadeFonte: row.declividade_fonte || null } : null;
+        if (row.declividade_fonte) stats.declividade[row.declividade_fonte] = (stats.declividade[row.declividade_fonte] || 0) + 1;
         if (!rusle) stats.semRusle += 1;
         if (tipoSoloSugerido) stats.tipos[tipoSoloSugerido] = (stats.tipos[tipoSoloSugerido] || 0) + 1;
         if (rusle) stats.classes[rusle.classe] = (stats.classes[rusle.classe] || 0) + 1;
@@ -92,6 +94,7 @@ async function main() {
     console.log(`${rows.length} torre(s); sem classe de solo: ${stats.semSolo}; sem RUSLE: ${stats.semRusle}; K da Embrapa: ${stats.kEmbrapa || 0}`);
     console.log('tipo de solo sugerido:', JSON.stringify(stats.tipos));
     console.log('classe RUSLE:', JSON.stringify(stats.classes));
+    console.log('fonte da declividade:', JSON.stringify(stats.declividade));
     if (!apply) {
         console.log('dry-run: nada gravado (use --apply)');
         return;
@@ -100,7 +103,7 @@ async function main() {
         solo: { nome: 'IBGE BDiA Pedologia 1:250.000', versao: '2026' },
         erosividade: { nome: 'REDB-BR (Rainfall Erosivity Database for Brazil)', licenca: 'CC BY 4.0', doi: '10.5281/zenodo.4428308' },
         erodibilidade: { nome: 'Erodibilidade dos solos do Brasil (Embrapa Solos, 2024)', licenca: 'CC BY-NC (uso nao comercial)' },
-        rusle: { observacao: 'Indice relativo; K da Embrapa (provisorio por ordem de solo quando falta); C por uso MapBiomas; rampa 50 m' },
+        rusle: { observacao: 'Indice relativo; K da Embrapa (provisorio por ordem de solo quando falta); declividade do Copernicus (o ANADEM validou pior); C por uso MapBiomas; rampa 50 m' },
     });
     console.log(`ok: ${updated} torre(s) atualizada(s)`);
 }
