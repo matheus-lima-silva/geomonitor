@@ -169,7 +169,7 @@ beforeEach(() => {
 describe('POST /:id/photos/crop-footer-batch', () => {
     it('corta as fotos do lote, pula as ja cortadas e as inexistentes, devolve envelope', async () => {
         seedPhoto('a');
-        seedPhoto('b', { cropHistory: [{ at: '2026-10-12T20:00:00.000Z', pixels: 45, backup: { storageKey: 'ws/WS-1/MA-b.jpg.orig-1' } }] });
+        seedPhoto('b', { cropHistory: [{ at: new Date(Date.now() - 86_400_000).toISOString(), pixels: 45, backup: { storageKey: 'ws/WS-1/MA-b.jpg.orig-1' } }] });
         mockState.store.set('ws/WS-1/MA-b.jpg.orig-1', Buffer.from('orig-b'));
 
         const response = await request(app)
@@ -196,7 +196,7 @@ describe('POST /:id/photos/crop-footer-batch', () => {
     });
 
     it('skipCropped=false corta de novo; 400 em payload invalido; 404 em workspace inexistente', async () => {
-        seedPhoto('b', { cropHistory: [{ at: '2026-10-12T20:00:00.000Z', pixels: 45, backup: { storageKey: 'ws/WS-1/MA-b.jpg.orig-1' } }] });
+        seedPhoto('b', { cropHistory: [{ at: new Date(Date.now() - 86_400_000).toISOString(), pixels: 45, backup: { storageKey: 'ws/WS-1/MA-b.jpg.orig-1' } }] });
         const again = await request(app)
             .post('/api/report-workspaces/WS-1/photos/crop-footer-batch')
             .send({ data: { photoIds: ['RPH-b'], pixels: 45, skipCropped: false } });
