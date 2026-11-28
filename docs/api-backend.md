@@ -1,6 +1,6 @@
 # API Backend (GeoMonitor)
 
-Documentacao dos endpoints expostos pelo servidor Express em `backend/server.js`. O backend usa **PostgreSQL** como datastore (via `pg` + migracoes versionadas em [backend/migrations/](../backend/migrations)) e **S3/Tigris** para midia.
+Documentacao dos endpoints expostos pelo servidor Express em `backend/server.js`. O backend usa **PostgreSQL** como datastore (via `pg` + migracoes versionadas em [backend/migrations/](../backend/migrations)) e **S3-compatible** (MinIO self-hosted, via `utils/mediaStorage.js`) para midia.
 
 ## Base URL
 
@@ -237,14 +237,14 @@ Dois slots fixos por LO: `documentoLO` (PDF original da licenca) e `planoGerenci
 |---|---|---|---|
 | GET | `/api/licenses/:id/attachments` | `requireActiveUser` | Lista slots preenchidos |
 | POST | `/api/licenses/:id/attachments` | `requireEditor` | Vincula `mediaAssetId` a um `slot`. Se ja havia outro asset no slot, remove o anterior (cleanup). Rejeita nao-PDF com 415 |
-| GET | `/api/licenses/:id/attachments/:slot/download` | `requireActiveUser` | 302 para signed URL (Tigris) ou `/api/media/:id/content` (local) |
+| GET | `/api/licenses/:id/attachments/:slot/download` | `requireActiveUser` | 302 para signed URL (S3/MinIO) ou `/api/media/:id/content` (local) |
 | DELETE | `/api/licenses/:id/attachments/:slot` | `requireEditor` | Desvincula slot e remove o asset subjacente |
 
 Slots aceitos: `documentoLO`, `planoGerenciamento`. Body do POST: `{ data: { slot, mediaAssetId }, meta? }`.
 
 **Fluxo de upload ponta-a-ponta:**
 1. `POST /api/media/upload-url` — cliente pede URL assinada com `contentType: 'application/pdf'`.
-2. `PUT <signed-url>` — sobe o arquivo direto pro Tigris.
+2. `PUT <signed-url>` — sobe o arquivo direto pro bucket S3 (MinIO).
 3. `POST /api/media/complete` — marca `ready`.
 4. `POST /api/licenses/:id/attachments` — vincula ao slot.
 
@@ -482,7 +482,7 @@ Resposta (`data`): `{ source: 'archive'|'forecast', latitude, longitude, timezon
 
 ## Media (`/api/media`)
 
-Tabela Postgres: `media_assets`. Servico de upload/download para S3/Tigris (ou disco local quando `MEDIA_BACKEND=local`).
+Tabela Postgres: `media_assets`. Servico de upload/download para S3-compatible/MinIO (ou disco local quando `MEDIA_BACKEND=local`).
 
 | Metodo | Rota | Permissao | Descricao |
 |---|---|---|---|

@@ -15,6 +15,7 @@ Aplicacao web para gestao de empreendimentos, vistorias, licencas, erosoes e rel
 ```
 backend/          API Express + Postgres + S3
 src/              Frontend React (feature-first em src/features/)
+apps/relat/       Portal de relatorios (relat.lima.rio.br, inclui modulo PAEC)
 worker/           Worker Python (DOCX)
 shared/           Helpers compartilhados
 docs/             Documentacao canonica do sistema
@@ -25,7 +26,7 @@ deploy/           Configs de deploy homelab (Docker Compose)
 
 1. **Antes de tocar em `backend/`**, leia [backend/CLAUDE.md](backend/CLAUDE.md).
 2. **Antes de tocar em `src/`**, leia [src/CLAUDE.md](src/CLAUDE.md).
-3. **Fonte canonica de contrato** da API: [docs/api-backend.md](docs/api-backend.md). Todos os 20 routers e ~40 endpoints vivem la com metodo, rota e permissao. **Consultar antes** de criar/alterar qualquer rota e **atualizar junto** com a mudanca.
+3. **Fonte canonica de contrato** da API: [docs/api-backend.md](docs/api-backend.md). Todos os 28 routers e ~180 endpoints vivem la com metodo, rota e permissao. **Consultar antes** de criar/alterar qualquer rota e **atualizar junto** com a mudanca.
 4. **Fonte canonica de padroes UI**: [docs/ui/ui-audit-report.md](docs/ui/ui-audit-report.md). Documenta primitivos, tokens e o audit que reduziu 51→10 controles ad-hoc do wizard de inspecao.
 5. **Modulo de reports** (workspaces, lixeira, archives, membros): ver [docs/modulo-reports.md](docs/modulo-reports.md).
 
@@ -76,4 +77,4 @@ Detalhes por camada nos CLAUDE.md especificos.
 
 Revisar a cada trimestre ou sempre que houver migracao de stack, modulo novo ou nova convencao global. Ao atualizar, bumpar a data do rodape. PR que muda comportamento documentado deve atualizar o doc correspondente no mesmo PR.
 
-> Ultima revisao: 2026-05-28.
+> Ultima revisao: 2026-11-27.
