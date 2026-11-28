@@ -8,7 +8,7 @@ const {
     buildFlags,
     summarizeSegments,
 } = require('../utils/accessClassification');
-const { classifySurface, projectBbox, tilesForBbox, buildOverpassQuery, parseOverpassWays } = require('../utils/osmRoads');
+const { classifySurface, projectBbox, tilesForBbox, tilesAroundTowers, tileKey, buildOverpassQuery, parseOverpassWays } = require('../utils/osmRoads');
 const { buildAccessPreview } = require('../utils/towerAccessPreview');
 
 // Linha reta norte-sul de ~1.000 m (0,009 grau de latitude) em -47.
@@ -95,6 +95,19 @@ describe('osmRoads', () => {
         expect(tiles).toHaveLength(4);
         expect(buildOverpassQuery(tiles[0])).toContain('way["highway"~"^(motorway|');
         expect(projectBbox([])).toBeNull();
+    });
+
+    it('ladrilhos so em volta das torres, alinhados e sem repetir entre empreendimentos', () => {
+        const tiles = tilesAroundTowers([
+            { longitude: -47.05, latitude: -21.05, projectId: 'A' },
+            { longitude: -47.06, latitude: -21.06, projectId: 'B' }, // mesma celula
+            { longitude: -47.01, latitude: -21.15, projectId: 'A' }, // perto da borda: pega a vizinha a leste
+            { longitude: 'x', latitude: -21, projectId: 'C' },
+        ], 0.2, 0.03);
+        expect(tiles.map((t) => t.key)).toEqual(['-47.2000,-21.2000', '-47.0000,-21.2000']);
+        expect(tiles[0]).toMatchObject({ minLon: -47.2, maxLon: -47, minLat: -21.2, maxLat: -21, projectIds: ['A', 'B'] });
+        expect(tiles[1].projectIds).toEqual(['A']);
+        expect(tileKey({ minLon: -47.2000000001, minLat: -21.2 })).toBe('-47.2000,-21.2000');
     });
 
     it('converte a resposta do Overpass', () => {

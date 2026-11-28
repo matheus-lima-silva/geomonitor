@@ -94,8 +94,21 @@ async function recordLoad({ minLon, minLat, maxLon, maxLat, projectIds = [], way
     );
 }
 
+/** Envelopes ja carregados ([{ minLon, minLat, maxLon, maxLat }]), para retomar cargas. */
+async function listLoadedBboxes() {
+    const result = await postgresStore.query(
+        `SELECT ST_XMin(bbox::geometry) AS min_lon, ST_YMin(bbox::geometry) AS min_lat,
+                ST_XMax(bbox::geometry) AS max_lon, ST_YMax(bbox::geometry) AS max_lat
+         FROM osm_road_loads`,
+    );
+    return result.rows.map((row) => ({
+        minLon: Number(row.min_lon), minLat: Number(row.min_lat), maxLon: Number(row.max_lon), maxLat: Number(row.max_lat),
+    }));
+}
+
 module.exports = {
     classifyPoints,
+    listLoadedBboxes,
     hasCoverage,
     upsertMany,
     recordLoad,

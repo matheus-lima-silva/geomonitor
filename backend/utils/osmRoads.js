@@ -54,6 +54,47 @@ function tilesForBbox(bbox, sizeDeg = 0.4) {
     return tiles;
 }
 
+function roundDeg(value) {
+    return Math.round(value * 1e6) / 1e6;
+}
+
+/** Chave estavel de um ladrilho (para retomar cargas interrompidas). */
+function tileKey({ minLon, minLat }) {
+    return `${roundDeg(minLon).toFixed(4)},${roundDeg(minLat).toFixed(4)}`;
+}
+
+/**
+ * Ladrilhos de uma grade fixa (alinhada em multiplos de `sizeDeg`) que cobrem
+ * cada torre com `marginDeg` de folga. So entram celulas com torre por perto, e
+ * celulas compartilhadas por varios empreendimentos aparecem uma vez so.
+ * `towers`: [{ longitude, latitude, projectId }].
+ * @returns [{ minLon, minLat, maxLon, maxLat, key, projectIds: [] }]
+ */
+function tilesAroundTowers(towers, sizeDeg = 0.2, marginDeg = 0.03) {
+    const cells = new Map();
+    (Array.isArray(towers) ? towers : []).forEach((t) => {
+        const lon = Number(t?.longitude);
+        const lat = Number(t?.latitude);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return;
+        for (let x = Math.floor((lon - marginDeg) / sizeDeg); x <= Math.floor((lon + marginDeg) / sizeDeg); x += 1) {
+            for (let y = Math.floor((lat - marginDeg) / sizeDeg); y <= Math.floor((lat + marginDeg) / sizeDeg); y += 1) {
+                const tile = {
+                    minLon: roundDeg(x * sizeDeg),
+                    minLat: roundDeg(y * sizeDeg),
+                    maxLon: roundDeg((x + 1) * sizeDeg),
+                    maxLat: roundDeg((y + 1) * sizeDeg),
+                };
+                const key = tileKey(tile);
+                if (!cells.has(key)) cells.set(key, { ...tile, key, projectIds: new Set() });
+                if (t.projectId) cells.get(key).projectIds.add(t.projectId);
+            }
+        }
+    });
+    return [...cells.values()]
+        .map((cell) => ({ ...cell, projectIds: [...cell.projectIds].sort() }))
+        .sort((a, b) => (a.minLat - b.minLat) || (a.minLon - b.minLon));
+}
+
 function buildOverpassQuery({ minLon, minLat, maxLon, maxLat }, timeoutSec = 240) {
     const pattern = `^(${PUBLIC_HIGHWAYS.join('|')})$`;
     return `[out:json][timeout:${timeoutSec}];way["highway"~"${pattern}"](${minLat},${minLon},${maxLat},${maxLon});out tags geom;`;
@@ -84,6 +125,8 @@ module.exports = {
     classifySurface,
     projectBbox,
     tilesForBbox,
+    tilesAroundTowers,
+    tileKey,
     buildOverpassQuery,
     parseOverpassWays,
 };
