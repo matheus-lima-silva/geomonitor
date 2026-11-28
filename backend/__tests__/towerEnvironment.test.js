@@ -99,3 +99,33 @@ describe('rasterSources', () => {
         expect(out.sources.relevo.nome).toBe('Copernicus DEM GLO-30');
     });
 });
+
+const { summarizeMapbiomasHistogram, parseMapbiomasTowerCsv } = require('../utils/mapbiomasClasses');
+
+describe('MapBiomas por torre', () => {
+    it('fracoes, classe predominante e usos sugeridos a partir de 20%', () => {
+        const out = summarizeMapbiomasHistogram({ 15: 6, 21: 2.5, 3: 1, 24: 0.5 });
+        expect(out.cobertura).toEqual({ 15: 0.6, 21: 0.25, 3: 0.1, 24: 0.05 });
+        expect(out.classePredominante).toBe('Pastagem');
+        // mosaico de usos (25%) sugere pastagem e cultivo; floresta (10%) e area urbana (5%) ficam de fora
+        expect(out.usosSoloSugeridos.sort()).toEqual(['cultivo', 'pastagem']);
+        expect(out.usoSoloOutroSugerido).toBe('');
+    });
+
+    it('classes "outro" levam o nome e histograma vazio vira null', () => {
+        expect(summarizeMapbiomasHistogram({ 30: 3 })).toMatchObject({ usosSoloSugeridos: ['outro'], usoSoloOutroSugerido: 'Mineracao' });
+        expect(summarizeMapbiomasHistogram({})).toBeNull();
+        expect(summarizeMapbiomasHistogram({ 0: 5 })).toBeNull();
+    });
+
+    it('le o CSV exportado pelo Earth Engine (classes em JSON entre aspas)', () => {
+        const csv = 'projeto,torre,latitude,longitude,ano,colecao,classes\n'
+            + 'adrbfl,388,,,2024,11,"{""15"":7.84}"\n'
+            + 'ARAPCA,104,,,2024,11,"{""15"":3,""3"":1}"\n';
+        const rows = parseMapbiomasTowerCsv(csv);
+        expect(rows).toHaveLength(2);
+        expect(rows[0]).toMatchObject({ projeto: 'ADRBFL', torre: '388', ano: 2024, colecao: 11, histogram: { 15: 7.84 } });
+        expect(rows[1].histogram).toEqual({ 15: 3, 3: 1 });
+        expect(() => parseMapbiomasTowerCsv('a,b\n1,2')).toThrow('projeto');
+    });
+});

@@ -49,7 +49,45 @@ async function upsert({ projectId, towerNumber, latitude, longitude, payload, so
     );
 }
 
+/**
+ * Junta dados do MapBiomas no payload ja calculado (WorldCover/relevo), em lote.
+ * O MapBiomas vira a fonte principal dos usos do solo sugeridos; as sugestoes do
+ * WorldCover ficam em worldcoverUsosSoloSugeridos. Retorna quantas torres foram
+ * atualizadas (torres sem linha em tower_environment sao ignoradas).
+ * rows: [{ projectId, towerNumber, mapbiomas: { ano, colecao, cobertura, ... } }]
+ */
+async function mergeMapbiomas(rows, source) {
+    let updated = 0;
+    for (let start = 0; start < rows.length; start += 1000) {
+        const chunk = rows.slice(start, start + 1000);
+        const result = await postgresStore.query(
+            `
+                UPDATE tower_environment te SET
+                    payload = te.payload
+                        || jsonb_build_object(
+                            'mapbiomas', r.mapbiomas,
+                            'worldcoverUsosSoloSugeridos', COALESCE(te.payload->'worldcoverUsosSoloSugeridos', te.payload->'usosSoloSugeridos', '[]'::jsonb),
+                            'usosSoloSugeridos', r.mapbiomas->'usosSoloSugeridos',
+                            'usoSoloOutroSugerido', r.mapbiomas->'usoSoloOutroSugerido',
+                            'usosSoloFonte', $2::text
+                        ),
+                    sources = te.sources || jsonb_build_object('coberturaMapbiomas', $3::jsonb)
+                FROM jsonb_to_recordset($1::jsonb) AS r(project_id text, tower_number text, mapbiomas jsonb)
+                WHERE te.project_id = r.project_id AND te.tower_number = r.tower_number
+            `,
+            [
+                JSON.stringify(chunk.map((row) => ({ project_id: row.projectId, tower_number: String(row.towerNumber), mapbiomas: row.mapbiomas }))),
+                source.rotulo,
+                JSON.stringify(source),
+            ],
+        );
+        updated += result.rowCount;
+    }
+    return updated;
+}
+
 module.exports = {
+    mergeMapbiomas,
     listByProject,
     listComputedKeys,
     upsert,
